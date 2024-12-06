@@ -31,10 +31,29 @@ namespace Core::LinearSolver
    * A. Prokopenko, C. M. Siefert, R. S. Tuminaro, T. A. Wiesner:
    * MueLu User's Guide, Technical Report, Sandia National Laboratories, SAND2019-0537, 2019
    */
-  class MueLuPreconditioner : public PreconditionerTypeBase
-  {
-   public:
-    MueLuPreconditioner(Teuchos::ParameterList& muelulist);
+  class MueLuPreconditioner : public PreconditionerTypeBase {
+  public:
+    MueLuPreconditioner(Teuchos::ParameterList &muelulist);
+
+    static void printParameterList(const Teuchos::ParameterList &pL, int indentLevel = 0) {
+      std::string indent(indentLevel, ' ');
+      int rank;//
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);//
+      if (rank == 0) {
+        for (auto it = pL.begin(); it != pL.end(); ++it) {
+          const std::string &name = pL.name(it);
+
+          // Check if this is a sublist
+          if (pL.isSublist(name)) {
+            std::cout << indent << "Sublist: " << name << "\n";
+            printParameterList(pL.sublist(name), indentLevel + 2);
+          } else {
+            // Otherwise, print the parameter
+            std::cout << indent << "Parameter: " << name << " = " << pL.getEntry(name).getAny() << "\n";
+          }
+        }
+      }
+    }
 
     /*! \brief Create and compute the preconditioner
      *
@@ -53,75 +72,30 @@ namespace Core::LinearSolver
      * @param x Solution of the linear system
      * @param b Right-hand side of the linear system
      */
-    void setup(bool create, Epetra_Operator* matrix, Core::LinAlg::MultiVector<double>* x,
-        Core::LinAlg::MultiVector<double>* b) override;
+    void setup(bool create, Epetra_Operator *matrix, Core::LinAlg::MultiVector<double> *x,
+               Core::LinAlg::MultiVector<double> *b) override;
 
     //! linear operator used for preconditioning
-    std::shared_ptr<Epetra_Operator> prec_operator() const final
-    {
+    std::shared_ptr <Epetra_Operator> prec_operator() const final {
       return Core::Utils::shared_ptr_from_ref(*P_);
     }
 
-   private:
+  private:
     //! system of equations used for preconditioning used by P_ only
-    Teuchos::RCP<Xpetra::Matrix<Scalar, LocalOrdinal, GlobalOrdinal, Node>> pmatrix_;
+    Teuchos::RCP<Xpetra::Matrix < Scalar, LocalOrdinal, GlobalOrdinal, Node>> pmatrix_;
 
-   protected:
+  protected:
     //! MueLu parameter list
-    Teuchos::ParameterList& muelulist_;
+    Teuchos::ParameterList &muelulist_;
 
     //! preconditioner
     Teuchos::RCP<Epetra_Operator> P_;
 
     //! MueLu hierarchy
-    Teuchos::RCP<MueLu::Hierarchy<Scalar, LocalOrdinal, GlobalOrdinal, Node>> H_;
+    Teuchos::RCP<MueLu::Hierarchy < Scalar, LocalOrdinal, GlobalOrdinal, Node>> H_;
 
   };  // class MueLuPreconditioner
-
-  /*! \brief MueLu preconditioner for blocked linear systems of equations for contact problems
-   * in saddlepoint formulation.
-   *
-   *  T. A. Wiesner, M. Mayr, A. Popp, M. W. Gee, W. A. Wall: Algebraic multigrid methods for
-   * saddle point systems arising from mortar contact formulations, International Journal for
-   * Numerical Methods in Engineering, 122(15):3749-3779, 2021, https://doi.org/10.1002/nme.6680
-   */
-  class MueLuContactSpPreconditioner : public MueLuPreconditioner
-  {
-   public:
-    MueLuContactSpPreconditioner(Teuchos::ParameterList& muelulist);
-
-    /*! \brief Create and compute the preconditioner
-     *
-     * The saddle-point preconditioner only works for matrices of the type
-     * BlockSparseMatrix. We assume the structure and block indices to be
-     * \f[
-     * A = \left[\begin{array}{cc}
-     *       A_{11} & A_{12}\\
-     *       A_{21} & A_{22}
-     *     \end{array}\right]
-     * \f]
-     * We check whether the input \c matrix is of proper type and throw an
-     * error if not.
-     *
-     * This routine either re-create the entire preconditioner from scratch or
-     * it re-uses the existing preconditioner and only updates the fine level matrix
-     * for the Krylov solver.
-     *
-     * @param create Boolean flag to enforce (re-)creation of the preconditioner
-     * @param matrix BlockSparseMatrix to be used as input for the preconditioner
-     * @param x Solution of the linear system
-     * @param b Right-hand side of the linear system
-     */
-    void setup(bool create, Epetra_Operator* matrix, Core::LinAlg::MultiVector<double>* x,
-        Core::LinAlg::MultiVector<double>* b) override;
-
-   private:
-    //! system of equations used for preconditioning used by P_ only
-    Teuchos::RCP<Core::LinAlg::BlockSparseMatrixBase> pmatrix_;
-
-  };  // class MueLuContactSpPreconditioner
-}  // namespace Core::LinearSolver
-
+}
 FOUR_C_NAMESPACE_CLOSE
 
 #endif
