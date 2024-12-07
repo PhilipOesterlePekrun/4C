@@ -31,29 +31,10 @@ namespace Core::LinearSolver
    * A. Prokopenko, C. M. Siefert, R. S. Tuminaro, T. A. Wiesner:
    * MueLu User's Guide, Technical Report, Sandia National Laboratories, SAND2019-0537, 2019
    */
-  class MueLuPreconditioner : public PreconditionerTypeBase {
-  public:
+  class MueLuPreconditioner : public PreconditionerTypeBase
+  {
+   public:
     MueLuPreconditioner(Teuchos::ParameterList &muelulist);
-
-    static void printParameterList(const Teuchos::ParameterList &pL, int indentLevel = 0) {
-      std::string indent(indentLevel, ' ');
-      int rank;//
-      MPI_Comm_rank(MPI_COMM_WORLD, &rank);//
-      if (rank == 0) {
-        for (auto it = pL.begin(); it != pL.end(); ++it) {
-          const std::string &name = pL.name(it);
-
-          // Check if this is a sublist
-          if (pL.isSublist(name)) {
-            std::cout << indent << "Sublist: " << name << "\n";
-            printParameterList(pL.sublist(name), indentLevel + 2);
-          } else {
-            // Otherwise, print the parameter
-            std::cout << indent << "Parameter: " << name << " = " << pL.getEntry(name).getAny() << "\n";
-          }
-        }
-      }
-    }
 
     /*! \brief Create and compute the preconditioner
      *
@@ -73,18 +54,19 @@ namespace Core::LinearSolver
      * @param b Right-hand side of the linear system
      */
     void setup(bool create, Epetra_Operator *matrix, Core::LinAlg::MultiVector<double> *x,
-               Core::LinAlg::MultiVector<double> *b) override;
+        Core::LinAlg::MultiVector<double> *b) override;
 
     //! linear operator used for preconditioning
-    std::shared_ptr <Epetra_Operator> prec_operator() const final {
+    std::shared_ptr<Epetra_Operator> prec_operator() const final
+    {
       return Core::Utils::shared_ptr_from_ref(*P_);
     }
 
-  private:
+   private:
     //! system of equations used for preconditioning used by P_ only
-    Teuchos::RCP<Xpetra::Matrix < Scalar, LocalOrdinal, GlobalOrdinal, Node>> pmatrix_;
+    Teuchos::RCP<Xpetra::Matrix<Scalar, LocalOrdinal, GlobalOrdinal, Node>> pmatrix_;
 
-  protected:
+   protected:
     //! MueLu parameter list
     Teuchos::ParameterList &muelulist_;
 
@@ -92,10 +74,10 @@ namespace Core::LinearSolver
     Teuchos::RCP<Epetra_Operator> P_;
 
     //! MueLu hierarchy
-    Teuchos::RCP<MueLu::Hierarchy < Scalar, LocalOrdinal, GlobalOrdinal, Node>> H_;
+    Teuchos::RCP<MueLu::Hierarchy<Scalar, LocalOrdinal, GlobalOrdinal, Node>> H_;
 
   };  // class MueLuPreconditioner
-}
+}  // namespace Core::LinearSolver
 FOUR_C_NAMESPACE_CLOSE
 
 #endif
