@@ -539,16 +539,10 @@ Adapter::StructureBaseAlgorithm::create_contact_meshtying_solver(
         // provide null space information
         if (prec == Core::LinearSolver::PreconditionerType::multigrid_muelu)
         {
-          solver->params().sublist("Inverse1").sublist("Belos Parameters");
-          solver->params().sublist("Inverse2").sublist("Belos Parameters");
-
           Core::LinearSolver::Parameters::compute_solver_parameters(
-                  actdis, solver->params().sublist("Inverse1").sublist("MueLu Parameters"));
+              actdis, solver->params().sublist("Inverse1").sublist("MueLu Parameters"));
           Core::LinearSolver::Parameters::compute_solver_parameters(
-                  actdis, solver->params().sublist("Inverse2").sublist("MueLu Parameters"));
-
-          actdis.compute_null_space_if_necessary(solver->params().sublist("Inverse1"), true);
-          actdis.compute_null_space_if_necessary(solver->params().sublist("Inverse2"), true);
+              actdis, solver->params().sublist("Inverse2").sublist("MueLu Parameters"));
         }
         else if (prec == Core::LinearSolver::PreconditionerType::block_teko)
         {
