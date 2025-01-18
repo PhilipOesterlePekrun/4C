@@ -111,6 +111,9 @@ namespace CONTACT
     //! return the current solution type
     virtual Inpar::CONTACT::SolvingStrategy type() const { return stype_; }
 
+    //! return gsnoderowmap_
+    std::shared_ptr<Epetra_Map> get_gsnoderowmap_() {return gsnoderowmap_; }//#
+
     //! @name Access methods
     //!@{
 

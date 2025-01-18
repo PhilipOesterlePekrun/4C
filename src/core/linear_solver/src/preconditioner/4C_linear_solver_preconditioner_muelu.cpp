@@ -32,165 +32,191 @@
 
 FOUR_C_NAMESPACE_OPEN
 
-using SC = Scalar;
-using LO = LocalOrdinal;
-using GO = GlobalOrdinal;
-using NO = Node;
+  using SC = Scalar;
+  using LO = LocalOrdinal;
+  using GO = GlobalOrdinal;
+  using NO = Node;
 
 //----------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------
-Core::LinearSolver::MueLuPreconditioner::MueLuPreconditioner(Teuchos::ParameterList& muelulist)
-    : muelulist_(muelulist)
-{
-}
-
-//----------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------
-void Core::LinearSolver::MueLuPreconditioner::setup(bool create, Epetra_Operator* matrix,
-    Core::LinAlg::MultiVector<double>* x, Core::LinAlg::MultiVector<double>* b)
-{
-  using EpetraCrsMatrix = Xpetra::EpetraCrsMatrixT<GO, NO>;
-  using EpetraMap = Xpetra::EpetraMapT<GO, NO>;
-  using EpetraMultiVector = Xpetra::EpetraMultiVectorT<GO, NO>;
-
-  if (create)
+  Core::LinearSolver::MueLuPreconditioner::MueLuPreconditioner(Teuchos::ParameterList& muelulist)
+          : muelulist_(muelulist)
   {
-    Teuchos::RCP<Core::LinAlg::BlockSparseMatrixBase> A =
-        Teuchos::rcp_dynamic_cast<Core::LinAlg::BlockSparseMatrixBase>(
-            Teuchos::rcpFromRef(*matrix));
+  }
 
-    if (A.is_null())
-    {
-      Teuchos::RCP<Epetra_CrsMatrix> crsA =
-          Teuchos::rcp_dynamic_cast<Epetra_CrsMatrix>(Teuchos::rcpFromRef(*matrix));
+//----------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------
+  void Core::LinearSolver::MueLuPreconditioner::setup(bool create, Epetra_Operator* matrix,
+                                                      Core::LinAlg::MultiVector<double>* x, Core::LinAlg::MultiVector<double>* b) {
+    using EpetraCrsMatrix = Xpetra::EpetraCrsMatrixT<GO, NO>;
+    using EpetraMap = Xpetra::EpetraMapT<GO, NO>;
+    using EpetraMultiVector = Xpetra::EpetraMultiVectorT<GO, NO>;
 
-      Teuchos::RCP<Xpetra::CrsMatrix<SC, LO, GO, NO>> mueluA =
-          Teuchos::make_rcp<EpetraCrsMatrix>(crsA);
-      pmatrix_ = Xpetra::MatrixFactory<SC, LO, GO, NO>::BuildCopy(
-          Teuchos::make_rcp<Xpetra::CrsMatrixWrap<SC, LO, GO, NO>>(mueluA));
+    Teuchos::RCP<Core::LinAlg::BlockSparseMatrixBase> A;
+    bool A_is_null = false;
 
-      Teuchos::ParameterList& inverseList = muelulist_.sublist("MueLu Parameters");
+    if (create) {
+      A = Teuchos::rcp_dynamic_cast<Core::LinAlg::BlockSparseMatrixBase>(Teuchos::rcpFromRef(*matrix));
 
-      std::string xmlFileName = inverseList.get<std::string>("MUELU_XML_FILE");
-      if (xmlFileName == "none") FOUR_C_THROW("MUELU_XML_FILE parameter not set!");
+      if (A.is_null()) {
+        A_is_null = true;
 
-      Teuchos::RCP<Teuchos::ParameterList> muelu_params =
-          Teuchos::make_rcp<Teuchos::ParameterList>();
-      auto comm = pmatrix_->getRowMap()->getComm();
-      Teuchos::updateParametersFromXmlFileAndBroadcast(xmlFileName, muelu_params.ptr(), *comm);
+        Teuchos::RCP<Epetra_CrsMatrix> crsA =
+                Teuchos::rcp_dynamic_cast<Epetra_CrsMatrix>(Teuchos::rcpFromRef(*matrix));
 
-      const int number_of_equations = inverseList.get<int>("PDE equations");
-      pmatrix_->SetFixedBlockSize(number_of_equations);
+        Teuchos::RCP<Xpetra::CrsMatrix<SC, LO, GO, NO>> mueluA =
+                                                                Teuchos::make_rcp<EpetraCrsMatrix>(crsA);
+        pmatrix_ = Xpetra::MatrixFactory<SC, LO, GO, NO>::BuildCopy(
+                Teuchos::make_rcp<Xpetra::CrsMatrixWrap<SC, LO, GO, NO>>(mueluA));
 
-      Teuchos::RCP<const Xpetra::Map<LO, GO, NO>> row_map = mueluA->getRowMap();
-      Teuchos::RCP<Xpetra::MultiVector<SC, LO, GO, NO>> nullspace =
-          Core::LinearSolver::Parameters::extract_nullspace_from_parameterlist(
-              *row_map, inverseList);
+        Teuchos::ParameterList& inverseList = muelulist_.sublist("MueLu Parameters");
 
-      Teuchos::RCP<Xpetra::MultiVector<SC, LO, GO, NO>> coordinates =
-          Teuchos::make_rcp<EpetraMultiVector>(Teuchos::rcpFromRef(
-              *inverseList.get<std::shared_ptr<Core::LinAlg::MultiVector<double>>>("Coordinates")
-                   ->get_ptr_of_Epetra_MultiVector()));
+        std::string xmlFileName = inverseList.get<std::string>("MUELU_XML_FILE");
+        if (xmlFileName == "none") FOUR_C_THROW("MUELU_XML_FILE parameter not set!");
 
-      muelu_params->set("number of equations", number_of_equations);
-      Teuchos::ParameterList& user_param_list = muelu_params->sublist("user data");
-      user_param_list.set("Nullspace", nullspace);
-      user_param_list.set("Coordinates", coordinates);
+        Teuchos::RCP<Teuchos::ParameterList> muelu_params =
+                Teuchos::make_rcp<Teuchos::ParameterList>();
+        auto comm = pmatrix_->getRowMap()->getComm();
+        Teuchos::updateParametersFromXmlFileAndBroadcast(xmlFileName, muelu_params.ptr(), *comm);
 
-      H_ = MueLu::CreateXpetraPreconditioner(pmatrix_, *muelu_params);
-      P_ = Teuchos::make_rcp<MueLu::EpetraOperator>(H_);
+        const int number_of_equations = inverseList.get<int>("PDE equations");
+        pmatrix_->SetFixedBlockSize(number_of_equations);
+
+        Teuchos::RCP<const Xpetra::Map<LO, GO, NO>> row_map = mueluA->getRowMap();
+        Teuchos::RCP<Xpetra::MultiVector<SC, LO, GO, NO>> nullspace =
+                                                                  Core::LinearSolver::Parameters::extract_nullspace_from_parameterlist(
+                                                                          *row_map, inverseList);
+
+        Teuchos::RCP<Xpetra::MultiVector<SC, LO, GO, NO>> coordinates =
+                                                                  Teuchos::make_rcp<EpetraMultiVector>(Teuchos::rcpFromRef(
+                                                                          *inverseList.get<std::shared_ptr<Core::LinAlg::MultiVector<double>>>("Coordinates")
+                ->get_ptr_of_Epetra_MultiVector()));
+
+        muelu_params->set("number of equations", number_of_equations);
+        Teuchos::ParameterList& user_param_list = muelu_params->sublist("user data");
+        user_param_list.set("Nullspace", nullspace);
+        user_param_list.set("Coordinates", coordinates);
+
+        H_ = MueLu::CreateXpetraPreconditioner(pmatrix_, *muelu_params);
+        P_ = Teuchos::make_rcp<MueLu::EpetraOperator>(H_);
+
+        return;
+      }
     }
-    else
-    {
-      std::vector<Teuchos::RCP<const Xpetra::Map<LO, GO, NO>>> maps;
 
-      for (int block = 0; block < A->rows(); block++)
-      {
-        EpetraCrsMatrix crsA(Teuchos::rcpFromRef(*A->matrix(block, block).epetra_matrix()));
+    if (!A_is_null) {
+      if (!create) A = Teuchos::rcp_dynamic_cast<Core::LinAlg::BlockSparseMatrixBase>(Teuchos::rcpFromRef(*matrix));
+
+      std::vector <Teuchos::RCP<const Xpetra::Map <LO, GO, NO>>> maps;
+
+      int numdf=-1;
+
+      for (int block = 0; block < A->rows(); block++) {
+        Teuchos::RCP<Xpetra::CrsMatrix<SC, LO, GO, NO>> xCrsA = Teuchos::make_rcp<EpetraCrsMatrix>(Teuchos::rcp(A->matrix(block, block).epetra_matrix()));
 
         std::string inverse = "Inverse" + std::to_string(block + 1);
-        Teuchos::ParameterList& inverseList =
-            muelulist_.sublist(inverse).sublist("MueLu Parameters");
+        Teuchos::ParameterList &inverseList =
+                muelulist_.sublist(inverse).sublist("MueLu Parameters");
         const int number_of_equations = inverseList.get<int>("PDE equations");
 
-        std::vector<size_t> striding;
-        striding.emplace_back(number_of_equations);
+        std::vector <size_t> striding;
 
-        Teuchos::RCP<const Xpetra::StridedMap<LO, GO, NO>> map =
-            Teuchos::make_rcp<Xpetra::StridedMap<LO, GO, NO>>(crsA.getRowMap()->lib(),
-                crsA.getRowMap()->getGlobalNumElements(), crsA.getRowMap()->getLocalElementList(),
-                crsA.getRowMap()->getIndexBase(), striding, crsA.getRowMap()->getComm(), -1);
+        striding.push_back(number_of_equations);
+        if(block==0) numdf=number_of_equations;
 
-        maps.emplace_back(map);
+        Teuchos::RCP<const Xpetra::StridedMap <LO, GO, NO>> map =
+                Teuchos::make_rcp<Xpetra::StridedMap < LO, GO, NO>>
+        (xCrsA->getRowMap(), striding, xCrsA->getRowMap()->getIndexBase(), -1, 0);
+
+        maps.push_back(map);
       }
 
-      Teuchos::RCP<const EpetraMap> fullrangemap =
-          Teuchos::make_rcp<EpetraMap>(Teuchos::rcpFromRef(A->full_range_map()));
-      Teuchos::RCP<const Xpetra::MapExtractor<SC, LO, GO, NO>> map_extractor =
-          Xpetra::MapExtractorFactory<SC, LO, GO, NO>::Build(fullrangemap, maps);
+      Teuchos::RCP<const Xpetra::Map<LO, GO, NO>> fullrangemap =
+              Xpetra::MapUtils<LO, GO, NO>::concatenateMaps(maps);
+      Teuchos::RCP<const Xpetra::MapExtractor <SC, LO, GO, NO>> map_extractor =
+              Xpetra::MapExtractorFactory<SC, LO, GO, NO>::Build(fullrangemap, maps);
 
-      auto bOp = Teuchos::make_rcp<Xpetra::BlockedCrsMatrix<SC, LO, GO, NO>>(
-          map_extractor, map_extractor, 42);
+      Teuchos::RCP<Xpetra::BlockedCrsMatrix<SC, LO, GO, NO>> bOp =
+                                                                     Teuchos::make_rcp<Xpetra::BlockedCrsMatrix<SC, LO, GO, NO>>(map_extractor, map_extractor, 81);
 
-      for (int row = 0; row < A->rows(); row++)
-      {
-        for (int col = 0; col < A->cols(); col++)
-        {
-          Teuchos::RCP<Xpetra::CrsMatrix<SC, LO, GO, NO>> crsA = Teuchos::make_rcp<EpetraCrsMatrix>(
-              Teuchos::rcpFromRef(*A->matrix(row, col).epetra_matrix()));
-          Teuchos::RCP<Xpetra::Matrix<SC, LO, GO, NO>> mat =
-              Xpetra::MatrixFactory<SC, LO, GO, NO>::BuildCopy(
-                  Teuchos::make_rcp<Xpetra::CrsMatrixWrap<SC, LO, GO, NO>>(crsA));
+      for (int row = 0; row < A->rows(); row++) {
+        for (int col = 0; col < A->cols(); col++) {
+          Teuchos::RCP<Xpetra::CrsMatrix < SC, LO, GO, NO>> crsA = Teuchos::make_rcp<EpetraCrsMatrix>(Teuchos::rcpFromRef(*A->matrix(row, col).epetra_matrix()));
+
+          Teuchos::RCP<Xpetra::Matrix < SC, LO, GO, NO>>
+          mat =
+                  Xpetra::MatrixFactory<SC, LO, GO, NO>::BuildCopy(
+                          Teuchos::make_rcp<Xpetra::CrsMatrixWrap < SC, LO, GO, NO>>
+          (crsA));
           bOp->setMatrix(row, col, mat);
         }
       }
 
+      bOp->SetFixedBlockSize(numdf);
       bOp->fillComplete();
-      pmatrix_ = bOp;
 
-      if (!muelulist_.sublist("MueLu Parameters").isParameter("MUELU_XML_FILE"))
-        FOUR_C_THROW("MUELU_XML_FILE parameter not set!");
+      if (create) {
 
-      std::string xmlFileName =
-          muelulist_.sublist("MueLu Parameters").get<std::string>("MUELU_XML_FILE");
-      Teuchos::RCP<Teuchos::ParameterList> mueluParams =
-          Teuchos::make_rcp<Teuchos::ParameterList>();
-      auto comm = pmatrix_->getRowMap()->getComm();
-      Teuchos::updateParametersFromXmlFileAndBroadcast(xmlFileName, mueluParams.ptr(), *comm);
+        // free old matrix first
+        P_ = Teuchos::null;
 
-      MueLu::ParameterListInterpreter<SC, LO, GO, NO> mueLuFactory(xmlFileName, *comm);
-      Teuchos::RCP<MueLu::Hierarchy<SC, LO, GO, NO>> H = mueLuFactory.CreateHierarchy();
-      H->GetLevel(0)->Set("A", Teuchos::rcp_dynamic_cast<Xpetra::Matrix<SC, LO, GO, NO>>(pmatrix_));
+        if (!muelulist_.sublist("MueLu Parameters").isParameter("MUELU_XML_FILE"))
+          FOUR_C_THROW("MUELU_XML_FILE parameter not set!");
 
-      for (int block = 0; block < A->rows(); block++)
-      {
-        std::string inverse = "Inverse" + std::to_string(block + 1);
-        Teuchos::ParameterList& inverse_list =
-            muelulist_.sublist(inverse).sublist("MueLu Parameters");
+        std::string xmlFileName =
+                muelulist_.sublist("MueLu Parameters").get<std::string>("MUELU_XML_FILE");
+        Teuchos::RCP<Teuchos::ParameterList> mueluParams =
+                Teuchos::make_rcp<Teuchos::ParameterList>();
+        auto comm = bOp->getRowMap()->getComm();
+        Teuchos::updateParametersFromXmlFileAndBroadcast(xmlFileName, mueluParams.ptr(), *comm);
 
-        Teuchos::RCP<Xpetra::MultiVector<SC, LO, GO, NO>> nullspace =
-            Teuchos::make_rcp<EpetraMultiVector>(Teuchos::rcpFromRef(
-                *inverse_list.get<std::shared_ptr<Core::LinAlg::MultiVector<double>>>("nullspace")
-                     ->get_ptr_of_Epetra_MultiVector()));
+        MueLu::ParameterListInterpreter <SC, LO, GO, NO> mueLuFactory(xmlFileName, *comm);
+        Teuchos::RCP<MueLu::Hierarchy < SC, LO, GO, NO>>
+        H = mueLuFactory.CreateHierarchy();
+        H->GetLevel(0)->Set("A", Teuchos::rcp_dynamic_cast<Xpetra::Matrix < SC, LO, GO, NO>>
+        (bOp));
 
-        H->GetLevel(0)->Set("Nullspace" + std::to_string(block + 1), nullspace);
+        for (int block = 0; block < A->rows(); block++) {
+          std::string inverse = "Inverse" + std::to_string(block + 1);
+          Teuchos::ParameterList &inverse_list =
+                  muelulist_.sublist(inverse).sublist("MueLu Parameters");
+
+          Teuchos::RCP<Xpetra::MultiVector < SC, LO, GO, NO>>
+
+          nullspace = Core::LinearSolver::Parameters::extract_nullspace_from_parameterlist(
+                  *maps.at(block), inverse_list);
+
+          H->GetLevel(0)->Set("Nullspace" + std::to_string(block + 1), nullspace);
+        }
+
+        if (muelulist_.sublist("Belos Parameters").isParameter("contact slaveDofMap")) {
+          Teuchos::RCP<Epetra_Map> ep_slave_dof_map =
+                  muelulist_.sublist("Belos Parameters")
+                          .get<Teuchos::RCP<Epetra_Map>>("contact slaveDofMap");
+
+          if (ep_slave_dof_map.is_null())
+            FOUR_C_THROW(
+                    "Core::LinearSolver::MueLuContactSpPreconditioner::MueLuContactSpPreconditioner: "
+                    "Interface contact map is not available!");
+
+          Teuchos::RCP<EpetraMap> x_slave_dof_map = Teuchos::make_rcp<EpetraMap>(ep_slave_dof_map);
+
+          H->GetLevel(0)->Set("Primal interface DOF map",
+                              Teuchos::rcp_dynamic_cast<const Xpetra::Map <LO, GO, NO>>(x_slave_dof_map, true));
+        }
+
+        mueLuFactory.SetupHierarchy(*H);
+        P_ = Teuchos::make_rcp<MueLu::EpetraOperator>(H);
+
+        H_ = H;
       }
-
-      if (muelulist_.sublist("Belos Parameters").isParameter("contact slaveDofMap"))
-      {
-        Teuchos::RCP<Epetra_Map> ep_slave_dof_map =
-            muelulist_.sublist("Belos Parameters")
-                .get<Teuchos::RCP<Epetra_Map>>("contact slaveDofMap");
-        Teuchos::RCP<EpetraMap> x_slave_dof_map = Teuchos::make_rcp<EpetraMap>(ep_slave_dof_map);
-
-        H->GetLevel(0)->Set("Primal interface DOF map",
-            Teuchos::rcp_dynamic_cast<const Xpetra::Map<LO, GO, NO>>(x_slave_dof_map, true));
+      else {
+        H_->setlib(Xpetra::UseEpetra);  // not very nice, but safe.
+        H_->GetLevel(0)->Set("A", Teuchos::rcp_dynamic_cast<Xpetra::Matrix < SC, LO, GO, NO>>
+        (bOp, true));
+        P_ = Teuchos::make_rcp<MueLu::EpetraOperator>(H_);
       }
-
-      mueLuFactory.SetupHierarchy(*H);
-      P_ = Teuchos::make_rcp<MueLu::EpetraOperator>(H);
     }
   }
-}
 
 FOUR_C_NAMESPACE_CLOSE

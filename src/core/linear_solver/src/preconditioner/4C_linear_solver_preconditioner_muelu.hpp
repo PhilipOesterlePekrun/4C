@@ -33,8 +33,8 @@ namespace Core::LinearSolver
    */
   class MueLuPreconditioner : public PreconditionerTypeBase
   {
-   public:
-    MueLuPreconditioner(Teuchos::ParameterList &muelulist);
+  public:
+    MueLuPreconditioner(Teuchos::ParameterList& muelulist);
 
     /*! \brief Create and compute the preconditioner
      *
@@ -46,15 +46,15 @@ namespace Core::LinearSolver
      * it re-uses the existing preconditioner and only updates the fine level matrix
      * for the Krylov solver.
      *
-     * It maintains backward compability to the ML interface!
+     * It maintains backward compatibility to the ML interface!
      *
      * @param create Boolean flag to enforce (re-)creation of the preconditioner
      * @param matrix Epetra_CrsMatrix to be used as input for the preconditioner
      * @param x Solution of the linear system
      * @param b Right-hand side of the linear system
      */
-    void setup(bool create, Epetra_Operator *matrix, Core::LinAlg::MultiVector<double> *x,
-        Core::LinAlg::MultiVector<double> *b) override;
+    void setup(bool create, Epetra_Operator* matrix, Core::LinAlg::MultiVector<double>* x,
+               Core::LinAlg::MultiVector<double>* b) override;
 
     //! linear operator used for preconditioning
     std::shared_ptr<Epetra_Operator> prec_operator() const final
@@ -62,13 +62,13 @@ namespace Core::LinearSolver
       return Core::Utils::shared_ptr_from_ref(*P_);
     }
 
-   private:
+  private:
     //! system of equations used for preconditioning used by P_ only
     Teuchos::RCP<Xpetra::Matrix<Scalar, LocalOrdinal, GlobalOrdinal, Node>> pmatrix_;
 
-   protected:
+  protected:
     //! MueLu parameter list
-    Teuchos::ParameterList &muelulist_;
+    Teuchos::ParameterList& muelulist_;
 
     //! preconditioner
     Teuchos::RCP<Epetra_Operator> P_;

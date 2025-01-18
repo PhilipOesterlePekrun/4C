@@ -1,0 +1,19 @@
+{
+  "version": 5,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 30,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "trilinos_custom_release_build",
+      "inherits": "imcs_workstation",
+      "description": "trilinos_custom",
+      "cacheVariables": {
+        "FOUR_C_TRILINOS_ROOT": "/home_student/oesterle/4C_Base/source/dependencies/trilinos_develop/trilinos/trilinos_installation",
+        "CMAKE_BUILD_TYPE": "DEBUG"
+      }
+    }
+  ]
+}
