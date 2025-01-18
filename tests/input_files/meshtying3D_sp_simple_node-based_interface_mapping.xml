@@ -62,11 +62,10 @@
     </ParameterList>
     <ParameterList name="myInterfaceAggsNodeBased">//#########
       <Parameter name="factory" type="string" value="InterfaceAggregationFactory"/>
-      <Parameter name="A" type="string" value="mySubBlockAFactoryOffDiagonal"/>
+      <Parameter name="A" type="string" value="mySubBlockAFactoryOffDiagonal"/>//#Why do we input A(0,1) here?
       <Parameter name="Aggregates" type="string" value="myAggFact1"/>
-      <Parameter name="Dual/primal mapping strategy" type="string" value="dof-based"/>
+      <Parameter name="Dual/primal mapping strategy" type="string" value="node-based"/>
       <Parameter name="DualNodeID2PrimalNodeID" type="string" value="PUT THE MAPPING OF TYPE `std::map<LocalOrdinal, LocalOrdinal>` HERE!!!!!!!!!!"/>
-      <Parameter name="Primal interface DOF map" type="string" value="myInterfaceMapTransFact"/>
     </ParameterList>
     <ParameterList name="myTentativePFact2">
       <Parameter name="factory" type="string" value="TentativePFactory"/>
