@@ -23,7 +23,6 @@ VERSION=${2:-develop}
 
 # Location of script to apply patches later
 SCRIPT_DIR="`dirname "$0"`"
-CMAKE_COMMAND=cmake
 
 git clone https://github.com/trilinos/Trilinos.git
 cd Trilinos
@@ -33,7 +32,7 @@ cd .. && mkdir trilinos_build && cd trilinos_build
 MPI_DIR=/usr
 MPI_BIN_DIR=$MPI_DIR/bin
 
-$CMAKE_COMMAND \
+cmake \
   -D CMAKE_BUILD_TYPE:STRING="RELEASE" \
   -D CMAKE_CXX_STANDARD:STRING="17" \
   -D CMAKE_CXX_COMPILER:FILEPATH="$MPI_BIN_DIR/mpic++" \

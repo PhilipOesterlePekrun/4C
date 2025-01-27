@@ -4,6 +4,11 @@
 #                                                   #
 #####################################################
 
+#// MINE (OESTERLE)
+dependencies/*
+!dependencies/current/qhull/install.sh
+!dependencies/trilinos_develop/trilinos/install.sh
+
 # C++ build
 *.o
 *.a

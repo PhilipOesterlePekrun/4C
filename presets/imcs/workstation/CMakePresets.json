@@ -42,15 +42,15 @@
       }
     },
     {
-      "name": "imcs_workstation_trilinos",
-      "displayName": "Develop build with debug information for an IMCS workstation",
+      "name": "imcs_workstation_trilinos_custom",
+      "displayName": "imcs_workstation_trilinos_custom",
       "generator": "Ninja",
       "inherits": [
         ".imcs_workstation_base"
       ],
       "cacheVariables": {
-        "FOUR_C_TRILINOS_ROOT": "$env{TRILINOS_ROOT}",
-        "FOUR_C_WITH_ARBORX": "ON"
+        "FOUR_C_TRILINOS_ROOT": "/home_student/oesterle/4C_Base/source/dependencies/trilinos_develop/trilinos/trilinos_installation",
+        "CMAKE_BUILD_TYPE": "DEBUG"
       }
     }
   ]

@@ -16,6 +16,12 @@ if(Trilinos_ROOT AND NOT Kokkos_ROOT)
       )
 endif()
 
+# If a custom Trilinos root path is set, use it for the find_package call//#
+if(FOUR_C_TRILINOS_ROOT)
+  set(Trilinos_ROOT ${FOUR_C_TRILINOS_ROOT})
+  message(STATUS "Using custom Trilinos root: ${Trilinos_ROOT}")
+endif()
+
 # We only support Trilinos versions that provide a config file.
 find_package(Trilinos REQUIRED)
 

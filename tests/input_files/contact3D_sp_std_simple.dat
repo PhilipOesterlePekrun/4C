@@ -92,7 +92,7 @@ NAME                            Contact_Solver
 SOLVER                          Belos
 AZSOLVE                         GMRES
 AZPREC                          MueLu
-MUELU_XML_FILE                  contact3D_sp_simple.xml
+MUELU_XML_FILE                  contact3D_sp_simple.xml//#contact3D_sp_simple_node-based_interface_mapping.xml//#
 AZTOL                           1.0e-8
 AZCONV                          AZ_r0
 AZREUSE                         0
