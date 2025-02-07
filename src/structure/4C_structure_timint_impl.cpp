@@ -15,6 +15,7 @@
 #include "4C_constraint_springdashpot_manager.hpp"
 #include "4C_contact_abstract_strategy.hpp"  // needed in CmtLinearSolve (for feeding the contact solver with latest information about the contact status)
 #include "4C_contact_defines.hpp"
+#include "4C_contact_meshtying_abstract_strategy.hpp"  //#
 #include "4C_contact_meshtying_contact_bridge.hpp"
 #include "4C_fem_condition_locsys.hpp"
 #include "4C_fem_discretization_nullspace.hpp"
@@ -3130,10 +3131,74 @@ void Solid::TimIntImpl::cmt_linear_solve()
       mueluParams.set<Teuchos::RCP<Epetra_Map>>("contact activeDofMap", Teuchos::rcp(activeDofMap));
       std::shared_ptr<CONTACT::AbstractStrategy> costrat =
           std::dynamic_pointer_cast<CONTACT::AbstractStrategy>(strategy);
+
+
+
+      // ##
+
+      std::shared_ptr<CONTACT::MtAbstractStrategy> mtstrat =
+          std::dynamic_pointer_cast<CONTACT::MtAbstractStrategy>(strategy);
+
       if (costrat != nullptr)
+      {
         mueluParams.set<std::string>("Core::ProblemType", "contact");
-      else
-        mueluParams.set<std::string>("Core::ProblemType", "meshtying");
+
+        // #{CONTACT
+
+        std::shared_ptr<const Epetra_Map> gs_node_row_map = costrat->slave_row_nodes_ptr();
+
+        std::shared_ptr<std::map<int, int>> dual2primal_map =
+            std::make_shared<std::map<int, int>>();  // ## MAYBE I SHOULD TURN THE "int" INTO "LO"
+                                                     // OR SOMETHING
+        for (int local_lm_node = 0; local_lm_node < gs_node_row_map->NumMyElements();
+            local_lm_node++)
+        {
+          int lm_gid = gs_node_row_map->GID(local_lm_node);
+          if (discretization()->have_global_node(lm_gid))
+          {
+            const Epetra_Map* solid_node_map = discretization()->node_row_map();
+            (*dual2primal_map)[local_lm_node] =
+                solid_node_map->LID(gs_node_row_map->GID(local_lm_node));
+            ;
+          }
+        }
+        mueluParams.set<Teuchos::RCP<std::map<int, int>>>(
+            "Interface DualNodeID to PrimalNodeID", Teuchos::rcp(dual2primal_map));
+
+
+        // #}
+      }
+
+      else if (mtstrat != nullptr)
+      {
+        // #{MESHTYING
+        // mueluParams.set<std::string>("Core::ProblemType", "meshtying");
+
+        // std::shared_ptr<const Epetra_Map> gs_node_row_map = mtstrat->slave_row_nodes_ptr();
+        std::shared_ptr<const Epetra_Map> gs_node_row_map = mtstrat->slave_row_nodes_ptr();
+
+        std::shared_ptr<std::map<int, int>> dual2primal_map =
+            std::make_shared<std::map<int, int>>();  // ## MAYBE I SHOULD TURN THE "int" INTO "LO"
+                                                     // OR SOMETHING
+        for (int local_lm_node = 0; local_lm_node < gs_node_row_map->NumMyElements();
+            local_lm_node++)
+        {
+          int lm_gid = gs_node_row_map->GID(local_lm_node);
+          if (discretization()->have_global_node(lm_gid))
+          {
+            const Epetra_Map* solid_node_map = discretization()->node_row_map();
+            (*dual2primal_map)[local_lm_node] =
+                solid_node_map->LID(gs_node_row_map->GID(local_lm_node));
+          }
+        }
+        mueluParams.set<Teuchos::RCP<std::map<int, int>>>(
+            "Interface DualNodeID to PrimalNodeID", Teuchos::rcp(dual2primal_map));
+
+        // #}
+      }
+
+
+
       mueluParams.set<int>("time step", step_);
       mueluParams.set<int>("iter", iter_);
       mueluParams.set<bool>("reuse preconditioner", strategy->active_set_converged());
@@ -3188,14 +3253,12 @@ void Solid::TimIntImpl::cmt_linear_solve()
               std::dynamic_pointer_cast<Core::LinAlg::BlockSparseMatrixBase>(
                   std::shared_ptr<Epetra_Operator>(raw_block_mat, [](Epetra_Operator*) {}));
           auto mat11 = block_mat_blocked_operator->matrix(1, 1);
-          std::shared_ptr<Epetra_Map> nullspace_map =
-              std::make_shared<Epetra_Map>(mat11.range_map());
-          const Epetra_Map& dofmap = *nullspace_map;
+          const Epetra_Map& dofmap = mat11.range_map();
 
           // set the nullspace
           std::shared_ptr<Core::LinAlg::MultiVector<double>> nullspace =
               std::make_shared<Core::LinAlg::MultiVector<double>>(dofmap, dim_nullspace, true);
-          for (int ldof = 0; ldof < dofmap.NumMyElements() - 2; ++ldof)
+          for (int ldof = 0; ldof < dofmap.NumMyElements(); ++ldof)
           {
             nullspace->ReplaceMyValue(ldof, ldof % dim_nullspace, 1.0);
           }
