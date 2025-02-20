@@ -3129,57 +3129,32 @@ void Solid::TimIntImpl::cmt_linear_solve()
       mueluParams.set<Teuchos::RCP<Epetra_Map>>("contact slaveDofMap", Teuchos::rcp(slaveDofMap));
       mueluParams.set<Teuchos::RCP<Epetra_Map>>("contact innerDofMap", Teuchos::rcp(innerDofMap));
       mueluParams.set<Teuchos::RCP<Epetra_Map>>("contact activeDofMap", Teuchos::rcp(activeDofMap));
+
       std::shared_ptr<CONTACT::AbstractStrategy> costrat =
           std::dynamic_pointer_cast<CONTACT::AbstractStrategy>(strategy);
-
-
-
-      // ##
 
       std::shared_ptr<CONTACT::MtAbstractStrategy> mtstrat =
           std::dynamic_pointer_cast<CONTACT::MtAbstractStrategy>(strategy);
 
-      if (costrat != nullptr)
+      // create the mapping of the dual to primal node IDs
+      if(costrat != nullptr || mtstrat != nullptr)
       {
-        mueluParams.set<std::string>("Core::ProblemType", "contact");
+        std::shared_ptr<const Epetra_Map> gs_node_row_map;
 
-        // #{CONTACT
-
-        std::shared_ptr<const Epetra_Map> gs_node_row_map = costrat->slave_row_nodes_ptr();
-
-        std::shared_ptr<std::map<int, int>> dual2primal_map =
-            std::make_shared<std::map<int, int>>();  // ## MAYBE I SHOULD TURN THE "int" INTO "LO"
-                                                     // OR SOMETHING
-        for (int local_lm_node = 0; local_lm_node < gs_node_row_map->NumMyElements();
-            local_lm_node++)
+        if(costrat != nullptr)
         {
-          int lm_gid = gs_node_row_map->GID(local_lm_node);
-          if (discretization()->have_global_node(lm_gid))
-          {
-            const Epetra_Map* solid_node_map = discretization()->node_row_map();
-            (*dual2primal_map)[local_lm_node] =
-                solid_node_map->LID(gs_node_row_map->GID(local_lm_node));
-            ;
-          }
+          mueluParams.set<std::string>("Core::ProblemType", "contact");
+          gs_node_row_map = costrat->slave_row_nodes_ptr();
         }
-        mueluParams.set<Teuchos::RCP<std::map<int, int>>>(
-            "Interface DualNodeID to PrimalNodeID", Teuchos::rcp(dual2primal_map));
-
-
-        // #}
-      }
-
-      else if (mtstrat != nullptr)
-      {
-        // #{MESHTYING
-        // mueluParams.set<std::string>("Core::ProblemType", "meshtying");
-
-        // std::shared_ptr<const Epetra_Map> gs_node_row_map = mtstrat->slave_row_nodes_ptr();
-        std::shared_ptr<const Epetra_Map> gs_node_row_map = mtstrat->slave_row_nodes_ptr();
+        else
+        {
+          mueluParams.set<std::string>("Core::ProblemType", "meshtying");
+          gs_node_row_map = mtstrat->slave_row_nodes_ptr();
+        }
 
         std::shared_ptr<std::map<int, int>> dual2primal_map =
-            std::make_shared<std::map<int, int>>();  // ## MAYBE I SHOULD TURN THE "int" INTO "LO"
-                                                     // OR SOMETHING
+        std::make_shared<std::map<int, int>>();
+
         for (int local_lm_node = 0; local_lm_node < gs_node_row_map->NumMyElements();
             local_lm_node++)
         {
@@ -3193,11 +3168,7 @@ void Solid::TimIntImpl::cmt_linear_solve()
         }
         mueluParams.set<Teuchos::RCP<std::map<int, int>>>(
             "Interface DualNodeID to PrimalNodeID", Teuchos::rcp(dual2primal_map));
-
-        // #}
       }
-
-
 
       mueluParams.set<int>("time step", step_);
       mueluParams.set<int>("iter", iter_);
