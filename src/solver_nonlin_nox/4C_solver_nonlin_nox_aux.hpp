@@ -10,9 +10,9 @@
 
 #include "4C_config.hpp"
 
+#include "4C_linear_solver_method_linalg.hpp"
 #include "4C_solver_nonlin_nox_enum_lists.hpp"
 #include "4C_solver_nonlin_nox_forward_decl.hpp"
-#include "4C_linear_solver_method_linalg.hpp"
 #include "4C_solver_nonlin_nox_statustest_factory.hpp"
 
 #include <mpi.h>

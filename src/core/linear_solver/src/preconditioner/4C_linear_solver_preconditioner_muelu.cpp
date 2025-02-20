@@ -190,7 +190,7 @@ void Core::LinearSolver::MueLuPreconditioner::setup(bool create, Epetra_Operator
         H_->GetLevel(0)->Set("Primal interface DOF map",
             Teuchos::rcp_dynamic_cast<const Xpetra::Map<LO, GO, NO>>(x_slave_dof_map, true));
       }
-      
+
       if (muelulist_.sublist("Belos Parameters")
               .isParameter("Interface DualNodeID to PrimalNodeID"))
       {

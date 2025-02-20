@@ -3137,11 +3137,11 @@ void Solid::TimIntImpl::cmt_linear_solve()
           std::dynamic_pointer_cast<CONTACT::MtAbstractStrategy>(strategy);
 
       // create the mapping of the dual to primal node IDs
-      if(costrat != nullptr || mtstrat != nullptr)
+      if (costrat != nullptr || mtstrat != nullptr)
       {
         std::shared_ptr<const Epetra_Map> gs_node_row_map;
 
-        if(costrat != nullptr)
+        if (costrat != nullptr)
         {
           mueluParams.set<std::string>("Core::ProblemType", "contact");
           gs_node_row_map = costrat->slave_row_nodes_ptr();
@@ -3153,7 +3153,7 @@ void Solid::TimIntImpl::cmt_linear_solve()
         }
 
         std::shared_ptr<std::map<int, int>> dual2primal_map =
-        std::make_shared<std::map<int, int>>();
+            std::make_shared<std::map<int, int>>();
 
         for (int local_lm_node = 0; local_lm_node < gs_node_row_map->NumMyElements();
             local_lm_node++)
