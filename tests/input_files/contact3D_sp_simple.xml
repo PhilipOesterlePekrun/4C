@@ -44,20 +44,21 @@
     </ParameterList>
     <ParameterList name="myCoarseMap2">
       <Parameter name="factory" type="string" value="BlockedCoarseMapFactory"/>
+      <Parameter name="CoarseMap" type="string" value="myCoarseMap1"/>
     </ParameterList>
-    <ParameterList name="myInterfaceMapTransFact">
-      <Parameter name="factory" type="string" value="MapTransferFactory"/>
-      <Parameter name="map: factory" type="string" value="Primal interface DOF map"/>
-      <Parameter name="map: name" type="string" value="Primal interface DOF map"/>
-      <Parameter name="P" type="string" value="myTentativePFact1"/>
-      <Parameter name="nullspace vectors: limit to" type="string" value="translations"/>
+    <ParameterList name="myInterfaceMappingFact">
+      <Parameter name="factory" type="string" value="InterfaceMappingTransferFactory"/>
     </ParameterList>
     <ParameterList name="myInterfaceAggs2">
       <Parameter name="factory" type="string" value="InterfaceAggregationFactory"/>
-      <Parameter name="A" type="string" value="mySubBlockAFactoryOffDiagonal"/>
       <Parameter name="Aggregates" type="string" value="myAggFact1"/>
-      <Parameter name="Dual/primal mapping strategy" type="string" value="dof-based"/>
-      <Parameter name="Primal interface DOF map" type="string" value="myInterfaceMapTransFact"/>
+      <Parameter name="number of DOFs per dual node" type="int" value="3"/>
+      <Parameter name="Dual/primal mapping strategy" type="string" value="node-based"/>
+      <Parameter name="DualNodeID2PrimalNodeID" type="string" value="myInterfaceMappingFact"/>
+    </ParameterList>
+    <ParameterList name="myInterfaceMappingFactDeps">
+      <Parameter name="dependency for" type="string" value="myInterfaceMappingFact"/>
+      <Parameter name="CoarseDualNodeID2PrimalNodeID" type="string" value="myInterfaceAggs2"/>
     </ParameterList>
     <ParameterList name="myTentativePFact2">
       <Parameter name="factory" type="string" value="TentativePFactory"/>
@@ -99,7 +100,6 @@
       <Parameter name="Aggregates" type="string" value="myInterfaceAggs2"/>
       <Parameter name="Nullspace" type="string" value="myNspFact2"/>
       <Parameter name="CoarseMap" type="string" value="myCoarseMap2"/>
-      <Parameter name="Primal interface DOF map" type="string" value="myInterfaceMapTransFact"/>
     </ParameterList>
     <!-- BLOCK TRANSFER operators -->
     <!-- define block prolongation operator using above blocks -->
@@ -123,6 +123,9 @@
       <Parameter name="factory" type="string" value="BlockedRAPFactory"/>
       <Parameter name="P" type="string" value="myBlockedPFact"/>
       <Parameter name="R" type="string" value="myBlockedRFact"/>
+      <!--ParameterList name="TransferFactories">
+        <Parameter name="DoTransferSpecialMappingForAggregates"     type="string" value="myInterfaceMappingFact"/>
+      </ParameterList-->
     </ParameterList>
     <!-- BLOCK SMOOTHERS -->
     <ParameterList name="mySmooFact1">

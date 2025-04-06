@@ -23,6 +23,7 @@
 #include <Xpetra_EpetraCrsMatrix.hpp>
 #include <Xpetra_EpetraMap.hpp>
 #include <Xpetra_EpetraMultiVector.hpp>
+#include <Xpetra_IO.hpp>  //##
 #include <Xpetra_Map.hpp>
 #include <Xpetra_MapExtractor.hpp>
 #include <Xpetra_MapExtractorFactory.hpp>
@@ -49,15 +50,23 @@ Core::LinearSolver::MueLuPreconditioner::MueLuPreconditioner(Teuchos::ParameterL
 void Core::LinearSolver::MueLuPreconditioner::setup(bool create, Epetra_Operator* matrix,
     Core::LinAlg::MultiVector<double>* x, Core::LinAlg::MultiVector<double>* b)
 {
+  ////FOUR_C_THROW("TRACE FROM PRECOND START");
   if (create)
   {
     using EpetraCrsMatrix = Xpetra::EpetraCrsMatrixT<GO, NO>;
     using EpetraMap = Xpetra::EpetraMapT<GO, NO>;
     using EpetraMultiVector = Xpetra::EpetraMultiVectorT<GO, NO>;
 
+    ////std::cout<<"precond line 60: b = \n";
+    ////b->Print(std::cout);
+
+
+
     Teuchos::RCP<Core::LinAlg::BlockSparseMatrixBase> A =
         Teuchos::rcp_dynamic_cast<Core::LinAlg::BlockSparseMatrixBase>(
             Teuchos::rcpFromRef(*matrix));
+
+
 
     if (A.is_null())
     {
@@ -142,12 +151,110 @@ void Core::LinearSolver::MueLuPreconditioner::setup(bool create, Epetra_Operator
           Teuchos::RCP<Xpetra::Matrix<SC, LO, GO, NO>> mat =
               Xpetra::MatrixFactory<SC, LO, GO, NO>::BuildCopy(
                   Teuchos::make_rcp<Xpetra::CrsMatrixWrap<SC, LO, GO, NO>>(crsA));
+
+          // for writing to matrix market file
+          std::string fileName = "m3D_mat_GEN" + std::to_string(row) + std::to_string(col) + ".mm";
+          ////Xpetra::IO<SC, LO, GO, NO>::Write(fileName, *mat);
+
           bOp->setMatrix(row, col, mat);
         }
       }
 
       bOp->fillComplete();
       pmatrix_ = bOp;
+
+      ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      int rank;
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+      /*      if(rank==1){
+      std::cout<<"==================================================================\nBLOCKMATRIX
+      MAPS ARE PRINTED\n==================================================================\n\n";
+      Teuchos::RCP<Xpetra::BlockedCrsMatrix<SC, LO, GO, NO>> blockedMatrix = bOp;
+      std::cout<<"domainMap of blockedMatrix(0,0):\n";
+        ((blockedMatrix->getMatrix(0,
+      0))->getDomainMap())->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)),
+      Teuchos::VERB_EXTREME);
+
+        std::cout<<"rangeMap of blockedMatrix(0,0):\n";
+        ((blockedMatrix->getMatrix(0,
+      0))->getRangeMap())->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)),
+      Teuchos::VERB_EXTREME);
+
+        std::cout<<"colMap of blockedMatrix(0,0):\n";
+        ((blockedMatrix->getMatrix(0,
+      0))->getColMap())->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)),
+      Teuchos::VERB_EXTREME);
+
+        std::cout<<"rowMap of blockedMatrix(0,0):\n";
+        ((blockedMatrix->getMatrix(0,
+      0))->getRowMap())->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)),
+      Teuchos::VERB_EXTREME);
+
+
+        std::cout<<"domainMap of blockedMatrix(0,1):\n";
+        ((blockedMatrix->getMatrix(0,
+      1))->getDomainMap())->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)),
+      Teuchos::VERB_EXTREME);
+
+        std::cout<<"rangeMap of blockedMatrix(0,1):\n";
+        ((blockedMatrix->getMatrix(0,
+      1))->getRangeMap())->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)),
+      Teuchos::VERB_EXTREME);
+
+        std::cout<<"colMap of blockedMatrix(0,1):\n";
+        ((blockedMatrix->getMatrix(0,
+      1))->getColMap())->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)),
+      Teuchos::VERB_EXTREME);
+
+        std::cout<<"rowMap of blockedMatrix(0,1):\n";
+        ((blockedMatrix->getMatrix(0,
+      1))->getRowMap())->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)),
+      Teuchos::VERB_EXTREME);
+
+
+
+        std::cout<<"domainMap of blockedMatrix(1,0):\n";
+        ((blockedMatrix->getMatrix(1,
+      0))->getDomainMap())->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)),
+      Teuchos::VERB_EXTREME);
+
+        std::cout<<"rangeMap of blockedMatrix(1,0):\n";
+        ((blockedMatrix->getMatrix(1,
+      0))->getRangeMap())->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)),
+      Teuchos::VERB_EXTREME);
+
+        std::cout<<"colMap of blockedMatrix(1,0):\n";
+        ((blockedMatrix->getMatrix(1,
+      0))->getColMap())->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)),
+      Teuchos::VERB_EXTREME);
+
+        std::cout<<"rowMap of blockedMatrix(1,0):\n";
+        ((blockedMatrix->getMatrix(1,
+      0))->getRowMap())->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)),
+      Teuchos::VERB_EXTREME);
+
+
+        std::cout<<"domainMap of blockedMatrix(1,1):\n";
+        ((blockedMatrix->getMatrix(1,
+      1))->getDomainMap())->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)),
+      Teuchos::VERB_EXTREME);
+
+        std::cout<<"rangeMap of blockedMatrix(1,1):\n";
+        ((blockedMatrix->getMatrix(1,
+      1))->getRangeMap())->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)),
+      Teuchos::VERB_EXTREME);
+
+        std::cout<<"colMap of blockedMatrix(1,1):\n";
+        ((blockedMatrix->getMatrix(1,
+      1))->getColMap())->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)),
+      Teuchos::VERB_EXTREME);
+
+        std::cout<<"rowMap of blockedMatrix(1,1):\n";
+        ((blockedMatrix->getMatrix(1,
+      1))->getRowMap())->describe(*Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout)),
+      Teuchos::VERB_EXTREME);
+            }*/
+      ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
       // free old matrix first
       P_ = Teuchos::null;
@@ -173,19 +280,16 @@ void Core::LinearSolver::MueLuPreconditioner::setup(bool create, Epetra_Operator
         Teuchos::ParameterList& inverse_list =
             muelulist_.sublist(inverse).sublist("MueLu Parameters");
 
-        Teuchos::RCP<Xpetra::MultiVector<SC, LO, GO, NO>>
-
-            nullspace = Core::LinearSolver::Parameters::extract_nullspace_from_parameterlist(
+        Teuchos::RCP<Xpetra::MultiVector<SC, LO, GO, NO>> nullspace =
+            Core::LinearSolver::Parameters::extract_nullspace_from_parameterlist(
                 *maps.at(block), inverse_list);
 
-        H_->GetLevel(0)->Set("Nullspace" + std::to_string(block + 1), nullspace);
+        if (block == 0)
+        {
+          ////Xpetra::IO<SC, LO, GO, NO>::Write("m3D_ns1_GEN.mm", *nullspace);
+        }
 
-        std::cout << "MueLuPreconditioner nullspace22:\n";
-        Teuchos::RCP<Teuchos::FancyOStream> out =
-            Teuchos::fancyOStream(Teuchos::rcpFromRef(std::cout));
-        nullspace->describe(*out, Teuchos::VERB_EXTREME);
-        std::cout << "\n---------------------------------------------------------------------------"
-                     "-----\n";
+        H_->GetLevel(0)->Set("Nullspace" + std::to_string(block + 1), nullspace);
       }
 
       if (muelulist_.sublist("Belos Parameters").isParameter("contact slaveDofMap"))
@@ -209,15 +313,17 @@ void Core::LinearSolver::MueLuPreconditioner::setup(bool create, Epetra_Operator
             muelulist_.sublist("Belos Parameters")
                 .get<Teuchos::RCP<std::map<LO, LO>>>("Interface DualNodeID to PrimalNodeID");
 
-        std::cout << "\nPrecond line 203: Interface DualNodeID to PrimalNodeID:\n";
-        if (!dual2primal_map || dual2primal_map->empty())
+        ////std::cout << "\nPrecond line 203: Interface DualNodeID to PrimalNodeID:\n";
+        /*if (!dual2primal_map || dual2primal_map->empty())
         {
           std::cout << "Map is empty or null." << std::endl;
-        }
-        for (const auto& pair : *dual2primal_map)
+        }*/
+        // FOR PRINTING OUT THE LAGR2DOF WHICH I CAN PUT IN A
+        // FOR PRINTING OUT THE LAGR2DOF WHICH I CAN PUT IN A
+        /*for (const auto& pair : *dual2primal_map)
         {
-          std::cout << "Key: " << pair.first << ", Value: " << pair.second << std::endl;
-        }
+          std::cout << pair.first << " " << pair.second << std::endl;
+        }*/////
 
         if (dual2primal_map.is_null())
           FOUR_C_THROW(
@@ -225,7 +331,8 @@ void Core::LinearSolver::MueLuPreconditioner::setup(bool create, Epetra_Operator
               "Interface dual2primal node ID map not available!");
 
         H_->GetLevel(0)->Set("DualNodeID2PrimalNodeID",
-            Teuchos::rcp_dynamic_cast<std::map<int, int>>(dual2primal_map, true));
+            Teuchos::rcp_dynamic_cast<std::map<int, int>>(
+                dual2primal_map, true));  // # might want to make this <LO, LO>
       }  // #
 
       mueLuFactory.SetupHierarchy(*H_);

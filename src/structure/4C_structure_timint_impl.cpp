@@ -3172,7 +3172,7 @@ void Solid::TimIntImpl::cmt_linear_solve()
       else if (mtstrat != nullptr)
       {
         // #{MESHTYING
-        // mueluParams.set<std::string>("Core::ProblemType", "meshtying");
+        mueluParams.set<std::string>("Core::ProblemType", "meshtying");
 
         // std::shared_ptr<const Epetra_Map> gs_node_row_map = mtstrat->slave_row_nodes_ptr();
         std::shared_ptr<const Epetra_Map> gs_node_row_map = mtstrat->slave_row_nodes_ptr();
