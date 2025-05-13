@@ -1,0 +1,29 @@
+{
+  "version": 5,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 30,
+    "patch": 5
+  },
+  "configurePresets": [
+    {
+    "name": "debug-debug",
+    "hidden": false,
+    "generator": "Ninja",
+    "cacheVariables": {
+      "CMAKE_BUILD_TYPE": "DEBUG",
+      "CMAKE_CXX_COMPILER": "g++",
+      "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+      "CMAKE_C_COMPILER": "gcc",
+      "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+      "CMAKE_CXX_FLAGS": "-msse3",
+      "FOUR_C_TRILINOS_ROOT": "/home/oesterle/rd/Trilinos_Base/install_release_master",
+      "FOUR_C_DOXYGEN_USE_LOCAL_MATHJAX": "OFF",
+      "FOUR_C_BUILD_DOXYGEN": "ON",
+      "FOUR_C_WITH_GOOGLETEST": "OFF",
+      "FOUR_C_WITH_ARBORX": "ON",
+      "FOUR_C_WITH_MIRCO": "OFF"
+    }
+    }
+  ]
+}

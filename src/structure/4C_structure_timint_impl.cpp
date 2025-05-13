@@ -39,6 +39,8 @@
 #include "4C_structure_aux.hpp"
 #include "4C_structure_timint.hpp"
 
+#include <fstream>//#
+
 #include <Teuchos_RCPStdSharedPtrConversions.hpp>
 
 #include <sstream>
@@ -3154,18 +3156,49 @@ void Solid::TimIntImpl::cmt_linear_solve()
 
         std::shared_ptr<std::map<int, int>> dual2primal_map =
             std::make_shared<std::map<int, int>>();
-
+            
+        //{
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        
+        std::string filename = "timint_impl_outFile_rank" + std::to_string(rank) + ".txt";
+        std::ofstream outFile(filename);
+        //}
+        const Epetra_Map* solid_node_map = discretization()->node_row_map(); // moved outside of for loop because no reason to have it in there
         for (int local_lm_node = 0; local_lm_node < gs_node_row_map->NumMyElements();
             local_lm_node++)
         {
+          outFile<<"\tlocal_lm_node = "<<local_lm_node<<"\n";
+          // lm_gid is equivalent to the slave_gid (pseudo LM nodes matche true slave displacement nodes)
           int lm_gid = gs_node_row_map->GID(local_lm_node);
+          if(rank==0) outFile<<"\tlm_gid = "<<lm_gid<<"\n";
           if (discretization()->have_global_node(lm_gid))
           {
-            const Epetra_Map* solid_node_map = discretization()->node_row_map();
+            ///const Epetra_Map* solid_node_map = discretization()->node_row_map();
+            //{
+            outFile<<"\tsolid_node_map:"<<"\n";
+            int dbnumMyElements = solid_node_map->NumMyElements();
+            std::vector<int> dbmyGlobalElements(dbnumMyElements);
+            solid_node_map->MyGlobalElements(dbmyGlobalElements.data());
+
+            //std::cout << "\tSolid node map (global IDs on this processor):" << std::endl;
+            for (int i = 0; i < dbnumMyElements; ++i) {
+                outFile << "\t\tLocal index " << i << " -> Global ID " << dbmyGlobalElements[i] << std::endl;
+            }
+          
+            //}
             (*dual2primal_map)[local_lm_node] =
-                solid_node_map->LID(gs_node_row_map->GID(local_lm_node));
+                solid_node_map->LID(lm_gid);
           }
         }
+        //{
+        
+        outFile<<"dual2primal_map:\n";
+        for (const auto& [key, value] : *dual2primal_map) {
+          outFile << "\tDual node ID: " << key << " -> Primal node ID: " << value << std::endl;
+        
+        }
+        //}
         mueluParams.set<Teuchos::RCP<std::map<int, int>>>(
             "Interface DualNodeID to PrimalNodeID", Teuchos::rcp(dual2primal_map));
       }

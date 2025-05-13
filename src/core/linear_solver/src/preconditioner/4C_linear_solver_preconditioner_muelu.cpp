@@ -31,6 +31,8 @@
 #include <Xpetra_MultiVectorFactory.hpp>
 #include <Xpetra_StridedMap.hpp>
 
+#include <fstream>//#
+
 #include <filesystem>
 
 FOUR_C_NAMESPACE_OPEN
@@ -72,7 +74,7 @@ void Core::LinearSolver::MueLuPreconditioner::setup(bool create, Epetra_Operator
       pmatrix_ = Xpetra::MatrixFactory<SC, LO, GO, NO>::BuildCopy(
           Teuchos::make_rcp<Xpetra::CrsMatrixWrap<SC, LO, GO, NO>>(mueluA));
 
-      const Teuchos::ParameterList& inverseList = muelulist_.sublist("MueLu Parameters");
+        Teuchos::ParameterList& inverseList = muelulist_.sublist("MueLu Parameters");
 
       auto xmlFileName = inverseList.get<std::string>("MUELU_XML_FILE");
 
@@ -158,6 +160,25 @@ void Core::LinearSolver::MueLuPreconditioner::setup(bool create, Epetra_Operator
       auto mueluParams = Teuchos::make_rcp<Teuchos::ParameterList>();
       auto comm = pmatrix_->getRowMap()->getComm();
       Teuchos::updateParametersFromXmlFileAndBroadcast(xmlFileName, mueluParams.ptr(), *comm);
+      
+      //{
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        
+        std::string filename = "pecond_outFile_rank" + std::to_string(rank) + ".txt";
+        std::ofstream outFile(filename);
+        
+        Teuchos::RCP<Teuchos::FancyOStream> out = Teuchos::fancyOStream(Teuchos::rcpFromRef(outFile));
+
+        // Print the map
+        pmatrix_->getRowMap()->describe(*out, Teuchos::VERB_EXTREME);
+        
+        //const std::string level0Matrix = "level0Matrix";
+        Teuchos::RCP<Xpetra::BlockedCrsMatrix<SC, LO, GO, NO>> bcrs =
+    Teuchos::rcp_dynamic_cast<Xpetra::BlockedCrsMatrix<SC, LO, GO, NO>>(pmatrix_);
+
+        Xpetra::IO<SC, LO, GO, NO>::WriteBlockedCrsMatrix("level0Matrix", *bcrs, true);
+      //}
 
       MueLu::ParameterListInterpreter<SC, LO, GO, NO> mueLuFactory(xmlFileName, *comm);
       H_ = mueLuFactory.CreateHierarchy();
@@ -167,7 +188,7 @@ void Core::LinearSolver::MueLuPreconditioner::setup(bool create, Epetra_Operator
       for (int block = 0; block < A->rows(); block++)
       {
         const std::string inverse = "Inverse" + std::to_string(block + 1);
-        const Teuchos::ParameterList& inverse_list =
+        Teuchos::ParameterList& inverse_list =
             muelulist_.sublist(inverse).sublist("MueLu Parameters");
 
         Teuchos::RCP<Xpetra::MultiVector<SC, LO, GO, NO>> nullspace =
