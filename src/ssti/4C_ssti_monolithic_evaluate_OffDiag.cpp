@@ -31,8 +31,8 @@ FOUR_C_NAMESPACE_OPEN
 SSTI::ThermoStructureOffDiagCoupling::ThermoStructureOffDiagCoupling(
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> blockmapstructure,
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> blockmapthermo,
-    std::shared_ptr<const Epetra_Map> full_map_structure,
-    std::shared_ptr<const Epetra_Map> full_map_thermo,
+    std::shared_ptr<const Core::LinAlg::Map> full_map_structure,
+    std::shared_ptr<const Core::LinAlg::Map> full_map_thermo,
     std::shared_ptr<const SSI::Utils::SSIMeshTying> ssti_structure_meshtying,
     std::shared_ptr<const ScaTra::MeshtyingStrategyS2I> meshtying_strategy_thermo,
     std::shared_ptr<Adapter::SSIStructureWrapper> structure,
@@ -168,7 +168,7 @@ void SSTI::ThermoStructureOffDiagCoupling::evaluate_off_diag_block_structure_the
 
   structure_->discretization()->clear_state();
 
-  structure_->discretization()->set_state("displacement", structure_->dispnp());
+  structure_->discretization()->set_state("displacement", *structure_->dispnp());
 
   // create strategy for assembly of structure-thermo matrix block
   Core::FE::AssembleStrategy strategystructurescatra(
@@ -319,7 +319,7 @@ void SSTI::ThermoStructureOffDiagCoupling::evaluate_thermo_structure_interface_s
   for (auto kinetics_slave_cond :
       meshtying_strategy_thermo_->kinetics_conditions_meshtying_slave_side())
   {
-    if (kinetics_slave_cond.second->parameters().get<int>("KINETIC_MODEL") !=
+    if (kinetics_slave_cond.second->parameters().get<Inpar::S2I::KineticModels>("KINETIC_MODEL") !=
         static_cast<int>(Inpar::S2I::kinetics_nointerfaceflux))
     {
       // collect condition specific data and store to scatra boundary parameter class
@@ -362,7 +362,7 @@ void SSTI::ThermoStructureOffDiagCoupling::evaluate_thermo_structure_interface_s
           auto slave_iblock = slavematrix_block->matrix(iblock, 0);
 
           auto scatra_slave_block_mapi =
-              Core::LinAlg::intersect_map(*thermo_->scatra_field()->block_maps()->Map(iblock),
+              Core::LinAlg::intersect_map(*thermo_->scatra_field()->block_maps()->map(iblock),
                   *meshtying_strategy_thermo_->coupling_adapter()->slave_dof_map());
 
           Coupling::Adapter::MatrixLogicalSplitAndTransform()(evaluate_iblock,

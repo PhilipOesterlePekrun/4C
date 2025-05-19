@@ -11,12 +11,7 @@
 #include "4C_config.hpp"
 
 #include "4C_linalg_vector.hpp"
-#include "4C_utils_parameter_list.fwd.hpp"
 
-#include <Epetra_CrsGraph.h>
-#include <Epetra_CrsMatrix.h>
-#include <Epetra_LinearProblem.h>
-#include <Epetra_Map.h>
 #include <Epetra_Operator.h>
 
 #include <memory>
@@ -44,7 +39,7 @@ namespace Core::LinearSolver
     virtual ~PreconditionerTypeBase() = default;
 
     /// Setup preconditioner with a given linear system.
-    virtual void setup(bool create, Epetra_Operator* matrix, Core::LinAlg::MultiVector<double>* x,
+    virtual void setup(Epetra_Operator* matrix, Core::LinAlg::MultiVector<double>* x,
         Core::LinAlg::MultiVector<double>* b) = 0;
 
     /// linear operator used for preconditioning

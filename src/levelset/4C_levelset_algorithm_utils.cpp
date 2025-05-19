@@ -29,35 +29,12 @@ FOUR_C_NAMESPACE_OPEN
 void ScaTra::LevelSetAlgorithm::set_velocity_field(bool init)
 {
   // call function of base class
-  ScaTraTimIntImpl::set_velocity_field();
+  ScaTraTimIntImpl::set_velocity_field_from_function();
 
   // note: This function is only called from the level-set dyn. This is ok, since
   //       we only want to initialize conveln_ at the beginning of the simulation.
   //       for the remainder, it is updated as usual. For the dependent velocity fields
   //       the base class function is called in prepare_time_step().
-}
-
-
-/*----------------------------------------------------------------------*
- | set convective velocity field (+ pressure and acceleration field as  |
- | well as fine-scale velocity field, if required)      rasthofer 11/13 |
- *----------------------------------------------------------------------*/
-void ScaTra::LevelSetAlgorithm::set_velocity_field(
-    std::shared_ptr<const Core::LinAlg::Vector<double>> convvel,
-    std::shared_ptr<const Core::LinAlg::Vector<double>> acc,
-    std::shared_ptr<const Core::LinAlg::Vector<double>> vel,
-    std::shared_ptr<const Core::LinAlg::Vector<double>> fsvel, bool setpressure, bool init)
-{
-  // call routine of base class
-  ScaTraTimIntImpl::set_velocity_field(convvel, acc, vel, fsvel, setpressure);
-
-  // manipulate velocity field away from the interface
-  if (extract_interface_vel_) manipulate_fluid_field_for_gfunc();
-
-  // estimate velocity at contact points, i.e., intersection points of interface and (no-slip) walls
-  if (cpbc_) apply_contact_point_boundary_condition();
-
-  return;
 }
 
 
@@ -77,9 +54,9 @@ void ScaTra::LevelSetAlgorithm::add_problem_specific_parameters_and_vectors(
     if (reinitaction_ == Inpar::ScaTra::reinitaction_sussman)
     {
       // set initial phi, i.e., solution of level-set equation
-      discret_->set_state("phizero", initialphireinit_);
+      discret_->set_state("phizero", *initialphireinit_);
       // TODO: RM if not needed
-      discret_->set_state("phin", phin_);
+      discret_->set_state("phin", *phin_);
 
 #ifndef USE_PHIN_FOR_VEL
       if (useprojectedreinitvel_ == Inpar::ScaTra::vel_reinit_node_based)
@@ -236,7 +213,7 @@ void ScaTra::LevelSetAlgorithm::evaluate_error_compared_to_analytical_sol()
         eleparams.set<Inpar::ScaTra::CalcErrorLevelSet>("calcerrorflag", calcerr);
 
         // get initial field
-        const Epetra_Map* dofrowmap = discret_->dof_row_map();
+        const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
         std::shared_ptr<Core::LinAlg::Vector<double>> phiref =
             std::make_shared<Core::LinAlg::Vector<double>>(*dofrowmap, true);
 
@@ -261,15 +238,15 @@ void ScaTra::LevelSetAlgorithm::evaluate_error_compared_to_analytical_sol()
             double initialval =
                 problem_->function_by_id<Core::Utils::FunctionOfSpaceTime>(startfuncno)
                     .evaluate(lnode->x().data(), time_, k);
-            int err = phiref->ReplaceMyValues(1, &initialval, &doflid);
+            int err = phiref->replace_local_values(1, &initialval, &doflid);
             if (err != 0) FOUR_C_THROW("dof not on proc");
           }
         }
 
         // set vector values needed by elements
         discret_->clear_state();
-        discret_->set_state("phinp", phinp_);
-        discret_->set_state("phiref", phiref);
+        discret_->set_state("phinp", *phinp_);
+        discret_->set_state("phiref", *phiref);
 
         // get error and volume
         std::shared_ptr<Core::LinAlg::SerialDenseVector> errors =
@@ -277,12 +254,12 @@ void ScaTra::LevelSetAlgorithm::evaluate_error_compared_to_analytical_sol()
         discret_->evaluate_scalars(eleparams, errors);
         discret_->clear_state();
 
-        double errL1 = (*errors)[0] / (*errors)[1];  // division by thickness of element layer for
-                                                     // 2D problems with domain size 1
+        // division by thickness of element layer for 2D problems with domain size 1
+        double errL1 = (*errors)[0] / (*errors)[1];
         Core::LinAlg::Vector<double> phidiff(*phinp_);
-        phidiff.Update(-1.0, *phiref, 1.0);
+        phidiff.update(-1.0, *phiref, 1.0);
         double errLinf = 0.0;
-        phidiff.NormInf(&errLinf);
+        phidiff.norm_inf(&errLinf);
 
         const std::string simulation = problem_->output_control_file()->file_name();
         const std::string fname = simulation + "_shape.error";
@@ -370,23 +347,23 @@ void ScaTra::LevelSetAlgorithm::apply_contact_point_boundary_condition()
             // in case of further distypes, move the following block to a templated function
             {
               // get number of element nodes
-              const int nen = Core::FE::num_nodes<distype>;
+              const int nen = Core::FE::num_nodes(distype);
               // get number of space dimensions
               const int nsd = Core::FE::dim<distype>;
 
               // get nodal values of velocity field from secondary dofset
               Core::Elements::LocationArray la(discret_->num_dof_sets());
-              adjelements[iele]->location_vector(*discret_, la, false);
+              adjelements[iele]->location_vector(*discret_, la);
               const std::vector<int>& lmvel = la[nds_vel()].lm_;
               std::vector<double> myconvel(lmvel.size());
 
               // extract local values from global vector
-              Core::FE::extract_my_values(*convel, myconvel, lmvel);
+              myconvel = Core::FE::extract_values(*convel, lmvel);
 
               // determine number of velocity related dofs per node
               const int numveldofpernode = lmvel.size() / nen;
 
-              Core::LinAlg::Matrix<nsd, nen> evel(true);
+              Core::LinAlg::Matrix<nsd, nen> evel(Core::LinAlg::Initialization::zero);
 
               // loop over number of nodes
               for (int inode = 0; inode < nen; ++inode)
@@ -398,16 +375,16 @@ void ScaTra::LevelSetAlgorithm::apply_contact_point_boundary_condition()
               // used here to get center coordinates
               Core::FE::IntPointsAndWeights<nsd> centercoord(
                   ScaTra::DisTypeToStabGaussRule<distype>::rule);
-              Core::LinAlg::Matrix<nsd, 1> xsi(true);
+              Core::LinAlg::Matrix<nsd, 1> xsi(Core::LinAlg::Initialization::zero);
               const double* gpcoord = (centercoord.ip().qxg)[0];
               for (int idim = 0; idim < nsd; idim++) xsi(idim, 0) = gpcoord[idim];
 
               // compute shape functions at element center
-              Core::LinAlg::Matrix<nen, 1> funct(true);
+              Core::LinAlg::Matrix<nen, 1> funct(Core::LinAlg::Initialization::zero);
               Core::FE::shape_function<distype>(xsi, funct);
 
               // get velocity at integration point
-              Core::LinAlg::Matrix<nsd, 1> velint(true);
+              Core::LinAlg::Matrix<nsd, 1> velint(Core::LinAlg::Initialization::zero);
               velint.multiply(evel, funct);
 
               // add to averaged velocity vector
@@ -429,7 +406,7 @@ void ScaTra::LevelSetAlgorithm::apply_contact_point_boundary_condition()
   }  // end loop conditions
 
   // replace values in velocity vector
-  const Epetra_Map* noderowmap = discret_->node_row_map();
+  const Core::LinAlg::Map* noderowmap = discret_->node_row_map();
   for (std::map<int, std::vector<double>>::iterator iter = nodal_correction.begin();
       iter != nodal_correction.end(); iter++)
   {
@@ -444,17 +421,17 @@ void ScaTra::LevelSetAlgorithm::apply_contact_point_boundary_condition()
     {
       // get global and local dof IDs
       const int gid = nodedofs[index];
-      const int lid = convel_new->Map().LID(gid);
+      const int lid = convel_new->get_block_map().LID(gid);
       if (lid < 0) FOUR_C_THROW("Local ID not found in map for given global ID!");
       const double convelocity = myvel[index];
-      int err = convel_new->ReplaceMyValue(lid, 0, convelocity);
+      int err = convel_new->replace_local_value(lid, 0, convelocity);
       if (err != 0) FOUR_C_THROW("Error while inserting value into vector convel!");
     }
   }
 
   // update velocity vectors
-  discret_->set_state(nds_vel(), "convective velocity field", convel_new);
-  discret_->set_state(nds_vel(), "velocity field", convel_new);
+  discret_->set_state(nds_vel(), "convective velocity field", *convel_new);
+  discret_->set_state(nds_vel(), "velocity field", *convel_new);
 
   return;
 }
@@ -588,10 +565,10 @@ void ScaTra::LevelSetAlgorithm::manipulate_fluid_field_for_gfunc()
           const int nodegid = nodeids[inode];
           Core::Nodes::Node* node = discret_->g_node(nodegid);
           const int dofgid = discret_->dof(0, node, 0);
-          const int doflid = phinpcol.Map().LID(dofgid);
+          const int doflid = phinpcol.get_block_map().LID(dofgid);
           if (doflid < 0)
             FOUR_C_THROW(
-                "Proc %d: Cannot find gid=%d in Core::LinAlg::Vector<double>", myrank_, dofgid);
+                "Proc {}: Cannot find gid={} in Core::LinAlg::Vector<double>", myrank_, dofgid);
 
           if (plus_domain((phinpcol)[doflid]) == false)
             gotnegativephi = true;
@@ -734,7 +711,7 @@ void ScaTra::LevelSetAlgorithm::manipulate_fluid_field_for_gfunc()
       {
         // get global and local dof IDs
         const int gid = nodedofs[i];
-        const int lid = convel.Map().LID(gid);
+        const int lid = convel.get_block_map().LID(gid);
         if (lid < 0) FOUR_C_THROW("Local ID not found in map for given global ID!");
         coordandvel(i, 0) = coord[i];
         coordandvel(i, 1) = (convel)[lid];
@@ -761,14 +738,14 @@ void ScaTra::LevelSetAlgorithm::manipulate_fluid_field_for_gfunc()
     Core::Nodes::Node* lnode = discret_->l_row_node(lnodeid);
     std::vector<int> nodedofs = discret_->dof(nds_vel(), lnode);
 
-    Core::LinAlg::Matrix<3, 1> fluidvel(true);
+    Core::LinAlg::Matrix<3, 1> fluidvel(Core::LinAlg::Initialization::zero);
 
     // extract velocity values (no pressure!) from global velocity vector
     for (int i = 0; i < 3; ++i)
     {
       // get global and local dof IDs
       const int gid = nodedofs[i];
-      const int lid = convel.Map().LID(gid);
+      const int lid = convel.get_block_map().LID(gid);
       if (lid < 0) FOUR_C_THROW("Local ID not found in map for given global ID!");
 
       fluidvel(i) = (convel)[lid];
@@ -778,7 +755,7 @@ void ScaTra::LevelSetAlgorithm::manipulate_fluid_field_for_gfunc()
     if (foundit == allcollectednodes.end())
     {
       // find closest node in surfacenodes
-      Core::LinAlg::Matrix<3, 2> closestnodedata(true);
+      Core::LinAlg::Matrix<3, 2> closestnodedata(Core::LinAlg::Initialization::zero);
       {
         Core::LinAlg::Matrix<3, 1> nodecoord;
         auto& coord = lnode->x();
@@ -873,10 +850,10 @@ void ScaTra::LevelSetAlgorithm::manipulate_fluid_field_for_gfunc()
       {
         // get global and local dof IDs
         const int gid = nodedofs[icomp];
-        const int lid = convel.Map().LID(gid);
+        const int lid = convel.get_block_map().LID(gid);
         if (lid < 0) FOUR_C_THROW("Local ID not found in map for given global ID!");
 
-        int err = conveltmp->ReplaceMyValue(lid, 0, closestnodedata(icomp, 1));
+        int err = conveltmp->replace_local_value(lid, 0, closestnodedata(icomp, 1));
         if (err) FOUR_C_THROW("could not replace values for convective velocity");
       }
     }
@@ -886,18 +863,18 @@ void ScaTra::LevelSetAlgorithm::manipulate_fluid_field_for_gfunc()
       {
         // get global and local dof IDs
         const int gid = nodedofs[icomp];
-        const int lid = convel.Map().LID(gid);
+        const int lid = convel.get_block_map().LID(gid);
         if (lid < 0) FOUR_C_THROW("Local ID not found in map for given global ID!");
 
-        int err = conveltmp->ReplaceMyValue(lid, 0, fluidvel(icomp));
+        int err = conveltmp->replace_local_value(lid, 0, fluidvel(icomp));
         if (err) FOUR_C_THROW("could not replace values for convective velocity");
       }
     }
   }
 
   // update velocity vectors
-  discret_->set_state(nds_vel(), "convective velocity field", conveltmp);
-  discret_->set_state(nds_vel(), "velocity field", conveltmp);
+  discret_->set_state(nds_vel(), "convective velocity field", *conveltmp);
+  discret_->set_state(nds_vel(), "velocity field", *conveltmp);
 
 
   return;
@@ -911,7 +888,7 @@ void ScaTra::LevelSetAlgorithm::mass_center_using_smoothing()
 {
   // set vector values needed by elements
   discret_->clear_state();
-  discret_->set_state("phinp", phinp_);
+  discret_->set_state("phinp", *phinp_);
 
   // create the parameters for the error calculation
   Teuchos::ParameterList eleparams;
@@ -984,7 +961,7 @@ void ScaTra::LevelSetAlgorithm::mass_center_using_smoothing()
  | redistribute the scatra discretization and vectors         rasthofer 07/11 |
  | according to nodegraph according to nodegraph              DA wichmann     |
  *----------------------------------------------------------------------------*/
-void ScaTra::LevelSetAlgorithm::redistribute(Epetra_CrsGraph& nodegraph)
+void ScaTra::LevelSetAlgorithm::redistribute(Core::LinAlg::Graph& nodegraph)
 {
   // TODO: works if and only if discretization has already been redistributed
   //      change this and use unused nodegraph
@@ -992,7 +969,7 @@ void ScaTra::LevelSetAlgorithm::redistribute(Epetra_CrsGraph& nodegraph)
   //      to be redistributed, too
   FOUR_C_THROW("Fix Redistribution!");
   //--------------------------------------------------------------------
-  // Now update all Core::LinAlg::Vectors and Epetra_Matrix to the new dofmap
+  // Now update all vectors and matrices to the new dofmap
   //--------------------------------------------------------------------
 
   discret_->compute_null_space_if_necessary(solver_->params(), true);
@@ -1001,7 +978,7 @@ void ScaTra::LevelSetAlgorithm::redistribute(Epetra_CrsGraph& nodegraph)
   // get a vector layout from the discretization to construct matching
   // vectors and matrices: local <-> global dof numbering
   // -------------------------------------------------------------------
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   // initialize standard (stabilized) system matrix (and save its graph!)
   // in standard case, but do not save the graph if fine-scale subgrid

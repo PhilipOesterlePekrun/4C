@@ -11,6 +11,7 @@
 #include "4C_fluid_ele_boundary_calc.hpp"
 #include "4C_fluid_ele_boundary_factory.hpp"
 #include "4C_fluid_ele_boundary_parent_calc.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -36,7 +37,6 @@ int Discret::Elements::FluidBoundary::evaluate(Teuchos::ParameterList& params,
     case FLD::Outletimpedance:
     case FLD::dQdu:
     case FLD::boundary_calc_node_normal:
-    case FLD::calc_node_curvature:
     case FLD::calc_Neumann_inflow:
     case FLD::calc_pressure_bou_int:
     case FLD::center_of_mass_calc:
@@ -98,7 +98,7 @@ int Discret::Elements::FluidBoundary::evaluate(Teuchos::ParameterList& params,
     }
     default:
     {
-      FOUR_C_THROW("Unknown type of action '%i' for Fluid Boundary", act);
+      FOUR_C_THROW("Unknown type of action '{}' for Fluid Boundary", act);
       break;
     }
   }  // end of switch(act)
@@ -122,7 +122,7 @@ int Discret::Elements::FluidBoundary::evaluate_neumann(Teuchos::ParameterList& p
  |  Get degrees of freedom used by this element                (public) |
  *----------------------------------------------------------------------*/
 void Discret::Elements::FluidBoundary::location_vector(const Core::FE::Discretization& dis,
-    Core::Elements::LocationArray& la, bool doDirichlet, const std::string& condstring,
+    Core::Elements::LocationArray& la, const std::string& condstring,
     Teuchos::ParameterList& params) const
 {
   // get the action required
@@ -140,14 +140,14 @@ void Discret::Elements::FluidBoundary::location_vector(const Core::FE::Discretiz
       // the inner dofs of its parent element
       // note: using these actions, the element will get the parent location vector
       //       as input in the respective evaluate routines
-      parent_element()->location_vector(dis, la, doDirichlet);
+      parent_element()->location_vector(dis, la);
       break;
     case FLD::boundary_none:
       FOUR_C_THROW("No action supplied");
       break;
     default:
       // standard case: element assembles into its own dofs only
-      Core::Elements::Element::location_vector(dis, la, doDirichlet);
+      Core::Elements::Element::location_vector(dis, la);
       break;
   }
   return;

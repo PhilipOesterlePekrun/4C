@@ -10,14 +10,14 @@
 #include "4C_beam3_euler_bernoulli.hpp"
 #include "4C_beam3_kirchhoff.hpp"
 #include "4C_beam3_reissner.hpp"
+#include "4C_beamcontact_input.hpp"
 #include "4C_beaminteraction_beam_to_beam_contact_defines.hpp"
 #include "4C_beaminteraction_beam_to_beam_contact_tangentsmoothing.hpp"
 #include "4C_beaminteraction_beam_to_beam_contact_utils.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_utils_fem_shapefunctions.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_beamcontact.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_linalg_utils_sparse_algebra_assemble.hpp"
 #include "4C_structure_timint_impl.hpp"
 #include "4C_utils_exceptions.hpp"
@@ -64,9 +64,8 @@ CONTACT::Beam3contact<numnodes, numnodalvalues>::Beam3contact(
     nodaltangentssmooth2_(i) = 0.0;
   }
 
-  auto smoothing =
-      Teuchos::getIntegralValue<Inpar::BeamContact::Smoothing>(bcparams_, "BEAMS_SMOOTHING");
-  if (smoothing == Inpar::BeamContact::bsm_cpp)
+  auto smoothing = Teuchos::getIntegralValue<BeamContact::Smoothing>(bcparams_, "BEAMS_SMOOTHING");
+  if (smoothing == BeamContact::bsm_cpp)
   {
     const Core::Elements::ElementType& eot1 = element1_->element_type();
     if (eot1 != Discret::Elements::Beam3rType::instance())
@@ -132,9 +131,9 @@ CONTACT::Beam3contact<numnodes, numnodalvalues>::Beam3contact(
   if (element1->id() >= element2->id())
     FOUR_C_THROW("Element 1 has to have the smaller element-ID. Adapt your contact search!");
 
-  auto penaltylaw = Teuchos::getIntegralValue<Inpar::BeamContact::PenaltyLaw>(
-      beamcontactparams, "BEAMS_PENALTYLAW");
-  if (penaltylaw != Inpar::BeamContact::pl_lp and penaltylaw != Inpar::BeamContact::pl_qp)
+  auto penaltylaw =
+      Teuchos::getIntegralValue<BeamContact::PenaltyLaw>(beamcontactparams, "BEAMS_PENALTYLAW");
+  if (penaltylaw != BeamContact::pl_lp and penaltylaw != BeamContact::pl_qp)
   {
     if (beamcontactparams.get<double>("BEAMS_PENREGPARAM_F0", -1.0) == -1.0 or
         beamcontactparams.get<double>("BEAMS_PENREGPARAM_G0", -1.0) == -1.0 or
@@ -147,13 +146,12 @@ CONTACT::Beam3contact<numnodes, numnodalvalues>::Beam3contact(
   gpvariables_.resize(0);
   epvariables_.resize(0);
 
-  if (Teuchos::getIntegralValue<Inpar::BeamContact::Damping>(bcparams_, "BEAMS_DAMPING") !=
-      Inpar::BeamContact::bd_no)
+  if (bcparams_.get<bool>("BEAMS_DAMPING") == true)
     FOUR_C_THROW("Damping is not implemented for beam3contact elements so far!");
 
   if (bcparams_.get<double>("BEAMS_GAPSHIFTPARAM", 0.0) != 0.0 and
-      Teuchos::getIntegralValue<Inpar::BeamContact::PenaltyLaw>(bcparams_, "BEAMS_PENALTYLAW") !=
-          Inpar::BeamContact::pl_lpqp)
+      Teuchos::getIntegralValue<BeamContact::PenaltyLaw>(bcparams_, "BEAMS_PENALTYLAW") !=
+          BeamContact::pl_lpqp)
     FOUR_C_THROW("BEAMS_GAPSHIFTPARAM only possible for penalty law LinPosQuadPen!");
 
   double perpshiftangle1 = bcparams_.get<double>("BEAMS_PERPSHIFTANGLE1") / 180.0 * M_PI;
@@ -273,7 +271,7 @@ bool CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate(
   get_close_segments(endpoints1, endpoints2, closesmallanglesegments, closelargeanglesegments,
       closeendpointsegments, maxactivegap_);
 #else
-  Core::LinAlg::Matrix<3, 1, double> segmentdata(true);
+  Core::LinAlg::Matrix<3, 1, double> segmentdata(Core::LinAlg::Initialization::zero);
   segmentdata(0) = 0.0;  // segment angle
   segmentdata(1) = 0.0;  // eta1_seg
   segmentdata(2) = 0.0;  // eta2_seg
@@ -430,21 +428,27 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_active_large_angl
     //**********************************************************************
 
     // vectors for shape functions and their derivatives
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1(true);       // = N1
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2(true);       // = N2
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xi(true);    // = N1,xi
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xi(true);    // = N2,eta
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xixi(true);  // = N1,xixi
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xixi(true);  // = N2,etaeta
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1(
+        Core::LinAlg::Initialization::zero);  // = N1
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2(
+        Core::LinAlg::Initialization::zero);  // = N2
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xi(
+        Core::LinAlg::Initialization::zero);  // = N1,xi
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xi(
+        Core::LinAlg::Initialization::zero);  // = N2,eta
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xixi(
+        Core::LinAlg::Initialization::zero);  // = N1,xixi
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xixi(
+        Core::LinAlg::Initialization::zero);  // = N2,etaeta
 
     // coords and derivatives of the two contacting points
-    Core::LinAlg::Matrix<3, 1, TYPE> r1(true);       // = r1
-    Core::LinAlg::Matrix<3, 1, TYPE> r2(true);       // = r2
-    Core::LinAlg::Matrix<3, 1, TYPE> r1_xi(true);    // = r1,xi
-    Core::LinAlg::Matrix<3, 1, TYPE> r2_xi(true);    // = r2,eta
-    Core::LinAlg::Matrix<3, 1, TYPE> r1_xixi(true);  // = r1,xixi
-    Core::LinAlg::Matrix<3, 1, TYPE> r2_xixi(true);  // = r2,etaeta
-    Core::LinAlg::Matrix<3, 1, TYPE> delta_r(true);  // = r1-r2
+    Core::LinAlg::Matrix<3, 1, TYPE> r1(Core::LinAlg::Initialization::zero);       // = r1
+    Core::LinAlg::Matrix<3, 1, TYPE> r2(Core::LinAlg::Initialization::zero);       // = r2
+    Core::LinAlg::Matrix<3, 1, TYPE> r1_xi(Core::LinAlg::Initialization::zero);    // = r1,xi
+    Core::LinAlg::Matrix<3, 1, TYPE> r2_xi(Core::LinAlg::Initialization::zero);    // = r2,eta
+    Core::LinAlg::Matrix<3, 1, TYPE> r1_xixi(Core::LinAlg::Initialization::zero);  // = r1,xixi
+    Core::LinAlg::Matrix<3, 1, TYPE> r2_xixi(Core::LinAlg::Initialization::zero);  // = r2,etaeta
+    Core::LinAlg::Matrix<3, 1, TYPE> delta_r(Core::LinAlg::Initialization::zero);  // = r1-r2
 
     TYPE eta1 = cpvariables_[numcp]->get_cp().first;
     TYPE eta2 = cpvariables_[numcp]->get_cp().second;
@@ -906,8 +910,10 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_active_small_angl
   double eta1_leftboundary = (*eta1_leftrightboundary).first;
   double eta1_rightboundary = (*eta1_leftrightboundary).second;
 
-  Core::LinAlg::Matrix<2 * 3 * numnodes * numnodalvalues, 1, TYPE> delta_xi_R(true);
-  Core::LinAlg::Matrix<2 * 3 * numnodes * numnodalvalues, 1, TYPE> delta_xi_L(true);
+  Core::LinAlg::Matrix<2 * 3 * numnodes * numnodalvalues, 1, TYPE> delta_xi_R(
+      Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<2 * 3 * numnodes * numnodalvalues, 1, TYPE> delta_xi_L(
+      Core::LinAlg::Initialization::zero);
 
   if (leftsolutionwithinsegment)
   {
@@ -938,21 +944,27 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_active_small_angl
 #endif
 
     // vectors for shape functions and their derivatives
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1(true);       // = N1
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2(true);       // = N2
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xi(true);    // = N1,xi
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xi(true);    // = N2,eta
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xixi(true);  // = N1,xixi
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xixi(true);  // = N2,etaeta
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1(
+        Core::LinAlg::Initialization::zero);  // = N1
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2(
+        Core::LinAlg::Initialization::zero);  // = N2
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xi(
+        Core::LinAlg::Initialization::zero);  // = N1,xi
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xi(
+        Core::LinAlg::Initialization::zero);  // = N2,eta
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xixi(
+        Core::LinAlg::Initialization::zero);  // = N1,xixi
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xixi(
+        Core::LinAlg::Initialization::zero);  // = N2,etaeta
 
     // coords and derivatives of the two contacting points
-    Core::LinAlg::Matrix<3, 1, TYPE> r1(true);       // = r1
-    Core::LinAlg::Matrix<3, 1, TYPE> r2(true);       // = r2
-    Core::LinAlg::Matrix<3, 1, TYPE> r1_xi(true);    // = r1,xi
-    Core::LinAlg::Matrix<3, 1, TYPE> r2_xi(true);    // = r2,eta
-    Core::LinAlg::Matrix<3, 1, TYPE> r1_xixi(true);  // = r1,xixi
-    Core::LinAlg::Matrix<3, 1, TYPE> r2_xixi(true);  // = r2,etaeta
-    Core::LinAlg::Matrix<3, 1, TYPE> delta_r(true);  // = r1-r2
+    Core::LinAlg::Matrix<3, 1, TYPE> r1(Core::LinAlg::Initialization::zero);       // = r1
+    Core::LinAlg::Matrix<3, 1, TYPE> r2(Core::LinAlg::Initialization::zero);       // = r2
+    Core::LinAlg::Matrix<3, 1, TYPE> r1_xi(Core::LinAlg::Initialization::zero);    // = r1,xi
+    Core::LinAlg::Matrix<3, 1, TYPE> r2_xi(Core::LinAlg::Initialization::zero);    // = r2,eta
+    Core::LinAlg::Matrix<3, 1, TYPE> r1_xixi(Core::LinAlg::Initialization::zero);  // = r1,xixi
+    Core::LinAlg::Matrix<3, 1, TYPE> r2_xixi(Core::LinAlg::Initialization::zero);  // = r2,etaeta
+    Core::LinAlg::Matrix<3, 1, TYPE> delta_r(Core::LinAlg::Initialization::zero);  // = r1-r2
 
     // update shape functions and their derivatives
     get_shape_functions(N1, N2, N1_xi, N2_xi, N1_xixi, N2_xixi, eta1, eta2);
@@ -1206,7 +1218,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::get_active_end_point_pairs
     {
       double eta1 = -1.0;
       double eta2 = -1.0;
-      Core::LinAlg::Matrix<3, 1> deltanodalpos(true);
+      Core::LinAlg::Matrix<3, 1> deltanodalpos(Core::LinAlg::Initialization::zero);
       for (int i = 0; i < 3; i++)
       {
         deltanodalpos(i) = Core::FADUtils::cast_to_double(ele2pos_(i) - ele1pos_(i));
@@ -1236,7 +1248,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::get_active_end_point_pairs
     {
       double eta1 = -1.0;
       double eta2 = 1.0;
-      Core::LinAlg::Matrix<3, 1> deltanodalpos(true);
+      Core::LinAlg::Matrix<3, 1> deltanodalpos(Core::LinAlg::Initialization::zero);
       for (int i = 0; i < 3; i++)
       {
         deltanodalpos(i) = Core::FADUtils::cast_to_double(ele2pos_(6 + i) - ele1pos_(i));
@@ -1265,7 +1277,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::get_active_end_point_pairs
     {
       double eta1 = 1.0;
       double eta2 = -1.0;
-      Core::LinAlg::Matrix<3, 1> deltanodalpos(true);
+      Core::LinAlg::Matrix<3, 1> deltanodalpos(Core::LinAlg::Initialization::zero);
       for (int i = 0; i < 3; i++)
       {
         deltanodalpos(i) = Core::FADUtils::cast_to_double(ele2pos_(i) - ele1pos_(6 + i));
@@ -1294,7 +1306,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::get_active_end_point_pairs
     {
       double eta1 = 1.0;
       double eta2 = 1.0;
-      Core::LinAlg::Matrix<3, 1> deltanodalpos(true);
+      Core::LinAlg::Matrix<3, 1> deltanodalpos(Core::LinAlg::Initialization::zero);
       for (int i = 0; i < 3; i++)
       {
         deltanodalpos(i) = Core::FADUtils::cast_to_double(ele2pos_(6 + i) - ele1pos_(6 + i));
@@ -1338,21 +1350,27 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_active_end_point_
     //**********************************************************************
 
     // vectors for shape functions and their derivatives
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1(true);       // = N1
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2(true);       // = N2
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xi(true);    // = N1,xi
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xi(true);    // = N2,eta
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xixi(true);  // = N1,xixi
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xixi(true);  // = N2,etaeta
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1(
+        Core::LinAlg::Initialization::zero);  // = N1
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2(
+        Core::LinAlg::Initialization::zero);  // = N2
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xi(
+        Core::LinAlg::Initialization::zero);  // = N1,xi
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xi(
+        Core::LinAlg::Initialization::zero);  // = N2,eta
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xixi(
+        Core::LinAlg::Initialization::zero);  // = N1,xixi
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xixi(
+        Core::LinAlg::Initialization::zero);  // = N2,etaeta
 
     // coords and derivatives of the two contacting points
-    Core::LinAlg::Matrix<3, 1, TYPE> r1(true);       // = r1
-    Core::LinAlg::Matrix<3, 1, TYPE> r2(true);       // = r2
-    Core::LinAlg::Matrix<3, 1, TYPE> r1_xi(true);    // = r1,xi
-    Core::LinAlg::Matrix<3, 1, TYPE> r2_xi(true);    // = r2,eta
-    Core::LinAlg::Matrix<3, 1, TYPE> r1_xixi(true);  // = r1,xixi
-    Core::LinAlg::Matrix<3, 1, TYPE> r2_xixi(true);  // = r2,etaeta
-    Core::LinAlg::Matrix<3, 1, TYPE> delta_r(true);  // = r1-r2
+    Core::LinAlg::Matrix<3, 1, TYPE> r1(Core::LinAlg::Initialization::zero);       // = r1
+    Core::LinAlg::Matrix<3, 1, TYPE> r2(Core::LinAlg::Initialization::zero);       // = r2
+    Core::LinAlg::Matrix<3, 1, TYPE> r1_xi(Core::LinAlg::Initialization::zero);    // = r1,xi
+    Core::LinAlg::Matrix<3, 1, TYPE> r2_xi(Core::LinAlg::Initialization::zero);    // = r2,eta
+    Core::LinAlg::Matrix<3, 1, TYPE> r1_xixi(Core::LinAlg::Initialization::zero);  // = r1,xixi
+    Core::LinAlg::Matrix<3, 1, TYPE> r2_xixi(Core::LinAlg::Initialization::zero);  // = r2,etaeta
+    Core::LinAlg::Matrix<3, 1, TYPE> delta_r(Core::LinAlg::Initialization::zero);  // = r1-r2
 
     TYPE eta1 = epvariables_[numep]->get_cp().first;
     TYPE eta2 = epvariables_[numep]->get_cp().second;
@@ -1426,9 +1444,9 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::calc_penalty_law(
 
   if (!check_contact_status(Core::FADUtils::cast_to_double(gap))) return;
 
-  switch (Teuchos::getIntegralValue<Inpar::BeamContact::PenaltyLaw>(bcparams_, "BEAMS_PENALTYLAW"))
+  switch (Teuchos::getIntegralValue<BeamContact::PenaltyLaw>(bcparams_, "BEAMS_PENALTYLAW"))
   {
-    case Inpar::BeamContact::pl_lp:  // linear penalty force law
+    case BeamContact::pl_lp:  // linear penalty force law
     {
       fp = -pp * gap;
       dfp = -pp;
@@ -1436,7 +1454,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::calc_penalty_law(
 
       break;
     }
-    case Inpar::BeamContact::pl_qp:  // quadratic penalty force law
+    case BeamContact::pl_qp:  // quadratic penalty force law
     {
       fp = pp * gap * gap;
       dfp = 2 * pp * gap;
@@ -1444,7 +1462,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::calc_penalty_law(
 
       break;
     }
-    case Inpar::BeamContact::pl_lnqp:  // quadratic regularization for negative gaps
+    case BeamContact::pl_lnqp:  // quadratic regularization for negative gaps
     {
       if (g0 == -1.0)
         FOUR_C_THROW("Invalid value of regularization parameter BEAMS_PENREGPARAM_G0!");
@@ -1464,7 +1482,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::calc_penalty_law(
 
       break;
     }
-    case Inpar::BeamContact::pl_lpqp:  // quadratic regularization for positive gaps
+    case BeamContact::pl_lpqp:  // quadratic regularization for positive gaps
     {
       if (g0 == -1.0)
         FOUR_C_THROW("Invalid value of regularization parameter BEAMS_PENREGPARAM_G0!");
@@ -1495,7 +1513,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::calc_penalty_law(
 
       break;
     }
-    case Inpar::BeamContact::pl_lpcp:  // cubic regularization for positive gaps
+    case BeamContact::pl_lpcp:  // cubic regularization for positive gaps
     {
       if (g0 == -1.0)
         FOUR_C_THROW("Invalid value of regularization parameter BEAMS_PENREGPARAM_G0!");
@@ -1530,7 +1548,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::calc_penalty_law(
 
       break;
     }
-    case Inpar::BeamContact::pl_lpdqp:  // double quadratic regularization for positive gaps
+    case BeamContact::pl_lpdqp:  // double quadratic regularization for positive gaps
     {
       if (g0 == -1.0)
         FOUR_C_THROW("Invalid value of regularization parameter BEAMS_PENREGPARAM_G0!");
@@ -1576,8 +1594,8 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::calc_penalty_law(
 
       break;
     }
-    case Inpar::BeamContact::pl_lpep:  // exponential regularization for positive gaps. Here g0
-                                       // represents the cut off radius!
+    case BeamContact::pl_lpep:  // exponential regularization for positive gaps. Here g0
+                                // represents the cut off radius!
     {
       if (g0 == -1.0)
         FOUR_C_THROW("Invalid value of regularization parameter BEAMS_PENREGPARAM_G0!");
@@ -1755,7 +1773,7 @@ double CONTACT::Beam3contact<numnodes, numnodalvalues>::create_segments(
 {
   // endpoints of the segments
   std::vector<Core::LinAlg::Matrix<3, 1, double>> endpoints(
-      (int)MAXNUMSEG + 1, Core::LinAlg::Matrix<3, 1, double>(true));
+      (int)MAXNUMSEG + 1, Core::LinAlg::Matrix<3, 1, double>(Core::LinAlg::Initialization::zero));
   double segangle = bcparams_.get<double>("BEAMS_SEGANGLE") / 180.0 * M_PI;
 
   numsegment = 1;
@@ -1775,11 +1793,11 @@ double CONTACT::Beam3contact<numnodes, numnodalvalues>::create_segments(
 
   double xi1(0.0);
   double xi2(0.0);
-  Core::LinAlg::Matrix<3, 1, double> r1(true);
-  Core::LinAlg::Matrix<3, 1, double> t1(true);
-  Core::LinAlg::Matrix<3, 1, double> r2(true);
-  Core::LinAlg::Matrix<3, 1, double> t2(true);
-  Core::LinAlg::Matrix<3, 1, double> rm(true);
+  Core::LinAlg::Matrix<3, 1, double> r1(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1, double> t1(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1, double> r2(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1, double> t2(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1, double> rm(Core::LinAlg::Initialization::zero);
   double l = 0.0;
   double segdist = 0.0;
   double maxsegdist = 0.0;
@@ -1803,7 +1821,7 @@ double CONTACT::Beam3contact<numnodes, numnodalvalues>::create_segments(
       xi1 = -1.0 + i / ((double)numsegment) * 2.0;
       xi2 = -1.0 + (i + 1) / ((double)numsegment) *
                        2.0;  // The cast to double is necessary here to avoid integer round-off
-      Core::LinAlg::Matrix<3, 1, TYPE> auxmatrix(true);
+      Core::LinAlg::Matrix<3, 1, TYPE> auxmatrix(Core::LinAlg::Initialization::zero);
 
       auxmatrix = r(xi1, ele);
       r1 = Core::FADUtils::cast_to_double<TYPE, 3, 1>(auxmatrix);
@@ -1860,18 +1878,18 @@ double CONTACT::Beam3contact<numnodes, numnodalvalues>::get_max_active_dist()
 {
   double maxactivedist = 0.0;
   auto penaltylaw =
-      Teuchos::getIntegralValue<Inpar::BeamContact::PenaltyLaw>(bcparams_, "BEAMS_PENALTYLAW");
+      Teuchos::getIntegralValue<BeamContact::PenaltyLaw>(bcparams_, "BEAMS_PENALTYLAW");
 
   switch (penaltylaw)
   {
-    case Inpar::BeamContact::pl_lp:
-    case Inpar::BeamContact::pl_qp:
-    case Inpar::BeamContact::pl_lnqp:
+    case BeamContact::pl_lp:
+    case BeamContact::pl_qp:
+    case BeamContact::pl_lnqp:
     {
       maxactivedist = 0.0;
       break;
     }
-    case Inpar::BeamContact::pl_lpqp:
+    case BeamContact::pl_lpqp:
     {
       double g0 = bcparams_.get<double>("BEAMS_PENREGPARAM_G0", -1.0);
       if (g0 == -1.0)
@@ -1884,9 +1902,9 @@ double CONTACT::Beam3contact<numnodes, numnodalvalues>::get_max_active_dist()
 
       break;
     }
-    case Inpar::BeamContact::pl_lpcp:
-    case Inpar::BeamContact::pl_lpdqp:
-    case Inpar::BeamContact::pl_lpep:
+    case BeamContact::pl_lpcp:
+    case BeamContact::pl_lpdqp:
+    case BeamContact::pl_lpep:
     {
       maxactivedist = bcparams_.get<double>("BEAMS_PENREGPARAM_G0", -1.0);
       if (maxactivedist == -1.0)
@@ -1894,8 +1912,7 @@ double CONTACT::Beam3contact<numnodes, numnodalvalues>::get_max_active_dist()
       break;
     }
   }
-  if (Teuchos::getIntegralValue<Inpar::BeamContact::Damping>(bcparams_, "BEAMS_DAMPING") !=
-      Inpar::BeamContact::bd_no)
+  if (bcparams_.get<bool>("BEAMS_DAMPING") == true)
   {
     double gd1 = bcparams_.get<double>("BEAMS_DAMPREGPARAM1", -1000.0);
     if (gd1 == -1000.0)
@@ -1917,8 +1934,8 @@ bool CONTACT::Beam3contact<numnodes, numnodalvalues>::check_segment(
     Core::LinAlg::Matrix<3, 1, double>& r2, Core::LinAlg::Matrix<3, 1, double>& t2,
     Core::LinAlg::Matrix<3, 1, double>& rm, double& segdist)
 {
-  Core::LinAlg::Matrix<3, 1, double> t_lin(true);
-  Core::LinAlg::Matrix<3, 1, double> rm_lin(true);
+  Core::LinAlg::Matrix<3, 1, double> t_lin(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1, double> rm_lin(Core::LinAlg::Initialization::zero);
   double angle1(0.0);
   double angle2(0.0);
   double dist(0.0);
@@ -1931,7 +1948,7 @@ bool CONTACT::Beam3contact<numnodes, numnodalvalues>::check_segment(
     rm_lin(i) = (r2(i) + r1(i)) / 2.0;
   }
 
-  Core::LinAlg::Matrix<3, 1, double> diffvec(true);
+  Core::LinAlg::Matrix<3, 1, double> diffvec(Core::LinAlg::Initialization::zero);
   diffvec = Core::FADUtils::diff_vector(rm_lin, rm);
   dist = (double)Core::FADUtils::vector_norm<3>(diffvec);
   angle1 = (double)BeamInteraction::calc_angle(t1, t_lin);
@@ -1959,12 +1976,12 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::get_close_segments(
     std::map<std::pair<int, int>, Core::LinAlg::Matrix<3, 1, double>>& closelargeanglesegments,
     std::vector<std::pair<int, int>>& closeendpointsegments, double maxactivedist)
 {
-  Core::LinAlg::Matrix<3, 1, double> t1(true);
-  Core::LinAlg::Matrix<3, 1, double> t2(true);
-  Core::LinAlg::Matrix<3, 1, double> r1_a(true);
-  Core::LinAlg::Matrix<3, 1, double> r1_b(true);
-  Core::LinAlg::Matrix<3, 1, double> r2_a(true);
-  Core::LinAlg::Matrix<3, 1, double> r2_b(true);
+  Core::LinAlg::Matrix<3, 1, double> t1(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1, double> t2(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1, double> r1_a(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1, double> r1_b(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1, double> r2_a(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1, double> r2_b(Core::LinAlg::Initialization::zero);
   double angle(0.0);
 
   const bool endpoint_penalty = bcparams_.get<bool>("BEAMS_ENDPOINTPENALTY");
@@ -1998,7 +2015,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::get_close_segments(
       {
         if (BeamInteraction::intersect_parallel_cylinders(r1_a, r1_b, r2_a, r2_b, distancelimit))
         {
-          Core::LinAlg::Matrix<3, 1, double> segmentdata(true);
+          Core::LinAlg::Matrix<3, 1, double> segmentdata(Core::LinAlg::Initialization::zero);
           segmentdata(0) = angle;   // segment angle
           segmentdata(1) = 1000.0;  // eta1_seg
           segmentdata(2) = 1000.0;  // eta2_seg
@@ -2028,7 +2045,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::get_close_segments(
         if (BeamInteraction::intersect_arbitrary_cylinders(
                 r1_a, r1_b, r2_a, r2_b, distancelimit, closestpoints, etaset))
         {
-          Core::LinAlg::Matrix<3, 1, double> segmentdata(true);
+          Core::LinAlg::Matrix<3, 1, double> segmentdata(Core::LinAlg::Initialization::zero);
           segmentdata(0) = angle;  // segment angle
 
           if (etaset)
@@ -2105,32 +2122,38 @@ bool CONTACT::Beam3contact<numnodes, numnodalvalues>::closest_point_projection(d
   for (int numstartpoint = 0; numstartpoint < (int)startingpoints.size(); numstartpoint++)
   {
     // vectors for shape functions and their derivatives
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1(true);       // = N1
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2(true);       // = N2
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xi(true);    // = N1,xi
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xi(true);    // = N2,eta
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xixi(true);  // = N1,xixi
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xixi(true);  // = N2,etaeta
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1(
+        Core::LinAlg::Initialization::zero);  // = N1
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2(
+        Core::LinAlg::Initialization::zero);  // = N2
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xi(
+        Core::LinAlg::Initialization::zero);  // = N1,xi
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xi(
+        Core::LinAlg::Initialization::zero);  // = N2,eta
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xixi(
+        Core::LinAlg::Initialization::zero);  // = N1,xixi
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xixi(
+        Core::LinAlg::Initialization::zero);  // = N2,etaeta
 
     // coords and derivatives of the two contacting points
-    Core::LinAlg::Matrix<3, 1, TYPE> r1(true);       // = r1
-    Core::LinAlg::Matrix<3, 1, TYPE> r2(true);       // = r2
-    Core::LinAlg::Matrix<3, 1, TYPE> r1_xi(true);    // = r1,xi
-    Core::LinAlg::Matrix<3, 1, TYPE> r2_xi(true);    // = r2,eta
-    Core::LinAlg::Matrix<3, 1, TYPE> r1_xixi(true);  // = r1,xixi
-    Core::LinAlg::Matrix<3, 1, TYPE> r2_xixi(true);  // = r2,etaeta
-    Core::LinAlg::Matrix<3, 1, TYPE> delta_r(true);  // = r1-r2
+    Core::LinAlg::Matrix<3, 1, TYPE> r1(Core::LinAlg::Initialization::zero);       // = r1
+    Core::LinAlg::Matrix<3, 1, TYPE> r2(Core::LinAlg::Initialization::zero);       // = r2
+    Core::LinAlg::Matrix<3, 1, TYPE> r1_xi(Core::LinAlg::Initialization::zero);    // = r1,xi
+    Core::LinAlg::Matrix<3, 1, TYPE> r2_xi(Core::LinAlg::Initialization::zero);    // = r2,eta
+    Core::LinAlg::Matrix<3, 1, TYPE> r1_xixi(Core::LinAlg::Initialization::zero);  // = r1,xixi
+    Core::LinAlg::Matrix<3, 1, TYPE> r2_xixi(Core::LinAlg::Initialization::zero);  // = r2,etaeta
+    Core::LinAlg::Matrix<3, 1, TYPE> delta_r(Core::LinAlg::Initialization::zero);  // = r1-r2
 
     // Tangent and derivatives for tangent field smoothing (only for Reissner beams)
-    Core::LinAlg::Matrix<3, 1, TYPE> t1(true);
-    Core::LinAlg::Matrix<3, 1, TYPE> t1_xi(true);
-    Core::LinAlg::Matrix<3, 1, TYPE> t2(true);
-    Core::LinAlg::Matrix<3, 1, TYPE> t2_xi(true);
+    Core::LinAlg::Matrix<3, 1, TYPE> t1(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<3, 1, TYPE> t1_xi(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<3, 1, TYPE> t2(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<3, 1, TYPE> t2_xi(Core::LinAlg::Initialization::zero);
 
     // initialize function f and Jacobian df for Newton iteration
-    Core::LinAlg::Matrix<2, 1, TYPE> f(true);
-    Core::LinAlg::Matrix<2, 2, TYPE> df(true);
-    Core::LinAlg::Matrix<2, 2, TYPE> dfinv(true);
+    Core::LinAlg::Matrix<2, 1, TYPE> f(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<2, 2, TYPE> df(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<2, 2, TYPE> dfinv(Core::LinAlg::Initialization::zero);
 
     // initial scalar residual (L2-norm of f)
     double residual = 0.0;
@@ -2206,11 +2229,11 @@ bool CONTACT::Beam3contact<numnodes, numnodalvalues>::closest_point_projection(d
       }
 
       auto smoothing =
-          Teuchos::getIntegralValue<Inpar::BeamContact::Smoothing>(bcparams_, "BEAMS_SMOOTHING");
-      if (smoothing != Inpar::BeamContact::bsm_none)  // smoothed case
+          Teuchos::getIntegralValue<BeamContact::Smoothing>(bcparams_, "BEAMS_SMOOTHING");
+      if (smoothing != BeamContact::bsm_none)  // smoothed case
       {
         // Evaluate nodal tangents in each case. However, they are used only if
-        // smoothing=Inpar::BeamContact::bsm_cpp
+        // smoothing=BeamContact::bsm_cpp
         BeamInteraction::Beam3TangentSmoothing::compute_tangents_and_derivs<numnodes,
             numnodalvalues>(t1, t1_xi, nodaltangentssmooth1_, N1, N1_xi);
         BeamInteraction::Beam3TangentSmoothing::compute_tangents_and_derivs<numnodes,
@@ -2510,26 +2533,32 @@ bool CONTACT::Beam3contact<numnodes, numnodalvalues>::point_to_line_projection(d
   for (int numstartpoint = 0; numstartpoint < (int)startingpoints.size(); numstartpoint++)
   {
     // vectors for shape functions and their derivatives
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1(true);       // = N1
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2(true);       // = N2
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xi(true);    // = N1,xi
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xi(true);    // = N2,eta
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xixi(true);  // = N1,xixi
-    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xixi(true);  // = N2,etaeta
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1(
+        Core::LinAlg::Initialization::zero);  // = N1
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2(
+        Core::LinAlg::Initialization::zero);  // = N2
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xi(
+        Core::LinAlg::Initialization::zero);  // = N1,xi
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xi(
+        Core::LinAlg::Initialization::zero);  // = N2,eta
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xixi(
+        Core::LinAlg::Initialization::zero);  // = N1,xixi
+    Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xixi(
+        Core::LinAlg::Initialization::zero);  // = N2,etaeta
 
     // coords and derivatives of the two contacting points
-    Core::LinAlg::Matrix<3, 1, TYPE> r1(true);       // = r1
-    Core::LinAlg::Matrix<3, 1, TYPE> r2(true);       // = r2
-    Core::LinAlg::Matrix<3, 1, TYPE> r1_xi(true);    // = r1,xi
-    Core::LinAlg::Matrix<3, 1, TYPE> r2_xi(true);    // = r2,eta
-    Core::LinAlg::Matrix<3, 1, TYPE> r1_xixi(true);  // = r1,xixi
-    Core::LinAlg::Matrix<3, 1, TYPE> r2_xixi(true);  // = r2,etaeta
-    Core::LinAlg::Matrix<3, 1, TYPE> delta_r(true);  // = r1-r2
+    Core::LinAlg::Matrix<3, 1, TYPE> r1(Core::LinAlg::Initialization::zero);       // = r1
+    Core::LinAlg::Matrix<3, 1, TYPE> r2(Core::LinAlg::Initialization::zero);       // = r2
+    Core::LinAlg::Matrix<3, 1, TYPE> r1_xi(Core::LinAlg::Initialization::zero);    // = r1,xi
+    Core::LinAlg::Matrix<3, 1, TYPE> r2_xi(Core::LinAlg::Initialization::zero);    // = r2,eta
+    Core::LinAlg::Matrix<3, 1, TYPE> r1_xixi(Core::LinAlg::Initialization::zero);  // = r1,xixi
+    Core::LinAlg::Matrix<3, 1, TYPE> r2_xixi(Core::LinAlg::Initialization::zero);  // = r2,etaeta
+    Core::LinAlg::Matrix<3, 1, TYPE> delta_r(Core::LinAlg::Initialization::zero);  // = r1-r2
 
     // initialize function f and Jacobian df for Newton iteration
     TYPE f = 0.0;
     TYPE df = 0.0;
-    Core::LinAlg::Matrix<2, 2, TYPE> dfinv(true);
+    Core::LinAlg::Matrix<2, 2, TYPE> dfinv(Core::LinAlg::Initialization::zero);
 
     // initial scalar residual (L2-norm of f)
     double residual = 0.0;
@@ -2859,7 +2888,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::check_unconverged_segment_
     double& eta2_min, double& g_min, double& alpha_g_min, bool& pointtolinesolfound)
 {
   // Calculate initial length of slave element
-  Core::LinAlg::Matrix<3, 1, double> lengthvec1(true);
+  Core::LinAlg::Matrix<3, 1, double> lengthvec1(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; i++)
   {
     lengthvec1(i) = (element1_->nodes())[0]->x()[i] - (element1_->nodes())[1]->x()[i];
@@ -3001,8 +3030,8 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_fc_contact(
   const int dim2 = 3 * numnodes * numnodalvalues;
 
   // temporary vectors for contact forces, DOF-GIDs and owning procs
-  Core::LinAlg::Matrix<dim1, 1, TYPE> fc1(true);
-  Core::LinAlg::Matrix<dim2, 1, TYPE> fc2(true);
+  Core::LinAlg::Matrix<dim1, 1, TYPE> fc1(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<dim2, 1, TYPE> fc2(Core::LinAlg::Initialization::zero);
   Core::LinAlg::SerialDenseVector fcontact1(dim1);
   Core::LinAlg::SerialDenseVector fcontact2(dim2);
 
@@ -3090,9 +3119,10 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_fc_contact(
     }
 #else
     // initialize storage for linearizations
-    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_xi(true);
-    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_eta(true);
-    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_coscontactangle(true);
+    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_xi(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_eta(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_coscontactangle(
+        Core::LinAlg::Initialization::zero);
 
     Core::LinAlg::Matrix<3, 1, TYPE> delta_r = Core::FADUtils::DiffVector(r1, r2);
     TYPE norm_delta_r = Core::FADUtils::vector_norm<3>(delta_r);
@@ -3229,10 +3259,10 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_stiffc_contact(
   const int dim2 = 3 * numnodes * numnodalvalues;
 
   // temporary matrices for stiffness and vectors for DOF-GIDs and owning procs
-  Core::LinAlg::Matrix<dim1, dim1 + dim2, TYPE> stiffc1(true);
-  Core::LinAlg::Matrix<dim2, dim1 + dim2, TYPE> stiffc2(true);
-  Core::LinAlg::Matrix<dim1, dim1 + dim2, TYPE> stiffc1_FAD(true);
-  Core::LinAlg::Matrix<dim2, dim1 + dim2, TYPE> stiffc2_FAD(true);
+  Core::LinAlg::Matrix<dim1, dim1 + dim2, TYPE> stiffc1(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<dim2, dim1 + dim2, TYPE> stiffc2(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<dim1, dim1 + dim2, TYPE> stiffc1_FAD(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<dim2, dim1 + dim2, TYPE> stiffc2_FAD(Core::LinAlg::Initialization::zero);
   Core::LinAlg::SerialDenseMatrix stiffcontact1(dim1, dim1 + dim2);
   Core::LinAlg::SerialDenseMatrix stiffcontact2(dim2, dim1 + dim2);
   std::vector<int> lmrow1(dim1);
@@ -3346,13 +3376,15 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_stiffc_contact(
     }
 
     // initialize storage for linearizations
-    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_xi(true);
-    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_eta(true);
-    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_gap(true);
-    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_gap_t(true);
-    Core::LinAlg::Matrix<3, dim1 + dim2, TYPE> delta_x1_minus_x2(true);
-    Core::LinAlg::Matrix<3, dim1 + dim2, TYPE> delta_n(true);
-    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_coscontactangle(true);
+    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_xi(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_eta(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_gap(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_gap_t(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<3, dim1 + dim2, TYPE> delta_x1_minus_x2(
+        Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<3, dim1 + dim2, TYPE> delta_n(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_coscontactangle(
+        Core::LinAlg::Initialization::zero);
 
     Core::LinAlg::Matrix<3, 1, TYPE> delta_r = Core::FADUtils::diff_vector(r1, r2);
     TYPE norm_delta_r = Core::FADUtils::vector_norm<3>(delta_r);
@@ -3423,7 +3455,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_stiffc_contact(
     // part I - basic stiffness
     //********************************************************************
 
-    Core::LinAlg::Matrix<dim1, 1, TYPE> N1T_normal(true);
+    Core::LinAlg::Matrix<dim1, 1, TYPE> N1T_normal(Core::LinAlg::Initialization::zero);
     for (int i = 0; i < 3; i++)
     {
       for (int j = 0; j < dim1; j++)
@@ -3459,7 +3491,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_stiffc_contact(
       //********************************************************************
       // part III - geometric stiffness 2
       //********************************************************************
-      Core::LinAlg::Matrix<dim1, 1, TYPE> N1xiT_normal(true);
+      Core::LinAlg::Matrix<dim1, 1, TYPE> N1xiT_normal(Core::LinAlg::Initialization::zero);
       for (int i = 0; i < 3; i++)
       {
         for (int j = 0; j < dim1; j++)
@@ -3484,7 +3516,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_stiffc_contact(
     //********************************************************************
     // part I
     //********************************************************************
-    Core::LinAlg::Matrix<dim2, 1, TYPE> N2T_normal(true);
+    Core::LinAlg::Matrix<dim2, 1, TYPE> N2T_normal(Core::LinAlg::Initialization::zero);
     for (int i = 0; i < 3; i++)
     {
       for (int j = 0; j < dim2; j++)
@@ -3519,7 +3551,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_stiffc_contact(
       //********************************************************************
       // part III
       //********************************************************************
-      Core::LinAlg::Matrix<dim1, 1, TYPE> N2xiT_normal(true);
+      Core::LinAlg::Matrix<dim1, 1, TYPE> N2xiT_normal(Core::LinAlg::Initialization::zero);
       for (int i = 0; i < 3; i++)
       {
         for (int j = 0; j < dim2; j++)
@@ -3543,8 +3575,8 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_stiffc_contact(
 
 // automatic differentiation for debugging
 #ifdef AUTOMATICDIFF
-    Core::LinAlg::Matrix<dim1, 1, TYPE> fc1_FAD(true);
-    Core::LinAlg::Matrix<dim2, 1, TYPE> fc2_FAD(true);
+    Core::LinAlg::Matrix<dim1, 1, TYPE> fc1_FAD(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<dim2, 1, TYPE> fc2_FAD(Core::LinAlg::Initialization::zero);
     evaluate_fc_contact(nullptr, r1, r2, r1_xi, r2_xi, r1_xixi, r2_xixi, N1, N2, N1_xi, N2_xi,
         variables, intfac, cpp, gp, fixedendpointxi, fixedendpointeta, &fc1_FAD, &fc2_FAD);
 
@@ -3720,8 +3752,8 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_stiffc_contact_in
   const int dim2 = 3 * numnodes * numnodalvalues;
 
   // temporary matrices for stiffness and vectors for DOF-GIDs and owning procs
-  Core::LinAlg::Matrix<dim1, dim1 + dim2, TYPE> stiffc1_FAD(true);
-  Core::LinAlg::Matrix<dim2, dim1 + dim2, TYPE> stiffc2_FAD(true);
+  Core::LinAlg::Matrix<dim1, dim1 + dim2, TYPE> stiffc1_FAD(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<dim2, dim1 + dim2, TYPE> stiffc2_FAD(Core::LinAlg::Initialization::zero);
   Core::LinAlg::SerialDenseMatrix stiffcontact1(dim1, dim1 + dim2);
   Core::LinAlg::SerialDenseMatrix stiffcontact2(dim2, dim1 + dim2);
   std::vector<int> lmrow1(dim1);
@@ -3807,13 +3839,13 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_stiffc_contact_in
     }
 
     // initialize storage for linearizations
-    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_eta(true);
+    Core::LinAlg::Matrix<dim1 + dim2, 1, TYPE> delta_eta(Core::LinAlg::Initialization::zero);
     Core::LinAlg::Matrix<3, 1, TYPE> delta_r = Core::FADUtils::diff_vector(r1, r2);
 
     compute_lin_eta_fix_xi(delta_eta, delta_r, r2_xi, r2_xixi, N1, N2, N2_xi);
 
-    Core::LinAlg::Matrix<dim1, 1, TYPE> fc1_FAD(true);
-    Core::LinAlg::Matrix<dim2, 1, TYPE> fc2_FAD(true);
+    Core::LinAlg::Matrix<dim1, 1, TYPE> fc1_FAD(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<dim2, 1, TYPE> fc2_FAD(Core::LinAlg::Initialization::zero);
     evaluate_fc_contact(nullptr, r1, r2, r1_xi, r2_xi, r1_xixi, r2_xixi, N1, N2, N1_xi, N2_xi,
         cpvariables, intfac, false, true, false, false, &fc1_FAD, &fc2_FAD);
 
@@ -3912,10 +3944,10 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::compute_lin_xi_and_lin_eta
   const int dim2 = 3 * numnodes * numnodalvalues;
 
   // matrices to compute Lin_Xi and Lin_Eta
-  Core::LinAlg::Matrix<2, 2, TYPE> L(true);
-  Core::LinAlg::Matrix<2, 2, TYPE> L_inv(true);
-  Core::LinAlg::Matrix<2, dim1 + dim2, TYPE> B(true);
-  Core::LinAlg::Matrix<2, dim1 + dim2, TYPE> D(true);
+  Core::LinAlg::Matrix<2, 2, TYPE> L(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<2, 2, TYPE> L_inv(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<2, dim1 + dim2, TYPE> B(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<2, dim1 + dim2, TYPE> D(Core::LinAlg::Initialization::zero);
 
   // compute L elementwise
   L(0, 0) = Core::FADUtils::scalar_product(r1_xi, r1_xi) +
@@ -3985,7 +4017,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::compute_lin_eta_fix_xi(
 
   // matrices to compute Lin_Xi and Lin_Eta
   TYPE L = 0.0;
-  Core::LinAlg::Matrix<1, dim1 + dim2, TYPE> B(true);
+  Core::LinAlg::Matrix<1, dim1 + dim2, TYPE> B(Core::LinAlg::Initialization::zero);
 
   // compute L elementwise
   L = -Core::FADUtils::scalar_product(r2_xi, r2_xi) +
@@ -3994,7 +4026,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::compute_lin_eta_fix_xi(
   //  std::cout << "r2_xi: " << r2_xi << std::endl;
   //  std::cout << "r2_xixi: " << r2_xixi << std::endl;
 
-  if (fabs(Core::FADUtils::cast_to_double(L)) < COLINEARTOL)
+  if (fabs(Core::FADUtils::cast_to_double(L)) < COLLINEARTOL)
     FOUR_C_THROW("Linearization of point to line projection is zero, choose tighter search boxes!");
 
   for (int i = 0; i < 3; i++)
@@ -4042,13 +4074,13 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::compute_lin_xi_fix_eta(
 
   // matrices to compute Lin_Xi and Lin_Eta
   TYPE L = 0.0;
-  Core::LinAlg::Matrix<1, dim1 + dim2, TYPE> B(true);
+  Core::LinAlg::Matrix<1, dim1 + dim2, TYPE> B(Core::LinAlg::Initialization::zero);
 
   // compute L elementwise
   L = Core::FADUtils::scalar_product(r1_xi, r1_xi) +
       Core::FADUtils::scalar_product(delta_r, r1_xixi);
 
-  if (fabs(Core::FADUtils::cast_to_double(L)) < COLINEARTOL)
+  if (fabs(Core::FADUtils::cast_to_double(L)) < COLLINEARTOL)
     FOUR_C_THROW("Linearization of point to line projection is zero, choose tighter search boxes!");
 
   for (int i = 0; i < 3; i++)
@@ -4088,21 +4120,27 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::compute_lin_xi_bound(
     TYPE& eta1_bound, TYPE eta2)
 {
   // vectors for shape functions and their derivatives
-  Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1(true);       // = N1
-  Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2(true);       // = N2
-  Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xi(true);    // = N1,xi
-  Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xi(true);    // = N2,eta
-  Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xixi(true);  // = N1,xixi
-  Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xixi(true);  // = N2,etaeta
+  Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1(
+      Core::LinAlg::Initialization::zero);  // = N1
+  Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2(
+      Core::LinAlg::Initialization::zero);  // = N2
+  Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xi(
+      Core::LinAlg::Initialization::zero);  // = N1,xi
+  Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xi(
+      Core::LinAlg::Initialization::zero);  // = N2,eta
+  Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N1_xixi(
+      Core::LinAlg::Initialization::zero);  // = N1,xixi
+  Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N2_xixi(
+      Core::LinAlg::Initialization::zero);  // = N2,etaeta
 
   // coords and derivatives of the two contacting points
-  Core::LinAlg::Matrix<3, 1, TYPE> r1(true);       // = r1
-  Core::LinAlg::Matrix<3, 1, TYPE> r2(true);       // = r2
-  Core::LinAlg::Matrix<3, 1, TYPE> r1_xi(true);    // = r1,xi
-  Core::LinAlg::Matrix<3, 1, TYPE> r2_xi(true);    // = r2,eta
-  Core::LinAlg::Matrix<3, 1, TYPE> r1_xixi(true);  // = r1,xixi
-  Core::LinAlg::Matrix<3, 1, TYPE> r2_xixi(true);  // = r2,etaeta
-  Core::LinAlg::Matrix<3, 1, TYPE> delta_r(true);  // = r1-r2
+  Core::LinAlg::Matrix<3, 1, TYPE> r1(Core::LinAlg::Initialization::zero);       // = r1
+  Core::LinAlg::Matrix<3, 1, TYPE> r2(Core::LinAlg::Initialization::zero);       // = r2
+  Core::LinAlg::Matrix<3, 1, TYPE> r1_xi(Core::LinAlg::Initialization::zero);    // = r1,xi
+  Core::LinAlg::Matrix<3, 1, TYPE> r2_xi(Core::LinAlg::Initialization::zero);    // = r2,eta
+  Core::LinAlg::Matrix<3, 1, TYPE> r1_xixi(Core::LinAlg::Initialization::zero);  // = r1,xixi
+  Core::LinAlg::Matrix<3, 1, TYPE> r2_xixi(Core::LinAlg::Initialization::zero);  // = r2,etaeta
+  Core::LinAlg::Matrix<3, 1, TYPE> delta_r(Core::LinAlg::Initialization::zero);  // = r1-r2
 
   // update shape functions and their derivatives
   get_shape_functions(N1, N2, N1_xi, N2_xi, N1_xixi, N2_xixi, eta1_bound, eta2);
@@ -4117,7 +4155,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::compute_lin_xi_bound(
 
   // matrices to compute Lin_Xi and Lin_Eta
   TYPE a_11(0.0);
-  Core::LinAlg::Matrix<2, dim1 + dim2, TYPE> B(true);
+  Core::LinAlg::Matrix<2, dim1 + dim2, TYPE> B(Core::LinAlg::Initialization::zero);
 
   a_11 = Core::FADUtils::scalar_product(r1_xi, r1_xi) +
          Core::FADUtils::scalar_product(delta_r, r1_xixi);
@@ -4187,7 +4225,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::compute_lin_gap(
   // delta g := delta_r/||delta_r||*auxiliary_matri1 delta d, with auxiliary_matri1 =
   // (r1_xi*delta_xi-r2_xi*delta_eta + (N1, -N2))
 
-  Core::LinAlg::Matrix<3, dim1 + dim2, TYPE> auxiliary_matrix1(true);
+  Core::LinAlg::Matrix<3, dim1 + dim2, TYPE> auxiliary_matrix1(Core::LinAlg::Initialization::zero);
 
   for (int i = 0; i < 3; i++)
   {
@@ -4265,8 +4303,8 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::compute_lin_cos_contact_an
   v1.scale(1.0 / norm_r1xi);
   v2.scale(1.0 / norm_r2xi);
 
-  Core::LinAlg::Matrix<3, dim1 + dim2, TYPE> delta_r1_xi(true);
-  Core::LinAlg::Matrix<3, dim1 + dim2, TYPE> delta_r2_xi(true);
+  Core::LinAlg::Matrix<3, dim1 + dim2, TYPE> delta_r1_xi(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, dim1 + dim2, TYPE> delta_r2_xi(Core::LinAlg::Initialization::zero);
 
   for (int i = 0; i < 3; i++)
   {
@@ -4288,8 +4326,8 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::compute_lin_cos_contact_an
     }
   }
 
-  Core::LinAlg::Matrix<1, dim1 + dim2, TYPE> v1_delta_r1_xi(true);
-  Core::LinAlg::Matrix<1, dim1 + dim2, TYPE> v2_delta_r2_xi(true);
+  Core::LinAlg::Matrix<1, dim1 + dim2, TYPE> v1_delta_r1_xi(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<1, dim1 + dim2, TYPE> v2_delta_r2_xi(Core::LinAlg::Initialization::zero);
   v1_delta_r1_xi.multiply_tn(v1, delta_r1_xi);
   v2_delta_r2_xi.multiply_tn(v2, delta_r2_xi);
 
@@ -4327,8 +4365,8 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::compute_lin_normal(
   Core::LinAlg::Matrix<3, 1, TYPE> normal(delta_r);
   normal.scale(1.0 / norm_delta_r);
 
-  Core::LinAlg::Matrix<3, dim1 + dim2, TYPE> auxiliary_matrix1(true);
-  Core::LinAlg::Matrix<3, 3, TYPE> auxiliary_matrix2(true);
+  Core::LinAlg::Matrix<3, dim1 + dim2, TYPE> auxiliary_matrix1(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 3, TYPE> auxiliary_matrix2(Core::LinAlg::Initialization::zero);
 
   // compute auxiliary_matrix1
   for (int i = 0; i < 3; i++)
@@ -4394,12 +4432,16 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::get_shape_functions(
   const Core::FE::CellType distype1 = element1_->shape();
   const Core::FE::CellType distype2 = element2_->shape();
 
-  Core::LinAlg::Matrix<1, numnodes * numnodalvalues, TYPE> N1_i(true);
-  Core::LinAlg::Matrix<1, numnodes * numnodalvalues, TYPE> N1_i_xi(true);
-  Core::LinAlg::Matrix<1, numnodes * numnodalvalues, TYPE> N1_i_xixi(true);
-  Core::LinAlg::Matrix<1, numnodes * numnodalvalues, TYPE> N2_i(true);
-  Core::LinAlg::Matrix<1, numnodes * numnodalvalues, TYPE> N2_i_xi(true);
-  Core::LinAlg::Matrix<1, numnodes * numnodalvalues, TYPE> N2_i_xixi(true);
+  Core::LinAlg::Matrix<1, numnodes * numnodalvalues, TYPE> N1_i(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<1, numnodes * numnodalvalues, TYPE> N1_i_xi(
+      Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<1, numnodes * numnodalvalues, TYPE> N1_i_xixi(
+      Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<1, numnodes * numnodalvalues, TYPE> N2_i(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<1, numnodes * numnodalvalues, TYPE> N2_i_xi(
+      Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<1, numnodes * numnodalvalues, TYPE> N2_i_xixi(
+      Core::LinAlg::Initialization::zero);
 
   if (numnodalvalues == 1)
   {
@@ -4456,7 +4498,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::get_shape_functions(
 {
   // get both discretization types
   const Core::FE::CellType distype = ele->shape();
-  Core::LinAlg::Matrix<1, numnodes * numnodalvalues, TYPE> N_i(true);
+  Core::LinAlg::Matrix<1, numnodes * numnodalvalues, TYPE> N_i(Core::LinAlg::Initialization::zero);
 
   if (numnodalvalues == 1)
   {
@@ -4640,8 +4682,9 @@ template <const int numnodes, const int numnodalvalues>
 Core::LinAlg::Matrix<3, 1, TYPE> CONTACT::Beam3contact<numnodes, numnodalvalues>::r(
     const TYPE& eta, Core::Elements::Element* ele)
 {
-  Core::LinAlg::Matrix<3, 1, TYPE> r(true);
-  Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N(true);
+  Core::LinAlg::Matrix<3, 1, TYPE> r(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N(
+      Core::LinAlg::Initialization::zero);
   get_shape_functions(N, eta, 0, ele);
 
   if (ele->id() == element1_->id())
@@ -4682,8 +4725,9 @@ template <const int numnodes, const int numnodalvalues>
 Core::LinAlg::Matrix<3, 1, TYPE> CONTACT::Beam3contact<numnodes, numnodalvalues>::r_xi(
     const TYPE& eta, Core::Elements::Element* ele)
 {
-  Core::LinAlg::Matrix<3, 1, TYPE> r_xi(true);
-  Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N_xi(true);
+  Core::LinAlg::Matrix<3, 1, TYPE> r_xi(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE> N_xi(
+      Core::LinAlg::Initialization::zero);
   get_shape_functions(N_xi, eta, 1, ele);
 
   if (ele->id() == element1_->id())
@@ -4776,11 +4820,10 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_orthogonality_con
   // reset f
   f.clear();
 
-  auto smoothing =
-      Teuchos::getIntegralValue<Inpar::BeamContact::Smoothing>(bcparams_, "BEAMS_SMOOTHING");
+  auto smoothing = Teuchos::getIntegralValue<BeamContact::Smoothing>(bcparams_, "BEAMS_SMOOTHING");
   // evaluate f
   // see Wriggers, Computational Contact Mechanics, equation (12.5)
-  if (smoothing == Inpar::BeamContact::bsm_none)  // non-smoothed
+  if (smoothing == BeamContact::bsm_none)  // non-smoothed
   {
     for (int i = 0; i < 3; i++)
     {
@@ -4826,12 +4869,11 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_lin_orthogonality
   df.clear();
   dfinv.clear();
 
-  auto smoothing =
-      Teuchos::getIntegralValue<Inpar::BeamContact::Smoothing>(bcparams_, "BEAMS_SMOOTHING");
+  auto smoothing = Teuchos::getIntegralValue<BeamContact::Smoothing>(bcparams_, "BEAMS_SMOOTHING");
 
   // evaluate df
   // see Wriggers, Computational Contact Mechanics, equation (12.7)
-  if (smoothing == Inpar::BeamContact::bsm_none)  // non-smoothed
+  if (smoothing == BeamContact::bsm_none)  // non-smoothed
   {
     for (int i = 0; i < 3; i++)
     {
@@ -4853,7 +4895,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_lin_orthogonality
   }
 
   // Inverting (2x2) matrix df by hard coded formula, so that it is
-  // possible to handle colinear vectors, because they lead to det(df) =0
+  // possible to handle collinear vectors, because they lead to det(df) =0
   TYPE det_df = df(0, 0) * df(1, 1) - df(1, 0) * df(0, 1);
 
   //********************************************************************
@@ -4865,7 +4907,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_lin_orthogonality
   //********************************************************************
 
   // singular df
-  if (Core::FADUtils::cast_to_double(Core::FADUtils::norm(det_df)) < COLINEARTOL)
+  if (Core::FADUtils::cast_to_double(Core::FADUtils::norm(det_df)) < COLLINEARTOL)
   {
     // sort out
     elementscolinear = true;
@@ -4956,7 +4998,7 @@ bool CONTACT::Beam3contact<numnodes, numnodalvalues>::evaluate_lin_ptl_orthogona
   // check, if df=0: This can happen e.g. when the master beam 2 describes a circle geometry and the
   // projectiong slave point coincides with the cetern of the circle
 
-  if (fabs(Core::FADUtils::cast_to_double(df)) < COLINEARTOL)
+  if (fabs(Core::FADUtils::cast_to_double(df)) < COLLINEARTOL)
     return false;
   else
     return true;
@@ -4984,7 +5026,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::compute_normal(
     FOUR_C_THROW("ERROR: Normal of length zero! --> change time step!");
 
   // unit normal
-  Core::LinAlg::Matrix<3, 1, TYPE> normal(true);
+  Core::LinAlg::Matrix<3, 1, TYPE> normal(Core::LinAlg::Initialization::zero);
   normal.update(1.0 / norm_delta_r, delta_r, 0.0);
 
   TYPE gap = norm_delta_r - r1_ - r2_;
@@ -5027,9 +5069,9 @@ bool CONTACT::Beam3contact<numnodes, numnodalvalues>::check_contact_status(const
   bool contactflag = false;
 
   auto penaltylaw =
-      Teuchos::getIntegralValue<Inpar::BeamContact::PenaltyLaw>(bcparams_, "BEAMS_PENALTYLAW");
+      Teuchos::getIntegralValue<BeamContact::PenaltyLaw>(bcparams_, "BEAMS_PENALTYLAW");
 
-  if (penaltylaw == Inpar::BeamContact::pl_lp)
+  if (penaltylaw == BeamContact::pl_lp)
   {
     // linear penalty force law
     if (gap < 0)
@@ -5039,7 +5081,7 @@ bool CONTACT::Beam3contact<numnodes, numnodalvalues>::check_contact_status(const
     else
       contactflag = false;
   }
-  else if (penaltylaw == Inpar::BeamContact::pl_qp)
+  else if (penaltylaw == BeamContact::pl_qp)
   {
     // quadratic penalty force law
     if (gap < 0)
@@ -5049,7 +5091,7 @@ bool CONTACT::Beam3contact<numnodes, numnodalvalues>::check_contact_status(const
     else
       contactflag = false;
   }
-  else if (penaltylaw == Inpar::BeamContact::pl_lpqp)
+  else if (penaltylaw == BeamContact::pl_lpqp)
   {
     // penalty laws with regularization for positive gaps
     if (g0 == -1.0) FOUR_C_THROW("Invalid value of regularization parameter BEAMS_PENREGPARAM_G0!");
@@ -5065,8 +5107,8 @@ bool CONTACT::Beam3contact<numnodes, numnodalvalues>::check_contact_status(const
     else
       contactflag = false;
   }
-  else if (penaltylaw == Inpar::BeamContact::pl_lpcp or
-           penaltylaw == Inpar::BeamContact::pl_lpdqp or penaltylaw == Inpar::BeamContact::pl_lpep)
+  else if (penaltylaw == BeamContact::pl_lpcp or penaltylaw == BeamContact::pl_lpdqp or
+           penaltylaw == BeamContact::pl_lpep)
   {
     // penalty laws with regularization for positive gaps
     if (g0 == -1.0) FOUR_C_THROW("Invalid value of regularization parameter BEAMS_PENREGPARAM_G0!");
@@ -5078,7 +5120,7 @@ bool CONTACT::Beam3contact<numnodes, numnodalvalues>::check_contact_status(const
     else
       contactflag = false;
   }
-  else if (penaltylaw == Inpar::BeamContact::pl_lnqp)
+  else if (penaltylaw == BeamContact::pl_lnqp)
   {
     // penalty law with quadratic regularization for negative gaps
     if (gap < 0)
@@ -5103,8 +5145,7 @@ bool CONTACT::Beam3contact<numnodes, numnodalvalues>::check_damping_status(const
 {
   bool dampingcontactflag = false;
 
-  if (Teuchos::getIntegralValue<Inpar::BeamContact::Damping>(bcparams_, "BEAMS_DAMPING") !=
-      Inpar::BeamContact::bd_no)
+  if (bcparams_.get<bool>("BEAMS_DAMPING") == true)
   {
     // First parameter for contact force regularization
     double gd1 = bcparams_.get<double>("BEAMS_DAMPREGPARAM1", -1000.0);
@@ -5227,7 +5268,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::update_ele_smooth_tangents
     FOUR_C_THROW(
         "Tangent smoothing only possible for Reissner beam elements (numnodalvalues=1)!!!");
 
-  Core::LinAlg::Matrix<3 * numnodes, 1> elepos_aux(true);
+  Core::LinAlg::Matrix<3 * numnodes, 1> elepos_aux(Core::LinAlg::Initialization::zero);
   // Tangent smoothing only possible with data type double (not with Sacado FAD)
   for (int i = 0; i < 3 * numnodes; i++)
     elepos_aux(i) = Core::FADUtils::cast_to_double(ele1pos_(i));
@@ -5306,9 +5347,9 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::fad_check_lin_xi_and_lin_e
     const Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE>& N1_xi,
     const Core::LinAlg::Matrix<3, 3 * numnodes * numnodalvalues, TYPE>& N2_xi)
 {
-  Core::LinAlg::Matrix<2, 1, TYPE> f(true);
-  Core::LinAlg::Matrix<3, 1, TYPE> t1_dummy(true);
-  Core::LinAlg::Matrix<3, 1, TYPE> t2_dummy(true);
+  Core::LinAlg::Matrix<2, 1, TYPE> f(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1, TYPE> t1_dummy(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1, TYPE> t2_dummy(Core::LinAlg::Initialization::zero);
 
   // compute norm of difference vector to scale the equations
   // (this yields better conditioning)
@@ -5337,10 +5378,10 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::fad_check_lin_xi_and_lin_e
   const int dim2 = 3 * numnodes * numnodalvalues;
 
   // matrices to compute Lin_Xi and Lin_Eta
-  Core::LinAlg::Matrix<2, 2, TYPE> L(true);
-  Core::LinAlg::Matrix<2, 2, TYPE> L_inv(true);
-  Core::LinAlg::Matrix<2, dim1 + dim2, TYPE> B(true);
-  Core::LinAlg::Matrix<2, dim1 + dim2, TYPE> D(true);
+  Core::LinAlg::Matrix<2, 2, TYPE> L(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<2, 2, TYPE> L_inv(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<2, dim1 + dim2, TYPE> B(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<2, dim1 + dim2, TYPE> D(Core::LinAlg::Initialization::zero);
 
   // compute L elementwise
   L(0, 0) = f(0).dx(2 * 3 * numnodes * numnodalvalues);
@@ -5385,11 +5426,11 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::fad_check_lin_orthogonalit
     const Core::LinAlg::Matrix<3, 1, TYPE>& r1_xi, const Core::LinAlg::Matrix<3, 1, TYPE>& r2_xi,
     const Core::LinAlg::Matrix<3, 1, TYPE>& t1, const Core::LinAlg::Matrix<3, 1, TYPE>& t2)
 {
-  Core::LinAlg::Matrix<2, 1, TYPE> f(true);
+  Core::LinAlg::Matrix<2, 1, TYPE> f(Core::LinAlg::Initialization::zero);
 
   evaluate_orthogonality_condition(f, delta_r, norm_delta_r, r1_xi, r2_xi, t1, t2);
 
-  Core::LinAlg::Matrix<2, 2, TYPE> df(true);
+  Core::LinAlg::Matrix<2, 2, TYPE> df(Core::LinAlg::Initialization::zero);
 
   for (int i = 0; i < 2; i++)
   {
@@ -5422,13 +5463,13 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::fd_check(
   // This FD-Check is very general, since it applies the complete method "Evaluate" recursively.
   // Therefore, all changes within this class are automatically considered and have not to be
   // adapted in this finite difference check!
-  if (fint.GlobalLength() > 2 * 3 * numnodes * numnodalvalues)
+  if (fint.global_length() > 2 * 3 * numnodes * numnodalvalues)
     FOUR_C_THROW("So far, this fd_check only works for simulations with two elements!!!");
 
   Core::LinAlg::Vector<double> fint1(fint);
-  fint1.PutScalar(0.0);
+  fint1.put_scalar(0.0);
   Core::LinAlg::Vector<double> fint2(fint);
-  fint2.PutScalar(0.0);
+  fint2.put_scalar(0.0);
 
   Core::LinAlg::SparseMatrix stiffmatrix_analyt(stiffmatrix);
   stiffmatrix_analyt.put_scalar(0.0);
@@ -5437,10 +5478,10 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::fd_check(
   stiffmatrix_dummy.put_scalar(0.0);
 
   Core::LinAlg::Matrix<2 * 3 * numnodes * numnodalvalues, 2 * 3 * numnodes * numnodalvalues>
-      stiffmatrix_fd(true);
+      stiffmatrix_fd(Core::LinAlg::Initialization::zero);
 
   Core::LinAlg::Matrix<2 * 3 * numnodes * numnodalvalues, 2 * 3 * numnodes * numnodalvalues>
-      fint2_mat(true);
+      fint2_mat(Core::LinAlg::Initialization::zero);
 
   double delta = 1.0e-10;
 
@@ -5477,7 +5518,7 @@ void CONTACT::Beam3contact<numnodes, numnodalvalues>::fd_check(
     else
       ele2pos_(dof - 3 * numnodes * numnodalvalues) += delta;
 
-    fint2.PutScalar(0.0);
+    fint2.put_scalar(0.0);
     stiffmatrix_dummy.put_scalar(0.0);
 
     this->evaluate(stiffmatrix_dummy, fint2, pp, contactpairmap, timeintparams, true);

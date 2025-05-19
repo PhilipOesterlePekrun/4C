@@ -139,7 +139,8 @@ void PARTICLEWALL::WallHandlerBase::write_wall_runtime_output(
 }
 
 void PARTICLEWALL::WallHandlerBase::update_bin_row_and_col_map(
-    const std::shared_ptr<Epetra_Map> binrowmap, const std::shared_ptr<Epetra_Map> bincolmap)
+    const std::shared_ptr<Core::LinAlg::Map> binrowmap,
+    const std::shared_ptr<Core::LinAlg::Map> bincolmap)
 {
   binrowmap_ = binrowmap;
   bincolmap_ = bincolmap;
@@ -174,7 +175,7 @@ void PARTICLEWALL::WallHandlerBase::check_wall_nodes_located_in_bounding_box() c
 
 #ifdef FOUR_C_ENABLE_ASSERTIONS
         // safety check
-        if (lid < 0) FOUR_C_THROW("dof gid=%d not in dof row map!", lm[dim]);
+        if (lid < 0) FOUR_C_THROW("dof gid={} not in dof row map!", lm[dim]);
 #endif
 
         currpos(dim) += walldatastate_->get_disp_row()->operator[](lid);
@@ -184,7 +185,7 @@ void PARTICLEWALL::WallHandlerBase::check_wall_nodes_located_in_bounding_box() c
     // safety check
     for (int dim = 0; dim < 3; ++dim)
       if (currpos(dim) < boundingbox(dim, 0) or boundingbox(dim, 1) < currpos(dim))
-        FOUR_C_THROW("node gid=%d resides outside of bounding box!", node->id());
+        FOUR_C_THROW("node gid={} resides outside of bounding box!", node->id());
   }
 }
 
@@ -198,8 +199,8 @@ void PARTICLEWALL::WallHandlerBase::get_max_wall_position_increment(
     if (walldatastate_->get_disp_row_last_transfer() == nullptr)
       FOUR_C_THROW("vector of wall displacements after last transfer not set!");
 
-    if (not walldatastate_->get_disp_row()->Map().SameAs(
-            walldatastate_->get_disp_row_last_transfer()->Map()))
+    if (not walldatastate_->get_disp_row()->get_block_map().SameAs(
+            walldatastate_->get_disp_row_last_transfer()->get_block_map()))
       FOUR_C_THROW("maps are not equal as expected!");
 #endif
 
@@ -207,7 +208,7 @@ void PARTICLEWALL::WallHandlerBase::get_max_wall_position_increment(
     double maxpositionincrement = 0.0;
 
     // iterate over coordinate values of wall displacements
-    for (int i = 0; i < walldatastate_->get_disp_row()->MyLength(); ++i)
+    for (int i = 0; i < walldatastate_->get_disp_row()->local_length(); ++i)
     {
       // get position increment of wall node in current spatial dimension since last transfer
       double absolutpositionincrement =
@@ -381,7 +382,7 @@ void PARTICLEWALL::WallHandlerBase::determine_col_wall_ele_nodal_pos(
 {
 #ifdef FOUR_C_ENABLE_ASSERTIONS
   if (walldiscretization_->element_col_map()->LID(ele->id()) < 0)
-    FOUR_C_THROW("element gid=%d not in element column map!", ele->id());
+    FOUR_C_THROW("element gid={} not in element column map!", ele->id());
 #endif
 
   // get pointer to nodes of current column wall element
@@ -392,7 +393,7 @@ void PARTICLEWALL::WallHandlerBase::determine_col_wall_ele_nodal_pos(
   for (int i = 0; i < numnodes; ++i)
     if (walldiscretization_->node_col_map()->LID(nodes[i]->id()) < 0)
       FOUR_C_THROW(
-          "node gid=%d of column element gid=%d not in node column map", nodes[i]->id(), ele->id());
+          "node gid={} of column element gid={} not in node column map", nodes[i]->id(), ele->id());
 #endif
 
   // determine nodal displacements
@@ -408,10 +409,10 @@ void PARTICLEWALL::WallHandlerBase::determine_col_wall_ele_nodal_pos(
 #ifdef FOUR_C_ENABLE_ASSERTIONS
     for (int i = 0; i < numnodes * 3; ++i)
       if (walldiscretization_->dof_col_map()->LID(lm_wall[i]) < 0)
-        FOUR_C_THROW("dof gid=%d not in dof column map!", lm_wall[i]);
+        FOUR_C_THROW("dof gid={} not in dof column map!", lm_wall[i]);
 #endif
 
-    Core::FE::extract_my_values(*walldatastate_->get_disp_col(), nodal_disp, lm_wall);
+    nodal_disp = Core::FE::extract_values(*walldatastate_->get_disp_col(), lm_wall);
   }
 
   // iterate over nodes of current column wall element
@@ -472,8 +473,8 @@ void PARTICLEWALL::WallHandlerDiscretCondition::distribute_wall_elements_and_nod
   validwallneighbors_ = false;
 
   // distribute wall elements to bins with standard ghosting
-  std::shared_ptr<Epetra_Map> stdelecolmap;
-  std::shared_ptr<Epetra_Map> stdnodecolmapdummy;
+  std::shared_ptr<Core::LinAlg::Map> stdelecolmap;
+  std::shared_ptr<Core::LinAlg::Map> stdnodecolmapdummy;
   binstrategy_->standard_discretization_ghosting(walldiscretization_, *binrowmap_,
       walldatastate_->get_ref_disp_row(), stdelecolmap, stdnodecolmapdummy);
 
@@ -525,7 +526,7 @@ void PARTICLEWALL::WallHandlerDiscretCondition::extend_wall_element_ghosting(
     std::map<int, std::set<int>>& bintorowelemap)
 {
   std::map<int, std::set<int>> colbintoelemap;
-  std::shared_ptr<Epetra_Map> extendedelecolmap = binstrategy_->extend_element_col_map(
+  std::shared_ptr<Core::LinAlg::Map> extendedelecolmap = binstrategy_->extend_element_col_map(
       bintorowelemap, bintorowelemap, colbintoelemap, bincolmap_);
 
   Core::Binstrategy::Utils::extend_discretization_ghosting(
@@ -736,18 +737,20 @@ void PARTICLEWALL::WallHandlerBoundingBox::init_wall_discretization()
   }
 
   // node row map of wall elements
-  std::shared_ptr<Epetra_Map> noderowmap = std::make_shared<Epetra_Map>(-1, nodeids.size(),
-      nodeids.data(), 0, Core::Communication::as_epetra_comm(walldiscretization_->get_comm()));
+  std::shared_ptr<Core::LinAlg::Map> noderowmap =
+      std::make_shared<Core::LinAlg::Map>(-1, nodeids.size(), nodeids.data(), 0,
+          Core::Communication::as_epetra_comm(walldiscretization_->get_comm()));
 
   // fully overlapping node column map
-  std::shared_ptr<Epetra_Map> nodecolmap = Core::LinAlg::allreduce_e_map(*noderowmap);
+  std::shared_ptr<Core::LinAlg::Map> nodecolmap = Core::LinAlg::allreduce_e_map(*noderowmap);
 
   // element row map of wall elements
-  std::shared_ptr<Epetra_Map> elerowmap = std::make_shared<Epetra_Map>(-1, eleids.size(),
-      eleids.data(), 0, Core::Communication::as_epetra_comm(walldiscretization_->get_comm()));
+  std::shared_ptr<Core::LinAlg::Map> elerowmap =
+      std::make_shared<Core::LinAlg::Map>(-1, eleids.size(), eleids.data(), 0,
+          Core::Communication::as_epetra_comm(walldiscretization_->get_comm()));
 
   // fully overlapping element column map
-  std::shared_ptr<Epetra_Map> elecolmap = Core::LinAlg::allreduce_e_map(*elerowmap);
+  std::shared_ptr<Core::LinAlg::Map> elecolmap = Core::LinAlg::allreduce_e_map(*elerowmap);
 
   // fully overlapping ghosting of the wall elements to have everything redundant
   walldiscretization_->export_column_nodes(*nodecolmap);

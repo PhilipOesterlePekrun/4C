@@ -8,15 +8,16 @@
 #include "4C_contact_nitsche_integrator.hpp"
 
 #include "4C_contact_element.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_contact_nitsche_utils.hpp"
 #include "4C_contact_node.hpp"
 #include "4C_contact_paramsinterface.hpp"
 #include "4C_fem_general_utils_boundary_integration.hpp"
 #include "4C_linalg_utils_densematrix_multiply.hpp"
 #include "4C_mat_elasthyper.hpp"
-#include "4C_so3_base.hpp"
 #include "4C_solid_3D_ele.hpp"
 #include "4C_solid_3D_ele_calc_lib_nitsche.hpp"
+#include "4C_utils_exceptions.hpp"
 
 #include <Epetra_FEVector.h>
 
@@ -75,13 +76,13 @@ void CONTACT::IntegratorNitsche::gpts_forces(Mortar::Element& sele, Mortar::Elem
 
   if (dim != n_dim()) FOUR_C_THROW("dimension inconsistency");
 
-  if (frtype_ != Inpar::CONTACT::friction_none && dim != 3) FOUR_C_THROW("only 3D friction");
-  if (frtype_ != Inpar::CONTACT::friction_none && frtype_ != Inpar::CONTACT::friction_coulomb &&
-      frtype_ != Inpar::CONTACT::friction_tresca)
+  if (frtype_ != CONTACT::FrictionType::none && dim != 3) FOUR_C_THROW("only 3D friction");
+  if (frtype_ != CONTACT::FrictionType::none && frtype_ != CONTACT::FrictionType::coulomb &&
+      frtype_ != CONTACT::FrictionType::tresca)
     FOUR_C_THROW("only coulomb or tresca friction");
-  if (frtype_ == Inpar::CONTACT::friction_coulomb && frcoeff_ < 0.)
+  if (frtype_ == CONTACT::FrictionType::coulomb && frcoeff_ < 0.)
     FOUR_C_THROW("negative coulomb friction coefficient");
-  if (frtype_ == Inpar::CONTACT::friction_tresca && frbound_ < 0.)
+  if (frtype_ == CONTACT::FrictionType::tresca && frbound_ < 0.)
     FOUR_C_THROW("negative tresca friction bound");
 
   Core::LinAlg::Matrix<dim, 1> slave_normal, master_normal;
@@ -97,7 +98,7 @@ void CONTACT::IntegratorNitsche::gpts_forces(Mortar::Element& sele, Mortar::Elem
 
   const Core::LinAlg::Matrix<dim, 1> contact_normal(gpn, true);
 
-  if (stype_ == Inpar::CONTACT::solution_nitsche)
+  if (stype_ == CONTACT::SolvingStrategy::nitsche)
   {
     double cauchy_nn_weighted_average = 0.;
     Core::Gen::Pairedvector<int, double> cauchy_nn_weighted_average_deriv(
@@ -176,7 +177,7 @@ void CONTACT::IntegratorNitsche::gpts_forces(Mortar::Element& sele, Mortar::Elem
     for (const auto& p : dgapgp) d_snn_av_pen_gap[p.first] += pen * p.second;
 
     // evaluation of tangential stuff
-    if (frtype_)
+    if (frtype_ != CONTACT::FrictionType::none)
     {
       CONTACT::Utils::build_tangent_vectors<dim>(
           contact_normal.data(), deriv_contact_normal, t1.data(), dt1, t2.data(), dt2);
@@ -200,7 +201,7 @@ void CONTACT::IntegratorNitsche::gpts_forces(Mortar::Element& sele, Mortar::Elem
           deriv_t2_adjoint_test_master);
     }  // evaluation of tangential stuff
 
-    if (frtype_)
+    if (frtype_ != CONTACT::FrictionType::none)
     {
       integrate_test<dim>(-1. + theta_2_, sele, sval, sderiv, dsxi, jac, jacintcellmap, wgt,
           cauchy_nt1_weighted_average, cauchy_nt1_weighted_average_deriv, t1, dt1);
@@ -282,15 +283,15 @@ void CONTACT::IntegratorNitsche::gpts_forces(Mortar::Element& sele, Mortar::Elem
             normal_adjoint_test_master, deriv_normal_adjoint_test_master);
       }
 
-      if (frtype_)
+      if (frtype_ != CONTACT::FrictionType::none)
       {
         double fr = 0.0;
         switch (frtype_)
         {
-          case Inpar::CONTACT::friction_coulomb:
+          case CONTACT::FrictionType::coulomb:
             fr = frcoeff_ * (-1.) * (snn_av_pen_gap);
             break;
-          case Inpar::CONTACT::friction_tresca:
+          case CONTACT::FrictionType::tresca:
             fr = frbound_;
             break;
           default:
@@ -322,7 +323,7 @@ void CONTACT::IntegratorNitsche::gpts_forces(Mortar::Element& sele, Mortar::Elem
               dgapgp.size() + cauchy_nn_weighted_average_deriv.size() +
                   cauchy_nt1_weighted_average_deriv.size() + dvt1.size(),
               0, 0);
-          if (frtype_ == Inpar::CONTACT::friction_coulomb)
+          if (frtype_ == CONTACT::FrictionType::coulomb)
             for (const auto& p : d_snn_av_pen_gap) tmp_d[p.first] += -frcoeff_ / tan_tr * p.second;
 
           for (const auto& p : cauchy_nt1_weighted_average_deriv)
@@ -380,8 +381,8 @@ void CONTACT::IntegratorNitsche::gpts_forces(Mortar::Element& sele, Mortar::Elem
       }
     }
   }
-  else if ((stype_ == Inpar::CONTACT::solution_penalty) ||
-           stype_ == Inpar::CONTACT::solution_multiscale)
+  else if ((stype_ == CONTACT::SolvingStrategy::penalty) ||
+           stype_ == CONTACT::SolvingStrategy::multiscale)
   {
     if (gap < 0.)
     {
@@ -450,88 +451,68 @@ void CONTACT::IntegratorNitsche::so_ele_cauchy(Mortar::Element& moEle, double* b
     Core::LinAlg::SerialDenseVector& adjoint_test,
     Core::Gen::Pairedvector<int, Core::LinAlg::SerialDenseVector>& deriv_adjoint_test)
 {
-  Core::LinAlg::Matrix<dim, 1> pxsi(true);
-  Core::LinAlg::Matrix<dim, dim> derivtravo_slave;
-  CONTACT::Utils::map_gp_to_parent<dim>(moEle, boundary_gpcoord, gp_wgt, pxsi, derivtravo_slave);
-
-  // define which linearizations we need
-  Core::LinAlg::SerialDenseMatrix d_cauchyndir_dd{};
-  Core::LinAlg::SerialDenseMatrix d2_cauchyndir_dd2{};
-  Core::LinAlg::SerialDenseMatrix d2_cauchyndir_dd_dn{};
-  Core::LinAlg::SerialDenseMatrix d2_cauchyndir_dd_ddir{};
-  Core::LinAlg::SerialDenseMatrix d2_cauchyndir_dd_dxi{};
-  Core::LinAlg::Matrix<dim, 1> d_cauchyndir_dn{};
-  Core::LinAlg::Matrix<dim, 1> d_cauchyndir_ddir{};
-  Core::LinAlg::Matrix<dim, 1> d_cauchyndir_dxi{};
-
-  Discret::Elements::CauchyNDirLinearizations<dim> linearizations{};
-  linearizations.d_cauchyndir_dd = &d_cauchyndir_dd;
-  linearizations.d2_cauchyndir_dd2 = &d2_cauchyndir_dd2;
-  linearizations.d2_cauchyndir_dd_dn = &d2_cauchyndir_dd_dn;
-  linearizations.d2_cauchyndir_dd_ddir = &d2_cauchyndir_dd_ddir;
-  linearizations.d2_cauchyndir_dd_dxi = &d2_cauchyndir_dd_dxi;
-  linearizations.d_cauchyndir_dn = &d_cauchyndir_dn;
-  linearizations.d_cauchyndir_ddir = &d_cauchyndir_ddir;
-  linearizations.d_cauchyndir_dxi = &d_cauchyndir_dxi;
-
-  // check for old or new solid element
-  const double cauchy_n_dir = std::invoke(
-      [&]()
-      {
-        if (auto* solid_ele = dynamic_cast<Discret::Elements::SoBase*>(moEle.parent_element());
-            solid_ele != nullptr)
-        {
-          // old solid element
-          double cauchy_n_dir = 0;
-          solid_ele->get_cauchy_n_dir_and_derivatives_at_xi(pxsi, moEle.mo_data().parent_disp(),
-              normal, direction, cauchy_n_dir, linearizations.d_cauchyndir_dd,
-              linearizations.d2_cauchyndir_dd2, linearizations.d2_cauchyndir_dd_dn,
-              linearizations.d2_cauchyndir_dd_ddir, linearizations.d2_cauchyndir_dd_dxi,
-              linearizations.d_cauchyndir_dn, linearizations.d_cauchyndir_ddir,
-              linearizations.d_cauchyndir_dxi, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-          return cauchy_n_dir;
-        }
-        else if (auto* solid_ele = dynamic_cast<Discret::Elements::Solid*>(moEle.parent_element());
-            solid_ele != nullptr)
-        {
-          // new solid element
-          return solid_ele->get_normal_cauchy_stress_at_xi<dim>(
-              moEle.mo_data().parent_disp(), pxsi, normal, direction, linearizations);
-        }
-        else
-        {
-          FOUR_C_THROW("Unknown solid element type");
-        }
-      });
-
-
-  cauchy_nt += w * cauchy_n_dir;
-
-  for (int i = 0; i < moEle.parent_element()->num_node() * dim; ++i)
-    deriv_sigma_nt[moEle.mo_data().parent_dof().at(i)] += w * d_cauchyndir_dd(i, 0);
-
-  for (int i = 0; i < dim - 1; ++i)
+  if constexpr (dim == 3)
   {
-    for (const auto& p : boundary_gpcoord_lin[i])
-      for (int k = 0; k < dim; ++k)
-        deriv_sigma_nt[p.first] += d_cauchyndir_dxi(k) * derivtravo_slave(k, i) * p.second * w;
+    Core::LinAlg::Matrix<dim, 1> pxsi(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<dim, dim> derivtravo_slave;
+    CONTACT::Utils::map_gp_to_parent<dim>(moEle, boundary_gpcoord, gp_wgt, pxsi, derivtravo_slave);
+
+    // define which linearizations we need
+    Core::LinAlg::SerialDenseMatrix d_cauchyndir_dd{};
+    Core::LinAlg::SerialDenseMatrix d2_cauchyndir_dd2{};
+    Core::LinAlg::SerialDenseMatrix d2_cauchyndir_dd_dn{};
+    Core::LinAlg::SerialDenseMatrix d2_cauchyndir_dd_ddir{};
+    Core::LinAlg::SerialDenseMatrix d2_cauchyndir_dd_dxi{};
+    Core::LinAlg::Matrix<dim, 1> d_cauchyndir_dn{};
+    Core::LinAlg::Matrix<dim, 1> d_cauchyndir_ddir{};
+    Core::LinAlg::Matrix<dim, 1> d_cauchyndir_dxi{};
+
+    Discret::Elements::CauchyNDirLinearizations<dim> linearizations{};
+    linearizations.d_cauchyndir_dd = &d_cauchyndir_dd;
+    linearizations.d2_cauchyndir_dd2 = &d2_cauchyndir_dd2;
+    linearizations.d2_cauchyndir_dd_dn = &d2_cauchyndir_dd_dn;
+    linearizations.d2_cauchyndir_dd_ddir = &d2_cauchyndir_dd_ddir;
+    linearizations.d2_cauchyndir_dd_dxi = &d2_cauchyndir_dd_dxi;
+    linearizations.d_cauchyndir_dn = &d_cauchyndir_dn;
+    linearizations.d_cauchyndir_ddir = &d_cauchyndir_ddir;
+    linearizations.d_cauchyndir_dxi = &d_cauchyndir_dxi;
+
+    auto* solid_ele = dynamic_cast<Discret::Elements::Solid*>(moEle.parent_element());
+    FOUR_C_ASSERT_ALWAYS(solid_ele, "Unknown solid element type");
+    const double cauchy_n_dir = solid_ele->get_normal_cauchy_stress_at_xi(
+        moEle.mo_data().parent_disp(), pxsi, normal, direction, linearizations);
+
+    cauchy_nt += w * cauchy_n_dir;
+
+    for (int i = 0; i < moEle.parent_element()->num_node() * dim; ++i)
+      deriv_sigma_nt[moEle.mo_data().parent_dof().at(i)] += w * d_cauchyndir_dd(i, 0);
+
+    for (int i = 0; i < dim - 1; ++i)
+    {
+      for (const auto& p : boundary_gpcoord_lin[i])
+        for (int k = 0; k < dim; ++k)
+          deriv_sigma_nt[p.first] += d_cauchyndir_dxi(k) * derivtravo_slave(k, i) * p.second * w;
+    }
+
+
+    for (int d = 0; d < dim; ++d)
+      for (const auto& p : normal_deriv[d])
+        deriv_sigma_nt[p.first] += d_cauchyndir_dn(d) * p.second * w;
+
+    for (int d = 0; d < dim; ++d)
+      for (const auto& p : direction_deriv[d])
+        deriv_sigma_nt[p.first] += d_cauchyndir_ddir(d) * p.second * w;
+
+    if (abs(theta_) > 1.e-12)
+    {
+      build_adjoint_test<dim>(moEle, w, d_cauchyndir_dd, d2_cauchyndir_dd2, d2_cauchyndir_dd_dn,
+          d2_cauchyndir_dd_ddir, d2_cauchyndir_dd_dxi, boundary_gpcoord_lin, derivtravo_slave,
+          normal_deriv, direction_deriv, adjoint_test, deriv_adjoint_test);
+    }
   }
-
-
-  for (int d = 0; d < dim; ++d)
-    for (const auto& p : normal_deriv[d])
-      deriv_sigma_nt[p.first] += d_cauchyndir_dn(d) * p.second * w;
-
-  for (int d = 0; d < dim; ++d)
-    for (const auto& p : direction_deriv[d])
-      deriv_sigma_nt[p.first] += d_cauchyndir_ddir(d) * p.second * w;
-
-  if (abs(theta_) > 1.e-12)
+  else
   {
-    build_adjoint_test<dim>(moEle, w, d_cauchyndir_dd, d2_cauchyndir_dd2, d2_cauchyndir_dd_dn,
-        d2_cauchyndir_dd_ddir, d2_cauchyndir_dd_dxi, boundary_gpcoord_lin, derivtravo_slave,
-        normal_deriv, direction_deriv, adjoint_test, deriv_adjoint_test);
+    FOUR_C_THROW("Only 3D elements are supported!");
   }
 }
 
@@ -689,15 +670,15 @@ void CONTACT::IntegratorNitsche::integrate_adjoint_test(const double fac, const 
 }
 
 void CONTACT::Utils::nitsche_weights_and_scaling(Mortar::Element& sele, Mortar::Element& mele,
-    const Inpar::CONTACT::NitscheWeighting nit_wgt, const double dt, double& ws, double& wm,
-    double& pen, double& pet)
+    const CONTACT::NitscheWeighting nit_wgt, const double dt, double& ws, double& wm, double& pen,
+    double& pet)
 {
   const double he_slave = dynamic_cast<CONTACT::Element&>(sele).trace_he();
   const double he_master = dynamic_cast<CONTACT::Element&>(mele).trace_he();
 
   switch (nit_wgt)
   {
-    case Inpar::CONTACT::NitWgt_slave:
+    case CONTACT::NitscheWeighting::slave:
     {
       ws = 1.;
       wm = 0.;
@@ -705,7 +686,7 @@ void CONTACT::Utils::nitsche_weights_and_scaling(Mortar::Element& sele, Mortar::
       pet /= he_slave;
     }
     break;
-    case Inpar::CONTACT::NitWgt_master:
+    case CONTACT::NitscheWeighting::master:
     {
       wm = 1.;
       ws = 0.;
@@ -713,7 +694,7 @@ void CONTACT::Utils::nitsche_weights_and_scaling(Mortar::Element& sele, Mortar::
       pet /= he_master;
     }
     break;
-    case Inpar::CONTACT::NitWgt_harmonic:
+    case CONTACT::NitscheWeighting::harmonic:
       ws = 1. / he_master;
       wm = 1. / he_slave;
       ws /= (ws + wm);

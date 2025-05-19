@@ -11,12 +11,10 @@
 #include "4C_config.hpp"
 
 #include "4C_adapter_ale.hpp"
+#include "4C_ale_input.hpp"
 #include "4C_ale_meshtying.hpp"
-#include "4C_inpar_ale.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
-
-#include <Epetra_Map.h>
 
 #include <memory>
 
@@ -101,7 +99,6 @@ namespace ALE
    *
    *  \sa Solid::TimInt, FLD::TimInt, ALE::AleLinear
    *
-   *  \author mayr.mt \date 10/2014
    */
   class Ale : public Adapter::Ale
   {
@@ -124,8 +121,7 @@ namespace ALE
      *  \param[in]     startfuncno Function to evaluate initial displacement
      *
      */
-    virtual void set_initial_displacement(
-        const Inpar::ALE::InitialDisp init, const int startfuncno);
+    virtual void set_initial_displacement(const ALE::InitialDisp init, const int startfuncno);
 
     /*! \brief Create Systemmatrix
      *
@@ -169,8 +165,7 @@ namespace ALE
     virtual void evaluate_elements();
 
     /// Convert element action enum to std::string
-    virtual std::string element_action_string(
-        const enum Inpar::ALE::AleDynamic name  ///< enum to convert
+    virtual std::string element_action_string(const enum ALE::AleDynamic name  ///< enum to convert
     );
 
     //! @name Time step helpers
@@ -197,7 +192,6 @@ namespace ALE
      *  Therefore, we need to reset the solution back to the initial solution of
      *  the time step.
      *
-     *  \author mayr.mt \date 08/2013
      */
     void reset_step() override;
 
@@ -209,7 +203,6 @@ namespace ALE
      *  beginning of the repetition and, thus, everything will be fine. Currently,
      *  this is needed for time step size adaptivity in FSI.
      *
-     *  \author mayr.mt \date 08/2013
      */
     void reset_time(const double dtold) override;
 
@@ -267,7 +260,7 @@ namespace ALE
     //! @name Misc
 
     /// dof map of vector of unknowns
-    std::shared_ptr<const Epetra_Map> dof_row_map() const override;
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map() const override;
 
     /// direct access to system matrix
     std::shared_ptr<Core::LinAlg::SparseMatrix> system_matrix() override;
@@ -406,7 +399,6 @@ namespace ALE
      *  This is the "mechanical" residual \f$res = - f_{int}\f$ as it comes
      *  from the discret_->evaluate() call.
      *
-     *  \author mayr.mt \date 10/2014
      */
     std::shared_ptr<Core::LinAlg::Vector<double>> residual_;
 
@@ -419,7 +411,6 @@ namespace ALE
      *
      *  \warning DO NOT TOUCH THIS VARIABLE AT OTHER PLACES!!!
      *
-     *  \author mayr.mt \date 10/2014
      */
     std::shared_ptr<Core::LinAlg::Vector<double>> rhs_;
 
@@ -479,7 +470,7 @@ namespace ALE
     virtual void output_state(bool& datawritten);
 
     /// ale formulation read from inputfile
-    const Inpar::ALE::AleDynamic aletype_;
+    const ALE::AleDynamic aletype_;
 
     //! @name solver parameters
     //@{
@@ -493,13 +484,13 @@ namespace ALE
     const double toldisp_;
 
     //! error handling in case of unconverged nonlinear solver
-    const Inpar::ALE::DivContAct divercont_;
+    const ALE::DivContAct divercont_;
 
     //! flag for mesh-tying
-    const Inpar::ALE::MeshTying msht_;
+    const ALE::MeshTying msht_;
 
     //! flag for initial displacement
-    const Inpar::ALE::InitialDisp initialdisp_;
+    const ALE::InitialDisp initialdisp_;
 
     //! start function number
     const int startfuncno_;
@@ -531,7 +522,6 @@ namespace ALE
    *       The residual is computed as \f$r = K*d\f$. </li>
    *  </ul>
    *
-   *  \author mayr.mt \date 11/2015
    */
   class AleLinear : public Ale
   {
@@ -557,7 +547,6 @@ namespace ALE
      *  updated strategy, i.e. if #sysmat_ needs to be recomputed at the beginning
      *  of each time step.
      *
-     *  \author mayr.mt \date 12/2015
      */
     void prepare_time_step() override;
 
@@ -565,7 +554,6 @@ namespace ALE
      *
      *  Just call the linear solver once.
      *
-     *  \author mayr.mt \date 11/2015
      */
     void time_step(ALE::Utils::MapExtractor::AleDBCSetType dbc_type =
                        ALE::Utils::MapExtractor::dbc_set_std) override;
@@ -584,7 +572,6 @@ namespace ALE
      *  In order to initially provide a matrix, we call Ale::evaluate_elements() in
      *  the very first call. This is kept track of by #validsysmat_.
      *
-     *  \author mayr.mt \date 11/2015
      */
     void evaluate_elements() override;
 

@@ -8,6 +8,7 @@
 #include "4C_fem_condition_utils.hpp"
 
 #include "4C_fem_condition_selector.hpp"
+#include "4C_fem_discretization.hpp"
 #include "4C_fem_general_element.hpp"
 #include "4C_fem_general_node.hpp"
 #include "4C_linalg_utils_densematrix_communication.hpp"
@@ -24,22 +25,32 @@ FOUR_C_NAMESPACE_OPEN
 namespace
 {
   template <typename Range>
-  std::shared_ptr<Epetra_Map> fill_condition_map(
-      const Core::FE::Discretization& dis, const Range& nodeRange, const std::string& condname)
+  void fill_conditioned_node_set(const Core::FE::Discretization& discretization,
+      const Range& node_range, const std::string& condname, std::set<int>& condnodeset)
   {
-    std::set<int> condnodeset;
+    std::vector<Core::Conditions::Condition*> conditions;
+    discretization.get_condition(condname, conditions);
 
-    Core::Conditions::ConditionSelector conds(dis, condname);
-
-    for (const Core::Nodes::Node* node : nodeRange)
+    for (const Core::Nodes::Node* node : node_range)
     {
-      if (conds.contains_node(node->id()))
+      const bool contains_node = std::ranges::any_of(
+          conditions, [gid = node->id()](const auto* cond) { return cond->contains_node(gid); });
+      if (contains_node)
       {
         condnodeset.insert(node->id());
       }
     }
+  }
 
-    std::shared_ptr<Epetra_Map> condnodemap = Core::LinAlg::create_map(condnodeset, dis.get_comm());
+  template <typename Range>
+  std::shared_ptr<Core::LinAlg::Map> fill_condition_map(
+      const Core::FE::Discretization& dis, const Range& nodeRange, const std::string& condname)
+  {
+    std::set<int> condnodeset;
+    fill_conditioned_node_set(dis, nodeRange, condname, condnodeset);
+
+    std::shared_ptr<Core::LinAlg::Map> condnodemap =
+        Core::LinAlg::create_map(condnodeset, dis.get_comm());
     return condnodemap;
   }
 }  // namespace
@@ -55,26 +66,6 @@ void Core::Conditions::find_conditioned_nodes(
 }
 
 
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-void Core::Conditions::find_conditioned_nodes(
-    const Core::FE::Discretization& dis, const std::string& condname, std::set<int>& nodeset)
-{
-  std::vector<Condition*> conds;
-  dis.get_condition(condname, conds);
-  find_conditioned_nodes(dis, conds, nodeset);
-}
-
-
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-void Core::Conditions::find_conditioned_nodes(const Core::FE::Discretization& dis,
-    const std::string& condname, std::map<int, Core::Nodes::Node*>& nodes)
-{
-  std::vector<Condition*> conds;
-  dis.get_condition(condname, conds);
-  find_conditioned_nodes(dis, conds, nodes);
-}
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
@@ -95,27 +86,7 @@ void Core::Conditions::find_conditioned_nodes(const Core::FE::Discretization& di
     }
   }
 
-  nodes.reserve(nodeset.size());
   nodes.assign(nodeset.begin(), nodeset.end());
-}
-
-
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-void Core::Conditions::find_conditioned_nodes(const Core::FE::Discretization& dis,
-    const std::vector<Condition*>& conds, std::set<int>& nodeset)
-{
-  const int myrank = Core::Communication::my_mpi_rank(dis.get_comm());
-  for (auto cond : conds)
-  {
-    for (int gid : *cond->get_nodes())
-    {
-      if (dis.have_global_node(gid) and dis.g_node(gid)->owner() == myrank)
-      {
-        nodeset.insert(gid);
-      }
-    }
-  }
 }
 
 
@@ -184,33 +155,6 @@ void Core::Conditions::find_conditioned_nodes(const Core::FE::Discretization& di
   }
 }
 
-/*----------------------------------------------------------------------*/
-/*----------------------------------------------------------------------*/
-void Core::Conditions::find_condition_objects(const Core::FE::Discretization& dis,
-    std::map<int, Core::Nodes::Node*>& nodes,
-    std::map<int, std::shared_ptr<Core::Elements::Element>>& elements, const std::string& condname)
-{
-  int myrank = Core::Communication::my_mpi_rank(dis.get_comm());
-  std::vector<Condition*> conds;
-  dis.get_condition(condname, conds);
-
-  find_conditioned_nodes(dis, conds, nodes);
-
-  for (auto& cond : conds)
-  {
-    // get this condition's elements
-    std::map<int, std::shared_ptr<Core::Elements::Element>>& geo = cond->geometry();
-    std::map<int, std::shared_ptr<Core::Elements::Element>>::iterator iter, pos;
-    pos = elements.begin();
-    for (iter = geo.begin(); iter != geo.end(); ++iter)
-    {
-      if (iter->second->owner() == myrank)
-      {
-        pos = elements.insert(pos, *iter);
-      }
-    }
-  }
-}
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
@@ -245,27 +189,6 @@ void Core::Conditions::find_condition_objects(const Core::FE::Discretization& di
     }
   }
 }
-
-/*----------------------------------------------------------------------*/
-/*----------------------------------------------------------------------*/
-void Core::Conditions::find_condition_objects(
-    std::map<int, std::shared_ptr<Core::Elements::Element>>& elements,
-    const std::vector<Condition*>& conds)
-{
-  for (auto cond : conds)
-  {
-    // get this condition's elements
-    std::map<int, std::shared_ptr<Core::Elements::Element>>& geo = cond->geometry();
-    std::map<int, std::shared_ptr<Core::Elements::Element>>::iterator iter, pos;
-    pos = elements.begin();
-    for (iter = geo.begin(); iter != geo.end(); ++iter)
-    {
-      // get all elements locally known, including ghost elements
-      pos = elements.insert(pos, *iter);
-    }
-  }
-}
-
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
@@ -430,7 +353,7 @@ void Core::Conditions::find_element_conditions(const Core::Elements::Element* el
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-std::shared_ptr<Epetra_Map> Core::Conditions::condition_node_row_map(
+std::shared_ptr<Core::LinAlg::Map> Core::Conditions::condition_node_row_map(
     const Core::FE::Discretization& dis, const std::string& condname)
 {
   return fill_condition_map(dis, dis.my_row_node_range(), condname);
@@ -439,7 +362,7 @@ std::shared_ptr<Epetra_Map> Core::Conditions::condition_node_row_map(
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-std::shared_ptr<Epetra_Map> Core::Conditions::condition_node_col_map(
+std::shared_ptr<Core::LinAlg::Map> Core::Conditions::condition_node_col_map(
     const Core::FE::Discretization& dis, const std::string& condname)
 {
   return fill_condition_map(dis, dis.my_col_node_range(), condname);
@@ -451,7 +374,8 @@ std::shared_ptr<Epetra_Map> Core::Conditions::condition_node_col_map(
 std::shared_ptr<std::set<int>> Core::Conditions::conditioned_element_map(
     const Core::FE::Discretization& dis, const std::string& condname)
 {
-  ConditionSelector conds(dis, condname);
+  std::vector<Core::Conditions::Condition*> conditions;
+  dis.get_condition(condname, conditions);
 
   std::shared_ptr<std::set<int>> condelementmap = std::make_shared<std::set<int>>();
   const int nummyelements = dis.num_my_col_elements();
@@ -464,12 +388,9 @@ std::shared_ptr<std::set<int>> Core::Conditions::conditioned_element_map(
     for (size_t n = 0; n < numnodes; ++n)
     {
       const Core::Nodes::Node* actnode = nodes[n];
-
-      // test if node is covered by condition
-      if (conds.contains_node(actnode->id()))
-      {
-        condelementmap->insert(actele->id());
-      }
+      const bool contains_node = std::ranges::any_of(
+          conditions, [gid = actnode->id()](const auto* cond) { return cond->contains_node(gid); });
+      if (contains_node) condelementmap->insert(actele->id());
     }
   }
 
@@ -478,62 +399,6 @@ std::shared_ptr<std::set<int>> Core::Conditions::conditioned_element_map(
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-bool Core::Conditions::have_same_nodes(
-    const Condition* const condition1, const Condition* const condition2, const bool mustmatch)
-{
-  // indicates, if both conditions match
-  bool matching_conditions = true;
 
-  // get nodes of conditions
-  const auto* condition1nodes = condition1->get_nodes();
-  const auto* condition2nodes = condition2->get_nodes();
-
-  // simple first check just checks the size
-  if (condition1nodes->size() != condition2nodes->size())
-  {
-    matching_conditions = false;
-    if (mustmatch)
-    {
-      FOUR_C_THROW(
-          "Number of nodes that are defined for both conditions do not match! Did you define the "
-          "conditions for the same nodesets?");
-    }
-  }
-
-  // loop over all node global IDs belonging to condition1
-  for (auto condition1nodegid : *condition1nodes)
-  {
-    bool found_node = false;
-    // loop over all node global IDs belonging to condition2
-    for (auto condition2nodegid : *condition2nodes)
-    {
-      if (condition1nodegid == condition2nodegid)
-      {
-        // we found the node, so set foundit to true and continue with next condition1node
-        found_node = true;
-        continue;
-      }
-    }
-    // throw error if node global ID is not found in condition2
-    if (!found_node)
-    {
-      matching_conditions = false;
-      if (mustmatch)
-      {
-        std::cout << "Node with global ID: " << condition1nodegid
-                  << "  which is part of condition: ";
-        condition1->print(std::cout);
-        std::cout << " is not part of condition: ";
-        condition2->print(std::cout);
-        FOUR_C_THROW(
-            "Did you assign those conditions to the same nodeset? Please check your input file and "
-            "fix this inconsistency!");
-      }
-    }
-  }
-
-  // when we get here everything is fine
-  return matching_conditions;
-}
 
 FOUR_C_NAMESPACE_CLOSE

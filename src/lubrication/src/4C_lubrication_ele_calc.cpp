@@ -13,11 +13,12 @@
 #include "4C_fem_general_utils_integration.hpp"
 #include "4C_fem_geometry_position_array.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_lubrication.hpp"
 #include "4C_lubrication_ele_action.hpp"
 #include "4C_lubrication_ele_calc_utils.hpp"
 #include "4C_lubrication_ele_parameter.hpp"
+#include "4C_lubrication_input.hpp"
 #include "4C_mat_lubrication_mat.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 #include "4C_utils_singleton_owner.hpp"
 
@@ -32,17 +33,17 @@ Discret::Elements::LubricationEleCalc<distype, probdim>::LubricationEleCalc(
     const std::string& disname)
     : lubricationpara_(Discret::Elements::LubricationEleParameter::instance(
           disname)),  // standard parameter list
-      eprenp_(true),  // initialized to zero
-      xsi_(true),     // initialized to zero
-      xyze_(true),    // initialized to zero
-      funct_(true),   // initialized to zero
-      deriv_(true),   // initialized to zero
-      derxy_(true),   // initialized to zero
-      xjm_(true),     // initialized to zero
-      xij_(true),     // initialized to zero
-      eheinp_(true),
-      eheidotnp_(true),
-      edispnp_(true),
+      eprenp_(),      // initialized to zero
+      xsi_(),         // initialized to zero
+      xyze_(),        // initialized to zero
+      funct_(),       // initialized to zero
+      deriv_(),       // initialized to zero
+      derxy_(),       // initialized to zero
+      xjm_(),         // initialized to zero
+      xij_(),         // initialized to zero
+      eheinp_(),
+      eheidotnp_(),
+      edispnp_(),
       viscmanager_(
           std::make_shared<LubricationEleViscManager>()),  // viscosity manager for viscosity
       lubricationvarmanager_(std::shared_ptr<LubricationEleInternalVariableManager<nsd_, nen_>>(
@@ -53,8 +54,8 @@ Discret::Elements::LubricationEleCalc<distype, probdim>::LubricationEleCalc(
 
       // heightint_(0.0),
       // heightdotint_(0.0),
-      pflowfac_(true),
-      pflowfacderiv_(true),
+      pflowfac_(),
+      pflowfacderiv_(),
       sflowfac_(0.0),
       sflowfacderiv_(0.0)
 {
@@ -89,11 +90,9 @@ Discret::Elements::LubricationEleCalc<distype, probdim>::instance(const std::str
 template <Core::FE::CellType distype, int probdim>
 int Discret::Elements::LubricationEleCalc<distype, probdim>::evaluate(Core::Elements::Element* ele,
     Teuchos::ParameterList& params, Core::FE::Discretization& discretization,
-    Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra)
+    Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1,
+    Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+    Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3)
 {
   //--------------------------------------------------------------------------------
   // preparations for element
@@ -111,7 +110,7 @@ int Discret::Elements::LubricationEleCalc<distype, probdim>::evaluate(Core::Elem
   // calculate element coefficient matrix and rhs
   //--------------------------------------------------------------------------------
 
-  sysmat(ele, elemat1_epetra, elevec1_epetra);
+  sysmat(ele, elemat1, elevec1);
 
   return 0;
 }
@@ -125,11 +124,9 @@ template <Core::FE::CellType distype, int probdim>
 int Discret::Elements::LubricationEleCalc<distype, probdim>::evaluate_ehl_mon(
     Core::Elements::Element* ele, Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, Core::Elements::LocationArray& la,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3)
 {
   //--------------------------------------------------------------------------------
   // preparations for element
@@ -151,7 +148,7 @@ int Discret::Elements::LubricationEleCalc<distype, probdim>::evaluate_ehl_mon(
   // calculate element off-diagonal-matrix for height linearization in monolithic EHL
   //--------------------------------------------------------------------------------
 
-  matrixfor_ehl_mon(ele, elemat1_epetra, elemat2_epetra);
+  matrixfor_ehl_mon(ele, elemat1, elemat2);
 
   return 0;
 }
@@ -371,7 +368,8 @@ void Discret::Elements::LubricationEleCalc<distype, probdim>::sysmat(
     calc_height_dot_at_int_point(heightdotint);
 
     // calculate average surface velocity of the contacting bodies at Integration point
-    Core::LinAlg::Matrix<nsd_, 1> avrvel(true);  // average surface velocity, initialized to zero
+    Core::LinAlg::Matrix<nsd_, 1> avrvel(
+        Core::LinAlg::Initialization::zero);  // average surface velocity, initialized to zero
     calc_avr_vel_at_int_point(avrvel);
 
     //----------------------------------------------------------------------
@@ -390,7 +388,9 @@ void Discret::Elements::LubricationEleCalc<distype, probdim>::sysmat(
       if (lubricationpara_->pure_lub())
         FOUR_C_THROW("pure lubrication is not implemented for modified Reynolds equation");
       // calculate relative surface velocity of the contacting bodies at Integration point
-      Core::LinAlg::Matrix<nsd_, 1> relvel(true);  // relative surface velocity, initialized to zero
+      Core::LinAlg::Matrix<nsd_, 1> relvel(
+          Core::LinAlg::Initialization::zero);  // relative surface velocity, initialized to
+                                                // zero
       calc_rel_vel_at_int_point(relvel);
 
       // calculate pressure flow factor at Integration point
@@ -479,7 +479,8 @@ void Discret::Elements::LubricationEleCalc<distype, probdim>::matrixfor_ehl_mon(
     calc_height_at_int_point(heightint);
 
     // calculate average surface velocity of the contacting bodies at Integration point
-    Core::LinAlg::Matrix<nsd_, 1> avrvel(true);  // average surface velocity, initialized to zero
+    Core::LinAlg::Matrix<nsd_, 1> avrvel(
+        Core::LinAlg::Initialization::zero);  // average surface velocity, initialized to zero
     calc_avr_vel_at_int_point(avrvel);
 
     //----------------------------------------------------------------------
@@ -495,7 +496,9 @@ void Discret::Elements::LubricationEleCalc<distype, probdim>::matrixfor_ehl_mon(
     {
       // FOUR_C_THROW("we should not be here");
       // calculate relative surface velocity of the contacting bodies at Integration point
-      Core::LinAlg::Matrix<nsd_, 1> relvel(true);  // relative surface velocity, initialized to zero
+      Core::LinAlg::Matrix<nsd_, 1> relvel(
+          Core::LinAlg::Initialization::zero);  // relative surface velocity, initialized to
+                                                // zero
       calc_rel_vel_at_int_point(relvel);
 
       // calculate pressure flow factor at Integration point
@@ -711,7 +714,7 @@ void Discret::Elements::LubricationEleCalc<distype, probdim>::materials(
       mat_lubrication(material, densn, densnp, densam, visc, dvisc, iquad);
       break;
     default:
-      FOUR_C_THROW("Material type %i is not supported", material->material_type());
+      FOUR_C_THROW("Material type {} is not supported", material->material_type());
       break;
   }
   return;
@@ -1030,7 +1033,7 @@ Discret::Elements::LubricationEleCalc<distype, probdim>::eval_shape_func_and_der
   const double det = eval_shape_func_and_derivs_in_parameter_space();
 
   if (det < 1E-16)
-    FOUR_C_THROW("GLOBAL ELEMENT NO. %d \nZERO OR NEGATIVE JACOBIAN DETERMINANT: %lf", eid_, det);
+    FOUR_C_THROW("GLOBAL ELEMENT NO. {} \nZERO OR NEGATIVE JACOBIAN DETERMINANT: {}", eid_, det);
 
   // compute global spatial derivatives
   derxy_.multiply(xij_, deriv_);
@@ -1099,7 +1102,7 @@ double Discret::Elements::LubricationEleCalc<distype,
         xyze_, deriv_red, metrictensor, det, throw_error_if_negative_determinant, &normalvec);
 
     if (det < 1E-16)
-      FOUR_C_THROW("GLOBAL ELEMENT NO. %d \nZERO OR NEGATIVE JACOBIAN DETERMINANT: %lf", eid_, det);
+      FOUR_C_THROW("GLOBAL ELEMENT NO. {} \nZERO OR NEGATIVE JACOBIAN DETERMINANT: {}", eid_, det);
 
     // transform the derivatives and Jacobians to the higher dimensional coordinates(problem
     // dimension)
@@ -1217,11 +1220,9 @@ template <Core::FE::CellType distype, int probdim>
 int Discret::Elements::LubricationEleCalc<distype, probdim>::evaluate_service(
     Core::Elements::Element* ele, Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, Core::Elements::LocationArray& la,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3)
 {
   // setup
   if (setup_calc(ele, discretization) == -1) return 0;
@@ -1230,8 +1231,8 @@ int Discret::Elements::LubricationEleCalc<distype, probdim>::evaluate_service(
   const auto action = Teuchos::getIntegralValue<FourC::Lubrication::Action>(params, "action");
 
   // evaluate action
-  evaluate_action(ele, params, discretization, action, la, elemat1_epetra, elemat2_epetra,
-      elevec1_epetra, elevec2_epetra, elevec3_epetra);
+  evaluate_action(
+      ele, params, discretization, action, la, elemat1, elemat2, elevec1, elevec2, elevec3);
 
   return 0;
 }
@@ -1243,11 +1244,9 @@ template <Core::FE::CellType distype, int probdim>
 int Discret::Elements::LubricationEleCalc<distype, probdim>::evaluate_action(
     Core::Elements::Element* ele, Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, const FourC::Lubrication::Action& action,
-    Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra)
+    Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1,
+    Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+    Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3)
 {
   //(for now) only first dof set considered
   const std::vector<int>& lm = la[0].lm_;
@@ -1257,14 +1256,14 @@ int Discret::Elements::LubricationEleCalc<distype, probdim>::evaluate_action(
     case FourC::Lubrication::calc_error:
     {
       // check if length suffices
-      if (elevec1_epetra.length() < 1) FOUR_C_THROW("Result vector too short");
+      if (elevec1.length() < 1) FOUR_C_THROW("Result vector too short");
 
       // need current solution
       std::shared_ptr<const Core::LinAlg::Vector<double>> prenp = discretization.get_state("prenp");
       if (prenp == nullptr) FOUR_C_THROW("Cannot get state vector 'prenp'");
       Core::FE::extract_my_values<Core::LinAlg::Matrix<nen_, 1>>(*prenp, eprenp_, lm);
 
-      cal_error_compared_to_analyt_solution(ele, params, elevec1_epetra);
+      cal_error_compared_to_analyt_solution(ele, params, elevec1);
 
       break;
     }
@@ -1281,7 +1280,7 @@ int Discret::Elements::LubricationEleCalc<distype, probdim>::evaluate_action(
       Core::FE::extract_my_values<Core::LinAlg::Matrix<nen_, 1>>(*prenp, eprenp_, lm);
 
       // calculate pressures and domain integral
-      calculate_pressures(ele, elevec1_epetra, inverting);
+      calculate_pressures(ele, elevec1, inverting);
 
       break;
     }
@@ -1318,10 +1317,10 @@ void Discret::Elements::LubricationEleCalc<distype, probdim>::cal_error_compared
       FourC::Lubrication::DisTypeToGaussRuleForExactSol<distype>::rule);
 
   const auto errortype =
-      Teuchos::getIntegralValue<Inpar::Lubrication::CalcError>(params, "calcerrorflag");
+      Teuchos::getIntegralValue<FourC::Lubrication::CalcError>(params, "calcerrorflag");
   switch (errortype)
   {
-    case Inpar::Lubrication::calcerror_byfunction:
+    case FourC::Lubrication::calcerror_byfunction:
     {
       const int errorfunctno = params.get<int>("error function number");
 
@@ -1329,9 +1328,9 @@ void Discret::Elements::LubricationEleCalc<distype, probdim>::cal_error_compared
       double pre_exact(0.0);
       double deltapre(0.0);
       //! spatial gradient of current pressure value
-      Core::LinAlg::Matrix<nsd_, 1> gradpre(true);
-      Core::LinAlg::Matrix<nsd_, 1> gradpre_exact(true);
-      Core::LinAlg::Matrix<nsd_, 1> deltagradpre(true);
+      Core::LinAlg::Matrix<nsd_, 1> gradpre(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<nsd_, 1> gradpre_exact(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<nsd_, 1> deltagradpre(Core::LinAlg::Initialization::zero);
 
       // start loop over integration points
       for (int iquad = 0; iquad < intpoints.ip().nquad; iquad++)
@@ -1340,7 +1339,7 @@ void Discret::Elements::LubricationEleCalc<distype, probdim>::cal_error_compared
 
         // get coordinates at integration point
         // gp reference coordinates
-        Core::LinAlg::Matrix<nsd_, 1> xyzint(true);
+        Core::LinAlg::Matrix<nsd_, 1> xyzint(Core::LinAlg::Initialization::zero);
         xyzint.multiply(xyze_, funct_);
 
         // function evaluation requires a 3D position vector!!

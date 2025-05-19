@@ -104,7 +104,7 @@ void Mat::Elastic::CoupAnisoExpoShearAnisotropyExtension::on_global_element_data
   {
     FOUR_C_THROW(
         "This material only supports the fiber prescription with the FIBER1 FIBER2 notation and "
-        "INIT modes %d and %d.",
+        "INIT modes {} and {}.",
         DefaultAnisotropyExtension<2>::INIT_MODE_ELEMENT_FIBERS,
         DefaultAnisotropyExtension<2>::INIT_MODE_NODAL_FIBERS);
   }
@@ -121,7 +121,7 @@ void Mat::Elastic::CoupAnisoExpoShearAnisotropyExtension::on_global_element_data
                             ->get_element_fiber(fiber_ids_[0])
                             .dot(get_anisotropy()->get_element_fiber(fiber_ids_[1]));
 
-  Core::LinAlg::Matrix<3, 3> fiber1fiber2T(false);
+  Core::LinAlg::Matrix<3, 3> fiber1fiber2T(Core::LinAlg::Initialization::uninitialized);
   fiber1fiber2T.multiply_nt(get_anisotropy()->get_element_fiber(fiber_ids_[0]),
       get_anisotropy()->get_element_fiber(fiber_ids_[1]));
 
@@ -146,7 +146,7 @@ void Mat::Elastic::CoupAnisoExpoShearAnisotropyExtension::on_global_gp_data_init
   {
     FOUR_C_THROW(
         "This material only supports the fiber prescription with the FIBER1 FIBER2 notation and "
-        "INIT modes %d and %d.",
+        "INIT modes {} and {}.",
         DefaultAnisotropyExtension<2>::INIT_MODE_ELEMENT_FIBERS,
         DefaultAnisotropyExtension<2>::INIT_MODE_NODAL_FIBERS);
   }
@@ -166,7 +166,7 @@ void Mat::Elastic::CoupAnisoExpoShearAnisotropyExtension::on_global_gp_data_init
                                ->get_gauss_point_fiber(gp, fiber_ids_[0])
                                .dot(get_anisotropy()->get_gauss_point_fiber(gp, fiber_ids_[1]));
 
-    Core::LinAlg::Matrix<3, 3> fiber1fiber2T(false);
+    Core::LinAlg::Matrix<3, 3> fiber1fiber2T(Core::LinAlg::Initialization::uninitialized);
     fiber1fiber2T.multiply_nt(get_anisotropy()->get_gauss_point_fiber(gp, fiber_ids_[0]),
         get_anisotropy()->get_gauss_point_fiber(gp, fiber_ids_[1]));
 

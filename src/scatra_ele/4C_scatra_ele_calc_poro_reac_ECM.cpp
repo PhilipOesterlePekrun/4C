@@ -16,6 +16,7 @@
 #include "4C_mat_structporo.hpp"
 #include "4C_mat_structporo_reaction_ecm.hpp"
 #include "4C_scatra_ele_parameter_std.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_singleton_owner.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -76,7 +77,7 @@ void Discret::Elements::ScaTraEleCalcPoroReacECM<distype>::materials(
       pororeac::mat_scatra(material, k, densn, densnp, densam, visc, iquad);
       break;
     default:
-      FOUR_C_THROW("Material type %i is not supported", material->material_type());
+      FOUR_C_THROW("Material type {} is not supported", material->material_type());
       break;
   }
   return;
@@ -141,7 +142,7 @@ double Discret::Elements::ScaTraEleCalcPoroReacECM<distype>::compute_struct_chem
     Mat::StructPoroReactionECM& structmat, const int gp)
 {
   // gauss point displacements
-  Core::LinAlg::Matrix<nsd_, 1> dispint(false);
+  Core::LinAlg::Matrix<nsd_, 1> dispint(Core::LinAlg::Initialization::uninitialized);
   dispint.multiply(my::edispnp_, my::funct_);
 
   // transposed jacobian "dX/ds"
@@ -149,7 +150,7 @@ double Discret::Elements::ScaTraEleCalcPoroReacECM<distype>::compute_struct_chem
   xjm0.multiply_nt(my::deriv_, poro::xyze0_);
 
   // inverse of transposed jacobian "ds/dX"
-  Core::LinAlg::Matrix<nsd_, nsd_> xji0(true);
+  Core::LinAlg::Matrix<nsd_, nsd_> xji0(Core::LinAlg::Initialization::zero);
   xji0.invert(xjm0);
 
   // inverse of transposed jacobian "ds/dX"
@@ -168,11 +169,11 @@ double Discret::Elements::ScaTraEleCalcPoroReacECM<distype>::compute_struct_chem
 
   // -------------------------(material) deformation gradient F = d xyze_ / d XYZE = xyze_ *
   // N_XYZ_^T
-  static Core::LinAlg::Matrix<nsd_, nsd_> defgrd(false);
+  static Core::LinAlg::Matrix<nsd_, nsd_> defgrd(Core::LinAlg::Initialization::uninitialized);
   defgrd.multiply_nt(my::xyze_, N_XYZ);
 
   // GL strain vector glstrain={E11,E22,E33,2*E12,2*E23,2*E31}
-  static Core::LinAlg::Matrix<6, 1> glstrain(true);
+  static Core::LinAlg::Matrix<6, 1> glstrain(Core::LinAlg::Initialization::zero);
   glstrain.clear();
   // if (kinemtype_ == Inpar::Solid::KinemType::nonlinearTotLag)
   {

@@ -59,9 +59,9 @@ SOLVER                          UMFPACK
 -------------------------------------------------------------------MATERIALS
 MAT 1 MAT_fluid DYNVISCOSITY 0.1 DENSITY 10.0 GAMMA 1.0
 ----------------------------------------------------------------------FUNCT1
-BELTRAMI c1 1.0
+FLUID_FUNCTION BELTRAMI c1 1.0
 ----------------------------------------------------------------------FUNCT2
-BELTRAMI c1 2.0
+FLUID_FUNCTION BELTRAMI c1 2.0
 ----------------------------------------------------------RESULT DESCRIPTION
 FLUID DIS fluid NODE 12 QUANTITY velx VALUE 1.41521903288654161e-01 TOLERANCE 1e-10
 FLUID DIS fluid NODE 12 QUANTITY vely VALUE -1.18855608982974634e-01 TOLERANCE 1e-10
@@ -76,19 +76,18 @@ FLUID DIS fluid NODE 453 QUANTITY vely VALUE -1.20565788183300082e+00 TOLERANCE 
 FLUID DIS fluid NODE 453 QUANTITY velz VALUE -1.32077845921344861e+00 TOLERANCE 1e-9
 FLUID DIS fluid NODE 453 QUANTITY pressure VALUE -3.15500256993404893e+01 TOLERANCE 1e-9
 -----------------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF                           6
 // surface top
-E 1 - NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
+E 1 NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
 // surface front
-E 2 - NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
+E 2 NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
 // surface back
-E 3 - NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
+E 3 NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
 // surface unten
-E 4 - NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
+E 4 NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
 // surface rechts
-E 5 - NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
+E 5 NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
 // surface links
-E 6 - NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
+E 6 NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
 ---------------------------------------------------------DNODE-NODE TOPOLOGY
 NODE 649 DNODE 1
 ---------------------------------------------------------DSURF-NODE TOPOLOGY

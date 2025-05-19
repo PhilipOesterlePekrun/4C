@@ -7,8 +7,8 @@ NODES                            64
 DIM                              3
 MATERIALS                        1
 NUMDF                            3
------------------------------------------------------------------PROBLEM TYPE
-PROBLEMTYPE                       Structure
+----------------------------------------------------------------PROBLEM TYPE
+PROBLEMTYPE                      Structure
 RESTART                          0
 --------------------------------------------------------------DISCRETISATION
 NUMFLUIDDIS                      0
@@ -24,15 +24,15 @@ FILESTEPS                        1
 ----------------------------------------------------------STRUCTURAL DYNAMIC
 LINEAR_SOLVER                    1
 INT_STRATEGY                     Standard
-DYNAMICTYPE                       Statics
-RESULTSEVERY                      1
-RESTARTEVERY                      1
+DYNAMICTYPE                      Statics
+RESULTSEVERY                     1
+RESTARTEVERY                     1
 NLNSOL                           fullnewton
 TIMESTEP                         5e-3
 NUMSTEP                          20
 TIMEINIT                         0.0
 MAXTIME                          1.0
-DAMPING                          No
+DAMPING                          None
 M_DAMP                           1e-05
 K_DAMP                           1e-05
 TOLRES                           1e-07
@@ -48,12 +48,11 @@ VARIABLE 0 NAME a TYPE linearinterpolation NUMPOINTS 2 TIMES 0.0 1.0 VALUES 0.0 
 NAME                             Structure_Solver
 SOLVER                           UMFPACK
 -----------------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF 5
-E 3 - NUMDOF 3 ONOFF 1 0 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
-E 4 - NUMDOF 3 ONOFF 0 1 0 VAL 0.0 2 0.0 FUNCT 0 1 0 TAG monitor_reaction
-E 5 - NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
-E 1 - NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
-E 2 - NUMDOF 3 ONOFF 0 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 3 NUMDOF 3 ONOFF 1 0 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 4 NUMDOF 3 ONOFF 0 1 0 VAL 0.0 2 0.0 FUNCT 0 1 0 TAG monitor_reaction
+E 5 NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 1 NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 2 NUMDOF 3 ONOFF 0 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 ---------------------------------------------------------DSURF-NODE TOPOLOGY
 NODE 1 DSURFACE 3
 NODE 3 DSURFACE 3

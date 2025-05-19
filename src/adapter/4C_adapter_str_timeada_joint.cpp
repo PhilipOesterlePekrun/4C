@@ -11,7 +11,6 @@
 #include "4C_fem_discretization.hpp"
 #include "4C_global_data.hpp"
 #include "4C_inpar_structure.hpp"
-#include "4C_inpar_validparameters.hpp"
 #include "4C_io_control.hpp"
 #include "4C_structure_new_solver_factory.hpp"
 #include "4C_structure_new_timint_base.hpp"
@@ -29,7 +28,7 @@ FOUR_C_NAMESPACE_OPEN
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
 Adapter::StructureTimeAdaJoint::StructureTimeAdaJoint(std::shared_ptr<Structure> structure)
-    : StructureTimeAda(structure), sta_(nullptr), sta_wrapper_(nullptr)
+    : StructureTimeAda(structure), sta_(nullptr)
 {
   if (stm_->is_setup()) setup_auxiliary();
 }
@@ -92,17 +91,16 @@ void Adapter::StructureTimeAdaJoint::setup_auxiliary()
   sta_->init(dataio, datasdyn, dataglobalstate);
   sta_->setup();
 
-  // setup wrapper
-  sta_wrapper_ = std::make_shared<Adapter::StructureTimeLoop>(sta_);
-
   const int restart = Global::Problem::instance()->restart();
   if (restart)
   {
+    sta_->post_setup();
+
     const Solid::TimeInt::Base& sti = *stm_;
     const auto& gstate = sti.data_global_state();
-    dataglobalstate->get_dis_n()->Update(1.0, *(gstate.get_dis_n()), 0.0);
-    dataglobalstate->get_vel_n()->Update(1.0, *(gstate.get_vel_n()), 0.0);
-    dataglobalstate->get_acc_n()->Update(1.0, *(gstate.get_acc_n()), 0.0);
+    dataglobalstate->get_dis_n()->update(1.0, *(gstate.get_dis_n()), 0.0);
+    dataglobalstate->get_vel_n()->update(1.0, *(gstate.get_vel_n()), 0.0);
+    dataglobalstate->get_acc_n()->update(1.0, *(gstate.get_acc_n()), 0.0);
   }
 
   // check explicitness
@@ -188,7 +186,7 @@ void Adapter::StructureTimeAdaJoint::integrate_step_auxiliary()
   sta_->integrate_step();
 
   // copy onto target
-  locerrdisn_->Update(1.0, *(gstate.get_dis_np()), 0.0);
+  locerrdisn_->update(1.0, *(gstate.get_dis_np()), 0.0);
 
   // reset
   sta_->reset_step();
@@ -209,23 +207,23 @@ void Adapter::StructureTimeAdaJoint::update_auxiliary()
   Solid::TimeInt::BaseDataGlobalState& gstate_a =
       const_cast<Solid::TimeInt::BaseDataGlobalState&>(gstate_a_const);
 
-  gstate_a.get_dis_np()->Update(1.0, (*gstate_i.get_dis_n()), 0.0);
-  gstate_a.get_vel_np()->Update(1.0, (*gstate_i.get_vel_n()), 0.0);
-  gstate_a.get_acc_np()->Update(1.0, (*gstate_i.get_acc_n()), 0.0);
+  gstate_a.get_dis_np()->update(1.0, (*gstate_i.get_dis_n()), 0.0);
+  gstate_a.get_vel_np()->update(1.0, (*gstate_i.get_vel_n()), 0.0);
+  gstate_a.get_acc_np()->update(1.0, (*gstate_i.get_acc_n()), 0.0);
   gstate_a.get_multi_dis()->update_steps((*gstate_i.get_dis_n()));
   gstate_a.get_multi_vel()->update_steps((*gstate_i.get_vel_n()));
   gstate_a.get_multi_acc()->update_steps((*gstate_i.get_acc_n()));
 
   gstate_a.get_time_np() = gstate_i.get_time_np();
   gstate_a.get_delta_time()->update_steps((*gstate_i.get_delta_time())[0]);
-  gstate_a.get_fvisco_np()->Update(1.0, (*gstate_i.get_fvisco_n()), 0.0);
-  gstate_a.get_fvisco_n()->Update(1.0, (*gstate_i.get_fvisco_n()), 0.0);
-  gstate_a.get_finertial_np()->Update(1.0, (*gstate_i.get_finertial_n()), 0.0);
-  gstate_a.get_finertial_n()->Update(1.0, (*gstate_i.get_finertial_n()), 0.0);
-  gstate_a.get_fint_np()->Update(1.0, (*gstate_i.get_fint_n()), 0.0);
-  gstate_a.get_fint_n()->Update(1.0, (*gstate_i.get_fint_n()), 0.0);
-  gstate_a.get_fext_np()->Update(1.0, (*gstate_i.get_fext_n()), 0.0);
-  gstate_a.get_fext_n()->Update(1.0, (*gstate_i.get_fext_n()), 0.0);
+  gstate_a.get_fvisco_np()->update(1.0, (*gstate_i.get_fvisco_n()), 0.0);
+  gstate_a.get_fvisco_n()->update(1.0, (*gstate_i.get_fvisco_n()), 0.0);
+  gstate_a.get_finertial_np()->update(1.0, (*gstate_i.get_finertial_n()), 0.0);
+  gstate_a.get_finertial_n()->update(1.0, (*gstate_i.get_finertial_n()), 0.0);
+  gstate_a.get_fint_np()->update(1.0, (*gstate_i.get_fint_n()), 0.0);
+  gstate_a.get_fint_n()->update(1.0, (*gstate_i.get_fint_n()), 0.0);
+  gstate_a.get_fext_np()->update(1.0, (*gstate_i.get_fext_n()), 0.0);
+  gstate_a.get_fext_n()->update(1.0, (*gstate_i.get_fext_n()), 0.0);
 }
 
 /*----------------------------------------------------------------------*/
@@ -239,6 +237,17 @@ void Adapter::StructureTimeAdaJoint::reset_step()
   sta_->set_time_np(time_ + stepsize_);
   // reset the integrator
   sta_->reset_step();
+}
+
+/*----------------------------------------------------------------------*/
+/*----------------------------------------------------------------------*/
+void Adapter::StructureTimeAdaJoint::post_setup()
+{
+  // base post setup
+  Adapter::StructureTimeAda::post_setup();
+
+  // post setup the auxiliary time integrator
+  sta_->post_setup();
 }
 
 FOUR_C_NAMESPACE_CLOSE

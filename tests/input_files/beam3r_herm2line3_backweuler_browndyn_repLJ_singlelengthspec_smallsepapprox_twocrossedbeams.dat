@@ -63,10 +63,10 @@ REPARTITIONSTRATEGY             Everydt
 --------------------------------------------------------------BEAM POTENTIAL
 POT_LAW_PREFACTOR               3.7896834457639100e-20 0.0
 POT_LAW_EXPONENT                12.0 12.0
-BEAMPOTENTIAL_TYPE              Volume
-STRATEGY                        SingleLengthSpecific_SmallSepApprox
-NUM_INTEGRATION_SEGMENTS        2
-NUM_GAUSSPOINTS                 50
+TYPE                            volume
+STRATEGY                        single_length_specific_small_separations
+N_INTEGRATION_SEGMENTS          2
+N_GAUSS_POINTS                  50
 AUTOMATIC_DIFFERENTIATION       yes
 ----------------------------------BEAM POTENTIAL/RUNTIME VTK OUTPUT
 VTK_OUTPUT_BEAM_POTENTIAL       yes
@@ -75,18 +75,15 @@ EVERY_ITERATION                 no
 FORCES                          yes
 MOMENTS                         yes
 --------------------------------DESIGN LINE BEAM POTENTIAL CHARGE CONDITIONS
-DLINE 2
-E 1 - POTLAW 1 VAL 1.0 FUNCT none
-E 2 - POTLAW 1 VAL 1.0 FUNCT none
+E 1 POTLAW 1 VAL 1.0 FUNCT none
+E 2 POTLAW 1 VAL 1.0 FUNCT none
 ------------------------------------DESIGN POINT DIRICH CONDITIONS
-DPOINT 1
-E 1 - NUMDOF 9 ONOFF 1 1 1 1 1 0 0 0 1 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0 0
+E 1 NUMDOF 9 ONOFF 1 1 1 1 1 0 0 0 1 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0 0
 ------------------------------------DESIGN LINE DIRICH CONDITIONS
-DLINE 4
-E 1 - NUMDOF 9 ONOFF 0 0 1 1 1 0 0 0 1 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0 0
-E 2 - NUMDOF 9 ONOFF 0 0 1 1 1 0 0 0 1 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0 0
-E 3 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
-E 4 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 1 NUMDOF 9 ONOFF 0 0 1 1 1 0 0 0 1 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0 0
+E 2 NUMDOF 9 ONOFF 0 0 1 1 1 0 0 0 1 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0 0
+E 3 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 4 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 -----------------------------------------------DNODE-NODE TOPOLOGY
 NODE       5 DNODE 1
 NODE      14 DNODE 1

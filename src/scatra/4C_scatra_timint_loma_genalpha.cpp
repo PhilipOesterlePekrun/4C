@@ -121,7 +121,7 @@ void ScaTra::TimIntLomaGenAlpha::compute_therm_pressure_intermediate_values()
 void ScaTra::TimIntLomaGenAlpha::compute_therm_pressure()
 {
   // compute temperature at n+alpha_F
-  phiaf_->Update(alphaF_, *phinp_, (1.0 - alphaF_), *phin_, 0.0);
+  phiaf_->update(alphaF_, *phinp_, (1.0 - alphaF_), *phin_, 0.0);
 
   // define element parameter list
   Teuchos::ParameterList eleparams;
@@ -132,7 +132,7 @@ void ScaTra::TimIntLomaGenAlpha::compute_therm_pressure()
 
   // set scalar values needed by elements
   discret_->clear_state();
-  discret_->set_state("phinp", phiaf_);
+  discret_->set_state("phinp", *phiaf_);
 
   // set action for elements
   Core::Utils::add_enum_class_to_parameter_list<ScaTra::Action>(
@@ -366,7 +366,7 @@ void ScaTra::TimIntLomaGenAlpha::add_therm_press_to_parameter_list(
   params.set("thermodynamic pressure", thermpressaf_);
   params.set("thermodynamic pressure at n+alpha_M", thermpressam_);
   params.set("time derivative of thermodynamic pressure", thermpressdtaf_);
-  discret_->set_state("phiam", phiam_);
+  discret_->set_state("phiam", *phiam_);
   return;
 }
 

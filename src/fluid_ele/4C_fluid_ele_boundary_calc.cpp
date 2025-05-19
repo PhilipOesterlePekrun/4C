@@ -25,6 +25,7 @@
 #include "4C_mat_modpowerlaw.hpp"
 #include "4C_mat_newtonianfluid.hpp"
 #include "4C_mat_sutherland.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -34,11 +35,11 @@ FOUR_C_NAMESPACE_OPEN
 template <Core::FE::CellType distype>
 Discret::Elements::FluidBoundaryImpl<distype>::FluidBoundaryImpl()
     :  // Discret::Elements::FluidBoundaryInterface(),
-      xyze_(true),
-      funct_(true),
-      deriv_(true),
-      unitnormal_(true),
-      velint_(true),
+      xyze_(Core::LinAlg::Initialization::zero),
+      funct_(Core::LinAlg::Initialization::zero),
+      deriv_(Core::LinAlg::Initialization::zero),
+      unitnormal_(Core::LinAlg::Initialization::zero),
+      velint_(Core::LinAlg::Initialization::zero),
       drs_(0.0),
       fac_(0.0),
       visc_(0.0),
@@ -80,8 +81,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::evaluate_action(
         dispnp = discretization.get_state("dispnp");
         if (dispnp != nullptr)
         {
-          mydispnp.resize(lm.size());
-          Core::FE::extract_my_values(*dispnp, mydispnp, lm);
+          mydispnp = Core::FE::extract_values(*dispnp, lm);
         }
       }
 
@@ -134,46 +134,13 @@ void Discret::Elements::FluidBoundaryImpl<distype>::evaluate_action(
         if (dispnp != nullptr)
         {
           mydispnp.resize(lm.size());
-          Core::FE::extract_my_values(*dispnp, mydispnp, lm);
+          mydispnp = Core::FE::extract_values(*dispnp, lm);
         }
       }
 
       Core::FE::element_node_normal<distype>(funct_, deriv_, fac_, unitnormal_, drs_, xsi_, xyze_,
           ele1, discretization, elevec1, mydispnp, Core::FE::is_nurbs<distype>,
           ele1->parent_element()->is_ale());
-      break;
-    }
-    case FLD::calc_node_curvature:
-    {
-      std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp;
-      std::vector<double> mydispnp;
-
-      if (isale)
-      {
-        dispnp = discretization.get_state("dispnp");
-        if (dispnp != nullptr)
-        {
-          mydispnp.resize(lm.size());
-          Core::FE::extract_my_values(*dispnp, mydispnp, lm);
-        }
-      }
-
-      std::shared_ptr<const Core::LinAlg::Vector<double>> normals;
-      std::vector<double> mynormals;
-
-      normals = discretization.get_state("normals");
-      if (normals != nullptr)
-      {
-        mynormals.resize(lm.size());
-        Core::FE::extract_my_values(*normals, mynormals, lm);
-      }
-
-      // what happens, if the mynormals vector is empty? (ehrl)
-      FOUR_C_THROW(
-          "the action calc_node_curvature has not been called by now. What happens, if the "
-          "mynormal vector is empty");
-
-      element_mean_curvature(ele1, params, discretization, lm, elevec1, mydispnp, mynormals);
       break;
     }
     case FLD::calc_Neumann_inflow:
@@ -213,8 +180,8 @@ template <Core::FE::CellType distype>
 int Discret::Elements::FluidBoundaryImpl<distype>::evaluate_neumann(
     Discret::Elements::FluidBoundary* ele, Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, Core::Conditions::Condition& condition,
-    std::vector<int>& lm, Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseMatrix* elemat1_epetra)
+    std::vector<int>& lm, Core::LinAlg::SerialDenseVector& elevec1,
+    Core::LinAlg::SerialDenseMatrix* elemat1)
 {
   // find out whether we will use a time curve
   const double time = fldparatimint_->time();
@@ -223,7 +190,7 @@ int Discret::Elements::FluidBoundaryImpl<distype>::evaluate_neumann(
   // (assumed to be constant on element boundary)
   const auto onoff = condition.parameters().get<std::vector<int>>("ONOFF");
   const auto val = condition.parameters().get<std::vector<double>>("VAL");
-  const auto func = condition.parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+  const auto func = condition.parameters().get<std::vector<std::optional<int>>>("FUNCT");
   const std::string* type = &condition.parameters().get<std::string>("TYPE");
 
   // get time factor for Neumann term
@@ -248,10 +215,9 @@ int Discret::Elements::FluidBoundaryImpl<distype>::evaluate_neumann(
   if (scaaf == nullptr) FOUR_C_THROW("Cannot get state vector 'scaaf'");
 
   // extract local values from global vector
-  std::vector<double> myscaaf(lm.size());
-  Core::FE::extract_my_values(*scaaf, myscaaf, lm);
+  std::vector<double> myscaaf = Core::FE::extract_values(*scaaf, lm);
 
-  Core::LinAlg::Matrix<bdrynen_, 1> escaaf(true);
+  Core::LinAlg::Matrix<bdrynen_, 1> escaaf(Core::LinAlg::Initialization::zero);
 
   // insert scalar into element array
   // the scalar is stored to the pressure dof
@@ -265,7 +231,7 @@ int Discret::Elements::FluidBoundaryImpl<distype>::evaluate_neumann(
 
   // extract pressure values from global velocity/pressure vector
   // (needed for weakly_compressible fluids)
-  Core::LinAlg::Matrix<bdrynen_, 1> epreaf(true);
+  Core::LinAlg::Matrix<bdrynen_, 1> epreaf(Core::LinAlg::Initialization::zero);
   Discret::Elements::FluidEleParameter* fldpara =
       Discret::Elements::FluidEleParameterStd::instance();
   if (fldpara->physical_type() == Inpar::FLUID::weakly_compressible or
@@ -275,8 +241,7 @@ int Discret::Elements::FluidBoundaryImpl<distype>::evaluate_neumann(
     if (velaf == nullptr) FOUR_C_THROW("Cannot get state vector 'velaf'");
 
     // extract local values from global vector
-    std::vector<double> myvelaf(lm.size());
-    Core::FE::extract_my_values(*velaf, myvelaf, lm);
+    std::vector<double> myvelaf = Core::FE::extract_values(*velaf, lm);
 
     // insert pressure into element array
     for (int inode = 0; inode < bdrynen_; inode++)
@@ -304,7 +269,7 @@ int Discret::Elements::FluidBoundaryImpl<distype>::evaluate_neumann(
     if (dispnp != nullptr)
     {
       mydispnp.resize(lm.size());
-      Core::FE::extract_my_values(*dispnp, mydispnp, lm);
+      mydispnp = Core::FE::extract_values(*dispnp, lm);
     }
 
     for (int inode = 0; inode < bdrynen_; ++inode)
@@ -394,7 +359,7 @@ int Discret::Elements::FluidBoundaryImpl<distype>::evaluate_neumann(
     double functfacn = 1.0;
 
     // global coordinates of gausspoint
-    Core::LinAlg::Matrix<(nsd_), 1> coordgp(0.0);
+    Core::LinAlg::Matrix<(nsd_), 1> coordgp(Core::LinAlg::Initialization::uninitialized);
 
     // determine coordinates of current Gauss point
     coordgp.multiply(xyze_, funct_);
@@ -434,11 +399,11 @@ int Discret::Elements::FluidBoundaryImpl<distype>::evaluate_neumann(
           const double valfac = val[idim] * fac_time_dens * functfac;
           for (int inode = 0; inode < bdrynen_; ++inode)
           {
-            elevec1_epetra[inode * numdofpernode_ + idim] += funct_(inode) * valfac;
+            elevec1[inode * numdofpernode_ + idim] += funct_(inode) * valfac;
             if (fldparatimint_->is_new_ost_implementation())
             {
               const double valfacn = val[idim] * fac_time_densn * functfacn;
-              elevec1_epetra[inode * numdofpernode_ + idim] += funct_(inode) * valfacn;
+              elevec1[inode * numdofpernode_ + idim] += funct_(inode) * valfacn;
             }
           }  // end is_new_ost_implementation
         }  // if onoff
@@ -472,13 +437,12 @@ int Discret::Elements::FluidBoundaryImpl<distype>::evaluate_neumann(
           const double valfac = val[0] * fac_time_dens * functfac;
           for (int inode = 0; inode < bdrynen_; ++inode)
           {
-            elevec1_epetra[inode * numdofpernode_ + idim] +=
-                funct_(inode) * valfac * (-unitnormal_(idim));
+            elevec1[inode * numdofpernode_ + idim] += funct_(inode) * valfac * (-unitnormal_(idim));
 
             if (fldparatimint_->is_new_ost_implementation())
             {
               const double valfacn = val[0] * fac_time_densn * functfacn;
-              elevec1_epetra[inode * numdofpernode_ + idim] +=
+              elevec1[inode * numdofpernode_ + idim] +=
                   funct_(inode) * valfacn * (-unitnormal_(idim));
             }
           }  // end is_new_ost_implementation
@@ -486,7 +450,7 @@ int Discret::Elements::FluidBoundaryImpl<distype>::evaluate_neumann(
       }
       else
         FOUR_C_THROW(
-            "The type '%s' is not supported in the fluid neumann condition!", type->c_str());
+            "The type '{}' is not supported in the fluid neumann condition!", type->c_str());
 
     }  // for(int idim=0; idim<(nsd_); ++idim)
   }
@@ -552,7 +516,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::neumann_inflow(
     if (dispnp != nullptr)
     {
       mydispnp.resize(lm.size());
-      Core::FE::extract_my_values(*dispnp, mydispnp, lm);
+      mydispnp = Core::FE::extract_values(*dispnp, lm);
     }
 
     for (int inode = 0; inode < bdrynen_; ++inode)
@@ -573,13 +537,13 @@ void Discret::Elements::FluidBoundaryImpl<distype>::neumann_inflow(
   // extract local values from global vector
   std::vector<double> myvelaf(lm.size());
   std::vector<double> myscaaf(lm.size());
-  Core::FE::extract_my_values(*velaf, myvelaf, lm);
-  Core::FE::extract_my_values(*scaaf, myscaaf, lm);
+  myvelaf = Core::FE::extract_values(*velaf, lm);
+  myscaaf = Core::FE::extract_values(*scaaf, lm);
 
-  // create Epetra objects for scalar array and velocities
-  Core::LinAlg::Matrix<nsd_, bdrynen_> evelaf(true);
-  Core::LinAlg::Matrix<bdrynen_, 1> epreaf(true);
-  Core::LinAlg::Matrix<bdrynen_, 1> escaaf(true);
+  // create objects for scalar array and velocities
+  Core::LinAlg::Matrix<nsd_, bdrynen_> evelaf(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<bdrynen_, 1> epreaf(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<bdrynen_, 1> escaaf(Core::LinAlg::Initialization::zero);
 
   // insert velocity, pressure and scalar into element array
   for (int inode = 0; inode < bdrynen_; ++inode)
@@ -684,7 +648,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::neumann_inflow(
         const double lhsnewtonfac = densaf_ * timefac * fac_;
 
         // dyadic product of unit normal vector and velocity vector
-        Core::LinAlg::Matrix<nsd_, nsd_> n_x_u(true);
+        Core::LinAlg::Matrix<nsd_, nsd_> n_x_u(Core::LinAlg::Initialization::zero);
         n_x_u.multiply_nt(velint_, unitnormal_);
 
         /*
@@ -804,175 +768,6 @@ void Discret::Elements::FluidBoundaryImpl<distype>::integrate_shape_function(
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
 template <Core::FE::CellType distype>
-void Discret::Elements::FluidBoundaryImpl<distype>::element_mean_curvature(
-    Discret::Elements::FluidBoundary* ele, Teuchos::ParameterList& params,
-    Core::FE::Discretization& discretization, std::vector<int>& lm,
-    Core::LinAlg::SerialDenseVector& elevec1, const std::vector<double>& edispnp,
-    std::vector<double>& enormals)
-{
-  // get status of Ale
-  const bool isale = ele->parent_element()->is_ale();
-
-  // get Gauss rule
-  const Core::FE::IntPointsAndWeights<bdrynsd_> intpoints(
-      Discret::Elements::DisTypeToOptGaussRule<distype>::rule);
-
-  // node normals &
-  Core::LinAlg::Matrix<nsd_, bdrynen_> norm_elem(true);
-  Core::LinAlg::Matrix<bdrynsd_, nsd_> dxyzdrs(true);
-
-  // coordinates of current node in reference coordinates
-  Core::LinAlg::Matrix<bdrynsd_, 1> xsi_node(true);
-
-  // get node coordinates
-  // (we have a nsd_ dimensional domain, since nsd_ determines the dimension of FluidBoundary
-  // element!)
-  Core::Geo::fill_initial_position_array<distype, nsd_, Core::LinAlg::Matrix<nsd_, bdrynen_>>(
-      ele, xyze_);
-
-  if (isale)
-  {
-    FOUR_C_ASSERT(edispnp.size() != 0, "paranoid");
-
-    for (int inode = 0; inode < bdrynen_; ++inode)
-    {
-      for (int idim = 0; idim < nsd_; ++idim)
-      {
-        xyze_(idim, inode) += edispnp[numdofpernode_ * inode + idim];
-      }
-    }
-  }
-
-  // set normal vectors to length = 1.0
-  // normal vector is coming from outside
-  for (int inode = 0; inode < bdrynen_; ++inode)
-  {
-    // double length = 0.0;
-    for (int idim = 0; idim < nsd_; ++idim)
-    {
-      norm_elem(idim, inode) = enormals[numdofpernode_ * inode + idim];
-    }
-  }
-  // compute normalized normal vector
-  norm_elem.scale(1 / norm_elem.norm2());
-
-  // get local node coordinates of the element
-  // function gives back a matrix with the local node coordinates of the element (nsd_,bdrynen_)
-  // the function gives back an Core::LinAlg::SerialDenseMatrix!!!
-  Core::LinAlg::SerialDenseMatrix xsi_ele =
-      Core::FE::get_ele_node_numbering_nodes_paramspace(distype);
-
-  // ============================== loop over nodes ==========================
-  for (int inode = 0; inode < bdrynen_; ++inode)
-  {
-    // the local node coordinates matrix is split to a vector containing the local coordinates of
-    // the actual node
-    for (int idim = 0; idim < bdrynsd_; idim++)
-    {
-      xsi_node(idim) = xsi_ele(idim, inode);
-    }
-
-    // get shape derivatives at this node
-    Core::FE::shape_function<distype>(xsi_node, funct_);
-
-    // the metric tensor and its determinant
-    // Core::LinAlg::SerialDenseMatrix      metrictensor(nsd_,nsd_);
-    Core::LinAlg::Matrix<bdrynsd_, bdrynsd_> metrictensor(true);
-
-    // Additionally, compute metric tensor
-    Core::FE::compute_metric_tensor_for_boundary_ele<distype>(xyze_, deriv_, metrictensor, drs_);
-
-    dxyzdrs.multiply_nt(deriv_, xyze_);
-
-    // calculate mean curvature H at node.
-    double H = 0.0;
-    Core::LinAlg::Matrix<bdrynsd_, nsd_> dn123drs(0.0);
-
-    dn123drs.multiply_nt(deriv_, norm_elem);
-
-    // Acc. to Bronstein ..."mittlere Kruemmung":
-    // calculation of the mean curvature for a surface element
-    if (bdrynsd_ == 2)
-    {
-      double L = 0.0, twoM = 0.0, N = 0.0;
-      for (int i = 0; i < 3; i++)
-      {
-        L += (-1.0) * dxyzdrs(0, i) * dn123drs(0, i);
-        twoM += (-1.0) * dxyzdrs(0, i) * dn123drs(1, i) - dxyzdrs(1, i) * dn123drs(0, i);
-        N += (-1.0) * dxyzdrs(1, i) * dn123drs(1, i);
-      }
-      // mean curvature: H = 0.5*(k_1+k_2)
-      H = 0.5 * (metrictensor(0, 0) * N - twoM * metrictensor(0, 1) + metrictensor(1, 1) * L) /
-          (drs_ * drs_);
-    }
-    else
-      FOUR_C_THROW(
-          "Calculation of the mean curvature is only implemented for a 2D surface element");
-
-
-    // get the number of elements adjacent to this node. Find out how many
-    // will contribute to the interpolated mean curvature value.
-    int contr_elements = 0;
-    Core::Nodes::Node* thisNode = (ele->nodes())[inode];
-#ifdef FOUR_C_ENABLE_ASSERTIONS
-    if (thisNode == nullptr) FOUR_C_THROW("No node!\n");
-#endif
-    int NumElement = thisNode->num_element();
-    Core::Elements::Element** ElementsPtr = thisNode->elements();
-
-    // loop over adjacent Fluid elements
-    for (int ele = 0; ele < NumElement; ele++)
-    {
-      Core::Elements::Element* Element = ElementsPtr[ele];
-
-      // get surfaces
-      std::vector<std::shared_ptr<Core::Elements::Element>> surfaces = Element->surfaces();
-
-      // loop over surfaces: how many free surfaces with this node on it?
-      for (unsigned int surf = 0; surf < surfaces.size(); ++surf)
-      {
-        std::shared_ptr<Core::Elements::Element> surface = surfaces[surf];
-        Core::Nodes::Node** NodesPtr = surface->nodes();
-        int numfsnodes = 0;
-        bool hasthisnode = false;
-
-        for (int surfnode = 0; surfnode < surface->num_node(); ++surfnode)
-        {
-          Core::Nodes::Node* checkNode = NodesPtr[surfnode];
-          // check whether a free surface condition is active on this node
-          if (checkNode->get_condition("FREESURFCoupling") != nullptr)
-          {
-            numfsnodes++;
-          }
-          if (checkNode->id() == thisNode->id())
-          {
-            hasthisnode = true;
-          }
-        }
-
-        if (numfsnodes == surface->num_node() and hasthisnode)
-        {
-          // this is a free surface adjacent to this node.
-          contr_elements++;
-        }
-      }
-    }
-#ifdef FOUR_C_ENABLE_ASSERTIONS
-    if (!contr_elements) FOUR_C_THROW("No contributing elements found!\n");
-#endif
-
-    for (int idim = 0; idim < nsd_; ++idim)
-    {
-      elevec1[inode * numdofpernode_ + idim] = H / contr_elements;
-    }
-    elevec1[inode * numdofpernode_ + (numdofpernode_ - 1)] = 0.0;
-  }  // END: loop over nodes
-
-}  // Discret::Elements::FluidSurface::element_mean_curvature
-
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-template <Core::FE::CellType distype>
 void Discret::Elements::FluidBoundaryImpl<distype>::area_calculation(
     Discret::Elements::FluidBoundary* ele, Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, std::vector<int>& lm)
@@ -1021,7 +816,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::area_calculation(
     if (dispnp != nullptr)
     {
       mydispnp.resize(lm.size());
-      Core::FE::extract_my_values(*dispnp, mydispnp, lm);
+      mydispnp = Core::FE::extract_values(*dispnp, lm);
     }
     FOUR_C_ASSERT(mydispnp.size() != 0, "paranoid");
     for (int inode = 0; inode < bdrynen_; ++inode)
@@ -1073,10 +868,9 @@ void Discret::Elements::FluidBoundaryImpl<distype>::pressure_boundary_integral(
   std::shared_ptr<const Core::LinAlg::Vector<double>> velnp = discretization.get_state("velaf");
   if (velnp == nullptr) FOUR_C_THROW("Cannot get state vector 'velaf'");
 
-  std::vector<double> myvelnp(lm.size());
-  Core::FE::extract_my_values(*velnp, myvelnp, lm);
+  std::vector<double> myvelnp = Core::FE::extract_values(*velnp, lm);
 
-  Core::LinAlg::Matrix<1, bdrynen_> eprenp(true);
+  Core::LinAlg::Matrix<1, bdrynen_> eprenp(Core::LinAlg::Initialization::zero);
   for (int inode = 0; inode < bdrynen_; inode++)
   {
     eprenp(inode) = myvelnp[nsd_ + inode * numdofpernode_];
@@ -1095,7 +889,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::pressure_boundary_integral(
     if (dispnp != nullptr)
     {
       mydispnp.resize(lm.size());
-      Core::FE::extract_my_values(*dispnp, mydispnp, lm);
+      mydispnp = Core::FE::extract_values(*dispnp, lm);
     }
     FOUR_C_ASSERT(mydispnp.size() != 0, "paranoid");
     for (int inode = 0; inode < bdrynen_; ++inode)
@@ -1168,7 +962,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::center_of_mass_calculation(
     if (dispnp != nullptr)
     {
       mydispnp.resize(lm.size());
-      Core::FE::extract_my_values(*dispnp, mydispnp, lm);
+      mydispnp = Core::FE::extract_values(*dispnp, lm);
     }
     FOUR_C_ASSERT(mydispnp.size() != 0, "paranoid");
     for (int inode = 0; inode < bdrynen_; ++inode)
@@ -1187,7 +981,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::center_of_mass_calculation(
   // get the surface element area
   const double elem_area = params.get<double>("area");
 
-  Core::LinAlg::Matrix<(nsd_), 1> xyzGe(true);
+  Core::LinAlg::Matrix<(nsd_), 1> xyzGe(Core::LinAlg::Initialization::zero);
 
   for (int i = 0; i < nsd_; i++)
   {
@@ -1201,7 +995,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::center_of_mass_calculation(
           xsi_, xyze_, intpoints, gpid, nullptr, nullptr, Core::FE::is_nurbs<distype>);
 
       // global coordinates of gausspoint
-      Core::LinAlg::Matrix<(nsd_), 1> coordgp(true);
+      Core::LinAlg::Matrix<(nsd_), 1> coordgp(Core::LinAlg::Initialization::zero);
 
       // determine coordinates of current Gauss point
       coordgp.multiply(xyze_, funct_);
@@ -1254,11 +1048,10 @@ void Discret::Elements::FluidBoundaryImpl<distype>::compute_flow_rate(
 
   if (velnp == nullptr) FOUR_C_THROW("Cannot get state vector 'velaf'");
 
-  std::vector<double> myvelnp(lm.size());
-  Core::FE::extract_my_values(*velnp, myvelnp, lm);
+  std::vector<double> myvelnp = Core::FE::extract_values(*velnp, lm);
 
   // allocate velocity vector
-  Core::LinAlg::Matrix<nsd_, bdrynen_> evelnp(true);
+  Core::LinAlg::Matrix<nsd_, bdrynen_> evelnp(Core::LinAlg::Initialization::zero);
 
   // split velocity and pressure, insert into element arrays
   for (int inode = 0; inode < bdrynen_; inode++)
@@ -1287,7 +1080,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::compute_flow_rate(
     if (dispnp != nullptr)
     {
       mydispnp.resize(lm.size());
-      Core::FE::extract_my_values(*dispnp, mydispnp, lm);
+      mydispnp = Core::FE::extract_values(*dispnp, lm);
     }
     FOUR_C_ASSERT(mydispnp.size() != 0, "paranoid");
     for (int inode = 0; inode < bdrynen_; ++inode)
@@ -1381,7 +1174,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::flow_rate_deriv(
     dispnp = discretization.get_state("dispnp");
     if (dispnp == nullptr) FOUR_C_THROW("Cannot get state vectors 'dispnp'");
     edispnp.resize(lm.size());
-    Core::FE::extract_my_values(*dispnp, edispnp, lm);
+    edispnp = Core::FE::extract_values(*dispnp, lm);
   }
 
   // get integration rule
@@ -1393,7 +1186,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::flow_rate_deriv(
   const auto gridvel = Teuchos::getIntegralValue<Inpar::FLUID::Gridvel>(fdyn, "GRIDVEL");
 
   // normal vector
-  Core::LinAlg::Matrix<nsd_, 1> normal(true);
+  Core::LinAlg::Matrix<nsd_, 1> normal(Core::LinAlg::Initialization::zero);
 
   // get node coordinates
   // (we have a nsd_ dimensional domain, since nsd_ determines the dimension of FluidBoundary
@@ -1421,11 +1214,10 @@ void Discret::Elements::FluidBoundaryImpl<distype>::flow_rate_deriv(
   if (convelnp == nullptr) FOUR_C_THROW("Cannot get state vector 'convectivevel'");
 
   // extract local values from the global vectors
-  std::vector<double> myconvelnp(lm.size());
-  Core::FE::extract_my_values(*convelnp, myconvelnp, lm);
+  std::vector<double> myconvelnp = Core::FE::extract_values(*convelnp, lm);
 
   // allocate velocities vector
-  Core::LinAlg::Matrix<nsd_, bdrynen_> evelnp(true);
+  Core::LinAlg::Matrix<nsd_, bdrynen_> evelnp(Core::LinAlg::Initialization::zero);
 
   for (int inode = 0; inode < bdrynen_; ++inode)
   {
@@ -1453,7 +1245,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::flow_rate_deriv(
     const double fac = intpoints.ip().qwgt[gpid];
 
     // dxyzdrs vector -> normal which is not normalized
-    Core::LinAlg::Matrix<bdrynsd_, nsd_> dxyzdrs(0.0);
+    Core::LinAlg::Matrix<bdrynsd_, nsd_> dxyzdrs(Core::LinAlg::Initialization::uninitialized);
     dxyzdrs.multiply_nt(deriv_, xyze_);
     normal(0, 0) = dxyzdrs(0, 1) * dxyzdrs(1, 2) - dxyzdrs(0, 2) * dxyzdrs(1, 1);
     normal(1, 0) = dxyzdrs(0, 2) * dxyzdrs(1, 0) - dxyzdrs(0, 0) * dxyzdrs(1, 2);
@@ -1461,7 +1253,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::flow_rate_deriv(
 
     //-------------------------------------------------------------------
     //  Q
-    Core::LinAlg::Matrix<3, 1> u(true);
+    Core::LinAlg::Matrix<3, 1> u(Core::LinAlg::Initialization::zero);
     for (int dim = 0; dim < 3; ++dim)
       for (int node = 0; node < bdrynen_; ++node) u(dim) += funct_(node) * evelnp(dim, node);
 
@@ -1482,7 +1274,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::flow_rate_deriv(
       // dQ/dd
 
       // determine derivatives of surface normals wrt mesh displacements
-      Core::LinAlg::Matrix<3, bdrynen_ * 3> normalderiv(true);
+      Core::LinAlg::Matrix<3, bdrynen_ * 3> normalderiv(Core::LinAlg::Initialization::zero);
 
       for (int node = 0; node < bdrynen_; ++node)
       {
@@ -1671,7 +1463,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::impedance_integration(
     if (dispnp != nullptr)
     {
       mydispnp.resize(lm.size());
-      Core::FE::extract_my_values(*dispnp, mydispnp, lm);
+      mydispnp = Core::FE::extract_values(*dispnp, lm);
     }
     FOUR_C_ASSERT(mydispnp.size() != 0, "paranoid");
     for (int inode = 0; inode < bdrynen_; ++inode)
@@ -1732,7 +1524,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::d_qdu(Discret::Elements::Flu
     if (dispnp != nullptr)
     {
       mydispnp.resize(lm.size());
-      Core::FE::extract_my_values(*dispnp, mydispnp, lm);
+      mydispnp = Core::FE::extract_values(*dispnp, lm);
     }
     FOUR_C_ASSERT(mydispnp.size() != 0, "paranoid");
     for (int inode = 0; inode < bdrynen_; ++inode)
@@ -1898,11 +1690,10 @@ void Discret::Elements::FluidBoundaryImpl<distype>::calc_traction_velocity_compo
 
   if (velnp == nullptr) FOUR_C_THROW("Cannot get state vector 'velaf'");
 
-  std::vector<double> myvelnp(lm.size());
-  Core::FE::extract_my_values(*velnp, myvelnp, lm);
+  std::vector<double> myvelnp = Core::FE::extract_values(*velnp, lm);
 
   // allocate velocity vector
-  Core::LinAlg::Matrix<nsd_, bdrynen_> evelnp(true);
+  Core::LinAlg::Matrix<nsd_, bdrynen_> evelnp(Core::LinAlg::Initialization::zero);
 
   // split velocity and pressure, insert into element arrays
   for (int inode = 0; inode < bdrynen_; inode++)
@@ -1916,8 +1707,8 @@ void Discret::Elements::FluidBoundaryImpl<distype>::calc_traction_velocity_compo
 
   std::shared_ptr<Core::LinAlg::Vector<double>> cond_velocities =
       params.get<std::shared_ptr<Core::LinAlg::Vector<double>>>("condition velocities");
-  std::shared_ptr<Epetra_Map> cond_dofrowmap =
-      params.get<std::shared_ptr<Epetra_Map>>("condition dofrowmap");
+  std::shared_ptr<Core::LinAlg::Map> cond_dofrowmap =
+      params.get<std::shared_ptr<Core::LinAlg::Map>>("condition dofrowmap");
 
   double density = 0.0;  // inverse density of my parent element
 
@@ -1951,7 +1742,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::calc_traction_velocity_compo
     density = actmat->density();
   }
   else
-    FOUR_C_THROW("Fluid material expected but got type %d", mat->material_type());
+    FOUR_C_THROW("Fluid material expected but got type {}", mat->material_type());
 
   //-------------------------------------------------------------------
   // get the tractions velocity component
@@ -1980,7 +1771,7 @@ void Discret::Elements::FluidBoundaryImpl<distype>::calc_traction_velocity_compo
     if (dispnp != nullptr)
     {
       mydispnp.resize(lm.size());
-      Core::FE::extract_my_values(*dispnp, mydispnp, lm);
+      mydispnp = Core::FE::extract_values(*dispnp, lm);
     }
     FOUR_C_ASSERT(mydispnp.size() != 0, "paranoid");
     for (int inode = 0; inode < bdrynen_; ++inode)

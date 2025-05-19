@@ -7,13 +7,15 @@
 
 #include "4C_structure_new_nln_solver_utils.hpp"
 
+#include "4C_contact_input.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_structure_new_timint_base.hpp"
 #include "4C_utils_exceptions.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 #include <Teuchos_XMLParameterListCoreHelpers.hpp>
+
+#include <filesystem>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -24,19 +26,19 @@ bool Solid::Nln::SOLVER::is_xml_status_test_file(const Teuchos::ParameterList& p
   bool check = false;
 
   Teuchos::ParameterList pxml;
-  const std::string& xmlfilename = pstatus.get<std::string>("XML File");
+  auto xmlfilename = pstatus.get<std::optional<std::filesystem::path>>("XML File");
 
   // check the input: path to the "Status Test" xml-file
-  if (xmlfilename != "none")
+  if (xmlfilename)
   {
-    if (xmlfilename.length() and xmlfilename.rfind(".xml"))
+    if (xmlfilename->extension() == ".xml")
     {
-      pxml = *(Teuchos::getParametersFromXmlFile(xmlfilename));
+      pxml = *(Teuchos::getParametersFromXmlFile(xmlfilename->string()));
       if (pxml.isSublist("Outer Status Test"))
         if (pxml.sublist("Outer Status Test").numParams() > 0) check = true;
     }
     else
-      FOUR_C_THROW("The file name \"%s\" is not a valid XML file name.", xmlfilename.c_str());
+      FOUR_C_THROW("The file name \"{}\" is not a valid XML file name.", xmlfilename->string());
   }
 
   return check;
@@ -111,11 +113,10 @@ void Solid::Nln::SOLVER::convert_model_type_to_quantity_type(const enum Inpar::S
       // check for friction
       const Teuchos::ParameterList& p_contact =
           Global::Problem::instance()->contact_dynamic_params();
-      auto frictiontype =
-          Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(p_contact, "FRICTION");
+      auto frictiontype = Teuchos::getIntegralValue<CONTACT::FrictionType>(p_contact, "FRICTION");
       switch (frictiontype)
       {
-        case Inpar::CONTACT::friction_none:
+        case CONTACT::FrictionType::none:
         {
           break;
         }
@@ -412,7 +413,7 @@ void Solid::Nln::SOLVER::set_quantity_test_params(Teuchos::ParameterList& p,
   else if (testname == "ActiveSet")
     set_active_set_params(p, qtype);
   else
-    FOUR_C_THROW("Unknown/Unsupported status test name: %s", testname.c_str());
+    FOUR_C_THROW("Unknown/Unsupported status test name: {}", testname);
 }
 
 
@@ -434,7 +435,7 @@ void Solid::Nln::SOLVER::split_and_or_combo(
     if (testname == "NormF")
       combotype = datasdyn.get_res_combo_type(*qtiter);
     else if (testname != "NormUpdate")
-      FOUR_C_THROW("The given test \"%s\" name is not supported!", testname.c_str());
+      FOUR_C_THROW("The given test \"{}\" name is not supported!", testname);
 
     switch (combotype)
     {

@@ -37,7 +37,7 @@ DIVERCONT              stop
 TIMESTEP               0.001
 NUMSTEP                100
 MAXTIME                10000
-DAMPING                No
+DAMPING                None
 PREDICT                ConstDis
 TOLDISP                1.0E-12
 TOLRES                 1.0E-08
@@ -61,8 +61,7 @@ Outer Iteration                 = Yes
 Inner Iteration                 = No
 Outer Iteration StatusTest      = No
 --------------------------------------------------DESIGN LINE BEAM FILAMENT CONDITIONS
-DLINE 1
-E 1 - ID 0 TYPE arbitrary
+E 1 ID 0 TYPE arbitrary
 -----------------------------------------------DLINE-NODE TOPOLOGY
 NODE       1 DLINE 1
 NODE       2 DLINE 1

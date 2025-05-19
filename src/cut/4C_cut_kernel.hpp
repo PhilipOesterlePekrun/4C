@@ -259,7 +259,7 @@ namespace Cut::Kernel
     if (xsi.Rows() < Core::FE::dim<element_type>)
       FOUR_C_THROW(
           "The given local coordinate has the wrong dimension!\n"
-          "xsi.Rows() < Dim <===> %d<%d",
+          "xsi.Rows() < Dim <===> {}<{}",
           xsi.Rows(), Core::FE::dim<element_type>);
 
     switch (element_type)
@@ -290,8 +290,7 @@ namespace Cut::Kernel
         break;
       }
       default:
-        FOUR_C_THROW("unsupported element type: %i | %s", element_type,
-            Core::FE::cell_type_to_string(element_type).c_str());
+        FOUR_C_THROW("unsupported element type: {}", Core::FE::cell_type_to_string(element_type));
         break;
     }
   }
@@ -325,7 +324,7 @@ namespace Cut::Kernel
     if (xsi.m() < Core::FE::dim<element_type>)
       FOUR_C_THROW(
           "The given local coordinate has the wrong dimension!\n"
-          "xsi.Rows() < eleDim <===> %d<%d",
+          "xsi.Rows() < eleDim <===> {}<{}",
           xsi.m(), Core::FE::dim<element_type>);
 
     switch (element_type)
@@ -431,8 +430,7 @@ namespace Cut::Kernel
         break;
       }
       default:
-        FOUR_C_THROW("unsupported element type: %i | %s", element_type,
-            Core::FE::cell_type_to_string(element_type).c_str());
+        FOUR_C_THROW("unsupported element type: {}", Core::FE::cell_type_to_string(element_type));
         break;
     }  // switch ( elementType )
     return false;
@@ -453,7 +451,7 @@ namespace Cut::Kernel
     if (xsi.m() < Core::FE::dim<element_type>)
       FOUR_C_THROW(
           "The given local coordinate has the wrong dimension!\n"
-          "xsi.Rows() < eleDim <===> %d<%d",
+          "xsi.Rows() < eleDim <===> {}<{}",
           xsi.m(), Core::FE::dim<element_type>);
 
     switch (element_type)
@@ -524,8 +522,7 @@ namespace Cut::Kernel
         break;
       }
       default:
-        FOUR_C_THROW("unsupported element type: %i | %s", element_type,
-            Core::FE::cell_type_to_string(element_type).c_str());
+        FOUR_C_THROW("unsupported element type: {}", Core::FE::cell_type_to_string(element_type));
         break;
     }  // switch ( elementType )
     return false;
@@ -540,7 +537,7 @@ namespace Cut::Kernel
 
   /** \brief check if the local augmented coordinates are within the specified limits
    *
-   *  \author hiermeier */
+   *  */
   template <unsigned prob_dim, Core::FE::CellType side_type,
       unsigned dim_side = Core::FE::dim<side_type>, class T>
   bool within_limits_embedded_manifold(const T& xsi_aug, double tol, bool allow_dist, double tol2)
@@ -573,8 +570,7 @@ namespace Cut::Kernel
   /*! \brief Check whether three points are on the same line
    *  by checking whether the cross product is zero
    *
-   *  \author Sudhakar
-   *  \date 04/12 */
+   */
   bool is_on_line(Point*& pt1, Point*& pt2, Point*& pt3, bool DeleteInlinePts = false);
 
   /*! \brief Check whether the polygon defined by the set of points is convex */
@@ -609,8 +605,7 @@ namespace Cut::Kernel
    *  Polygon in 3D space is first projected into 2D plane, and the plane
    *  of projection is returned in projType.
    *
-   *  \author sudhakar
-   *  \date 05/12 */
+   */
   bool is_clockwise_ordered_polygon(std::vector<Point*> polyPoints, std::string& projPlane);
 
   /*! \brief Delete unnecessary in-line points.
@@ -619,20 +614,17 @@ namespace Cut::Kernel
    *  are deleted. This is checked for all the lines for a facet. So once this is
    *  called the facet is free of more than 2 inline points
    *
-   *  \author sudhakar
-   *  \date 06/12 */
+   */
   void delete_inline_pts(std::vector<Point*>& poly);
 
   /*! \brief Returns true if at least 3 points are collinear
    *
-   * \author wirtz
-   * \date 05/13 */
+   */
   bool have_inline_pts(std::vector<Point*>& poly);
 
   /*! \brief Finds tree points of the polygon which are not collinear
    *
-   *  \author wirtz
-   *  \date 05/13 */
+   */
   std::vector<Point*> get3_noncollinear_pts(std::vector<Point*>& polyPoints);
 
   /*! \brief Find appropriate projection plane
@@ -641,8 +633,7 @@ namespace Cut::Kernel
    *  coordinate plane. It is better to project over the plane which is max normal component
    *  because this will reduce the round-off error in further calculations.
    *
-   *  \author sudhakar
-   *  \date 06/12 */
+   */
   void find_projection_plane(std::string& projPlane, const std::vector<double>& eqn);
 
   /*! \brief Split a QUAD4 element into two TRI3 elements
@@ -658,7 +649,7 @@ namespace Cut::Kernel
    *  \param tri3_id    (in) : id of the desired TRI3 element \f& id \in \{0,\; 1\}\f$
    *  \param xyze_tri3  (out): created/filled TRI3 nodal coordinate matrix
    *
-   *  \author hiermeier \date 11/16 */
+   *  */
   template <class T1, class T2>
   void split_quad4_into_tri3(const T1& xyze_quad4, const unsigned& tri3_id, T2& xyze_tri3)
   {
@@ -666,7 +657,7 @@ namespace Cut::Kernel
       FOUR_C_THROW(
           "A QUAD4 is supposed to be split into 2 TRI3 elements, \n"
           "therefore you have the choice between the tri3_id's 0 and 1. \n"
-          "Nevertheless, you tried to access the id %d.",
+          "Nevertheless, you tried to access the id {}.",
           tri3_id);
 
     unsigned n0 = 2 * tri3_id;
@@ -676,8 +667,7 @@ namespace Cut::Kernel
 
   /*! \brief Get area of triangle in 3D space
    *
-   *  \author sudhakar
-   *  \date 11/14 */
+   */
   double get_area_tri(
       const std::vector<Point*>& poly, Core::LinAlg::Matrix<3, 1>* normalvec = nullptr);
   double get_area_tri(const double* p0_ptr, const double* p1_ptr, const double* p2_ptr,
@@ -697,8 +687,7 @@ namespace Cut::Kernel
    *
    *  \param poly (in): vector containing four pointers to the quad points
    *
-   *  \author sudhakar
-   *  \date 11/14 */
+   */
   double get_area_convex_quad(std::vector<Point*>& poly);
 
   enum NewtonStatus
@@ -719,7 +708,7 @@ namespace Cut::Kernel
    *  If the point is inside or near the side, the additional term will stay
    *  very low and will not distort the used tolerance too much.
    *
-   *  \author hiermeier \date 02/17 */
+   *  */
   template <class T1, class T2, class T3>
   double adaptive_combined_newton_tolerance(
 
@@ -805,9 +794,7 @@ namespace Cut::Kernel
         return "FAILED";
       default:
         FOUR_C_THROW("Unknown Newton status!");
-        exit(EXIT_FAILURE);
     }
-    exit(EXIT_FAILURE);
   }
 
   /*--------------------------------------------------------------------------*/
@@ -957,7 +944,7 @@ namespace Cut::Kernel
 
   // Static data storage of ComputePosition data members to inherit from
   template <bool debug, unsigned prob_dim, Core::FE::CellType element_type,
-      unsigned num_nodes_element = Core::FE::num_nodes<element_type>,
+      unsigned num_nodes_element = Core::FE::num_nodes(element_type),
       unsigned dim = Core::FE::dim<element_type>, typename FloatType = double>
   struct ComputePositionStaticMembers
   {
@@ -978,7 +965,7 @@ namespace Cut::Kernel
 
   // Data storage of ComputePosition data members to inherit from
   template <bool debug, unsigned prob_dim, Core::FE::CellType element_type,
-      unsigned num_nodes_element = Core::FE::num_nodes<element_type>,
+      unsigned num_nodes_element = Core::FE::num_nodes(element_type),
       unsigned dim = Core::FE::dim<element_type>, typename FloatType = double>
   struct ComputePositionNoStaticMembers
   {
@@ -1005,7 +992,7 @@ namespace Cut::Kernel
    *      ^^^^^^^^^^^^^^^^^^^^^^^
    */
   template <bool debug, unsigned prob_dim, Core::FE::CellType element_type,
-      unsigned num_nodes_element = Core::FE::num_nodes<element_type>,
+      unsigned num_nodes_element = Core::FE::num_nodes(element_type),
       unsigned dim = Core::FE::dim<element_type>, typename FloatType = double,
       template <bool, unsigned, Core::FE::CellType, unsigned, unsigned,
           typename> class MemberStoragePolicy = ComputePositionStaticMembers>
@@ -1379,7 +1366,7 @@ namespace Cut::Kernel
    *      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    */
   template <class Strategy, unsigned prob_dim, Core::FE::CellType element_type,
-      unsigned num_nodes_element = Core::FE::num_nodes<element_type>,
+      unsigned num_nodes_element = Core::FE::num_nodes(element_type),
       unsigned dim = Core::FE::dim<element_type>>
   class ComputePositionAdaptivePrecision : Strategy
 #ifdef DEBUG_MEMORY_ALLOCATION
@@ -1389,7 +1376,10 @@ namespace Cut::Kernel
   {
    public:
     ComputePositionAdaptivePrecision(Core::LinAlg::Matrix<dim, 1>& xsi)
-        : Strategy(clnxsi_, true), xsi_(xsi), clnxsi_(true), cond_infinity_(false)
+        : Strategy(clnxsi_, true),
+          xsi_(xsi),
+          clnxsi_(Core::LinAlg::Initialization::zero),
+          cond_infinity_(false)
     {
     }
 
@@ -1406,7 +1396,7 @@ namespace Cut::Kernel
               (element_type == Core::FE::CellType::wedge6)))
       {
         FOUR_C_THROW(
-            "This type of element %s  is not yet implemented for the CLN calculation. You are "
+            "This type of element {}  is not yet implemented for the CLN calculation. You are "
             "welcome to edit fem_shapefunctions.H file to fix it",
             Core::FE::cell_type_to_string(element_type).c_str());
       }
@@ -1438,7 +1428,7 @@ namespace Cut::Kernel
         Core::CLN::ClnWrapper::set_precision(prec);
 #ifdef CUSTOM_MEMORY_ALLOCATOR
 #if DEBUG_MEMORY_ALLOCATION
-        // set current constainer for most frequenty byte size allocation for this iteration
+        // set current container for most frequently byte size allocation for this iteration
         if (custom_allocator_run_)
 #endif
           Cut::MemorySingleton::getinstance().get_memory_pool_allocator().SetCurrent(
@@ -1543,14 +1533,14 @@ namespace Cut::Kernel
     // and global coordinates based on loc coordinates calculated in the ComputePosition,
     // using conversion to very high reference precision
     Core::CLN::ClnWrapper compute_error(
-        const Core::LinAlg::Matrix<prob_dim, Core::FE::num_nodes<element_type>>& ref_shape_xyz,
+        const Core::LinAlg::Matrix<prob_dim, Core::FE::num_nodes(element_type)>& ref_shape_xyz,
         const Core::LinAlg::Matrix<prob_dim, 1>& glob_init,
         const Core::LinAlg::Matrix<dim, 1, Core::CLN::ClnWrapper>& loc_calc, int prec)
     {
       unsigned int prev_prec = Core::CLN::ClnWrapper::get_precision();
       Core::CLN::ClnWrapper::set_precision(prec);
       // Converting input data into higher precision floating point format
-      Core::LinAlg::Matrix<prob_dim, Core::FE::num_nodes<element_type>, Core::CLN::ClnWrapper>
+      Core::LinAlg::Matrix<prob_dim, Core::FE::num_nodes(element_type), Core::CLN::ClnWrapper>
           cln_ref_shape_xyz;
       Core::LinAlg::Matrix<prob_dim, 1, Core::CLN::ClnWrapper> cln_glob_init;
       Core::LinAlg::Matrix<prob_dim, 1, Core::CLN::ClnWrapper> cln_loc_calc;
@@ -1560,9 +1550,9 @@ namespace Cut::Kernel
       Core::CLN::conv_double_cln(glob_init, cln_glob_init, prec);
 
       Core::LinAlg::Matrix<prob_dim, 1, Core::CLN::ClnWrapper> cln_glob_calc;
-      Core::LinAlg::Matrix<Core::FE::num_nodes<element_type>, 1, Core::CLN::ClnWrapper> shapeFunct;
+      Core::LinAlg::Matrix<Core::FE::num_nodes(element_type), 1, Core::CLN::ClnWrapper> shapeFunct;
       Core::FE::shape_function<element_type>(cln_loc_calc, shapeFunct);
-      for (unsigned int inode = 0; inode < Core::FE::num_nodes<element_type>; ++inode)
+      for (unsigned int inode = 0; inode < Core::FE::num_nodes(element_type); ++inode)
       {
         for (unsigned int isd = 0; isd < prob_dim; ++isd)
         {
@@ -1659,7 +1649,7 @@ namespace Cut::Kernel
    *  --> ComputePositionStrategy --> EmptyNewtonStrategy
    */
   template <class Strategy, unsigned prob_dim, Core::FE::CellType element_type,
-      bool compute_cln = false, unsigned num_nodes_element = Core::FE::num_nodes<element_type>,
+      bool compute_cln = false, unsigned num_nodes_element = Core::FE::num_nodes(element_type),
       unsigned dim = Core::FE::dim<element_type>>
   class GenericComputePosition : Strategy
   {
@@ -1736,7 +1726,7 @@ namespace Cut::Kernel
    *  --> ComputePositionStrategy --> EmptyNewtonStrategy
    */
   template <unsigned prob_dim, Core::FE::CellType element_type, bool compute_cln = false,
-      unsigned num_nodes_element = Core::FE::num_nodes<element_type>,
+      unsigned num_nodes_element = Core::FE::num_nodes(element_type),
       unsigned dim = Core::FE::dim<element_type>>
   class ComputePosition
       : public GenericComputePosition<
@@ -1759,7 +1749,7 @@ namespace Cut::Kernel
 
   /*--------------------------------------------------------------------------*/
   template <unsigned prob_dim, Core::FE::CellType element_type,
-      unsigned num_nodes_element = Core::FE::num_nodes<element_type>,
+      unsigned num_nodes_element = Core::FE::num_nodes(element_type),
       unsigned dim = Core::FE::dim<element_type>>
   class DebugComputePosition
       : public GenericComputePosition<
@@ -1784,7 +1774,7 @@ namespace Cut::Kernel
   // Static storage class of compute_distance data members to inherit from
   template <bool debug, unsigned prob_dim, Core::FE::CellType side_type,
       unsigned dim_side = Core::FE::dim<side_type>,
-      unsigned num_nodes_side = Core::FE::num_nodes<side_type>, typename FloatType = double>
+      unsigned num_nodes_side = Core::FE::num_nodes(side_type), typename FloatType = double>
   struct ComputeDistanceStaticMembers
   {
     /// nodal shape function values at \c xsi
@@ -1830,7 +1820,7 @@ namespace Cut::Kernel
   // Static storage class of compute_distance data members to inherit from
   template <bool debug, unsigned prob_dim, Core::FE::CellType side_type,
       unsigned dim_side = Core::FE::dim<side_type>,
-      unsigned num_nodes_side = Core::FE::num_nodes<side_type>, typename FloatType = double>
+      unsigned num_nodes_side = Core::FE::num_nodes(side_type), typename FloatType = double>
   struct ComputeDistanceNoStaticMembers
   {
     Core::LinAlg::Matrix<num_nodes_side, 1, FloatType> sideFunct_;
@@ -1856,7 +1846,7 @@ namespace Cut::Kernel
 
   template <bool debug, unsigned prob_dim, Core::FE::CellType side_type,
       unsigned dim_side = Core::FE::dim<side_type>,
-      unsigned num_nodes_side = Core::FE::num_nodes<side_type>, typename FloatType = double,
+      unsigned num_nodes_side = Core::FE::num_nodes(side_type), typename FloatType = double,
       template <bool, unsigned, Core::FE::CellType, unsigned, unsigned,
           typename> class MemberStoragePolicy = ComputeDistanceStaticMembers>
   class ComputeDistanceStrategy
@@ -1908,9 +1898,7 @@ namespace Cut::Kernel
               distance_[0] * distance_[0] + distance_[1] * distance_[1]);
         default:
           FOUR_C_THROW("Unsupported probDim and dimSide combination!");
-          exit(EXIT_FAILURE);
       }
-      exit(EXIT_FAILURE);
     }
 
     /// return the signed distance of the point px_ to the given side
@@ -2191,7 +2179,6 @@ namespace Cut::Kernel
         return normal_in_yz_plane;
 
       FOUR_C_THROW("Couldn't detect a feasible plane for the given normal vector!");
-      exit(EXIT_FAILURE);
     }
 
     /** \build Build the linear system of equations for the Newton scheme
@@ -2210,8 +2197,7 @@ namespace Cut::Kernel
      *
      *  The matrix \f$ A \f$ holds the consistent linearization.
      *
-     *  \author hiermeier
-     *  \date 08/16    */
+     */
     bool distance_system(const Core::LinAlg::Matrix<prob_dim, num_nodes_side, FloatType>& xyze_side,
         const Core::LinAlg::Matrix<prob_dim, 1, FloatType>& px, FloatType* distance,
         Core::LinAlg::Matrix<prob_dim, prob_dim, FloatType>& A,
@@ -2316,7 +2302,6 @@ namespace Cut::Kernel
           default:
           {
             FOUR_C_THROW("Shouldn't happen!");
-            exit(EXIT_FAILURE);
           }
         }
 
@@ -2457,7 +2442,7 @@ namespace Cut::Kernel
    *  --> ComputeDistanceStrategy --> EmptyNewtonStrategy  */
   template <class Strategy, unsigned prob_dim, Core::FE::CellType side_type,
       unsigned dim_side = Core::FE::dim<side_type>,
-      unsigned num_nodes_side = Core::FE::num_nodes<side_type>>
+      unsigned num_nodes_side = Core::FE::num_nodes(side_type)>
   class ComputeDistanceAdaptivePrecision : Strategy
 #ifdef DEBUG_MEMORY_ALLOCATION
       ,
@@ -2467,7 +2452,10 @@ namespace Cut::Kernel
    public:
     /// constructor
     ComputeDistanceAdaptivePrecision(Core::LinAlg::Matrix<prob_dim, 1>& xsi, bool checklimits)
-        : Strategy(clnxsi_, checklimits), xsi_(xsi), clnxsi_(true), cond_infinity_(false)
+        : Strategy(clnxsi_, checklimits),
+          xsi_(xsi),
+          clnxsi_(Core::LinAlg::Initialization::zero),
+          cond_infinity_(false)
     {
     }
 
@@ -2482,7 +2470,7 @@ namespace Cut::Kernel
           (side_type == Core::FE::CellType::pyramid5))
       {
         FOUR_C_THROW(
-            "This type of element (%s)  is not tested for the CLN calculation. You are welcome "
+            "This type of element ({})  is not tested for the CLN calculation. You are welcome "
             "to edit ../fem_general/utils_fem_shapefunctions.H file to fix it. Just "
             "change all the integers occurring there double for CLN to work.",
             Core::FE::cell_type_to_string(side_type).c_str());
@@ -2574,7 +2562,6 @@ namespace Cut::Kernel
               break;
             default:
               FOUR_C_THROW("A scalar signed distance value is not available!");
-              exit(EXIT_FAILURE);
           }
         }
         std::pair<bool, Core::CLN::ClnWrapper> cond_pair = this->condition_number();
@@ -2671,7 +2658,7 @@ namespace Cut::Kernel
     // compute_distance, using conversion to very high reference precision
     Core::CLN::ClnWrapper compute_error(
         const Core::LinAlg::Matrix<prob_dim,
-            Core::FE::num_nodes<side_type>>& refshape_xyze,  // referenape
+            Core::FE::num_nodes(side_type)>& refshape_xyze,  // referenape
         const Core::LinAlg::Matrix<prob_dim, 1>& p,          // global position of the point
         const Core::LinAlg::Matrix<prob_dim, 1, Core::CLN::ClnWrapper>&
             loc_calc,  // calculated wrt reference shape local position
@@ -2685,7 +2672,7 @@ namespace Cut::Kernel
       Core::CLN::ClnWrapper::set_precision(prec);
       // Converting input arrays  to higher precision floating points
       Core::CLN::ClnWrapper clndistance;
-      Core::LinAlg::Matrix<prob_dim, Core::FE::num_nodes<side_type>, Core::CLN::ClnWrapper>
+      Core::LinAlg::Matrix<prob_dim, Core::FE::num_nodes(side_type), Core::CLN::ClnWrapper>
           xyze_side;
       Core::LinAlg::Matrix<prob_dim, 1, Core::CLN::ClnWrapper> clnxi;
       Core::LinAlg::Matrix<prob_dim, 1, Core::CLN::ClnWrapper> clnpx;
@@ -2701,7 +2688,7 @@ namespace Cut::Kernel
         n1(i) = cln::cl_float(nvec(i, 0).Value(), cln::float_format(prec));
       }
 
-      Core::LinAlg::Matrix<Core::FE::num_nodes<side_type>, 1, Core::CLN::ClnWrapper> surfaceFunct;
+      Core::LinAlg::Matrix<Core::FE::num_nodes(side_type), 1, Core::CLN::ClnWrapper> surfaceFunct;
       Core::LinAlg::Matrix<prob_dim, 1, Core::CLN::ClnWrapper> b;
 
       Core::LinAlg::Matrix<dim_side, 1, Core::CLN::ClnWrapper> clnxiside(clnxi.data(), true);
@@ -2938,7 +2925,7 @@ namespace Cut::Kernel
    *  --> ComputeDistanceStrategy --> EmptyNewtonStrategy  */
   template <class Strategy, unsigned prob_dim, Core::FE::CellType side_type,
       bool compute_cln = false, unsigned dim_side = Core::FE::dim<side_type>,
-      unsigned num_nodes_side = Core::FE::num_nodes<side_type>>
+      unsigned num_nodes_side = Core::FE::num_nodes(side_type)>
   class GenericComputeDistance : Strategy
   {
    public:
@@ -2974,7 +2961,6 @@ namespace Cut::Kernel
             break;
           default:
             FOUR_C_THROW("A scalar signed distance value is not available!");
-            exit(EXIT_FAILURE);
         }
       }
       bool got_topology_info = get_topology_information();
@@ -3077,8 +3063,8 @@ namespace Cut::Kernel
     PointOnSurfaceLoc get_side_location_triangle_split()
     {
       if (side_type != Core::FE::CellType::tri3)
-        FOUR_C_THROW("This method only works for tri3 side. Current side is %s",
-            Core::FE::cell_type_to_string(side_type).c_str());
+        FOUR_C_THROW("This method only works for tri3 side. Current side is {}",
+            Core::FE::cell_type_to_string(side_type));
 
       Core::LinAlg::Matrix<dim_side, 1> scaled_tolerance;
       double distance_tolerance = TOPOLOGICAL_TOLERANCE;
@@ -3133,13 +3119,13 @@ namespace Cut::Kernel
     // and global coordinates based on loc coordinates and distance  calculated in the
     // compute_distance
     double compute_error(
-        const Core::LinAlg::Matrix<prob_dim, Core::FE::num_nodes<side_type>>& xyze_side,
+        const Core::LinAlg::Matrix<prob_dim, Core::FE::num_nodes(side_type)>& xyze_side,
         const Core::LinAlg::Matrix<prob_dim, 1>& px)
     {
       const Core::LinAlg::Matrix<prob_dim, 1>& xsi = this->local_coordinates();
       const Core::LinAlg::Matrix<prob_dim, 2>& n_vec = this->get_normal_vector();
       const double* distance = this->signed_distance();
-      Core::LinAlg::Matrix<Core::FE::num_nodes<side_type>, 1> surfaceFunct;
+      Core::LinAlg::Matrix<Core::FE::num_nodes(side_type), 1> surfaceFunct;
       Core::LinAlg::Matrix<prob_dim, 1> b;
       Core::LinAlg::Matrix<prob_dim, 1> n1(n_vec.data(), true);
 
@@ -3252,7 +3238,7 @@ namespace Cut::Kernel
    *  --> ComputeDistanceStrategy --> EmptyNewtonStrategy  */
   template <unsigned prob_dim, Core::FE::CellType side_type, bool compute_cln = false,
       unsigned dim_side = Core::FE::dim<side_type>,
-      unsigned num_nodes_side = Core::FE::num_nodes<side_type>>
+      unsigned num_nodes_side = Core::FE::num_nodes(side_type)>
   class ComputeDistance
       : public GenericComputeDistance<
             NewtonSolve<ComputeDistanceStrategy<false, prob_dim, side_type>, prob_dim>, prob_dim,
@@ -3271,7 +3257,7 @@ namespace Cut::Kernel
   /*--------------------------------------------------------------------------*/
   template <unsigned prob_dim, Core::FE::CellType side_type,
       unsigned dim_side = Core::FE::dim<side_type>,
-      unsigned num_nodes_side = Core::FE::num_nodes<side_type>>
+      unsigned num_nodes_side = Core::FE::num_nodes(side_type)>
   class DebugComputeDistance
       : public GenericComputeDistance<
             NewtonSolve<
@@ -3295,8 +3281,8 @@ namespace Cut::Kernel
   template <bool debug, unsigned prob_dim, Core::FE::CellType edge_type,
       Core::FE::CellType side_type, unsigned dim_edge = Core::FE::dim<edge_type>,
       unsigned dim_side = Core::FE::dim<side_type>,
-      unsigned num_nodes_edge = Core::FE::num_nodes<edge_type>,
-      unsigned num_nodes_side = Core::FE::num_nodes<side_type>, typename FloatType = double>
+      unsigned num_nodes_edge = Core::FE::num_nodes(edge_type),
+      unsigned num_nodes_side = Core::FE::num_nodes(side_type), typename FloatType = double>
   struct ComputeIntersectionStaticMembers
   {
     static Core::LinAlg::Matrix<num_nodes_side, 1, FloatType> sideFunct_;
@@ -3318,8 +3304,8 @@ namespace Cut::Kernel
   template <bool debug, unsigned prob_dim, Core::FE::CellType edge_type,
       Core::FE::CellType side_type, unsigned dim_edge = Core::FE::dim<edge_type>,
       unsigned dim_side = Core::FE::dim<side_type>,
-      unsigned num_nodes_edge = Core::FE::num_nodes<edge_type>,
-      unsigned num_nodes_side = Core::FE::num_nodes<side_type>, typename FloatType = double>
+      unsigned num_nodes_edge = Core::FE::num_nodes(edge_type),
+      unsigned num_nodes_side = Core::FE::num_nodes(side_type), typename FloatType = double>
   struct ComputeIntersectionNoStaticMembers
   {
     Core::LinAlg::Matrix<num_nodes_side, 1, FloatType> sideFunct_;
@@ -3346,8 +3332,8 @@ namespace Cut::Kernel
   template <bool debug, unsigned prob_dim, Core::FE::CellType edge_type,
       Core::FE::CellType side_type, unsigned dim_edge = Core::FE::dim<edge_type>,
       unsigned dim_side = Core::FE::dim<side_type>,
-      unsigned num_nodes_edge = Core::FE::num_nodes<edge_type>,
-      unsigned num_nodes_side = Core::FE::num_nodes<side_type>, typename FloatType = double,
+      unsigned num_nodes_edge = Core::FE::num_nodes(edge_type),
+      unsigned num_nodes_side = Core::FE::num_nodes(side_type), typename FloatType = double,
       template <bool, unsigned, Core::FE::CellType, Core::FE::CellType, unsigned, unsigned,
           unsigned, unsigned, typename> class MemberStoragePolicy =
           ComputeIntersectionStaticMembers>
@@ -3674,9 +3660,9 @@ namespace Cut::Kernel
           break;
         default:
           FOUR_C_THROW(
-              "unsupported element type ( % s ) in write_to_gmsh."
+              "unsupported element type ({}) in write_to_gmsh."
               " Please feel free to extend the functionality if necessary.",
-              Core::FE::cell_type_to_string(side_type).c_str());
+              Core::FE::cell_type_to_string(side_type));
       }
 
       file << "View \""
@@ -3770,8 +3756,7 @@ namespace Cut::Kernel
      *  dimension is larger than the accumulated dimensions of the side and edge
      *  elements, a least square approach will be used.
      *
-     *  \author hiermeier
-     *  \date 08/16 */
+     */
     void intersection_system(const Core::LinAlg::Matrix<dim_edge, 1, FloatType>& xsi_edge,
         const Core::LinAlg::Matrix<dim_side, 1, FloatType>& xsi_side,
         const Core::LinAlg::Matrix<prob_dim, num_nodes_edge, FloatType>& xyze_edge,
@@ -3888,8 +3873,8 @@ namespace Cut::Kernel
   template <class Strategy, unsigned prob_dim, Core::FE::CellType edge_type,
       Core::FE::CellType side_type, unsigned dim_edge = Core::FE::dim<edge_type>,
       unsigned dim_side = Core::FE::dim<side_type>,
-      unsigned num_nodes_edge = Core::FE::num_nodes<edge_type>,
-      unsigned num_nodes_side = Core::FE::num_nodes<side_type>>
+      unsigned num_nodes_edge = Core::FE::num_nodes(edge_type),
+      unsigned num_nodes_side = Core::FE::num_nodes(side_type)>
   class ComputeIntersectionAdaptivePrecision : Strategy
 #ifdef DEBUG_MEMORY_ALLOCATION
       ,
@@ -3900,7 +3885,10 @@ namespace Cut::Kernel
     //! constructor
     ComputeIntersectionAdaptivePrecision(
         Core::LinAlg::Matrix<dim_edge + dim_side, 1>& xsi, bool checklimits)
-        : Strategy(clnxsi_, checklimits), xsi_(xsi), clnxsi_(true), cond_infinity_(false)
+        : Strategy(clnxsi_, checklimits),
+          xsi_(xsi),
+          clnxsi_(Core::LinAlg::Initialization::zero),
+          cond_infinity_(false)
     {
     }
 
@@ -3925,7 +3913,7 @@ namespace Cut::Kernel
                   (side_type == Core::FE::CellType::hex8))))
       {
         FOUR_C_THROW(
-            "This type of element (%s)  is not tested for the CLN calculation. You are welcome "
+            "This type of element ({})  is not tested for the CLN calculation. You are welcome "
             "to edit ../fem_general/utils_fem_shapefunctions.H file to fix it. Just "
             "change all the integers occurring there double for CLN to work.",
             Core::FE::cell_type_to_string(side_type).c_str());
@@ -4141,8 +4129,8 @@ namespace Cut::Kernel
     // Evaluate difference between global coordinates in the intersection when computed based on
     // side and based on edge using conversion to very high reference precision
     Core::CLN::ClnWrapper compute_error(
-        const Core::LinAlg::Matrix<prob_dim, Core::FE::num_nodes<side_type>>& refside_xyz,
-        const Core::LinAlg::Matrix<prob_dim, Core::FE::num_nodes<edge_type>>& refedge_xyz,
+        const Core::LinAlg::Matrix<prob_dim, Core::FE::num_nodes(side_type)>& refside_xyz,
+        const Core::LinAlg::Matrix<prob_dim, Core::FE::num_nodes(edge_type)>& refedge_xyz,
         const Core::LinAlg::Matrix<dim_edge + dim_side, 1, Core::CLN::ClnWrapper>& loc_calc,
         int prec)
     {
@@ -4150,9 +4138,9 @@ namespace Cut::Kernel
       Core::CLN::ClnWrapper::set_precision(prec);
 
       // Converting input arrays  to higher precision floating points
-      Core::LinAlg::Matrix<prob_dim, Core::FE::num_nodes<side_type>, Core::CLN::ClnWrapper>
+      Core::LinAlg::Matrix<prob_dim, Core::FE::num_nodes(side_type), Core::CLN::ClnWrapper>
           cln_refside_xyz;
-      Core::LinAlg::Matrix<prob_dim, Core::FE::num_nodes<edge_type>, Core::CLN::ClnWrapper>
+      Core::LinAlg::Matrix<prob_dim, Core::FE::num_nodes(edge_type), Core::CLN::ClnWrapper>
           cln_refedge_xyz;
       Core::LinAlg::Matrix<dim_edge + dim_side, 1, Core::CLN::ClnWrapper> cln_loc_calc;
 
@@ -4161,13 +4149,13 @@ namespace Cut::Kernel
       Core::CLN::update_precision(loc_calc, cln_loc_calc, prec);
 
       // Calculating interpolation from the shapefunction of the side
-      Core::LinAlg::Matrix<Core::FE::num_nodes<side_type>, 1, Core::CLN::ClnWrapper> sideFunct;
+      Core::LinAlg::Matrix<Core::FE::num_nodes(side_type), 1, Core::CLN::ClnWrapper> sideFunct;
       Core::LinAlg::Matrix<dim_edge + dim_side, 1, Core::CLN::ClnWrapper> cln_glob_calc_side;
       Core::LinAlg::Matrix<dim_edge + dim_side, 1, Core::CLN::ClnWrapper> cln_loc_calc_side(
           cln_loc_calc.data(), true);
       Core::FE::shape_function<side_type>(cln_loc_calc_side, sideFunct);
 
-      for (unsigned int inode = 0; inode < Core::FE::num_nodes<side_type>; ++inode)
+      for (unsigned int inode = 0; inode < Core::FE::num_nodes(side_type); ++inode)
       {
         for (unsigned int isd = 0; isd < (dim_edge + dim_side); ++isd)
         {
@@ -4177,12 +4165,12 @@ namespace Cut::Kernel
 
       // Calculating interpolation from the shapefunction of the edge
       Core::LinAlg::Matrix<prob_dim, 1, Core::CLN::ClnWrapper> cln_glob_calc_edge;
-      Core::LinAlg::Matrix<Core::FE::num_nodes<side_type>, 1, Core::CLN::ClnWrapper> edgeFunct;
+      Core::LinAlg::Matrix<Core::FE::num_nodes(side_type), 1, Core::CLN::ClnWrapper> edgeFunct;
       Core::LinAlg::Matrix<prob_dim, 1, Core::CLN::ClnWrapper> cln_loc_calc_edge(
           cln_loc_calc.data() + Core::FE::dim<side_type>, true);
 
       Core::FE::shape_function<edge_type>(cln_loc_calc_edge, edgeFunct);
-      for (unsigned int inode = 0; inode < Core::FE::num_nodes<edge_type>; ++inode)
+      for (unsigned int inode = 0; inode < Core::FE::num_nodes(edge_type); ++inode)
       {
         for (unsigned int isd = 0; isd < (dim_edge + dim_side); ++isd)
         {
@@ -4251,7 +4239,7 @@ namespace Cut::Kernel
               msg << "NOTICE: intersection point is close to 2 side edges, but too far from "
                      "the corner point"
                   << "\n Distance is " << min_dist;
-              FOUR_C_THROW(msg.str());
+              FOUR_C_THROW("{}", msg.str());
             }
           }
         }
@@ -4345,8 +4333,8 @@ namespace Cut::Kernel
   template <class Strategy, unsigned prob_dim, Core::FE::CellType edge_type,
       Core::FE::CellType side_type, bool compute_cln = false,
       unsigned dim_edge = Core::FE::dim<edge_type>, unsigned dim_side = Core::FE::dim<side_type>,
-      unsigned num_nodes_edge = Core::FE::num_nodes<edge_type>,
-      unsigned num_nodes_side = Core::FE::num_nodes<side_type>>
+      unsigned num_nodes_edge = Core::FE::num_nodes(edge_type),
+      unsigned num_nodes_side = Core::FE::num_nodes(side_type)>
   class GenericComputeIntersection : Strategy
   {
    public:
@@ -4462,8 +4450,8 @@ namespace Cut::Kernel
     PointOnSurfaceLoc get_side_location_triangle_split()
     {
       if (side_type != Core::FE::CellType::tri3)
-        FOUR_C_THROW("This method only works for tri3 side. Current side is %s",
-            Core::FE::cell_type_to_string(side_type).c_str());
+        FOUR_C_THROW("This method only works for tri3 side. Current side is {}",
+            Core::FE::cell_type_to_string(side_type));
 
       double distance_tolerance = TOPOLOGICAL_TOLERANCE;
       // get tolerance with 1e-14 around the triangle, but in local coordinates
@@ -4617,8 +4605,8 @@ namespace Cut::Kernel
   template <unsigned prob_dim, Core::FE::CellType edge_type, Core::FE::CellType side_type,
       bool compute_cln = false, unsigned dim_edge = Core::FE::dim<edge_type>,
       unsigned dim_side = Core::FE::dim<side_type>,
-      unsigned num_nodes_edge = Core::FE::num_nodes<edge_type>,
-      unsigned num_nodes_side = Core::FE::num_nodes<side_type>>
+      unsigned num_nodes_edge = Core::FE::num_nodes(edge_type),
+      unsigned num_nodes_side = Core::FE::num_nodes(side_type)>
   class ComputeIntersection
       : public GenericComputeIntersection<
             NewtonSolve<ComputeIntersectionStrategy<false, prob_dim, edge_type, side_type>,
@@ -4641,8 +4629,8 @@ namespace Cut::Kernel
    *  and line */
   template <unsigned prob_dim, Core::FE::CellType edge_type, Core::FE::CellType side_type,
       unsigned dim_edge = Core::FE::dim<edge_type>, unsigned dim_side = Core::FE::dim<side_type>,
-      unsigned num_nodes_edge = Core::FE::num_nodes<edge_type>,
-      unsigned num_nodes_side = Core::FE::num_nodes<side_type>>
+      unsigned num_nodes_edge = Core::FE::num_nodes(edge_type),
+      unsigned num_nodes_side = Core::FE::num_nodes(side_type)>
   class DebugComputeIntersection
       : public GenericComputeIntersection<
             NewtonSolve<DebugNewtonStrategy<

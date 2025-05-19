@@ -42,7 +42,7 @@ namespace ScaTra
     explicit MeshtyingStrategyStd(ScaTra::ScaTraTimIntImpl* scatratimint);
 
     //! return global map of degrees of freedom
-    const Epetra_Map& dof_row_map() const override;
+    const Core::LinAlg::Map& dof_row_map() const override;
 
     /*!
     \brief Evaluate a given condition
@@ -50,8 +50,7 @@ namespace ScaTra
      Evaluate terms of your weak formulation on elements marked with a given condition.
 
     \return void
-    \date 08/16
-    \author rauch
+
     */
     void evaluate_condition(Teuchos::ParameterList& params,
         std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix1,

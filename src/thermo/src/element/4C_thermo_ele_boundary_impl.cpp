@@ -15,8 +15,9 @@
 #include "4C_fem_geometry_position_array.hpp"
 #include "4C_fem_nurbs_discretization.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_thermo.hpp"
 #include "4C_thermo_ele_action.hpp"
+#include "4C_thermo_input.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 #include "4C_utils_function_of_time.hpp"
 
@@ -68,7 +69,7 @@ Thermo::TemperBoundaryImplInterface* Thermo::TemperBoundaryImplInterface::impl(
       return cp3;
     }
     default:
-      FOUR_C_THROW("Shape %d (%d nodes) not supported", ele->shape(), ele->num_node());
+      FOUR_C_THROW("Shape {} ({} nodes) not supported", ele->shape(), ele->num_node());
       break;
   }
   return nullptr;
@@ -81,12 +82,12 @@ Thermo::TemperBoundaryImplInterface* Thermo::TemperBoundaryImplInterface::impl(
 template <Core::FE::CellType distype>
 Thermo::TemperBoundaryImpl<distype>::TemperBoundaryImpl(int numdofpernode)
     : numdofpernode_(numdofpernode),
-      xyze_(true),
-      xsi_(true),
-      funct_(true),
-      deriv_(true),
-      derxy_(true),
-      normal_(true),
+      xyze_(Core::LinAlg::Initialization::zero),
+      xsi_(Core::LinAlg::Initialization::zero),
+      funct_(Core::LinAlg::Initialization::zero),
+      deriv_(Core::LinAlg::Initialization::zero),
+      derxy_(Core::LinAlg::Initialization::zero),
+      normal_(Core::LinAlg::Initialization::zero),
       fac_(0.0),
       normalfac_(1.0)
 {
@@ -100,11 +101,9 @@ Thermo::TemperBoundaryImpl<distype>::TemperBoundaryImpl(int numdofpernode)
 template <Core::FE::CellType distype>
 int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
     Teuchos::ParameterList& params, const Core::FE::Discretization& discretization,
-    const Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra)
+    const Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1,
+    Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+    Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3)
 {
   // what actions are available
   // ( action=="calc_thermo_fextconvection" )
@@ -134,8 +133,8 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
         ele, xyze_);
 
     // set views, here we assemble on the boundary dofs only!
-    Core::LinAlg::Matrix<nen_, nen_> etang(elemat1_epetra.values(), true);  // view only!
-    Core::LinAlg::Matrix<nen_, 1> efext(elevec1_epetra.values(), true);     // view only!
+    Core::LinAlg::Matrix<nen_, nen_> etang(elemat1.values(), true);  // view only!
+    Core::LinAlg::Matrix<nen_, 1> efext(elevec1.values(), true);     // view only!
 
     // get current condition
     std::shared_ptr<Core::Conditions::Condition> cond =
@@ -145,14 +144,14 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
     // access parameters of the condition
     const std::string* tempstate = &cond->parameters().get<std::string>("temperature_state");
     double coeff = cond->parameters().get<double>("coeff");
-    const auto curvenum = cond->parameters().get<Core::IO::Noneable<int>>("funct");
+    const auto curvenum = cond->parameters().get<std::optional<int>>("funct");
     const double time = params.get<double>("total time");
 
     // get surrounding temperature T_infty from input file
     double surtemp = cond->parameters().get<double>("surtemp");
     // increase the surrounding temperature T_infty step by step
     // can be scaled with a time curve, get time curve number from input file
-    const auto surtempcurvenum = cond->parameters().get<Core::IO::Noneable<int>>("surtempfunct");
+    const auto surtempcurvenum = cond->parameters().get<std::optional<int>>("surtempfunct");
 
     // find out whether we shall use a time curve for q^_c and get the factor
     double curvefac = 1.0;
@@ -191,7 +190,7 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
             discretization.get_state("temperature");
         if (tempnp == nullptr) FOUR_C_THROW("Cannot get state vector 'tempnp'");
 
-        Core::FE::extract_my_values(*tempnp, mytempnp, la[0].lm_);
+        mytempnp = Core::FE::extract_values(*tempnp, la[0].lm_);
         // build the element temperature
         Core::LinAlg::Matrix<nen_, 1> etemp(mytempnp.data(), true);  // view only!
         etemp_.update(etemp);                                        // copy
@@ -210,7 +209,7 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
             discretization.get_state("old temperature");
         if (tempn == nullptr) FOUR_C_THROW("Cannot get state vector 'tempn'");
 
-        Core::FE::extract_my_values(*tempn, mytempn, la[0].lm_);
+        mytempn = Core::FE::extract_values(*tempn, la[0].lm_);
         // build the element temperature
         Core::LinAlg::Matrix<nen_, 1> etemp(mytempn.data(), true);  // view only!
         etemp_.update(etemp);                                       // copy
@@ -221,18 +220,6 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
     else
       FOUR_C_THROW("Unknown type of convection boundary condition");
 
-#ifdef THRASOUTPUT
-    if (ele->Id() == 0)
-    {
-      std::cout << "ele Id= " << ele->Id() << std::endl;
-      // print all parameters read from the current condition
-      std::cout << "type of boundary condition  = " << *tempstate << std::endl;
-      std::cout << "heat convection coefficient = " << coeff << std::endl;
-      std::cout << "surrounding temperature     = " << surtemp << std::endl;
-      std::cout << "time curve                  = " << curvenum << std::endl;
-      std::cout << "total time                  = " << time << std::endl;
-    }
-#endif
 
     // get kinematic type from parent element
     Inpar::Solid::KinemType kintype = parentele->kintype_;
@@ -261,7 +248,7 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
     {
       // set views, here we assemble on the boundary dofs only!
       Core::LinAlg::Matrix<nen_, (nsd_ + 1) * nen_> etangcoupl(
-          elemat2_epetra.values(), true);  // view only!
+          elemat2.values(), true);  // view only!
 
       // and now get the current displacements/velocities
       if (discretization.has_state(1, "displacement"))
@@ -271,7 +258,7 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
             discretization.get_state(1, "displacement");
         if (disp == nullptr) FOUR_C_THROW("Cannot get state vectors 'displacement'");
         // extract the displacements
-        Core::FE::extract_my_values(*disp, mydisp, la[1].lm_);
+        mydisp = Core::FE::extract_values(*disp, la[1].lm_);
 
         // and now check if there is a convection heat transfer boundary condition
         calculate_nln_convection_fint_cond(ele,  // current boundary element
@@ -287,17 +274,17 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
     // BUILD EFFECTIVE TANGENT AND RESIDUAL ACC TO TIME INTEGRATOR
     // check the time integrator
     const auto timint =
-        params.get<Inpar::Thermo::DynamicType>("time integrator", Inpar::Thermo::dyna_undefined);
+        params.get<Thermo::DynamicType>("time integrator", Thermo::DynamicType::Undefined);
     switch (timint)
     {
-      case Inpar::Thermo::dyna_statics:
+      case Thermo::DynamicType::Statics:
       {
         if (*tempstate == "Tempn")
           FOUR_C_THROW("Old temperature T_n is not allowed with static time integrator");
         // continue
         break;
       }
-      case Inpar::Thermo::dyna_onesteptheta:
+      case Thermo::DynamicType::OneStepTheta:
       {
         // Note: efext is scaled with theta in thrtimint_ost.cpp. Because the
         // convective boundary condition is nonlinear and produces a term in the
@@ -307,14 +294,14 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
         etang.scale(theta);
         break;
       }
-      case Inpar::Thermo::dyna_genalpha:
+      case Thermo::DynamicType::GenAlpha:
       {
         const double alphaf = params.get<double>("alphaf");
         // combined tangent and conductivity matrix to one global matrix
         etang.scale(alphaf);
         break;
       }
-      case Inpar::Thermo::dyna_undefined:
+      case Thermo::DynamicType::Undefined:
       default:
       {
         FOUR_C_THROW("Don't know what to do...");
@@ -354,7 +341,7 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
 
         // set views, here we assemble on the boundary dofs only!
         Core::LinAlg::Matrix<nen_, (nsd_ + 1) * nen_> etangcoupl(
-            elemat1_epetra.values(), true);  // view only!
+            elemat1.values(), true);  // view only!
 
         // get current condition
         std::shared_ptr<Core::Conditions::Condition> cond =
@@ -364,15 +351,14 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
         // access parameters of the condition
         const std::string* tempstate = &cond->parameters().get<std::string>("temperature_state");
         double coeff = cond->parameters().get<double>("coeff");
-        const auto curvenum = cond->parameters().get<Core::IO::Noneable<int>>("funct");
+        const auto curvenum = cond->parameters().get<std::optional<int>>("funct");
         const double time = params.get<double>("total time");
 
         // get surrounding temperature T_infty from input file
         double surtemp = cond->parameters().get<double>("surtemp");
         // increase the surrounding temperature T_infty step by step
         // can be scaled with a time curve, get time curve number from input file
-        const auto surtempcurvenum =
-            cond->parameters().get<Core::IO::Noneable<int>>("surtempfunct");
+        const auto surtempcurvenum = cond->parameters().get<std::optional<int>>("surtempfunct");
 
         // find out whether we shall use a time curve for q^_c and get the factor
         double curvefac = 1.0;
@@ -412,7 +398,7 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
                 discretization.get_state("temperature");
             if (tempnp == nullptr) FOUR_C_THROW("Cannot get state vector 'tempnp'");
 
-            Core::FE::extract_my_values(*tempnp, mytempnp, la[0].lm_);
+            mytempnp = Core::FE::extract_values(*tempnp, la[0].lm_);
             // build the element temperature
             Core::LinAlg::Matrix<nen_, 1> etemp(mytempnp.data(), true);  // view only!
             etemp_.update(etemp);                                        // copy
@@ -431,7 +417,7 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
                 discretization.get_state("old temperature");
             if (tempn == nullptr) FOUR_C_THROW("Cannot get state vector 'tempn'");
 
-            Core::FE::extract_my_values(*tempn, mytempn, la[0].lm_);
+            mytempn = Core::FE::extract_values(*tempn, la[0].lm_);
             // build the element temperature
             Core::LinAlg::Matrix<nen_, 1> etemp(mytempn.data(), true);  // view only!
             etemp_.update(etemp);                                       // copy
@@ -442,25 +428,13 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
         else
           FOUR_C_THROW("Unknown type of convection boundary condition");
 
-#ifdef THRASOUTPUT
-        if (ele->Id() == 0)
-        {
-          std::cout << "ele Id= " << ele->Id() << std::endl;
-          // print all parameters read from the current condition
-          std::cout << "type of boundary condition  = " << *tempstate << std::endl;
-          std::cout << "heat convection coefficient = " << coeff << std::endl;
-          std::cout << "surrounding temperature     = " << surtemp << std::endl;
-          std::cout << "time curve                  = " << curvenum << std::endl;
-          std::cout << "total time                  = " << time << std::endl;
-        }
-#endif  // THRASOUTPUT
 
         // get the displacements
         std::shared_ptr<const Core::LinAlg::Vector<double>> disp =
             discretization.get_state(1, "displacement");
         if (disp == nullptr) FOUR_C_THROW("Cannot get state vectors 'displacement'");
         // extract the displacements
-        Core::FE::extract_my_values(*disp, mydisp, la[1].lm_);
+        mydisp = Core::FE::extract_values(*disp, la[1].lm_);
 
         // and now check if there is a convection heat transfer boundary condition
         calculate_nln_convection_fint_cond(ele,  // current boundary element
@@ -472,18 +446,18 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
 
         // BUILD EFFECTIVE TANGENT AND RESIDUAL ACC TO TIME INTEGRATOR
         // check the time integrator
-        const auto timint = params.get<Inpar::Thermo::DynamicType>(
-            "time integrator", Inpar::Thermo::dyna_undefined);
+        const auto timint =
+            params.get<Thermo::DynamicType>("time integrator", Thermo::DynamicType::Undefined);
         switch (timint)
         {
-          case Inpar::Thermo::dyna_statics:
+          case Thermo::DynamicType::Statics:
           {
             if (*tempstate == "Tempn")
               FOUR_C_THROW("Old temperature T_n is not allowed with static time integrator");
             // continue
             break;
           }
-          case Inpar::Thermo::dyna_onesteptheta:
+          case Thermo::DynamicType::OneStepTheta:
           {
             // Note: efext is scaled with theta in thrtimint_ost.cpp. Because the
             // convective boundary condition is nonlinear and produces a term in the
@@ -493,7 +467,7 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
             etangcoupl.scale(theta);
             break;
           }
-          case Inpar::Thermo::dyna_genalpha:
+          case Thermo::DynamicType::GenAlpha:
           {
             // Note: efext is scaled with theta in thrtimint_ost.cpp. Because the
             // convective boundary condition is nonlinear and produces a term in the
@@ -503,7 +477,7 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
             etangcoupl.scale(alphaf);
             break;
           }
-          case Inpar::Thermo::dyna_undefined:
+          case Thermo::DynamicType::Undefined:
           default:
           {
             FOUR_C_THROW("Don't know what to do...");
@@ -516,8 +490,7 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate(const FaceElement* ele,
   }  // calc_thermo_fextconvection_coupltang
 
   else
-    FOUR_C_THROW("Unknown type of action for Temperature Implementation: %s",
-        Thermo::boundary_action_to_string(action).c_str());
+    FOUR_C_THROW("Unknown type of action for Temperature Implementation: {}", action);
 
   return 0;
 }  // evaluate()
@@ -552,7 +525,7 @@ int Thermo::TemperBoundaryImpl<distype>::evaluate_neumann(const Core::Elements::
   // (assumed to be constant on element boundary)
   const auto onoff = condition.parameters().get<std::vector<int>>("ONOFF");
   const auto val = condition.parameters().get<std::vector<double>>("VAL");
-  const auto func = condition.parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+  const auto func = condition.parameters().get<std::vector<std::optional<int>>>("FUNCT");
 
   // integration loop
   for (int iquad = 0; iquad < intpoints.ip().nquad; ++iquad)
@@ -639,11 +612,11 @@ void Thermo::TemperBoundaryImpl<distype>::calculate_convection_fint_cond(
     // theoretic part
     // funct_ describes a 2D area, for hex8: 4 nodes
     // (1x1)= (1x4)(4x1) = (nen_*numdofpernode_ x 1)^T(nen_*numdofpernode_ x 1)
-    Core::LinAlg::Matrix<1, 1> Ntemp(false);
+    Core::LinAlg::Matrix<1, 1> Ntemp(Core::LinAlg::Initialization::uninitialized);
     Ntemp.multiply_tn(funct_, etemp_);
 
     // subtract the surface temperature: Ntemp -=  T_surf
-    Core::LinAlg::Matrix<1, 1> Tsurf(true);
+    Core::LinAlg::Matrix<1, 1> Tsurf(Core::LinAlg::Initialization::zero);
     for (int i = 0; i < 1; ++i)
     {
       Tsurf(i) = (surtemp);
@@ -729,7 +702,7 @@ void Thermo::TemperBoundaryImpl<distype>::calculate_nln_convection_fint_cond(
   // interfacial area, i.e. current element area
   double A = 0.0;
   // first partial derivatives VECTOR
-  Core::LinAlg::Matrix<(nsd_ + 1) * nen_, 1> Adiff(true);  // (12x1)
+  Core::LinAlg::Matrix<(nsd_ + 1) * nen_, 1> Adiff(Core::LinAlg::Initialization::zero);  // (12x1)
 
   // ----------------------------------------- loop over Gauss Points
   // with ngp = intpoints.ip().nquad
@@ -751,17 +724,20 @@ void Thermo::TemperBoundaryImpl<distype>::calculate_nln_convection_fint_cond(
     A = detA * intpoints.ip().qwgt[iquad];  // here is the current area included
 
     // initialise the matrices
-    Core::LinAlg::Matrix<(nsd_ + 1), (nsd_ + 1) * nen_> ddet(true);  // (3x12)
+    Core::LinAlg::Matrix<(nsd_ + 1), (nsd_ + 1) * nen_> ddet(
+        Core::LinAlg::Initialization::zero);  // (3x12)
     Core::LinAlg::Matrix<((nsd_ + 1) * (nsd_ + 1) * nen_), (nsd_ + 1) * nen_> ddet2(
-        true);                                                        // (3*2*4x2*4)=(24x8)
-    Core::LinAlg::Matrix<((nsd_ + 1) * nen_), 1> jacobi_deriv(true);  // (3*4x1)=(12x1)
+        Core::LinAlg::Initialization::zero);  // (3*2*4x2*4)=(24x8)
+    Core::LinAlg::Matrix<((nsd_ + 1) * nen_), 1> jacobi_deriv(
+        Core::LinAlg::Initialization::zero);  // (3*4x1)=(12x1)
 
     // with derxy_ (2x4) --> (nsd_xnen_)
     // derxy_== (LENA) dxyzdrs.multiply('N','N',1.0,deriv,x,0.0);
     // compute global derivatives
     // (nsd_x(nsd_+1)) = (nsdxnen_) . (nen_x(nsd_+1))
     // (2x3) = (2x4) . (4x3)
-    Core::LinAlg::Matrix<nsd_, (nsd_ + 1)> dxyzdrs(false);  // (2x3)
+    Core::LinAlg::Matrix<nsd_, (nsd_ + 1)> dxyzdrs(
+        Core::LinAlg::Initialization::uninitialized);  // (2x3)
     dxyzdrs.multiply(deriv_, xcurr);
 
     // derivation of minor determiants of the Jacobian with respect to the
@@ -821,11 +797,11 @@ void Thermo::TemperBoundaryImpl<distype>::calculate_nln_convection_fint_cond(
     // theoretic part
     // funct_ describes a 2D area, for hex8: 4 nodes
     // (1x1)= (1x4)(4x1) = (nen_*numdofpernode_ x 1)^T(nen_*numdofpernode_ x 1)
-    Core::LinAlg::Matrix<1, 1> Ntemp(false);
+    Core::LinAlg::Matrix<1, 1> Ntemp(Core::LinAlg::Initialization::uninitialized);
     Ntemp.multiply_tn(funct_, etemp_);
 
     // T - T_surf
-    Core::LinAlg::Matrix<1, 1> Tsurf(false);
+    Core::LinAlg::Matrix<1, 1> Tsurf(Core::LinAlg::Initialization::uninitialized);
     Tsurf(0, 0) = (surtemp);
 
     // Ntemp -= T_surf
@@ -943,7 +919,8 @@ void Thermo::TemperBoundaryImpl<distype>::get_const_normal(
   {
     case 2:
     {
-      Core::LinAlg::Matrix<3, 1> dist1(true), dist2(true);
+      Core::LinAlg::Matrix<3, 1> dist1(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<3, 1> dist2(Core::LinAlg::Initialization::zero);
       for (int i = 0; i < 3; i++)
       {
         dist1(i) = xyze(i, 1) - xyze(i, 0);
@@ -966,7 +943,7 @@ void Thermo::TemperBoundaryImpl<distype>::get_const_normal(
     }
     break;
     default:
-      FOUR_C_THROW("Illegal number of space dimensions: %d", nsd_);
+      FOUR_C_THROW("Illegal number of space dimensions: {}", nsd_);
       break;
   }  // switch(nsd)
 
@@ -1037,7 +1014,7 @@ void Thermo::TemperBoundaryImpl<distype>::surface_integration(
 )
 {
   // determine normal to this element
-  Core::LinAlg::Matrix<nsd_, (nsd_ + 1)> dxyzdrs(false);
+  Core::LinAlg::Matrix<nsd_, (nsd_ + 1)> dxyzdrs(Core::LinAlg::Initialization::uninitialized);
   dxyzdrs.multiply_nn(deriv_, xcurr);
 
   /* compute covariant metric tensor G for surface element
@@ -1051,7 +1028,7 @@ void Thermo::TemperBoundaryImpl<distype>::surface_integration(
   **        dr     dr            dr     ds            ds     ds
   */
 
-  Core::LinAlg::Matrix<(nsd_ + 1), nen_> xcurr_T(false);
+  Core::LinAlg::Matrix<(nsd_ + 1), nen_> xcurr_T(Core::LinAlg::Initialization::uninitialized);
   xcurr_T.update_t(xcurr);
 
   // the metric tensor and the area of an infinitesimal surface/line element
@@ -1087,7 +1064,7 @@ void Thermo::TemperBoundaryImpl<distype>::surface_integration(
     }
     break;
     default:
-      FOUR_C_THROW("Illegal number of space dimensions: %d", nsd_);
+      FOUR_C_THROW("Illegal number of space dimensions: {}", nsd_);
       break;
   }  // switch(nsd)
 

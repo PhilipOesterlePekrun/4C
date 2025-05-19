@@ -12,8 +12,8 @@
 #include "4C_fem_condition.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_node.hpp"
-#include "4C_fem_geometric_search_bounding_volume.hpp"
-#include "4C_fem_geometric_search_params.hpp"
+#include "4C_geometric_search_bounding_volume.hpp"
+#include "4C_geometric_search_params.hpp"
 #include "4C_io_element_append_visualization.hpp"
 #include "4C_material_base.hpp"
 #include "4C_utils_exceptions.hpp"
@@ -198,7 +198,7 @@ void Core::Elements::Element::set_node_ids(const int nnode, const int* nodes)
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void Core::Elements::Element::set_node_ids(
+void Core::Elements::Element::set_node_ids_one_based_index(
     const std::string& distype, const Core::IO::InputParameterContainer& container)
 {
   nodeid_ = container.get<std::vector<int>>(distype);
@@ -223,8 +223,8 @@ void Core::Elements::Element::set_material(
     add_material(mat);
   else
     FOUR_C_THROW(
-        "Setting material at index %d not possible (neither overwrite nor append) since currently  "
-        "only %d materials are stored",
+        "Setting material at index {} not possible (neither overwrite nor append) since currently  "
+        "only {} materials are stored",
         index, num_material());
 }
 
@@ -322,7 +322,7 @@ bool Core::Elements::Element::build_nodal_pointers(
     std::map<int, std::shared_ptr<Core::Nodes::Node>>::const_iterator curr = nodes.find(nodeids[i]);
     // this node is not on this proc
     if (curr == nodes.end())
-      FOUR_C_THROW("Element %d cannot find node %d", id(), nodeids[i]);
+      FOUR_C_THROW("Element {} cannot find node {}", id(), nodeids[i]);
     else
       node_[i] = curr->second.get();
   }
@@ -389,8 +389,8 @@ void Core::Elements::Element::nodal_connectivity(
     }
   }
   else
-    FOUR_C_THROW("implementation is missing for this distype (%s)",
-        Core::FE::cell_type_to_string(shape()).c_str());
+    FOUR_C_THROW(
+        "implementation is missing for this distype ({})", Core::FE::cell_type_to_string(shape()));
 }
 
 
@@ -399,7 +399,7 @@ void Core::Elements::Element::nodal_connectivity(
  |                                                            gee 12/06 |
  *----------------------------------------------------------------------*/
 void Core::Elements::Element::location_vector(const Core::FE::Discretization& dis,
-    const std::vector<int>& nds, Core::Elements::LocationArray& la, bool doDirichlet) const
+    const std::vector<int>& nds, Core::Elements::LocationArray& la) const
 {
   const int numnode = num_node();
   const Core::Nodes::Node* const* nodes = Element::nodes();
@@ -472,7 +472,7 @@ void Core::Elements::Element::location_vector(const Core::FE::Discretization& di
  |                                                            gee 12/06 |
  *----------------------------------------------------------------------*/
 void Core::Elements::Element::location_vector(
-    const Core::FE::Discretization& dis, LocationArray& la, bool doDirichlet) const
+    const Core::FE::Discretization& dis, LocationArray& la) const
 {
   const int numnode = num_node();
   const Core::Nodes::Node* const* nodes = Element::nodes();
@@ -483,7 +483,6 @@ void Core::Elements::Element::location_vector(
   for (int dofset = 0; dofset < la.size(); ++dofset)
   {
     std::vector<int>& lm = la[dofset].lm_;
-    std::vector<int>& lmdirich = la[dofset].lmdirich_;
     std::vector<int>& lmowner = la[dofset].lmowner_;
     std::vector<int>& lmstride = la[dofset].stride_;
 
@@ -511,28 +510,6 @@ void Core::Elements::Element::location_vector(
           lmowner.push_back(owner);
           lm.push_back(dof[j]);
         }
-
-        if (doDirichlet)
-        {
-          const std::vector<int>* flag = nullptr;
-          Core::Conditions::Condition* dirich = node->get_condition("Dirichlet");
-          if (dirich)
-          {
-            if (dirich->type() != Core::Conditions::PointDirichlet &&
-                dirich->type() != Core::Conditions::LineDirichlet &&
-                dirich->type() != Core::Conditions::SurfaceDirichlet &&
-                dirich->type() != Core::Conditions::VolumeDirichlet)
-              FOUR_C_THROW("condition with name Dirichlet is not of type Dirichlet");
-            flag = &dirich->parameters().get<std::vector<int>>("ONOFF");
-          }
-          for (int j = 0; j < size; ++j)
-          {
-            if (flag && (*flag)[j])
-              lmdirich.push_back(1);
-            else
-              lmdirich.push_back(0);
-          }
-        }
       }
     }
 
@@ -559,77 +536,6 @@ void Core::Elements::Element::location_vector(
           lmowner.push_back(owner);
           lm.push_back(j);
         }
-
-        if (doDirichlet)
-        {
-          std::vector<Core::Conditions::Condition*> dirich_vec;
-          dis.get_condition("Dirichlet", dirich_vec);
-          Core::Conditions::Condition* dirich;
-          bool dirichRelevant = false;
-          // Check if there exist a dirichlet condition
-          if (!dirich_vec.empty())
-          {
-            // do only faces where all nodes are present in the node list
-            const int nummynodes = face_[i]->num_node();
-            const int* mynodes = face_[i]->node_ids();
-            // Check if the face belongs to any condition
-            for (auto& iter : dirich_vec)
-            {
-              bool faceRelevant = true;
-              dirich = iter;
-              for (int j = 0; j < nummynodes; ++j)
-              {
-                if (!dirich->contains_node(mynodes[j]))
-                {
-                  faceRelevant = false;
-                  break;
-                }
-              }
-              // If the face is not relevant the dirichlet flag is always zero
-              if (!faceRelevant)
-              {
-                continue;  // This is related to the dirichlet conditions loop
-              }
-              else
-              {
-                dirichRelevant = true;
-                break;  // We found the right dirichlet
-              }
-            }
-
-            if (!dirichRelevant)
-            {
-              for (int j = 0; j < this->num_dof_per_face(i); ++j) lmdirich.push_back(0);
-              continue;
-            }
-
-            const std::vector<int>* flag = nullptr;
-            if (dirich->type() != Core::Conditions::PointDirichlet &&
-                dirich->type() != Core::Conditions::LineDirichlet &&
-                dirich->type() != Core::Conditions::SurfaceDirichlet &&
-                dirich->type() != Core::Conditions::VolumeDirichlet)
-              FOUR_C_THROW("condition with name Dirichlet is not of type Dirichlet");
-            flag = &dirich->parameters().get<std::vector<int>>("ONOFF");
-
-            // Every component gets NumDofPerComponent ones or zeros
-            for (unsigned j = 0; j < flag->size(); ++j)
-              for (int k = 0; k < num_dof_per_component(i); ++k)
-              {
-                if (flag && (*flag)[j])
-                  lmdirich.push_back(1);
-                else
-                  lmdirich.push_back(0);
-              }
-          }
-        }
-      }
-    }
-
-    if (doDirichlet)
-    {
-      for (unsigned j = 0; j < dof.size(); ++j)
-      {
-        lmdirich.push_back(0);
       }
     }
   }
@@ -639,8 +545,7 @@ void Core::Elements::Element::location_vector(
  |  Get degrees of freedom used by this element                (public) |
  *----------------------------------------------------------------------*/
 void Core::Elements::Element::location_vector(const Core::FE::Discretization& dis,
-    LocationArray& la, bool doDirichlet, const std::string& condstring,
-    Teuchos::ParameterList& params) const
+    LocationArray& la, const std::string& condstring, Teuchos::ParameterList& params) const
 {
   /* This method is intended to fill the LocationArray with the dofs
    * the element will assemble into. In the standard case implemented here
@@ -649,7 +554,7 @@ void Core::Elements::Element::location_vector(const Core::FE::Discretization& di
    * into the dofs of a volume element. These elements need to overwrite this
    * method.
    */
-  location_vector(dis, la, doDirichlet);
+  location_vector(dis, la);
 }
 
 /*----------------------------------------------------------------------*
@@ -716,8 +621,8 @@ int Core::Elements::Element::num_face() const
     case 3:
       return num_surface();
     default:
-      FOUR_C_THROW("faces for discretization type %s not yet implemented",
-          (Core::FE::cell_type_to_string(shape())).c_str());
+      FOUR_C_THROW("faces for discretization type {} not yet implemented",
+          (Core::FE::cell_type_to_string(shape())));
       return 0;
   }
 }
@@ -894,12 +799,12 @@ Core::GeometricSearch::BoundingVolume Core::Elements::Element::get_bounding_volu
 
     for (unsigned int i_dir = 0; i_dir < 3; ++i_dir)
     {
-      const int lid = result_data_dofbased.Map().LID(nodedofs[i_dir]);
+      const int lid = result_data_dofbased.get_block_map().LID(nodedofs[i_dir]);
 
       if (lid > -1)
         point(i_dir) = node->x()[i_dir] + result_data_dofbased[lid];
       else
-        FOUR_C_THROW("received illegal dof local id: %d", lid);
+        FOUR_C_THROW("received illegal dof local id: {}", lid);
     }
     bounding_box.add_point(point);
   }

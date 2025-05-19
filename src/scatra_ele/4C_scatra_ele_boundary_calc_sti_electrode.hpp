@@ -76,12 +76,12 @@ namespace Discret
       template <Core::FE::CellType distype_master>
       static void evaluate_s2_i_coupling_at_integration_point(const Mat::Electrode& matelectrode,
           const Core::LinAlg::Matrix<nen_, 1>& eslavetempnp,
-          const Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>& emastertempnp,
+          const Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>& emastertempnp,
           const std::vector<Core::LinAlg::Matrix<nen_, 1>>& eslavephinp,
-          const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>>&
+          const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>>&
               emasterphinp,
           double pseudo_contact_fac, const Core::LinAlg::Matrix<nen_, 1>& funct_slave,
-          const Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>& funct_master,
+          const Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>& funct_master,
           const Discret::Elements::ScaTraEleParameterBoundary* const scatra_parameter_boundary,
           double timefacfac, double timefacrhsfac, double detF,
           Core::LinAlg::SerialDenseMatrix& k_ss, Core::LinAlg::SerialDenseMatrix& k_sm,
@@ -114,12 +114,12 @@ namespace Discret
       template <Core::FE::CellType distype_master>
       static void evaluate_s2_i_coupling_od_at_integration_point(const Mat::Electrode& matelectrode,
           const Core::LinAlg::Matrix<nen_, 1>& eslavetempnp,
-          const Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>& emastertempnp,
+          const Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>& emastertempnp,
           const std::vector<Core::LinAlg::Matrix<nen_, 1>>& eslavephinp,
-          const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>>&
+          const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>>&
               emasterphinp,
           double pseudo_contact_fac, const Core::LinAlg::Matrix<nen_, 1>& funct_slave,
-          const Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>& funct_master,
+          const Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>& funct_master,
           const Discret::Elements::ScaTraEleParameterBoundary* const scatra_parameter_boundary,
           double timefacfac, double timefacwgt, double detF,
           ScaTra::DifferentiationType differentiationtype,
@@ -161,11 +161,11 @@ namespace Discret
           Core::FE::Discretization& discretization,          //!< discretization
           ScaTra::BoundaryAction action,                     //!< action
           Core::Elements::LocationArray& la,                 //!< location array
-          Core::LinAlg::SerialDenseMatrix& elemat1_epetra,   //!< element matrix 1
-          Core::LinAlg::SerialDenseMatrix& elemat2_epetra,   //!< element matrix 2
-          Core::LinAlg::SerialDenseVector& elevec1_epetra,   //!< element right-hand side vector 1
-          Core::LinAlg::SerialDenseVector& elevec2_epetra,   //!< element right-hand side vector 2
-          Core::LinAlg::SerialDenseVector& elevec3_epetra    //!< element right-hand side vector 3
+          Core::LinAlg::SerialDenseMatrix& elemat1,          //!< element matrix 1
+          Core::LinAlg::SerialDenseMatrix& elemat2,          //!< element matrix 2
+          Core::LinAlg::SerialDenseVector& elevec1,          //!< element right-hand side vector 1
+          Core::LinAlg::SerialDenseVector& elevec2,          //!< element right-hand side vector 2
+          Core::LinAlg::SerialDenseVector& elevec3           //!< element right-hand side vector 3
           ) override;
 
       //! extract nodal state variables associated with boundary element

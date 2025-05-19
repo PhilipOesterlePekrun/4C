@@ -60,12 +60,15 @@ bool BeamInteraction::BeamToFluidMeshtyingPairMortar<Beam, Fluid, Mortar>::evalu
 
 
   // Initialize variables for shape function values.
-  Core::LinAlg::Matrix<1, Mortar::n_nodes_ * Mortar::n_val_, double> N_mortar(true);
-  Core::LinAlg::Matrix<1, Beam::n_nodes_ * Beam::n_val_, double> N_beam(true);
-  Core::LinAlg::Matrix<1, Fluid::n_nodes_ * Fluid::n_val_, double> N_fluid(true);
+  Core::LinAlg::Matrix<1, Mortar::n_nodes_ * Mortar::n_val_, double> N_mortar(
+      Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<1, Beam::n_nodes_ * Beam::n_val_, double> N_beam(
+      Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<1, Fluid::n_nodes_ * Fluid::n_val_, double> N_fluid(
+      Core::LinAlg::Initialization::zero);
 
   // Initialize variable for beam position derivative.
-  Core::LinAlg::Matrix<3, 1, double> dr_beam_ref(true);
+  Core::LinAlg::Matrix<3, 1, double> dr_beam_ref(Core::LinAlg::Initialization::zero);
 
   // Initialize scalar variables.Clear
   double segment_jacobian, beam_segmentation_factor;
@@ -82,11 +85,11 @@ bool BeamInteraction::BeamToFluidMeshtyingPairMortar<Beam, Fluid, Mortar>::evalu
         i_gp < this->line_to_3D_segments_[i_segment].get_projection_points().size(); i_gp++)
     {
       // Get the current Gauss point.
-      const GEOMETRYPAIR::ProjectionPoint1DTo3D<double>& projected_gauss_point =
+      const GeometryPair::ProjectionPoint1DTo3D<double>& projected_gauss_point =
           this->line_to_3D_segments_[i_segment].get_projection_points()[i_gp];
 
       // Get the jacobian in the reference configuration.
-      GEOMETRYPAIR::evaluate_position_derivative1<Beam>(
+      GeometryPair::evaluate_position_derivative1<Beam>(
           projected_gauss_point.get_eta(), this->ele1posref_, dr_beam_ref);
 
       // Jacobian including the segment length.
@@ -96,11 +99,11 @@ bool BeamInteraction::BeamToFluidMeshtyingPairMortar<Beam, Fluid, Mortar>::evalu
       N_mortar.clear();
       N_beam.clear();
       N_fluid.clear();
-      GEOMETRYPAIR::EvaluateShapeFunction<Mortar>::evaluate(
+      GeometryPair::EvaluateShapeFunction<Mortar>::evaluate(
           N_mortar, projected_gauss_point.get_eta());
-      GEOMETRYPAIR::EvaluateShapeFunction<Beam>::evaluate(
+      GeometryPair::EvaluateShapeFunction<Beam>::evaluate(
           N_beam, projected_gauss_point.get_eta(), this->ele1pos_.shape_function_data_);
-      GEOMETRYPAIR::EvaluateShapeFunction<Fluid>::evaluate(N_fluid, projected_gauss_point.get_xi());
+      GeometryPair::EvaluateShapeFunction<Fluid>::evaluate(N_fluid, projected_gauss_point.get_xi());
 
       // Fill in the local templated mortar matrix D.
       for (unsigned int i_mortar_node = 0; i_mortar_node < Mortar::n_nodes_; i_mortar_node++)
@@ -160,7 +163,7 @@ void BeamInteraction::BeamToFluidMeshtyingPairMortar<Beam, Fluid, Mortar>::get_p
   if (visualization_discret != nullptr || visualization_continuous != nullptr)
   {
     // Setup variables.
-    auto q_lambda = GEOMETRYPAIR::InitializeElementData<Mortar, double>::initialize(nullptr);
+    auto q_lambda = GeometryPair::InitializeElementData<Mortar, double>::initialize(nullptr);
     Core::LinAlg::Matrix<3, 1, scalar_type> current_beamposition;
     Core::LinAlg::Matrix<3, 1, scalar_type> ref_beamposition;
     Core::LinAlg::Matrix<3, 1, scalar_type> beamdisplacement;
@@ -178,9 +181,8 @@ void BeamInteraction::BeamToFluidMeshtyingPairMortar<Beam, Fluid, Mortar>::get_p
     // Get the lambda GIDs of this pair.
     std::shared_ptr<const BeamContactPair> this_rcp = Core::Utils::shared_ptr_from_ref(*this);
     std::vector<int> lambda_row;
-    std::vector<double> lambda_pair;
     mortar_manager->location_vector(*this_rcp, lambda_row);
-    Core::FE::extract_my_values(*lambda, lambda_pair, lambda_row);
+    std::vector<double> lambda_pair = Core::FE::extract_values(*lambda, lambda_row);
     for (unsigned int i_dof = 0; i_dof < Mortar::n_dof_; i_dof++)
       q_lambda.element_position_(i_dof) = lambda_pair[i_dof];
 
@@ -199,15 +201,15 @@ void BeamInteraction::BeamToFluidMeshtyingPairMortar<Beam, Fluid, Mortar>::get_p
         xi_mortar_node = Core::FE::get_node_coordinates(i_node, Mortar::discretization_);
 
         // Get position and displacement of the mortar node.
-        GEOMETRYPAIR::evaluate_position<Beam>(
+        GeometryPair::evaluate_position<Beam>(
             xi_mortar_node(0), this->ele1pos_, current_beamposition);
-        GEOMETRYPAIR::evaluate_position<Beam>(
+        GeometryPair::evaluate_position<Beam>(
             xi_mortar_node(0), this->ele1posref_, ref_beamposition);
         beamdisplacement = current_beamposition;
         beamdisplacement -= ref_beamposition;
 
         // Get the discrete Lagrangian multiplier.
-        GEOMETRYPAIR::evaluate_position<Mortar>(xi_mortar_node(0), q_lambda, lambda_discret);
+        GeometryPair::evaluate_position<Mortar>(xi_mortar_node(0), q_lambda, lambda_discret);
 
         // Add to output data.
         for (unsigned int dim = 0; dim < 3; dim++)
@@ -247,11 +249,11 @@ void BeamInteraction::BeamToFluidMeshtyingPairMortar<Beam, Fluid, Mortar>::get_p
           // Get the position, displacement and lambda value at the current point.
           xi = segment.get_eta_a() + i_curve_segment * (segment.get_eta_b() - segment.get_eta_a()) /
                                          (double)mortar_segments;
-          GEOMETRYPAIR::evaluate_position<Beam>(xi, this->ele1pos_, current_beamposition);
-          GEOMETRYPAIR::evaluate_position<Beam>(xi, this->ele1posref_, ref_beamposition);
+          GeometryPair::evaluate_position<Beam>(xi, this->ele1pos_, current_beamposition);
+          GeometryPair::evaluate_position<Beam>(xi, this->ele1posref_, ref_beamposition);
           beamdisplacement = current_beamposition;
           beamdisplacement -= ref_beamposition;
-          GEOMETRYPAIR::evaluate_position<Mortar>(xi, q_lambda, lambda_discret);
+          GeometryPair::evaluate_position<Mortar>(xi, q_lambda, lambda_discret);
 
           // Add to output data.
           for (unsigned int dim = 0; dim < 3; dim++)
@@ -273,7 +275,7 @@ void BeamInteraction::BeamToFluidMeshtyingPairMortar<Beam, Fluid, Mortar>::get_p
 template <typename Beam, typename Fluid, typename Mortar>
 void BeamInteraction::BeamToFluidMeshtyingPairMortar<Beam, Fluid, Mortar>::evaluate_penalty_force(
     Core::LinAlg::Matrix<3, 1, scalar_type>& force,
-    const GEOMETRYPAIR::ProjectionPoint1DTo3D<double>& projected_gauss_point,
+    const GeometryPair::ProjectionPoint1DTo3D<double>& projected_gauss_point,
     Core::LinAlg::Matrix<3, 1, scalar_type> v_beam) const
 {
   force.put_scalar(0.);
@@ -281,37 +283,37 @@ void BeamInteraction::BeamToFluidMeshtyingPairMortar<Beam, Fluid, Mortar>::evalu
 /**
  * Explicit template initialization of template class.
  */
-template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_hex8, GEOMETRYPAIR::t_line2>;
-template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_hex20, GEOMETRYPAIR::t_line2>;
-template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_hex27, GEOMETRYPAIR::t_line2>;
-template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_tet4, GEOMETRYPAIR::t_line2>;
-template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_tet10, GEOMETRYPAIR::t_line2>;
+template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GeometryPair::t_hermite,
+    GeometryPair::t_hex8, GeometryPair::t_line2>;
+template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GeometryPair::t_hermite,
+    GeometryPair::t_hex20, GeometryPair::t_line2>;
+template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GeometryPair::t_hermite,
+    GeometryPair::t_hex27, GeometryPair::t_line2>;
+template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GeometryPair::t_hermite,
+    GeometryPair::t_tet4, GeometryPair::t_line2>;
+template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GeometryPair::t_hermite,
+    GeometryPair::t_tet10, GeometryPair::t_line2>;
 
-template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_hex8, GEOMETRYPAIR::t_line3>;
-template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_hex20, GEOMETRYPAIR::t_line3>;
-template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_hex27, GEOMETRYPAIR::t_line3>;
-template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_tet4, GEOMETRYPAIR::t_line3>;
-template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_tet10, GEOMETRYPAIR::t_line3>;
+template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GeometryPair::t_hermite,
+    GeometryPair::t_hex8, GeometryPair::t_line3>;
+template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GeometryPair::t_hermite,
+    GeometryPair::t_hex20, GeometryPair::t_line3>;
+template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GeometryPair::t_hermite,
+    GeometryPair::t_hex27, GeometryPair::t_line3>;
+template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GeometryPair::t_hermite,
+    GeometryPair::t_tet4, GeometryPair::t_line3>;
+template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GeometryPair::t_hermite,
+    GeometryPair::t_tet10, GeometryPair::t_line3>;
 
-template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_hex8, GEOMETRYPAIR::t_line4>;
-template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_hex20, GEOMETRYPAIR::t_line4>;
-template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_hex27, GEOMETRYPAIR::t_line4>;
-template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_tet4, GEOMETRYPAIR::t_line4>;
-template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_tet10, GEOMETRYPAIR::t_line4>;
+template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GeometryPair::t_hermite,
+    GeometryPair::t_hex8, GeometryPair::t_line4>;
+template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GeometryPair::t_hermite,
+    GeometryPair::t_hex20, GeometryPair::t_line4>;
+template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GeometryPair::t_hermite,
+    GeometryPair::t_hex27, GeometryPair::t_line4>;
+template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GeometryPair::t_hermite,
+    GeometryPair::t_tet4, GeometryPair::t_line4>;
+template class BeamInteraction::BeamToFluidMeshtyingPairMortar<GeometryPair::t_hermite,
+    GeometryPair::t_tet10, GeometryPair::t_line4>;
 
 FOUR_C_NAMESPACE_CLOSE

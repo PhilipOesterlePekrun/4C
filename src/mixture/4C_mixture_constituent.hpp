@@ -225,7 +225,7 @@ namespace Mixture
     [[nodiscard]] virtual Core::LinAlg::Matrix<1, 6> get_d_growth_scalar_d_cg(
         int gp, int eleGID) const
     {
-      const Core::LinAlg::Matrix<1, 6> dGrowthScalarDC(true);
+      const Core::LinAlg::Matrix<1, 6> dGrowthScalarDC(Core::LinAlg::Initialization::zero);
       return dGrowthScalarDC;
     };
 
@@ -235,9 +235,9 @@ namespace Mixture
      *
      * The total deformation is #F, which is split into two parts:
      *
-     * $\boldsymbol{F} = \boldsymbol{F}_e \cdot \boldsymbol{F}_in$
+     * \f$\boldsymbol{F} = \boldsymbol{F}_e \cdot \boldsymbol{F}_in\f$
      *
-     * Only elastic part $\boldsymbol{F}_e$ causes stresses. The inelastic part is only needed
+     * Only elastic part \f$\boldsymbol{F}_e\f$ causes stresses. The inelastic part is only needed
      * for the linearization.
      *
      * @note S_stress and the linearization are specific quantities. They have to be multiplied with
@@ -276,7 +276,7 @@ namespace Mixture
         Core::LinAlg::Matrix<6, 1>& S_stress, Core::LinAlg::Matrix<6, 6>& cmat, int gp,
         int eleGID) = 0;
 
-    /// Returns the refenrence mass density. Needs to be implemented by the deriving class.
+    /// Returns the reference mass density. Needs to be implemented by the deriving class.
 
     /*!
      * \brief Register names of the internal data that should be saved during runtime output

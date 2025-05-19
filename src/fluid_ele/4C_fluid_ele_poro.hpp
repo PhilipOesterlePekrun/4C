@@ -41,14 +41,6 @@ namespace Discret
       void setup_element_definition(
           std::map<std::string, std::map<std::string, Core::IO::InputSpec>>& definitions) override;
 
-      //! pre-evaluation
-      void pre_evaluate(Core::FE::Discretization& dis, Teuchos::ParameterList& p,
-          std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix1,
-          std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix2,
-          std::shared_ptr<Core::LinAlg::Vector<double>> systemvector1,
-          std::shared_ptr<Core::LinAlg::Vector<double>> systemvector2,
-          std::shared_ptr<Core::LinAlg::Vector<double>> systemvector3) override;
-
      private:
       static FluidPoroEleType instance_;
     };
@@ -360,13 +352,11 @@ namespace Discret
 
       \param dis (in)        : the discretization this element belongs to
       \param la (out)        : location data for all dofsets of the discretization
-      \param doDirichlet (in): whether to get the Dirichlet flags
       \param condstring (in) : Name of condition to be evaluated
       \param params (in)     : List of parameters for use at element level
       */
       void location_vector(const Core::FE::Discretization& dis, Core::Elements::LocationArray& la,
-          bool doDirichlet, const std::string& condstring,
-          Teuchos::ParameterList& params) const override;
+          const std::string& condstring, Teuchos::ParameterList& params) const override;
 
      private:
       // don't want = operator

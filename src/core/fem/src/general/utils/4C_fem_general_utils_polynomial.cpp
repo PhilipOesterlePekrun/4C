@@ -10,8 +10,13 @@
 #include "4C_fem_general_utils_integration.hpp"
 #include "4C_utils_singleton_owner.hpp"
 
+#if FOUR_C_TRILINOS_INTERNAL_VERSION_GE(2025, 2)
+#include <Intrepid2_PointTools.hpp>
+#include <Kokkos_DynRankView.hpp>
+#else
 #include <Intrepid_FieldContainer.hpp>
 #include <Intrepid_PointTools.hpp>
+#endif
 #include <Shards_CellTopology.hpp>
 
 FOUR_C_NAMESPACE_OPEN
@@ -41,7 +46,7 @@ namespace
       case 9:
         return Core::FE::GaussRule1D::line_lobatto10point;
       default:
-        FOUR_C_THROW("The Lobatto Gauss rule is not implemented for degree %d", degree);
+        FOUR_C_THROW("The Lobatto Gauss rule is not implemented for degree {}", degree);
     }
   }
 }  // namespace
@@ -591,13 +596,21 @@ namespace Core::FE
     }
     else
     {
+#if FOUR_C_TRILINOS_INTERNAL_VERSION_GE(2025, 2)
+      Kokkos::DynRankView<double, Kokkos::HostSpace> wb_points("fekete_points", size(degree), 2);
+#else
       Intrepid::FieldContainer<double> wb_points(size(degree), 2);
+#endif
 
       //  CellTopologyData
       shards::CellTopology myTri(shards::getCellTopologyData<shards::Triangle<3>>());
+#if FOUR_C_TRILINOS_INTERNAL_VERSION_GE(2025, 2)
+      Intrepid2::PointTools::getLattice(
+          wb_points, myTri, degree, 0, Intrepid2::POINTTYPE_WARPBLEND);
+#else
       Intrepid::PointTools::getLattice<double, Intrepid::FieldContainer<double>>(
           wb_points, myTri, degree, 0, Intrepid::POINTTYPE_WARPBLEND);
-
+#endif
       for (unsigned int i = 0; i < size(degree); ++i)
         for (int j = 0; j < 2; ++j) fekete_points_(j, i) = wb_points(i, j);
     }
@@ -629,12 +642,21 @@ namespace Core::FE
     }
     else
     {
+#if FOUR_C_TRILINOS_INTERNAL_VERSION_GE(2025, 2)
+      Kokkos::DynRankView<double, Kokkos::HostSpace> wb_points("fekete_points", size(degree), 3);
+#else
       Intrepid::FieldContainer<double> wb_points(size(degree), 3);
+#endif
 
       //  CellTopologyData
       shards::CellTopology myTet(shards::getCellTopologyData<shards::Tetrahedron<4>>());
+#if FOUR_C_TRILINOS_INTERNAL_VERSION_GE(2025, 2)
+      Intrepid2::PointTools::getLattice(
+          wb_points, myTet, degree, 0, Intrepid2::POINTTYPE_WARPBLEND);
+#else
       Intrepid::PointTools::getLattice<double, Intrepid::FieldContainer<double>>(
           wb_points, myTet, degree, 0, Intrepid::POINTTYPE_WARPBLEND);
+#endif
 
       for (unsigned int i = 0; i < size(degree); ++i)
         for (int j = 0; j < 3; ++j) fekete_points_(j, i) = wb_points(i, j);
@@ -646,7 +668,7 @@ namespace Core::FE
   template <int nsd>
   void Core::FE::LagrangeBasisTet<nsd>::fill_fekete_points(const unsigned int)
   {
-    FOUR_C_THROW("Not implemented for dim = %d", nsd);
+    FOUR_C_THROW("Not implemented for dim = {}", nsd);
   }
 
 
@@ -683,9 +705,9 @@ namespace Core::FE
       for (unsigned int j = 0; j < size(); ++j)
         if (i != j)
           FOUR_C_ASSERT(std::abs(values(j)) < 1e-11,
-              "Lagrange polynomial seems to not be nodal, p_j(xi_i) = %lf!", values(j));
+              "Lagrange polynomial seems to not be nodal, p_j(xi_i) = {}!", values(j));
       FOUR_C_ASSERT(std::abs(values(i) - 1.) < 1e-11,
-          "Lagrange polynomial seems to not be nodal, p_i(xi_i) = %lf!", values(i));
+          "Lagrange polynomial seems to not be nodal, p_i(xi_i) = {}!", values(i));
     }
 #endif
   }

@@ -22,8 +22,6 @@ FOUR_C_NAMESPACE_OPEN
 /*
  \brief class for VTU output generation
 
- \author kronbichler, grill
- \date 03/14, 03/17
 */
 class VtuWriter : public VtkWriterBase
 {
@@ -33,7 +31,8 @@ class VtuWriter : public VtkWriterBase
       unsigned int max_number_timesteps_to_be_written,
       const std::string& path_existing_working_directory,
       const std::string& name_new_vtk_subdirectory, const std::string& geometry_name,
-      const std::string& restart_name, double restart_time, bool write_binary_output);
+      const std::string& restart_name, double restart_time, bool write_binary_output,
+      LibB64::CompressionLevel compression_level);
 
   //! write the geometry defining this unstructured grid
   void write_geometry_unstructured_grid(const std::vector<double>& point_coordinates,

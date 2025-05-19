@@ -260,17 +260,13 @@ namespace Solid
     //! calculate an optional quantity in the different model evaluators
     void determine_optional_quantity();
 
-    /// compute the current volumes of all elements
-    bool determine_element_volumes(const Core::LinAlg::Vector<double>& x,
-        std::shared_ptr<Core::LinAlg::Vector<double>>& ele_vols);
-
     /*! \brief Output to file
      *
      *  This routine prints always the last converged state, i.e.
      *  \f$D_{n}, V_{n}, A_{n}\f$. So, #UpdateIncrement should be called
      *  upon object prior to writing stuff here.
      *
-     *  \author mwgee (originally)                         \date 03/07 */
+     *  */
     void output_step_state(Core::IO::DiscretizationWriter& iowriter) const;
 
     /**
@@ -284,7 +280,7 @@ namespace Solid
      *  \f$D_{n}, V_{n}, A_{n}\f$. So, #UpdateIncrement should be called
      *  upon object prior to writing stuff here.
      *
-     *                                                     \date 04/17 */
+     */
     void runtime_output_step_state() const;
 
     /** \brief reset step configuration after time step
@@ -359,9 +355,9 @@ namespace Solid
     //! Check the setup state
     void check_init_setup() const;
 
-    /*! \brief Equilibriate system at initial state and identify consistent accelerations
+    /*! \brief Compute the mass matrix and identify consistent accelerations for the initial state.
      */
-    void equilibrate_initial_state();
+    void compute_mass_matrix_and_init_acc();
 
     /*! \brief Check if current state is equilibrium (with respect to
      *  a given tolerance of the inf-norm)

@@ -32,7 +32,7 @@ namespace XFEM
     \brief Standard Constructor
 
     \param name (in): name of this discretization
-    \param comm (in): An epetra comm object associated with this discretization
+    \param comm (in): An comm object associated with this discretization
     */
     DiscretizationXFEM(const std::string name, MPI_Comm comm, unsigned int n_dim);
 
@@ -75,9 +75,8 @@ namespace XFEM
 
     \note Sets Filled()=true
     */
-    virtual int initial_fill_complete(const std::vector<int>& nds,
-        bool assigndegreesoffreedom = true, bool initelements = true,
-        bool doboundaryconditions = true);
+    int initial_fill_complete(const std::vector<int>& nds, bool assigndegreesoffreedom = true,
+        bool initelements = true, bool doboundaryconditions = true);
 
     /// Export Vector with initialdofrowmap (all nodes have one dofset) - to Vector with all active
     /// dofs
@@ -99,7 +98,7 @@ namespace XFEM
     \param nds (in)       : number of dofset
     \param node (in)      : the node
     */
-    virtual std::vector<int> initial_dof(unsigned nds, const Core::Nodes::Node* node) const
+    std::vector<int> initial_dof(unsigned nds, const Core::Nodes::Node* node) const
     {
       FOUR_C_ASSERT(nds < initialdofsets_.size(), "undefined dof set");
       FOUR_C_ASSERT(initialized_, "no initial dofs assigned");
@@ -115,7 +114,7 @@ namespace XFEM
     - HaveDofs()==true prerequisite (produced by call to assign_degrees_of_freedom()))
     \param node (in)      : the node
     */
-    virtual std::vector<int> initial_dof(const Core::Nodes::Node* node) const
+    std::vector<int> initial_dof(const Core::Nodes::Node* node) const
     {
       FOUR_C_ASSERT(initialdofsets_.size() == 1, "expect just one dof set");
       FOUR_C_ASSERT(initialized_, "no initial dofs assigned");
@@ -134,8 +133,7 @@ namespace XFEM
     \param lm (in/out)    : lm vector the dofs are appended to
     */
 
-    virtual void initial_dof(
-        unsigned nds, const Core::Nodes::Node* node, std::vector<int>& lm) const
+    void initial_dof(unsigned nds, const Core::Nodes::Node* node, std::vector<int>& lm) const
     {
       FOUR_C_ASSERT(nds < initialdofsets_.size(), "undefined dof set");
       FOUR_C_ASSERT(initialized_, "no initial dofs assigned");
@@ -152,7 +150,7 @@ namespace XFEM
     \param node (in)      : the node
     \param lm (in/out)    : lm vector the dofs are appended to
     */
-    virtual void initial_dof(const Core::Nodes::Node* node, std::vector<int>& lm) const
+    void initial_dof(const Core::Nodes::Node* node, std::vector<int>& lm) const
     {
       FOUR_C_ASSERT(initialdofsets_.size() == 1, "expect just one dof set");
       FOUR_C_ASSERT(initialized_, "no initial dofs assigned");
@@ -183,7 +181,7 @@ namespace XFEM
     - Initialized()==true prerequisite
 
     */
-    virtual const Epetra_Map* initial_dof_row_map(unsigned nds = 0) const;
+    const Core::LinAlg::Map* initial_dof_row_map(unsigned nds = 0) const;
 
     /*!
     \brief Get initial degree of freedom column map (Initialized()==true prerequisite)
@@ -194,7 +192,7 @@ namespace XFEM
     - Initialized()==true prerequisite
 
     */
-    virtual const Epetra_Map* initial_dof_col_map(unsigned nds = 0) const;
+    const Core::LinAlg::Map* initial_dof_col_map(unsigned nds = 0) const;
 
     /// checks if discretization is initialized
     bool initialized() const;
@@ -219,7 +217,7 @@ namespace XFEM
 
     \note This class will not take ownership or in any way modify the solution vector.
     */
-    virtual void set_initial_state(unsigned nds, const std::string& name,
+    void set_initial_state(unsigned nds, const std::string& name,
         std::shared_ptr<const Core::LinAlg::Vector<double>> state);
 
     /** \brief Get number of standard (w/o enrichment) dofs for given node.
@@ -230,7 +228,7 @@ namespace XFEM
      *  \param nds  (in) : number of dofset
      *  \param node (in) : the node those number of dofs are requested
      *
-     *  \author hiermeier \date 10/16 */
+     *  */
     int num_standard_dof(const unsigned& nds, const Core::Nodes::Node* node) const override
     {
       std::vector<int> dofs(0);
@@ -253,8 +251,8 @@ namespace XFEM
     \param uniquenumbering (in) : Assign unique number to additional dofsets
 
     */
-    std::shared_ptr<Epetra_Map> extend_map(
-        const Epetra_Map* srcmap, int numdofspernodedofset, int numdofsets, bool uniquenumbering);
+    std::shared_ptr<Core::LinAlg::Map> extend_map(const Core::LinAlg::Map* srcmap,
+        int numdofspernodedofset, int numdofsets, bool uniquenumbering);
 
     /// initial set of dofsets
     std::vector<std::shared_ptr<Core::DOFSets::DofSetInterface>> initialdofsets_;
@@ -263,11 +261,11 @@ namespace XFEM
     bool initialized_;
 
     /// full (with all reserved dofs) dof row map of initial state
-    std::shared_ptr<Epetra_Map> initialfulldofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> initialfulldofrowmap_;
 
     /// permuted (with duplicated gids of first dofset - to all other dofsets) dof row map of
     /// initial state
-    std::shared_ptr<Epetra_Map> initialpermdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> initialpermdofrowmap_;
 
 
   };  // class DiscretizationXFEM

@@ -46,7 +46,6 @@ FLD::Utils::FluidVolumetricSurfaceFlowWrapper::FluidVolumetricSurfaceFlowWrapper
   if (num_of_wom_conds != num_of_borders)
   {
     FOUR_C_THROW("Each Womersley surface condition must have one and only one border condition");
-    exit(0);
   }
   // Check if each surface has it's corresponding border
   for (unsigned int i = 0; i < womersleycond.size(); i++)
@@ -72,7 +71,6 @@ FLD::Utils::FluidVolumetricSurfaceFlowWrapper::FluidVolumetricSurfaceFlowWrapper
           FOUR_C_THROW(
               "There are more than one Womersley condition lines with the same ID. This can not "
               "yet be handled.");
-          exit(0);
         }
         ConditionIsWrong = false;
         break;
@@ -83,7 +81,6 @@ FLD::Utils::FluidVolumetricSurfaceFlowWrapper::FluidVolumetricSurfaceFlowWrapper
     if (ConditionIsWrong)
     {
       FOUR_C_THROW("Each Womersley surface condition must have one and only one border condition");
-      exit(1);
     }
   }
 
@@ -174,7 +171,7 @@ FLD::Utils::FluidVolumetricSurfaceFlowBc::FluidVolumetricSurfaceFlowBc(
   // -------------------------------------------------------------------
   // get dof row map
   // -------------------------------------------------------------------
-  const Epetra_Map* dofrowmap = actdis->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = actdis->dof_row_map();
 
   // -------------------------------------------------------------------
   // get condition
@@ -236,8 +233,7 @@ FLD::Utils::FluidVolumetricSurfaceFlowBc::FluidVolumetricSurfaceFlowBc(
   }
   else
   {
-    FOUR_C_THROW("[%s]: is not a defined normal evaluation type", normal_info.c_str());
-    exit(1);
+    FOUR_C_THROW("[{}]: is not a defined normal evaluation type", normal_info);
   }
 
   // get the center of mass
@@ -264,8 +260,7 @@ FLD::Utils::FluidVolumetricSurfaceFlowBc::FluidVolumetricSurfaceFlowBc(
   }
   else
   {
-    FOUR_C_THROW("[%s]: is not a defined center-of-mass evaluation type", normal_info.c_str());
-    exit(1);
+    FOUR_C_THROW("[{}]: is not a defined center-of-mass evaluation type", normal_info);
   }
 
 
@@ -281,8 +276,7 @@ FLD::Utils::FluidVolumetricSurfaceFlowBc::FluidVolumetricSurfaceFlowBc(
   }
   else
   {
-    FOUR_C_THROW("[%s]: is not a defined flow-direction-type", normal_info.c_str());
-    exit(1);
+    FOUR_C_THROW("[{}]: is not a defined flow-direction-type", normal_info);
   }
 
   // check if the flow is with correction
@@ -322,7 +316,7 @@ FLD::Utils::FluidVolumetricSurfaceFlowBc::FluidVolumetricSurfaceFlowBc(
   // -------------------------------------------------------------------
   // evaluate the surface dof row map
   this->build_condition_dof_row_map(discret_, ds_condname, condid_, condnum_s_, cond_dofrowmap_);
-  const Epetra_Map* drt_dofrowMap = discret_->dof_row_map();
+  const Core::LinAlg::Map* drt_dofrowMap = discret_->dof_row_map();
 
   // -------------------------------------------------------------------
   // calculate the normalized  of mass of the surface condition
@@ -456,7 +450,6 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::eval_local_normalized_radii(
     if (!inserted)
     {
       FOUR_C_THROW("There are more than one node of the same number. something went wrong");
-      exit(0);
     }
   }
 
@@ -518,16 +511,16 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::eval_local_normalized_radii(
   const int dim = 3;
 
   // define the vector between center-of-mass and current-node
-  Core::LinAlg::Matrix<(dim), 1> c_cnd(true);
+  Core::LinAlg::Matrix<(dim), 1> c_cnd(Core::LinAlg::Initialization::zero);
 
   // define the vector between center-of-mass and border-node
-  Core::LinAlg::Matrix<(dim), 1> c_bnd(true);
+  Core::LinAlg::Matrix<(dim), 1> c_bnd(Core::LinAlg::Initialization::zero);
 
   // define the vector that is the nearest from right
-  Core::LinAlg::Matrix<(dim), 1> v_right(true);
+  Core::LinAlg::Matrix<(dim), 1> v_right(Core::LinAlg::Initialization::zero);
 
   // define the vector that is the nearest from left
-  Core::LinAlg::Matrix<(dim), 1> v_left(true);
+  Core::LinAlg::Matrix<(dim), 1> v_left(Core::LinAlg::Initialization::zero);
 
 
   // define a direction vector perpendicular to the vector
@@ -535,7 +528,7 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::eval_local_normalized_radii(
   // This vector is also used to define whether a certain vector
   // is in the [0,pi] or [pi,2pi] awy from the
   // "center-of-mass and current-node" vector.
-  Core::LinAlg::Matrix<(dim), 1> dir_vec(true);
+  Core::LinAlg::Matrix<(dim), 1> dir_vec(Core::LinAlg::Initialization::zero);
 
   for (int lid = 0; lid < cond_surfnoderowmap_->NumMyElements(); lid++)
   {
@@ -668,10 +661,10 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::eval_local_normalized_radii(
           R = 1.0;
         }
         // update local radius
-        local_radii_->ReplaceGlobalValues(1, &R, &gid);
+        local_radii_->replace_global_values(1, &R, &gid);
 
         // update border radius
-        border_radii_->ReplaceGlobalValues(1, &border_radius, &gid);
+        border_radii_->replace_global_values(1, &border_radius, &gid);
       }
     }
   }
@@ -682,7 +675,7 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::eval_local_normalized_radii(
  *----------------------------------------------------------------------*/
 void FLD::Utils::FluidVolumetricSurfaceFlowBc::build_condition_node_row_map(
     std::shared_ptr<Core::FE::Discretization> dis, const std::string condname, int condid,
-    int condnum, std::shared_ptr<Epetra_Map>& cond_noderowmap)
+    int condnum, std::shared_ptr<Core::LinAlg::Map>& cond_noderowmap)
 {
   //--------------------------------------------------------------------
   // get the processor rank
@@ -722,7 +715,7 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::build_condition_node_row_map(
   //--------------------------------------------------------------------
   // create the node row map of the nodes on the current proc
   //--------------------------------------------------------------------
-  cond_noderowmap = std::make_shared<Epetra_Map>(
+  cond_noderowmap = std::make_shared<Core::LinAlg::Map>(
       -1, nodeids.size(), nodeids.data(), 0, Core::Communication::as_epetra_comm(dis->get_comm()));
 
 }  // build_condition_node_row_map
@@ -732,7 +725,7 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::build_condition_node_row_map(
  *----------------------------------------------------------------------*/
 void FLD::Utils::FluidVolumetricSurfaceFlowBc::build_condition_dof_row_map(
     std::shared_ptr<Core::FE::Discretization> dis, const std::string condname, int condid,
-    int condnum, std::shared_ptr<Epetra_Map>& cond_dofrowmap)
+    int condnum, std::shared_ptr<Core::LinAlg::Map>& cond_dofrowmap)
 {
   //--------------------------------------------------------------------
   // get the processor rank
@@ -776,7 +769,7 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::build_condition_dof_row_map(
   //--------------------------------------------------------------------
   // create the node row map of the nodes on the current proc
   //--------------------------------------------------------------------
-  cond_dofrowmap = std::make_shared<Epetra_Map>(
+  cond_dofrowmap = std::make_shared<Core::LinAlg::Map>(
       -1, dofids.size(), dofids.data(), 0, Core::Communication::as_epetra_comm(dis->get_comm()));
 
 }  // FluidVolumetricSurfaceFlowBc::build_condition_dof_row_map
@@ -916,7 +909,7 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::evaluate_velocities(
  *----------------------------------------------------------------------*/
 void FLD::Utils::FluidVolumetricSurfaceFlowBc::reset_traction_velocity_comp()
 {
-  cond_traction_vel_->PutScalar(0.0);
+  cond_traction_vel_->put_scalar(0.0);
 }
 
 
@@ -987,7 +980,7 @@ double FLD::Utils::FluidVolumetricSurfaceFlowBc::evaluate_flowrate(
  |  Evaluates the Velocities (public)                       ismail 10/10|
  *----------------------------------------------------------------------*/
 void FLD::Utils::FluidVolumetricSurfaceFlowBc::velocities(Core::FE::Discretization& disc,
-    Core::LinAlg::Vector<double>& bcdof, Epetra_Map& cond_noderowmap,
+    Core::LinAlg::Vector<double>& bcdof, Core::LinAlg::Map& cond_noderowmap,
     Core::LinAlg::Vector<double>& local_radii, Core::LinAlg::Vector<double>& border_radii,
     std::vector<double>& normal, Teuchos::ParameterList& params)
 
@@ -1051,7 +1044,7 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::velocities(Core::FE::Discretizati
   {
     if (n_harmonics < 1)
     {
-      FOUR_C_THROW("The number of Womersley harmonics is %d (less than 1)", n_harmonics);
+      FOUR_C_THROW("The number of Womersley harmonics is {} (less than 1)", n_harmonics);
     }
 
     this->dft(velocities, Vn, flowratespos_);
@@ -1147,7 +1140,7 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::velocities(Core::FE::Discretizati
         else
         {
           FOUR_C_THROW(
-              "[%s] in cond (%d): No such profile is defined. Please correct the input file ",
+              "[{}] in cond ({}): No such profile is defined. Please correct the input file ",
               flowType.c_str(), condid);
         }
         velocity *= flow_dir_;
@@ -1161,7 +1154,7 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::velocities(Core::FE::Discretizati
           //------------------------------------------------------------
           double Vdof = velocity * (normal)[ldof];
 
-          bcdof.ReplaceGlobalValues(1, &Vdof, &gdof);
+          bcdof.replace_global_values(1, &Vdof, &gdof);
         }
       }
     }
@@ -1267,12 +1260,12 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::correct_flow_rate(
     double correction_factor = (flowrate - actflowrate) / (corrective_flowrate);
 
     double correction = 0.0;
-    for (int lid = 0; lid < correction_velnp->MyLength(); lid++)
+    for (int lid = 0; lid < correction_velnp->local_length(); lid++)
     {
-      int gid = correction_velnp->Map().GID(lid);
+      int gid = correction_velnp->get_block_map().GID(lid);
       correction = correction_factor * (*correction_velnp)[lid];
 
-      int bc_lid = cond_velocities_->Map().LID(gid);
+      int bc_lid = cond_velocities_->get_block_map().LID(gid);
       (*cond_velocities_)[bc_lid] += correction;
     }
   }
@@ -1281,12 +1274,12 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::correct_flow_rate(
     double correction_factor = flowrate / (corrective_flowrate);
     correction_factor = sqrt(correction_factor);
     double correction = 0.0;
-    for (int lid = 0; lid < correction_velnp->MyLength(); lid++)
+    for (int lid = 0; lid < correction_velnp->local_length(); lid++)
     {
-      int gid = correction_velnp->Map().GID(lid);
+      int gid = correction_velnp->get_block_map().GID(lid);
       correction = correction_factor * (*correction_velnp)[lid];
 
-      int bc_lid = cond_velocities_->Map().LID(gid);
+      int bc_lid = cond_velocities_->get_block_map().LID(gid);
       (*cond_velocities_)[bc_lid] = correction;
     }
   }
@@ -1299,12 +1292,12 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::correct_flow_rate(
 void FLD::Utils::FluidVolumetricSurfaceFlowBc::set_velocities(
     Core::LinAlg::Vector<double>& velocities)
 {
-  for (int lid = 0; lid < cond_velocities_->MyLength(); lid++)
+  for (int lid = 0; lid < cond_velocities_->local_length(); lid++)
   {
-    int gid = cond_velocities_->Map().GID(lid);
+    int gid = cond_velocities_->get_block_map().GID(lid);
     double val = (*cond_velocities_)[lid];
 
-    velocities.ReplaceGlobalValues(1, &val, &gid);
+    velocities.replace_global_values(1, &val, &gid);
   }
 }
 
@@ -1337,7 +1330,7 @@ double FLD::Utils::FluidVolumetricSurfaceFlowBc::flow_rate_calculation(
 
   // get a vector layout from the discretization to construct matching
   // vectors and matrices local <-> global dof numbering
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   // create vector (+ initialization with zeros)
   std::shared_ptr<Core::LinAlg::Vector<double>> flowrates =
@@ -1375,7 +1368,7 @@ double FLD::Utils::FluidVolumetricSurfaceFlowBc::pressure_calculation(
 
   // get a vector layout from the discretization to construct matching
   // vectors and matrices local <-> global dof numbering
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   // create vector (+ initialization with zeros)
   std::shared_ptr<Core::LinAlg::Vector<double>> flowrates =
@@ -1397,7 +1390,6 @@ double FLD::Utils::FluidVolumetricSurfaceFlowBc::pressure_calculation(
 double FLD::Utils::FluidVolumetricSurfaceFlowBc::polynomail_velocity(double r, int order)
 {
   return (1.0 - pow(r, double(order)));
-
 }  // FLD::Utils::FluidVolumetricSurfaceFlowBc::PolynomailVelocity
 
 
@@ -1769,7 +1761,7 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::interpolate(
 void FLD::Utils::FluidVolumetricSurfaceFlowBc::update_residual(
     Core::LinAlg::Vector<double>& residual)
 {
-  residual.Update(1.0, *cond_traction_vel_, 1.0);
+  residual.update(1.0, *cond_traction_vel_, 1.0);
 }
 
 /*----------------------------------------------------------------------*
@@ -1800,7 +1792,6 @@ FLD::Utils::TotalTractionCorrector::TotalTractionCorrector(
   if (num_of_tr_conds != num_of_borders)
   {
     FOUR_C_THROW("Each Womersley surface condition must have one and only one border condition");
-    exit(0);
   }
   // Check if each surface has it's corresponding border
   for (unsigned int i = 0; i < tractioncond.size(); i++)
@@ -1827,7 +1818,6 @@ FLD::Utils::TotalTractionCorrector::TotalTractionCorrector(
           FOUR_C_THROW(
               "There are more than one impedance condition lines with the same ID. This can not "
               "yet be handled.");
-          exit(0);
         }
 
         ConditionIsWrong = false;
@@ -1841,7 +1831,6 @@ FLD::Utils::TotalTractionCorrector::TotalTractionCorrector(
       FOUR_C_THROW(
           "Each Total traction correction surface condition must have one and only one border "
           "condition");
-      exit(1);
     }
   }
 
@@ -1870,7 +1859,7 @@ void FLD::Utils::TotalTractionCorrector::evaluate_velocities(
     {
       Teuchos::ParameterList eleparams;
 
-      discret_->set_state("velaf", velocities);
+      discret_->set_state("velaf", *velocities);
 
       flowrate = mapiter->second->FluidVolumetricSurfaceFlowBc::flow_rate_calculation(
           eleparams, time, "TotalTractionCorrectionCond", FLD::calc_flowrate, mapiter->first);
@@ -1947,13 +1936,13 @@ void FLD::Utils::FluidVolumetricSurfaceFlowBc::export_and_set_boundary_values(
     std::string name)
 {
   // define the exporter
-  Epetra_Export exporter(source.Map(), target->Map());
+  Epetra_Export exporter(source.get_block_map(), target->get_block_map());
   // Export source vector to target vector
-  int err = target->Export(source, exporter, Zero);
+  int err = target->export_to(source, exporter, Zero);
   // check if the exporting was successful
-  if (err) FOUR_C_THROW("Export using exporter returned err=%d", err);
+  if (err) FOUR_C_THROW("Export using exporter returned err={}", err);
   // Set state
-  discret_->set_state(name, target);
+  discret_->set_state(name, *target);
 }
 
 /*----------------------------------------------------------------------*
@@ -1964,13 +1953,13 @@ void FLD::Utils::TotalTractionCorrector::export_and_set_boundary_values(
     std::string name)
 {
   // define the exporter
-  Epetra_Export exporter(source.Map(), target->Map());
+  Epetra_Export exporter(source.get_block_map(), target->get_block_map());
   // Export source vector to target vector
-  int err = target->Export(source, exporter, Zero);
+  int err = target->export_to(source, exporter, Zero);
   // check if the exporting was successful
-  if (err) FOUR_C_THROW("Export using exporter returned err=%d", err);
+  if (err) FOUR_C_THROW("Export using exporter returned err={}", err);
   // Set state
-  discret_->set_state(name, target);
+  discret_->set_state(name, *target);
 }
 
 FOUR_C_NAMESPACE_CLOSE

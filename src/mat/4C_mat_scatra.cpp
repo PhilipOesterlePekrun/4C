@@ -11,6 +11,7 @@
 #include "4C_comm_utils.hpp"
 #include "4C_global_data.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <vector>
 
@@ -26,16 +27,16 @@ Mat::PAR::ScatraMat::ScatraMat(const Core::Mat::PAR::Parameter::Data& matdata) :
                       ? Global::Problem::instance()->get_communicators()->local_comm()
                       : Global::Problem::instance()->get_communicators()->sub_comm();
 
-  Epetra_Map dummy_map(1, 1, 0, Core::Communication::as_epetra_comm(comm));
+  Core::LinAlg::Map dummy_map(1, 1, 0, Core::Communication::as_epetra_comm(comm));
   for (int i = first; i <= last; i++)
   {
     matparams_.push_back(std::make_shared<Core::LinAlg::Vector<double>>(dummy_map, true));
   }
-  matparams_.at(diff)->PutScalar(matdata.parameters.get<double>("DIFFUSIVITY"));
-  matparams_.at(reac)->PutScalar(matdata.parameters.get<double>("REACOEFF"));
-  matparams_.at(densific)->PutScalar(matdata.parameters.get<double>("DENSIFICATION"));
+  matparams_.at(diff)->put_scalar(matdata.parameters.get<double>("DIFFUSIVITY"));
+  matparams_.at(reac)->put_scalar(matdata.parameters.get<double>("REACOEFF"));
+  matparams_.at(densific)->put_scalar(matdata.parameters.get<double>("DENSIFICATION"));
   matparams_.at(reacts_to_external_force)
-      ->PutScalar(matdata.parameters.get<bool>("REACTS_TO_EXTERNAL_FORCE"));
+      ->put_scalar(matdata.parameters.get<bool>("REACTS_TO_EXTERNAL_FORCE"));
 }
 
 
@@ -101,7 +102,7 @@ void Mat::ScatraMat::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::ScatraMat*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
 }

@@ -20,28 +20,32 @@ set_target_properties(
   )
 four_c_set_up_executable(${FOUR_C_EXECUTABLE_NAME})
 
-# Create a symbolic link for the old project name
-string(TOLOWER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
-set(FOUR_C_EXECUTABLE_NAME_LEGACY baci-${BUILD_TYPE})
-
-add_custom_command(
-  TARGET ${FOUR_C_EXECUTABLE_NAME}
-  POST_BUILD
-  COMMAND
-    ${CMAKE_COMMAND} -E create_symlink ${FOUR_C_EXECUTABLE_NAME}
-    ${CMAKE_BINARY_DIR}/${FOUR_C_EXECUTABLE_NAME_LEGACY}
-  COMMENT "Creating symbolic link"
-  )
-
-# Create a json schema file for the input
-add_custom_command(
-  TARGET ${FOUR_C_EXECUTABLE_NAME}
-  POST_BUILD
-  COMMAND
-    ${FOUR_C_ENABLE_ADDRESS_SANITIZER_TEST_OPTIONS} "$<TARGET_FILE:${FOUR_C_EXECUTABLE_NAME}>" -p >
-    ${CMAKE_BINARY_DIR}/4C_metadata.yaml
-  COMMAND
-    ${FOUR_C_PYTHON_VENV_BUILD}/bin/python ${PROJECT_SOURCE_DIR}/utilities/create_json_schema.py
-    ${CMAKE_BINARY_DIR}/4C_metadata.yaml ${CMAKE_BINARY_DIR}/4C_schema.json
-  COMMENT "Creating schema file for input"
-  )
+if(FOUR_C_ENABLE_METADATA_GENERATION)
+  if(Python3_VERSION VERSION_GREATER_EQUAL "3.10")
+    # Create a json schema file for the input
+    add_custom_command(
+      TARGET ${FOUR_C_EXECUTABLE_NAME}
+      POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E rm -f ${PROJECT_BINARY_DIR}/4C_metadata.yaml
+      COMMAND ${CMAKE_COMMAND} -E rm -f ${PROJECT_BINARY_DIR}/4C_schema.json
+      COMMAND
+        ${FOUR_C_ENABLE_ADDRESS_SANITIZER_TEST_OPTIONS} "$<TARGET_FILE:${FOUR_C_EXECUTABLE_NAME}>"
+        -p > ${PROJECT_BINARY_DIR}/4C_metadata.yaml
+      COMMAND
+        ${FOUR_C_PYTHON_VENV_BUILD}/bin/python ${PROJECT_SOURCE_DIR}/utilities/create_json_schema.py
+        ${PROJECT_BINARY_DIR}/4C_metadata.yaml ${PROJECT_BINARY_DIR}/4C_schema.json
+      COMMENT "Creating JSON schema file for input"
+      )
+  else()
+    message(
+      WARNING "Your python version ${Python3_VERSION} is too old to generate the JSON schema file"
+      )
+    add_custom_command(
+      TARGET ${FOUR_C_EXECUTABLE_NAME}
+      POST_BUILD
+      COMMAND
+        ${CMAKE_COMMAND} -E echo
+        "Skipping metadata and JSON schema generation due to outdated python version"
+      )
+  endif()
+endif()

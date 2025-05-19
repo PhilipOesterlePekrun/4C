@@ -76,7 +76,6 @@ namespace NOX
             const enum NOX::Nln::MeritFunction::LinType lintype) const
         {
           FOUR_C_THROW("Not implemented!");
-          exit(EXIT_FAILURE);
         }
 
         //! calculate characteristic/reference norms for forces
@@ -99,14 +98,6 @@ namespace NOX
         virtual void recover_from_backup_state()
         {
           FOUR_C_THROW("There is no meaningful implementation for this method!");
-        }
-
-        //! compute element volumes (optional)
-        virtual bool compute_element_volumes(
-            const Epetra_Vector& x, Teuchos::RCP<Epetra_Vector>& ele_vols) const
-        {
-          FOUR_C_THROW("There is no meaningful implementation for this method!");
-          exit(EXIT_FAILURE);
         }
 
         //! access dofs of specific elements (optional)

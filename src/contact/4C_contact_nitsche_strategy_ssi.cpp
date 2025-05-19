@@ -8,6 +8,7 @@
 #include "4C_contact_nitsche_strategy_ssi.hpp"
 
 #include "4C_contact_interface.hpp"
+#include "4C_fem_discretization.hpp"
 #include "4C_fem_general_extract_values.hpp"
 #include "4C_global_data.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
@@ -61,8 +62,8 @@ void CONTACT::NitscheStrategySsi::set_state(
       else
       {
         auto delta(vec);
-        delta.Update(-1.0, *curr_state_scalar_, 1.0);
-        delta.NormInf(&inf_delta);
+        delta.update(-1.0, *curr_state_scalar_, 1.0);
+        delta.norm_inf(&inf_delta);
       }
       if (inf_delta < 1.0e-16)
         return;
@@ -123,8 +124,7 @@ void CONTACT::NitscheStrategySsi::set_parent_state(const enum Mortar::StateType&
           else
             mortar_parent_ele->location_vector(dis, lm, lmowner, lmstride);
 
-          std::vector<double> myval;
-          Core::FE::extract_my_values(scatra_dofcolmap, myval, lm);
+          std::vector<double> myval = Core::FE::extract_values(scatra_dofcolmap, lm);
 
           mortar_ele->mo_data().parent_scalar() = myval;
           mortar_ele->mo_data().parent_scalar_dof() = lm;
@@ -150,7 +150,7 @@ std::shared_ptr<Epetra_FEVector> CONTACT::NitscheStrategySsi::setup_rhs_block_ve
     case CONTACT::VecBlockType::elch:
     case CONTACT::VecBlockType::scatra:
       return std::make_shared<Epetra_FEVector>(
-          *Global::Problem::instance()->get_dis("scatra")->dof_row_map());
+          Global::Problem::instance()->get_dis("scatra")->dof_row_map()->get_epetra_map());
     default:
       return CONTACT::NitscheStrategy::setup_rhs_block_vec(bt);
   }
@@ -164,8 +164,8 @@ std::shared_ptr<const Core::LinAlg::Vector<double>> CONTACT::NitscheStrategySsi:
   if (bp == CONTACT::VecBlockType::constraint) return nullptr;
 
   if (!curr_state_eval_)
-    FOUR_C_THROW("you didn't evaluate this contact state for %s first",
-        CONTACT::vec_block_type_to_str(bp).c_str());
+    FOUR_C_THROW(
+        "you didn't evaluate this contact state for {} first", CONTACT::vec_block_type_to_str(bp));
 
   switch (bp)
   {
@@ -211,18 +211,28 @@ void CONTACT::NitscheStrategySsi::complete_matrix_block_ptr(
     case CONTACT::MatBlockType::displ_elch:
     case CONTACT::MatBlockType::displ_scatra:
       if (dynamic_cast<Epetra_FECrsMatrix&>(*kc->epetra_matrix())
-              .GlobalAssemble(
-                  *Global::Problem::instance()->get_dis("scatra")->dof_row_map(),     // col map
-                  *Global::Problem::instance()->get_dis("structure")->dof_row_map(),  // row map
+              .GlobalAssemble(Global::Problem::instance()
+                                  ->get_dis("scatra")
+                                  ->dof_row_map()
+                                  ->get_epetra_map(),  // col map
+                  Global::Problem::instance()
+                      ->get_dis("structure")
+                      ->dof_row_map()
+                      ->get_epetra_map(),  // row map
                   true, Add))
         FOUR_C_THROW("GlobalAssemble(...) failed");
       break;
     case CONTACT::MatBlockType::elch_displ:
     case CONTACT::MatBlockType::scatra_displ:
       if (dynamic_cast<Epetra_FECrsMatrix&>(*kc->epetra_matrix())
-              .GlobalAssemble(
-                  *Global::Problem::instance()->get_dis("structure")->dof_row_map(),  // col map
-                  *Global::Problem::instance()->get_dis("scatra")->dof_row_map(),     // row map
+              .GlobalAssemble(Global::Problem::instance()
+                                  ->get_dis("structure")
+                                  ->dof_row_map()
+                                  ->get_epetra_map(),  // col map
+                  Global::Problem::instance()
+                      ->get_dis("scatra")
+                      ->dof_row_map()
+                      ->get_epetra_map(),  // row map
                   true, Add))
         FOUR_C_THROW("GlobalAssemble(...) failed");
       break;

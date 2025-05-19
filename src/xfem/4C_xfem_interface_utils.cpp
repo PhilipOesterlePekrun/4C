@@ -321,7 +321,7 @@ double XFEM::Utils::nit_get_trace_estimate_constant(
       return 4.10462;
       break;  /// d=3, p(v_h) = 2 -> p(grad(v_h)) = 2   =>  CT taken from hex20
     default:
-      FOUR_C_THROW("constant for trace inequality not specified for this element type yet: % i",
+      FOUR_C_THROW("constant for trace inequality not specified for this element type yet: {}",
           trace_inequality_distype);
       break;
   };
@@ -464,9 +464,10 @@ double XFEM::Utils::compute_meas_cut_surf(
 
         const Core::LinAlg::Matrix<2, 1> eta(iquad.point());  // xi-coordinates with respect to side
 
-        Core::LinAlg::Matrix<3, 1> normal(true);
+        Core::LinAlg::Matrix<3, 1> normal(Core::LinAlg::Initialization::zero);
 
-        Core::LinAlg::Matrix<3, 1> x_gp_lin(true);  // gp in xyz-system on linearized interface
+        Core::LinAlg::Matrix<3, 1> x_gp_lin(
+            Core::LinAlg::Initialization::zero);  // gp in xyz-system on linearized interface
 
         // compute transformation factor, normal vector and global Gauss point coordinates
         if (bc->shape() != Core::FE::CellType::dis_none)  // Tessellation approach
@@ -575,12 +576,12 @@ double XFEM::Utils::compute_meas_face(Core::Elements::Element* ele,  ///< fluid 
  | evaluate element volume                                              |
  *----------------------------------------------------------------------*/
 template <Core::FE::CellType distype>
-double XFEM::Utils::eval_element_volume(Core::LinAlg::Matrix<3, Core::FE::num_nodes<distype>> xyze,
-    Core::LinAlg::Matrix<Core::FE::num_nodes<distype>, 1>* nurbs_weights,
+double XFEM::Utils::eval_element_volume(Core::LinAlg::Matrix<3, Core::FE::num_nodes(distype)> xyze,
+    Core::LinAlg::Matrix<Core::FE::num_nodes(distype), 1>* nurbs_weights,
     std::vector<Core::LinAlg::SerialDenseVector>* nurbs_knots)
 {
   static const int nsd = 3;
-  static const int nen = Core::FE::num_nodes<distype>;
+  static const int nen = Core::FE::num_nodes(distype);
 
   // use one-point Gauss rule
   Core::FE::IntPointsAndWeights<nsd> intpoints_stab(
@@ -645,7 +646,7 @@ double XFEM::Utils::eval_element_volume(Core::LinAlg::Matrix<3, Core::FE::num_no
   xjm.multiply_nt(deriv, xyze);
   double det = xji.invert(xjm);
 
-  if (det < 1E-16) FOUR_C_THROW("GLOBAL ELEMENT ZERO OR NEGATIVE JACOBIAN DETERMINANT: %f", det);
+  if (det < 1E-16) FOUR_C_THROW("GLOBAL ELEMENT ZERO OR NEGATIVE JACOBIAN DETERMINANT: {}", det);
 
   // compute integration factor
   return gpweight * det;
@@ -672,7 +673,7 @@ double XFEM::Utils::compute_char_ele_length(Core::Elements::Element* ele,  ///< 
   static const int nsd = 3;
   // TEUCHOS_FUNC_TIME_MONITOR("FluidEleCalcXFEM::compute_char_ele_length");
 
-  Core::LinAlg::Matrix<3, Core::FE::num_nodes<distype>> xyze(ele_xyze, true);
+  Core::LinAlg::Matrix<3, Core::FE::num_nodes(distype)> xyze(ele_xyze, true);
   const int coup_sid = bintpoints.begin()->first;
   const Inpar::XFEM::AveragingStrategy averaging_strategy =
       cond_manager.get_averaging_strategy(coup_sid, ele->id());
@@ -738,7 +739,7 @@ double XFEM::Utils::compute_char_ele_length(Core::Elements::Element* ele,  ///< 
 
       if (meas_vol < 0.0)
         FOUR_C_THROW(
-            " measure of cut partial volume is smaller than 0.0: %f Attention with increasing "
+            " measure of cut partial volume is smaller than 0.0: {} Attention with increasing "
             "Nitsche-Parameter!!!",
             meas_vol);
 
@@ -997,7 +998,7 @@ double XFEM::Utils::evaluate_full_traction(const double& pres_m,
     const Core::LinAlg::Matrix<3, 1>& elenormal, const Core::LinAlg::Matrix<3, 1>& normal,
     const Core::LinAlg::Matrix<3, 1>& velpf_s, double porosity)
 {
-  Core::LinAlg::Matrix<3, 1> traction(true);
+  Core::LinAlg::Matrix<3, 1> traction(Core::LinAlg::Initialization::zero);
 
   // pressure contribution
   if (porosity <= 0)
@@ -1026,7 +1027,7 @@ double XFEM::Utils::evaluate_full_traction(const Core::LinAlg::Matrix<3, 1>& int
     const Core::LinAlg::Matrix<3, 1>& vel_s, const Core::LinAlg::Matrix<3, 1>& elenormal,
     const Core::LinAlg::Matrix<3, 1>& normal)
 {
-  Core::LinAlg::Matrix<3, 1> traction(true);
+  Core::LinAlg::Matrix<3, 1> traction(Core::LinAlg::Initialization::zero);
 
   for (int i = 0; i < 3; ++i)
     traction(i, 0) = intraction(i, 0) - penalty_fac * (vel_m(i, 0) - vel_s(i, 0));
@@ -1037,7 +1038,7 @@ double XFEM::Utils::evaluate_full_traction(const double& intraction, const doubl
     const Core::LinAlg::Matrix<3, 1>& vel_m, const Core::LinAlg::Matrix<3, 1>& vel_s,
     const Core::LinAlg::Matrix<3, 1>& elenormal, const Core::LinAlg::Matrix<3, 1>& normal)
 {
-  Core::LinAlg::Matrix<3, 1> traction(true);
+  Core::LinAlg::Matrix<3, 1> traction(Core::LinAlg::Initialization::zero);
 
   for (int i = 0; i < 3; ++i) traction(i, 0) = -penalty_fac * (vel_m(i, 0) - vel_s(i, 0));
   return intraction + traction.dot(elenormal);
@@ -1048,12 +1049,10 @@ void XFEM::Utils::evaluate_stateat_gp(const Core::Elements::Element* sele,
     const std::string& state, Core::LinAlg::Matrix<3, 1>& vel_s)
 {
   vel_s.clear();
-
-  std::vector<double> ivel;
   Core::Elements::LocationArray las(1);
-  sele->location_vector(discret, las, false);
+  sele->location_vector(discret, las);
   std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state = discret.get_state(state);
-  Core::FE::extract_my_values(*matrix_state, ivel, las[0].lm_);
+  std::vector<double> ivel = Core::FE::extract_values(*matrix_state, las[0].lm_);
 
   // 4 // evaluate slave velocity at guasspoint
   if (sele->shape() == Core::FE::CellType::quad4)
@@ -1067,8 +1066,8 @@ void XFEM::Utils::evaluate_stateat_gp(const Core::Elements::Element* sele,
       }
     }
 
-    const int numnodes = Core::FE::num_nodes<Core::FE::CellType::quad4>;
-    static Core::LinAlg::Matrix<numnodes, 1> funct(false);
+    const int numnodes = Core::FE::num_nodes(Core::FE::CellType::quad4);
+    static Core::LinAlg::Matrix<numnodes, 1> funct(Core::LinAlg::Initialization::uninitialized);
     Core::FE::shape_function_2d(funct, selexsi(0), selexsi(1), Core::FE::CellType::quad4);
     vel_s.multiply(vels, funct);
   }
@@ -1078,32 +1077,32 @@ void XFEM::Utils::evaluate_stateat_gp(const Core::Elements::Element* sele,
 
 
 template double XFEM::Utils::eval_element_volume<Core::FE::CellType::hex8>(
-    Core::LinAlg::Matrix<3, Core::FE::num_nodes<Core::FE::CellType::hex8>>,
-    Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::hex8>, 1>*,
+    Core::LinAlg::Matrix<3, Core::FE::num_nodes(Core::FE::CellType::hex8)>,
+    Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::hex8), 1>*,
     std::vector<Core::LinAlg::SerialDenseVector>*);
 template double XFEM::Utils::eval_element_volume<Core::FE::CellType::hex20>(
-    Core::LinAlg::Matrix<3, Core::FE::num_nodes<Core::FE::CellType::hex20>>,
-    Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::hex20>, 1>*,
+    Core::LinAlg::Matrix<3, Core::FE::num_nodes(Core::FE::CellType::hex20)>,
+    Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::hex20), 1>*,
     std::vector<Core::LinAlg::SerialDenseVector>*);
 template double XFEM::Utils::eval_element_volume<Core::FE::CellType::hex27>(
-    Core::LinAlg::Matrix<3, Core::FE::num_nodes<Core::FE::CellType::hex27>>,
-    Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::hex27>, 1>*,
+    Core::LinAlg::Matrix<3, Core::FE::num_nodes(Core::FE::CellType::hex27)>,
+    Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::hex27), 1>*,
     std::vector<Core::LinAlg::SerialDenseVector>*);
 template double XFEM::Utils::eval_element_volume<Core::FE::CellType::tet4>(
-    Core::LinAlg::Matrix<3, Core::FE::num_nodes<Core::FE::CellType::tet4>>,
-    Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::tet4>, 1>*,
+    Core::LinAlg::Matrix<3, Core::FE::num_nodes(Core::FE::CellType::tet4)>,
+    Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::tet4), 1>*,
     std::vector<Core::LinAlg::SerialDenseVector>*);
 template double XFEM::Utils::eval_element_volume<Core::FE::CellType::tet10>(
-    Core::LinAlg::Matrix<3, Core::FE::num_nodes<Core::FE::CellType::tet10>>,
-    Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::tet10>, 1>*,
+    Core::LinAlg::Matrix<3, Core::FE::num_nodes(Core::FE::CellType::tet10)>,
+    Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::tet10), 1>*,
     std::vector<Core::LinAlg::SerialDenseVector>*);
 template double XFEM::Utils::eval_element_volume<Core::FE::CellType::wedge6>(
-    Core::LinAlg::Matrix<3, Core::FE::num_nodes<Core::FE::CellType::wedge6>>,
-    Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::wedge6>, 1>*,
+    Core::LinAlg::Matrix<3, Core::FE::num_nodes(Core::FE::CellType::wedge6)>,
+    Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::wedge6), 1>*,
     std::vector<Core::LinAlg::SerialDenseVector>*);
 template double XFEM::Utils::eval_element_volume<Core::FE::CellType::wedge15>(
-    Core::LinAlg::Matrix<3, Core::FE::num_nodes<Core::FE::CellType::wedge15>>,
-    Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::wedge15>, 1>*,
+    Core::LinAlg::Matrix<3, Core::FE::num_nodes(Core::FE::CellType::wedge15)>,
+    Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::wedge15), 1>*,
     std::vector<Core::LinAlg::SerialDenseVector>*);
 
 template double XFEM::Utils::compute_char_ele_length<Core::FE::CellType::hex8>(

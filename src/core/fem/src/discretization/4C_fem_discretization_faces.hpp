@@ -132,33 +132,6 @@ namespace Core::FE
     DiscretizationFaces(const std::string name, MPI_Comm comm, unsigned int n_dim);
 
 
-
-    /*!
-    \brief Compute the nullspace of the discretization
-
-    This method looks in the solver parameters whether algebraic multigrid (AMG)
-    is used as preconditioner. AMG desires the nullspace of the
-    system of equations which is then computed here if it does not already exist
-    in the parameter list.
-
-    \note This method is supposed to go away and live somewhere else soon....
-
-    \param solveparams (in): List of parameters
-    \param recompute (in)  : force method to recompute the nullspace
-    */
-    void compute_null_space_if_necessary(
-        Teuchos::ParameterList& solveparams, bool recompute = false) override
-    {
-      // remark: the null space is not computed correctly for XFEM discretizations, since the number
-      // of
-      //         degrees of freedom per node is not fixed.
-      //         - it is not clear what happens with respect to the Krylov projection
-      //           (having XFEM dofs seems to render the system non-singular, but it should be
-      //           singular so the null space has a non-zero dimension)
-      //         - the ML preconditioner also relies on a fixed number of dofs per node
-      Core::FE::Discretization::compute_null_space_if_necessary(solveparams, recompute);
-    }
-
     /*!
     \brief Complete construction of a discretization  (Filled()==true NOT prerequisite)
 
@@ -199,7 +172,6 @@ namespace Core::FE
           be called more than once.
 
     \note Sets Filled()=true
-    \author schott 03/12
     */
     int fill_complete_faces(bool assigndegreesoffreedom = true, bool initelements = true,
         bool doboundaryconditions = true, bool createinternalfaces = false);
@@ -207,7 +179,7 @@ namespace Core::FE
     /*!
     \brief Get flag indicating whether create_internal_faces_extension() has been called
     */
-    virtual inline bool filled_extension() const { return extension_filled_; }
+    inline bool filled_extension() const { return extension_filled_; }
 
     /*!
     \brief Get map associated with the distribution of the ownership of faces
@@ -218,7 +190,7 @@ namespace Core::FE
 
     \return nullptr if Filled() is false. A call to fill_complete() is a prerequisite.
     */
-    virtual const Epetra_Map* face_row_map() const;
+    const Core::LinAlg::Map* face_row_map() const;
 
     /*!
     \brief Get map associated with the distribution of elements including ghosted faces
@@ -229,7 +201,7 @@ namespace Core::FE
 
     \return nullptr if Filled() is false. A call to fill_complete() is a prerequisite.
     */
-    virtual const Epetra_Map* face_col_map() const;
+    const Core::LinAlg::Map* face_col_map() const;
 
     /*!
     \brief Get global number of internal faces (true number of total elements)
@@ -237,19 +209,19 @@ namespace Core::FE
 
     This is a collective call
     */
-    virtual int num_global_faces() const;
+    int num_global_faces() const;
 
     /*!
     \brief Get processor local number of internal faces owned by this processor
            (Filled()==true prerequisite)
     */
-    virtual int num_my_row_faces() const;
+    int num_my_row_faces() const;
 
     /*!
     \brief Get processor local number of internal faces including ghost elements
            (Filled()==true NOT prerequisite)
     */
-    virtual int num_my_col_faces() const;
+    int num_my_col_faces() const;
 
     /*!
     \brief Get the internal face element with local row id lid (Filled()==true prerequisite)
@@ -260,7 +232,7 @@ namespace Core::FE
 
     \return Address of internal face element if element is owned by calling proc
     */
-    virtual inline Core::Elements::Element* l_row_face(int lid) const
+    inline Core::Elements::Element* l_row_face(int lid) const
     {
 #ifdef FOUR_C_ENABLE_ASSERTIONS
       if (!filled()) FOUR_C_THROW("Core::FE::DiscretizationFaces::lRowIntFace: Filled() != true");
@@ -277,7 +249,7 @@ namespace Core::FE
 
     \return Address of internal face element if element is stored by calling proc
     */
-    virtual inline Core::Elements::Element* l_col_face(int lid) const
+    inline Core::Elements::Element* l_col_face(int lid) const
     {
 #ifdef FOUR_C_ENABLE_ASSERTIONS
       if (!filled()) FOUR_C_THROW("Core::FE::DiscretizationFaces::lColIntFace: Filled() != true");
@@ -299,26 +271,26 @@ namespace Core::FE
     \brief Build intfacerowmap_ (Filled()==true NOT prerequisite)
 
     Build the parallel layout of internal faces in this
-    discretization and store it as an Epetra_Map in intfacerowmap_
+    discretization and store it as an Core::LinAlg::Map in intfacerowmap_
     intfacerowmap_ is unique.
     It considers internal faces owned by a proc only
 
     \note This is a collective call
 
     */
-    virtual void build_face_row_map();
+    void build_face_row_map();
 
     /*!
     \brief Build intfacecolmap_ (Filled()==true NOT prerequisite)
 
     Build the potentially overlapping parallel layout of internal faces in this
-    discretization and store it as an Epetra_Map in intfacecolmap_
+    discretization and store it as an Core::LinAlg::Map in intfacecolmap_
     intfacecolmap_ includes ghosted internal faces and is potentially overlapping.
 
     \note This is a collective call
 
     */
-    virtual void build_face_col_map();
+    void build_face_col_map();
 
     /*!
     \brief Print Print internal faces discretization to os (Filled()==true NOT prerequisite)
@@ -333,8 +305,9 @@ namespace Core::FE
     bool extension_filled_;  ///< flag indicating whether faces extension has been filled
     bool doboundaryfaces_;   ///< flag set to true by derived HDG class for boundary face elements
 
-    std::shared_ptr<Epetra_Map> facerowmap_;  ///< unique distribution of element ownerships
-    std::shared_ptr<Epetra_Map> facecolmap_;  ///< distribution of elements including ghost elements
+    std::shared_ptr<Core::LinAlg::Map> facerowmap_;  ///< unique distribution of element ownerships
+    std::shared_ptr<Core::LinAlg::Map>
+        facecolmap_;  ///< distribution of elements including ghost elements
     std::vector<Core::Elements::Element*>
         facerowptr_;  ///< vector of pointers to row elements for faster access
     std::vector<Core::Elements::Element*>

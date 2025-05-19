@@ -26,8 +26,6 @@ namespace Core::LinAlg
     DomainMap(). Most of the required SparseOperator methods can simply be
     implemented in terms of the matrix blocks.
 
-    \author u.kue
-    \date 02/08
    */
   class BlockSparseMatrixBase : public SparseOperator
   {
@@ -93,7 +91,7 @@ namespace Core::LinAlg
 
     void complete(bool enforce_complete = false) override;
 
-    void complete(const Epetra_Map& domainmap, const Epetra_Map& rangemap,
+    void complete(const Core::LinAlg::Map& domainmap, const Core::LinAlg::Map& rangemap,
         bool enforce_complete = false) override;
 
     void un_complete() override;
@@ -101,10 +99,10 @@ namespace Core::LinAlg
     void apply_dirichlet(
         const Core::LinAlg::Vector<double>& dbctoggle, bool diagonalblock = true) override;
 
-    void apply_dirichlet(const Epetra_Map& dbcmap, bool diagonalblock = true) override;
+    void apply_dirichlet(const Core::LinAlg::Map& dbcmap, bool diagonalblock = true) override;
 
     /// derived
-    bool is_dbc_applied(const Epetra_Map& dbcmap, bool diagonalblock = true,
+    bool is_dbc_applied(const Core::LinAlg::Map& dbcmap, bool diagonalblock = true,
         const Core::LinAlg::SparseMatrix* trafo = nullptr) const override;
 
     //@}
@@ -127,32 +125,32 @@ namespace Core::LinAlg
     int cols() const { return domainmaps_.num_maps(); }
 
     /// range map for given row block
-    const Epetra_Map& range_map(int r) const { return *rangemaps_.Map(r); }
+    const Core::LinAlg::Map& range_map(int r) const { return *rangemaps_.map(r); }
 
     /// domain map for given column block
-    const Epetra_Map& domain_map(int r) const { return *domainmaps_.Map(r); }
+    const Core::LinAlg::Map& domain_map(int r) const { return *domainmaps_.map(r); }
 
     /// total matrix range map with all blocks
-    const Epetra_Map& full_range_map() const { return *rangemaps_.full_map(); }
+    const Core::LinAlg::Map& full_range_map() const { return *rangemaps_.full_map(); }
 
     /// total matrix domain map with all blocks
-    const Epetra_Map& full_domain_map() const { return *domainmaps_.full_map(); }
+    const Core::LinAlg::Map& full_domain_map() const { return *domainmaps_.full_map(); }
 
     /// total matrix domain map with all blocks (this is needed for
     /// consistency with Core::LinAlg::SparseMatrix)
-    const Epetra_Map& domain_map() const override { return *domainmaps_.full_map(); }
+    const Map& domain_map() const override { return *domainmaps_.full_map(); }
 
     /// total matrix row map with all blocks
     /*!
       \pre Filled()==true
      */
-    Epetra_Map& full_row_map() const { return *fullrowmap_; }
+    Core::LinAlg::Map& full_row_map() const { return *fullrowmap_; }
 
     /// total matrix column map with all blocks
     /*!
       \pre Filled()==true
      */
-    Epetra_Map& full_col_map() const { return *fullcolmap_; }
+    Core::LinAlg::Map& full_col_map() const { return *fullcolmap_; }
 
     //@}
 
@@ -216,10 +214,10 @@ namespace Core::LinAlg
     /// Returns a pointer to the Epetra_Comm communicator associated with this operator.
     const Epetra_Comm& Comm() const override;
 
-    /// Returns the Epetra_Map object associated with the domain of this operator.
+    /// Returns the Core::LinAlg::Map object associated with the domain of this operator.
     const Epetra_Map& OperatorDomainMap() const override;
 
-    /// Returns the Epetra_Map object associated with the range of this operator.
+    /// Returns the Core::LinAlg::Map object associated with the range of this operator.
     const Epetra_Map& OperatorRangeMap() const override;
 
     //@}
@@ -246,10 +244,10 @@ namespace Core::LinAlg
     std::vector<SparseMatrix> blocks_;
 
     /// full matrix row map
-    std::shared_ptr<Epetra_Map> fullrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> fullrowmap_;
 
     /// full matrix column map
-    std::shared_ptr<Epetra_Map> fullcolmap_;
+    std::shared_ptr<Core::LinAlg::Map> fullcolmap_;
 
     /// see matrix as transposed
     bool usetranspose_;
@@ -276,8 +274,6 @@ namespace Core::LinAlg
       a particular case, it is easy to implement a specify Strategy that does
       not need to communicate that much.
 
-      \author u.kue
-      \date 02/08
    */
   template <class Strategy>
   class BlockSparseMatrix : public BlockSparseMatrixBase, public Strategy
@@ -289,18 +285,18 @@ namespace Core::LinAlg
     /// clone the full block sparse matrix
 
     /** Do not forget to call Complete() after cloning, even if you
-     *  use Core::LinAlg::View! */
+     *  use Core::LinAlg::DataAccess::View! */
     std::unique_ptr<BlockSparseMatrixBase> clone(DataAccess access) override;
 
     /// clone only a part of the block sparse matrix
     /** Do not forget to call Complete() after cloning, even if you
-     *  use Core::LinAlg::View!
+     *  use Core::LinAlg::DataAccess::View!
      *
      *  \param[in] access : consider copy or view of block matrices
      *  \param[in] row_block_ids : ID's of the row blocks to clone
      *  \param[in] col_block_ids : ID's of the column blocks to clone
      *
-     *  \author hiermeier \date 04/17 */
+     *  */
     std::unique_ptr<Core::LinAlg::BlockSparseMatrixBase> clone(DataAccess access,
         const std::vector<unsigned>& row_block_ids, const std::vector<unsigned>& col_block_ids);
 
@@ -339,7 +335,7 @@ namespace Core::LinAlg
      *  \param[in] domain_extractor : necessary domain extractor
      *  \param[in] range_extractor : necessary range extractor
      *
-     *  \author hiermeier \date 04/17 */
+     *  */
     std::unique_ptr<Core::LinAlg::BlockSparseMatrixBase> clone(DataAccess access,
         const std::vector<unsigned>& row_block_ids, const std::vector<unsigned>& col_block_ids,
         const MultiMapExtractor& domain_extractor, const MultiMapExtractor& range_extractor);
@@ -360,8 +356,6 @@ namespace Core::LinAlg
 
       \sa BlockSparseMatrix
 
-      \author u.kue
-      \date 02/08
    */
   class DefaultBlockMatrixStrategy
   {
@@ -631,7 +625,7 @@ inline void Core::LinAlg::DefaultBlockMatrixStrategy::assemble(
     double val, int lrow, int rgid, int rblock, int lcol, int cgid, int cblock)
 {
 #ifdef FOUR_C_ENABLE_ASSERTIONS
-  if (rblock == -1) FOUR_C_THROW("no block entry found for row gid=%d", rgid);
+  if (rblock == -1) FOUR_C_THROW("no block entry found for row gid={}", rgid);
 #endif
 
   if (cblock > -1)

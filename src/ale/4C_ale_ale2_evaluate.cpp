@@ -49,7 +49,7 @@ int Discret::Elements::Ale2::evaluate(Teuchos::ParameterList& params,
   else if (action == "calc_jacobian_determinant")
     act = Ale2::calc_det_jac;
   else
-    FOUR_C_THROW("%s is an unknown type of action for Ale2", action.c_str());
+    FOUR_C_THROW("{} is an unknown type of action for Ale2", action);
 
   bool spatialconfiguration = true;
   if (params.isParameter("use spatial configuration"))
@@ -65,8 +65,7 @@ int Discret::Elements::Ale2::evaluate(Teuchos::ParameterList& params,
     {
       std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp =
           discretization.get_state("dispnp");
-      std::vector<double> my_dispnp(lm.size());
-      Core::FE::extract_my_values(*dispnp, my_dispnp, lm);
+      std::vector<double> my_dispnp = Core::FE::extract_values(*dispnp, lm);
 
       static_ke_nonlinear(lm, my_dispnp, &elemat1, &elevec1, params, true, false);
 
@@ -76,8 +75,7 @@ int Discret::Elements::Ale2::evaluate(Teuchos::ParameterList& params,
     {
       std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp =
           discretization.get_state("dispnp");
-      std::vector<double> my_dispnp(lm.size());
-      Core::FE::extract_my_values(*dispnp, my_dispnp, lm);
+      std::vector<double> my_dispnp = Core::FE::extract_values(*dispnp, lm);
 
       static_ke_nonlinear(lm, my_dispnp, &elemat1, &elevec1, params, spatialconfiguration, true);
 
@@ -87,8 +85,7 @@ int Discret::Elements::Ale2::evaluate(Teuchos::ParameterList& params,
     {
       std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp =
           discretization.get_state("dispnp");
-      std::vector<double> my_dispnp(lm.size());
-      Core::FE::extract_my_values(*dispnp, my_dispnp, lm);
+      std::vector<double> my_dispnp = Core::FE::extract_values(*dispnp, lm);
       static_ke_laplace(discretization, lm, &elemat1, elevec1, my_dispnp, spatialconfiguration);
 
       break;
@@ -97,8 +94,7 @@ int Discret::Elements::Ale2::evaluate(Teuchos::ParameterList& params,
     {
       std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp =
           discretization.get_state("dispnp");
-      std::vector<double> my_dispnp(lm.size());
-      Core::FE::extract_my_values(*dispnp, my_dispnp, lm);
+      std::vector<double> my_dispnp = Core::FE::extract_values(*dispnp, lm);
       static_ke_laplace(discretization, lm, &elemat1, elevec1, my_dispnp, true);
 
       break;
@@ -107,8 +103,7 @@ int Discret::Elements::Ale2::evaluate(Teuchos::ParameterList& params,
     {
       std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp =
           discretization.get_state("dispnp");  // get the displacements
-      std::vector<double> my_dispnp(lm.size());
-      Core::FE::extract_my_values(*dispnp, my_dispnp, lm);
+      std::vector<double> my_dispnp = Core::FE::extract_values(*dispnp, lm);
 
       static_ke_spring(&elemat1, elevec1, my_dispnp, spatialconfiguration);
 
@@ -118,8 +113,7 @@ int Discret::Elements::Ale2::evaluate(Teuchos::ParameterList& params,
     {
       std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp =
           discretization.get_state("dispnp");  // get the displacements
-      std::vector<double> my_dispnp(lm.size());
-      Core::FE::extract_my_values(*dispnp, my_dispnp, lm);
+      std::vector<double> my_dispnp = Core::FE::extract_values(*dispnp, lm);
 
       static_ke_spring(&elemat1, elevec1, my_dispnp, true);
 
@@ -151,8 +145,7 @@ int Discret::Elements::Ale2::evaluate(Teuchos::ParameterList& params,
     {
       std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp =
           discretization.get_state("dispnp");
-      std::vector<double> my_dispnp(lm.size());
-      Core::FE::extract_my_values(*dispnp, my_dispnp, lm);
+      std::vector<double> my_dispnp = Core::FE::extract_values(*dispnp, lm);
 
       compute_det_jac(elevec1, lm, my_dispnp);
 
@@ -954,7 +947,7 @@ void Discret::Elements::Ale2::jacobian_matrix(const Core::LinAlg::SerialDenseMat
   /*------------------------------------------ determinant of jacobian ---*/
   *det = xjm[0][0] * xjm[1][1] - xjm[1][0] * xjm[0][1];
 
-  if (*det < 0.0) FOUR_C_THROW("NEGATIVE JACOBIAN DETERMINANT %8.5f in ELEMENT %d\n", *det, id());
+  if (*det < 0.0) FOUR_C_THROW("NEGATIVE JACOBIAN DETERMINANT {:8.5f} in ELEMENT {}\n", *det, id());
   /*----------------------------------------------------------------------*/
 
   return;
@@ -1146,12 +1139,12 @@ void Discret::Elements::Ale2::material_response3d_plane(Core::LinAlg::SerialDens
     Teuchos::ParameterList& params, const int gp)
 {
   // make 3d equivalent of Green-Lagrange strain
-  Core::LinAlg::Matrix<6, 1> gl(false);
+  Core::LinAlg::Matrix<6, 1> gl(Core::LinAlg::Initialization::uninitialized);
   green_lagrange_plane3d(strain, gl);
 
   // call 3d stress response
-  Core::LinAlg::Matrix<6, 1> pk2(true);   // must be zerofied!!!
-  Core::LinAlg::Matrix<6, 6> cmat(true);  // must be zerofied!!!
+  Core::LinAlg::Matrix<6, 1> pk2(Core::LinAlg::Initialization::zero);   // must be zerofied!!!
+  Core::LinAlg::Matrix<6, 6> cmat(Core::LinAlg::Initialization::zero);  // must be zerofied!!!
   material_response3d(&pk2, &cmat, &gl, params, gp);
 
   // we have plain strain

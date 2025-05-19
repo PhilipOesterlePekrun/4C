@@ -35,7 +35,7 @@ namespace Cut
      *  \param edgetype (in) : element type of the edge
      *  \param nodes    (in) : vector of nodes defining the new edge
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     static std::shared_ptr<Edge> create(
         Core::FE::CellType edgetype, const std::vector<Node*>& nodes);
 
@@ -44,7 +44,7 @@ namespace Cut
      *  \param shardskey (in) : unique key equivalent to a element type ( see TRILINOS library )
      *  \param nodes     (in) : vector of nodes defining the new edge
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     static std::shared_ptr<Edge> create(unsigned shardskey, const std::vector<Node*>& nodes);
 
     /// constructor
@@ -127,9 +127,9 @@ namespace Cut
     void coordinates(T& xyze_lineElement)
     {
       if (static_cast<unsigned>(xyze_lineElement.num_rows()) != n_prob_dim())
-        FOUR_C_THROW("xyze_lineElement has the wrong number of rows! (probdim = %d)", n_prob_dim());
+        FOUR_C_THROW("xyze_lineElement has the wrong number of rows! (probdim = {})", n_prob_dim());
       if (static_cast<unsigned>(xyze_lineElement.num_cols()) != num_nodes())
-        FOUR_C_THROW("xyze_lineElement has the wrong number of columns! (dim = %d)", num_nodes());
+        FOUR_C_THROW("xyze_lineElement has the wrong number of columns! (dim = {})", num_nodes());
 
       coordinates(xyze_lineElement.values());
     }
@@ -183,7 +183,7 @@ namespace Cut
      *  This routine returns TRUE, if the computation was successful AND the cut
      *  point is within the edge limits.
      *
-     *  \author hiermeier \date 12/16 */
+     *  */
     virtual bool compute_cut(
         Mesh* mesh, Edge* other, Side* side, PointSet* cut_points, double& tolerance) = 0;
 
@@ -284,7 +284,7 @@ namespace Cut
   /*--------------------------------------------------------------------------*/
   template <unsigned prob_dim, Core::FE::CellType edge_type,
       unsigned dim_edge = Core::FE::dim<edge_type>,
-      unsigned num_nodes_edge = Core::FE::num_nodes<edge_type>>
+      unsigned num_nodes_edge = Core::FE::num_nodes(edge_type)>
   class ConcreteEdge : public Edge
   {
    public:
@@ -341,7 +341,7 @@ namespace Cut
      *  This routine returns TRUE, if the computation was successful AND the cut
      *  point is within the edge limits.
      *
-     *  \author hiermeier \date 12/16 */
+     *  */
     bool compute_cut(
         Mesh* mesh, Edge* other, Side* side, PointSet* cut_points, double& tolerance) override;
 
@@ -426,7 +426,7 @@ namespace Cut
           e = new ConcreteEdge<3, edgetype>(nodes);
           break;
         default:
-          FOUR_C_THROW("Unsupported problem dimension! (probdim=%d)", probdim);
+          FOUR_C_THROW("Unsupported problem dimension! (probdim={})", probdim);
           break;
       }
       return e;

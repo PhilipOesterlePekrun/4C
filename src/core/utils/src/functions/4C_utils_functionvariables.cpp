@@ -24,7 +24,6 @@ Core::Utils::ParsedFunctionVariable::ParsedFunctionVariable(
     std::string name, const std::string& buf)
     : FunctionVariable(std::move(name)),
       timefunction_(std::make_shared<Core::Utils::SymbolicExpression<double>>(buf))
-
 {
 }
 
@@ -524,7 +523,7 @@ Core::Utils::FunctionVariable& Core::Utils::PiecewiseVariable::find_piece_for_ti
       std::find_if(pieces_.begin(), pieces_.end(), [t](auto& var) { return var->contain_time(t); });
 
   if (active_piece == pieces_.end())
-    FOUR_C_THROW("Piece-wise variable <%s> is not defined at time %f.", name().c_str(), t);
+    FOUR_C_THROW("Piece-wise variable <{}> is not defined at time {}.", name(), t);
 
   return **active_piece;
 }

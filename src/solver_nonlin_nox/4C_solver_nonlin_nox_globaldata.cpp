@@ -8,8 +8,8 @@
 #include "4C_solver_nonlin_nox_globaldata.hpp"  // class definition
 
 #include "4C_comm_mpi_utils.hpp"
-#include "4C_inpar_boolifyparameters.hpp"
 #include "4C_inpar_structure.hpp"
+#include "4C_io_input_parameter_container.hpp"
 #include "4C_linear_solver_method_linalg.hpp"
 #include "4C_solver_nonlin_nox_aux.hpp"
 #include "4C_solver_nonlin_nox_direction_factory.hpp"
@@ -25,6 +25,7 @@
 #include <Teuchos_ParameterList.hpp>
 #include <Teuchos_XMLParameterListCoreHelpers.hpp>
 
+#include <filesystem>
 #include <stdexcept>
 
 FOUR_C_NAMESPACE_OPEN
@@ -136,7 +137,7 @@ void NOX::Nln::GlobalData::check_input() const
   if (lin_solvers_.size() == 0)
     FOUR_C_THROW("The linear solver map has the size 0! Required size > 0.");
 
-  typedef std::map<NOX::Nln::SolutionType, Teuchos::RCP<Core::LinAlg::Solver>>::const_iterator CI;
+  using CI = std::map<NOX::Nln::SolutionType, Teuchos::RCP<Core::LinAlg::Solver>>::const_iterator;
   for (CI iter = lin_solvers_.begin(); iter != lin_solvers_.end(); ++iter)
     if (iter->second.is_null())
     {
@@ -263,7 +264,7 @@ void NOX::Nln::GlobalData::set_status_test_parameters()
 {
   Teuchos::ParameterList& statusTestParams = nlnparams_->sublist("Status Test", true);
 
-  // check if the status test was already set via the dat-file
+  // check if the status test was already set via the input file
   if (statusTestParams.isSublist("Outer Status Test") and
       statusTestParams.sublist("Outer Status Test").numParams() != 0)
     return;
@@ -273,29 +274,29 @@ void NOX::Nln::GlobalData::set_status_test_parameters()
       statusTestParams.sublist("Outer Status Test", false);
 
   Teuchos::ParameterList xmlParams;
-  std::string xmlfilename = statusTestParams.get<std::string>("XML File");
+  auto xmlfilename = statusTestParams.get<std::optional<std::filesystem::path>>("XML File");
 
   // check the input: path to the "Status Test" xml-file
-  if (xmlfilename == "none")
+  if (!xmlfilename)
     FOUR_C_THROW("Please specify a \"Status Test\"->\"XML File\" for the nox nonlinear solver!");
 
-  if (xmlfilename.length() && xmlfilename.rfind(".xml"))
+  if (xmlfilename->extension() == ".xml")
   {
     try
     {
-      xmlParams = *(Teuchos::getParametersFromXmlFile(xmlfilename));
+      xmlParams = *(Teuchos::getParametersFromXmlFile(xmlfilename->string()));
     }
     catch (const std::runtime_error&)
     {
       FOUR_C_THROW(
           "The \"Status Test\"->\"XML File\" was not found! "
           "Please check the path in your input file! \n"
-          "CURRENT PATH = %s",
-          xmlfilename.c_str());
+          "CURRENT PATH = {}",
+          xmlfilename->c_str());
     }
   }
   else
-    FOUR_C_THROW("The file name '%s' is not a valid XML file name.", xmlfilename.c_str());
+    FOUR_C_THROW("The file name '{}' is not a valid XML file name.", xmlfilename->string());
 
   // copy the "Outer Status Test" into the nox parameter list
   if (not xmlParams.isSublist("Outer Status Test"))
@@ -313,11 +314,6 @@ void NOX::Nln::GlobalData::set_status_test_parameters()
     if (xmlParams.sublist("Inner Status Test").numParams())
       innerStatusTestParams = xmlParams.sublist("Inner Status Test");
   }
-
-  // make all Yes/No integral values to Boolean
-  Input::boolify_valid_input_parameters(statusTestParams);
-
-  return;
 }
 
 /*----------------------------------------------------------------------------*

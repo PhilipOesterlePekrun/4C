@@ -22,6 +22,7 @@
 #include "4C_linear_solver_method_linalg.hpp"
 #include "4C_linear_solver_method_parameters.hpp"
 #include "4C_scatra_ele_action.hpp"
+#include "4C_scatra_ele_parameter_turbulence.hpp"
 #include "4C_scatra_timint_implicit.hpp"
 #include "4C_scatra_turbulence_hit_scalar_forcing.hpp"
 #include "4C_utils_parameter_list.hpp"
@@ -99,7 +100,7 @@ void ScaTra::ScaTraTimIntImpl::calc_flux(const bool writetofile)
 std::shared_ptr<Core::LinAlg::MultiVector<double>> ScaTra::ScaTraTimIntImpl::calc_flux_in_domain()
 {
   // extract dofrowmap from discretization
-  const Epetra_Map& dofrowmap = *discret_->dof_row_map();
+  const Core::LinAlg::Map& dofrowmap = *discret_->dof_row_map();
 
   // initialize global flux vectors
   std::shared_ptr<Core::LinAlg::MultiVector<double>> flux =
@@ -115,7 +116,7 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> ScaTra::ScaTraTimIntImpl::cal
       "action", ScaTra::Action::calc_flux_domain, params);
 
   // provide discretization with state vector
-  discret_->set_state("phinp", phinp_);
+  discret_->set_state("phinp", *phinp_);
 
   // evaluate flux vector field inside the whole computational domain (e.g., for visualization of
   // particle path lines)
@@ -124,9 +125,9 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> ScaTra::ScaTraTimIntImpl::cal
     auto f1 = std::make_shared<Core::LinAlg::Vector<double>>(dofrowmap);
     auto f2 = std::make_shared<Core::LinAlg::Vector<double>>(dofrowmap);
     discret_->evaluate(params, nullptr, nullptr, f0, f1, f2);
-    (*flux)(0).Update(1., *f0, 0.);
-    (*flux)(1).Update(1., *f1, 0.);
-    (*flux)(2).Update(1., *f2, 0.);
+    (*flux)(0).update(1., *f0, 0.);
+    (*flux)(1).update(1., *f1, 0.);
+    (*flux)(2).update(1., *f2, 0.);
   }
 
   if (calcflux_domain_lumped_)
@@ -211,7 +212,7 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> ScaTra::ScaTraTimIntImpl::cal
   if (calcflux_boundary_ == Inpar::ScaTra::flux_convective)
   {
     // zero out trueresidual vector -> we do not need this info
-    trueresidual_->PutScalar(0.0);
+    trueresidual_->put_scalar(0.0);
   }
   else
   {
@@ -229,7 +230,7 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> ScaTra::ScaTraTimIntImpl::cal
       sysmat_->zero();
 
       // zero out residual vector
-      residual_->PutScalar(0.0);
+      residual_->put_scalar(0.0);
 
       Teuchos::ParameterList eleparams;
       // action for elements
@@ -258,7 +259,7 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> ScaTra::ScaTraTimIntImpl::cal
       }
 
       // scaling to get true residual vector for all time integration schemes
-      trueresidual_->Update(residual_scaling(), *residual_, 0.0);
+      trueresidual_->update(residual_scaling(), *residual_, 0.0);
 
       // undo potential changes
       set_element_time_parameter();
@@ -340,7 +341,7 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> ScaTra::ScaTraTimIntImpl::cal
   for (int icond = 0; icond < static_cast<int>(cond.size()); ++icond)
   {
     // extract dofrowmap associated with current boundary segment
-    const Epetra_Map& dofrowmap = *flux_boundary_maps_->Map(icond + 1);
+    const Core::LinAlg::Map& dofrowmap = *flux_boundary_maps_->map(icond + 1);
 
     // extract part of true residual vector associated with current boundary segment
     const std::shared_ptr<Core::LinAlg::Vector<double>> trueresidual_boundary =
@@ -663,7 +664,7 @@ void ScaTra::ScaTraTimIntImpl::calc_initial_time_derivative()
   // apply_dirichlet_bc(time_,nullptr,phidtnp_);
 
   // copy solution
-  phidtn_->Update(1.0, *phidtnp_, 0.0);
+  phidtn_->update(1.0, *phidtnp_, 0.0);
 
   // reset global system matrix and its graph, since we solved a very special problem with a special
   // sparsity pattern
@@ -674,7 +675,7 @@ void ScaTra::ScaTraTimIntImpl::calc_initial_time_derivative()
 
   // reset true residual vector computed during assembly of the standard global system of equations,
   // since not yet needed
-  trueresidual_->PutScalar(0.0);
+  trueresidual_->put_scalar(0.0);
 
   // restore history vector as explained above
   hist_ = hist;
@@ -718,7 +719,7 @@ void ScaTra::ScaTraTimIntImpl::compute_density()
 
       // global and local dof ID
       const int globaldofid = nodedofs[k];
-      const int localdofid = phiafnp()->Map().LID(globaldofid);
+      const int localdofid = phiafnp()->get_block_map().LID(globaldofid);
       if (localdofid < 0) FOUR_C_THROW("Local dof ID not found in dof map!");
 
       // add contribution of scalar k to nodal density value
@@ -731,10 +732,10 @@ void ScaTra::ScaTraTimIntImpl::compute_density()
     // position of the last dof this way, all nodal density values will be correctly extracted in
     // the fluid algorithm
     const int globaldofid = nodedofs[numdof - 1];
-    const int localdofid = phiafnp()->Map().LID(globaldofid);
+    const int localdofid = phiafnp()->get_block_map().LID(globaldofid);
     if (localdofid < 0) FOUR_C_THROW("Local dof ID not found in dof map!");
 
-    int err = densafnp_->ReplaceMyValue(localdofid, 0, density);
+    int err = densafnp_->replace_local_value(localdofid, 0, density);
 
     if (err) FOUR_C_THROW("Error while inserting nodal density value into global density vector!");
   }  // loop over all local nodes
@@ -808,7 +809,7 @@ void ScaTra::ScaTraTimIntImpl::surface_permeability(
     // TODO: (thon) this is not a nice way of using the mean concentration instead of phinp!
     // Note: meanconc_ is not cleared by calling 'discret_->ClearState()', hence if you
     // don't want to do this replacement here any more call 'ClearMeanConcentration()'
-    discret_->set_state("phinp", mean_conc_);
+    discret_->set_state("phinp", *mean_conc_);
 
     if (myrank_ == 0)
       std::cout << "Replacing 'phinp' by 'meanconc_' in the evaluation of the surface permeability"
@@ -817,7 +818,7 @@ void ScaTra::ScaTraTimIntImpl::surface_permeability(
 
   if (membrane_conc_ == nullptr)
     FOUR_C_THROW("Membrane concentration must already been saved before calling this function!");
-  discret_->set_state("MembraneConcentration", membrane_conc_);
+  discret_->set_state("MembraneConcentration", *membrane_conc_);
 
   // test if all necessary ingredients had been set
   if (not discret_->has_state(nds_wall_shear_stress(), "WallShearStress"))
@@ -867,7 +868,7 @@ void ScaTra::ScaTraTimIntImpl::kedem_katchalsky(
 
   if (membrane_conc_ == nullptr)
     FOUR_C_THROW("Membrane concentration must already been saved before calling this function!");
-  discret_->set_state("MembraneConcentration", membrane_conc_);
+  discret_->set_state("MembraneConcentration", *membrane_conc_);
 
   // Evaluate condition
   discret_->evaluate_condition(
@@ -898,7 +899,7 @@ void ScaTra::ScaTraTimIntImpl::add_flux_approx_to_parameter_list(Teuchos::Parame
   // for now, I create single vectors that can be handled by the filters
 
   // get the noderowmap
-  const Epetra_Map* noderowmap = discret_->node_row_map();
+  const Core::LinAlg::Map* noderowmap = discret_->node_row_map();
   std::shared_ptr<Core::LinAlg::MultiVector<double>> fluxk =
       std::make_shared<Core::LinAlg::MultiVector<double>>(*noderowmap, 3, true);
   for (int k = 0; k < num_scal(); ++k)
@@ -927,7 +928,7 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> ScaTra::ScaTraTimIntImpl::com
 {
   // create vectors for x,y and z component of average normal vector field
   // get noderowmap of discretization
-  const Epetra_Map* noderowmap = discret_->node_row_map();
+  const Core::LinAlg::Map* noderowmap = discret_->node_row_map();
   std::shared_ptr<Core::LinAlg::MultiVector<double>> normal =
       std::make_shared<Core::LinAlg::MultiVector<double>>(*noderowmap, 3, true);
 
@@ -1227,7 +1228,7 @@ void ScaTra::ScaTraTimIntImpl::collect_output_flux_data(
   }
 
   // get the noderowmap
-  const Epetra_Map* noderowmap = discret_->node_row_map();
+  const Core::LinAlg::Map* noderowmap = discret_->node_row_map();
   auto fluxk = Core::LinAlg::MultiVector<double>(*noderowmap, 3, true);
   for (int writefluxid : *writefluxids_)
   {
@@ -1278,7 +1279,7 @@ void ScaTra::ScaTraTimIntImpl::output_integr_reac(const int num)
     if (!discret_->have_dofs()) FOUR_C_THROW("assign_degrees_of_freedom() was not called");
 
     // set scalar values needed by elements
-    discret_->set_state("phinp", phinp_);
+    discret_->set_state("phinp", *phinp_);
     // set action for elements
     Teuchos::ParameterList eleparams;
     Core::Utils::add_enum_class_to_parameter_list<ScaTra::Action>(
@@ -1294,7 +1295,7 @@ void ScaTra::ScaTraTimIntImpl::output_integr_reac(const int num)
     std::vector<double> intreacterm(num_scal(), 0.0);
     for (int k = 0; k < num_scal(); ++k)
       Core::Communication::sum_all(&((*myreacnp)[k]), &intreacterm[k], 1,
-          Core::Communication::unpack_epetra_comm(phinp_->Map().Comm()));
+          Core::Communication::unpack_epetra_comm(phinp_->get_block_map().Comm()));
 
     // print out values
     if (myrank_ == 0)
@@ -1396,11 +1397,11 @@ void ScaTra::ScaTraTimIntImpl::avm3_preparation()
     Sep_->scale(-1.0);
     std::shared_ptr<Core::LinAlg::Vector<double>> tmp =
         Core::LinAlg::create_vector(Sep_->row_map(), false);
-    tmp->PutScalar(1.0);
+    tmp->put_scalar(1.0);
     std::shared_ptr<Core::LinAlg::Vector<double>> diag =
         Core::LinAlg::create_vector(Sep_->row_map(), false);
     Sep_->extract_diagonal_copy(*diag);
-    diag->Update(1.0, *tmp, 1.0);
+    diag->update(1.0, *tmp, 1.0);
     Sep_->replace_diagonal_values(*diag);
 
     // complete scale-separation matrix and check maps
@@ -1431,14 +1432,14 @@ void ScaTra::ScaTraTimIntImpl::avm3_scaling(Teuchos::ParameterList& eleparams)
   // some necessary definitions
   int ierr;
   double* sgvsqrt = nullptr;
-  int length = subgrdiff_->MyLength();
+  int length = subgrdiff_->local_length();
 
   // square-root of subgrid-viscosity-scaling vector for left and right scaling
-  sgvsqrt = (double*)subgrdiff_->Values();
+  sgvsqrt = (double*)subgrdiff_->get_values();
   for (int i = 0; i < length; ++i)
   {
     sgvsqrt[i] = sqrt(sgvsqrt[i]);
-    int err = subgrdiff_->ReplaceMyValues(1, &sgvsqrt[i], &i);
+    int err = subgrdiff_->replace_local_values(1, &sgvsqrt[i], &i);
     if (err != 0) FOUR_C_THROW("index not found");
   }
 
@@ -1447,16 +1448,16 @@ void ScaTra::ScaTraTimIntImpl::avm3_scaling(Teuchos::ParameterList& eleparams)
 
   // left and right scaling of normalized fine-scale subgrid-viscosity matrix
   ierr = sysmat_sd_->left_scale(*subgrdiff_);
-  if (ierr) FOUR_C_THROW("Epetra_CrsMatrix::LeftScale returned err=%d", ierr);
+  if (ierr) FOUR_C_THROW("left_scale() returned err={}", ierr);
   ierr = sysmat_sd_->right_scale(*subgrdiff_);
-  if (ierr) FOUR_C_THROW("Epetra_CrsMatrix::RightScale returned err=%d", ierr);
+  if (ierr) FOUR_C_THROW("right_scale() returned err={}", ierr);
 
   // add the subgrid-viscosity-scaled fine-scale matrix to obtain complete matrix
   std::shared_ptr<Core::LinAlg::SparseMatrix> sysmat = system_matrix();
   sysmat->add(*sysmat_sd_, false, 1.0, 1.0);
 
   // set subgrid-diffusivity vector to zero after scaling procedure
-  subgrdiff_->PutScalar(0.0);
+  subgrdiff_->put_scalar(0.0);
 }  // ScaTraTimIntImpl::AVM3Scaling
 
 /*----------------------------------------------------------------------*
@@ -1468,7 +1469,7 @@ std::shared_ptr<const Core::LinAlg::Vector<double>> ScaTra::ScaTraTimIntImpl::di
   if (dbcmaps_ == nullptr) FOUR_C_THROW("Dirichlet map has not been allocated");
   std::shared_ptr<Core::LinAlg::Vector<double>> dirichones =
       Core::LinAlg::create_vector(*(dbcmaps_->cond_map()), false);
-  dirichones->PutScalar(1.0);
+  dirichones->put_scalar(1.0);
   std::shared_ptr<Core::LinAlg::Vector<double>> dirichtoggle =
       Core::LinAlg::create_vector(*(discret_->dof_row_map()), true);
   dbcmaps_->insert_cond_vector(*dirichones, *dirichtoggle);
@@ -1584,11 +1585,11 @@ void ScaTra::ScaTraTimIntImpl::recompute_mean_csgs_b()
 
       // get element location vector, dirichlet flags and ownerships
       Core::Elements::LocationArray la(discret_->num_dof_sets());
-      ele->location_vector(*discret_, la, false);
+      ele->location_vector(*discret_, la);
 
       // call the element evaluate method to integrate functions
       int err = ele->evaluate(myparams, *discret_, la, emat1, emat2, evec1, evec2, evec2);
-      if (err) FOUR_C_THROW("Proc %d: Element %d returned err=%d", myrank_, ele->id(), err);
+      if (err) FOUR_C_THROW("Proc {}: Element {} returned err={}", myrank_, ele->id(), err);
 
       // get contributions of this element and add it up
       local_sumCai += myparams.get<double>("Cai_int");
@@ -1618,12 +1619,8 @@ void ScaTra::ScaTraTimIntImpl::recompute_mean_csgs_b()
                 << std::endl;
     }
 
-    // set meanCai via pre-evaluate call
-    Core::Utils::add_enum_class_to_parameter_list<ScaTra::Action>(
-        "action", ScaTra::Action::set_mean_Cai, myparams);
-    myparams.set<double>("meanCai", meanCai);
-    // call standard loop over elements
-    discret_->evaluate(myparams, nullptr, nullptr, nullptr, nullptr, nullptr);
+    Discret::Elements::ScaTraEleParameterTurbulence::instance(discret_->name())
+        ->set_csgs_phi(meanCai);
   }
 }
 
@@ -1657,20 +1654,20 @@ void ScaTra::ScaTraTimIntImpl::calc_intermediate_solution()
       homisoturb_forcing_->activate_forcing(false);
 
       // temporary store velnp_ since it will be modified in nonlinear_solve()
-      const Epetra_Map* dofrowmap = discret_->dof_row_map();
+      const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
       std::shared_ptr<Core::LinAlg::Vector<double>> tmp =
           Core::LinAlg::create_vector(*dofrowmap, true);
-      tmp->Update(1.0, *phinp_, 0.0);
+      tmp->update(1.0, *phinp_, 0.0);
 
       // compute intermediate solution without forcing
-      forcing_->PutScalar(0.0);  // just to be sure
+      forcing_->put_scalar(0.0);  // just to be sure
       nonlinear_solve();
 
       // calculate required forcing
       homisoturb_forcing_->calculate_forcing(step_);
 
       // reset velnp_
-      phinp_->Update(1.0, *tmp, 0.0);
+      phinp_->update(1.0, *tmp, 0.0);
 
       // recompute intermediate values, since they have been likewise overwritten
       // only for gen.-alpha
@@ -1688,7 +1685,7 @@ void ScaTra::ScaTraTimIntImpl::calc_intermediate_solution()
     }
     else
       // set force to zero
-      forcing_->PutScalar(0.0);
+      forcing_->put_scalar(0.0);
   }
 }
 
@@ -1724,11 +1721,11 @@ ScaTra::ScaTraTimIntImpl::compute_superconvergent_patch_recovery(
   // Warning, this is only tested so far for 1 scalar field!!!
 
   // dependent on the desired projection, just remove this line
-  if (not state->Map().SameAs(*discret_->dof_row_map()))
+  if (not state->get_map().SameAs(*discret_->dof_row_map()))
     FOUR_C_THROW("input map is not a dof row map of the fluid");
 
   // set given state for element evaluation
-  discret_->set_state(statename, state);
+  discret_->set_state(statename, *state);
 
   switch (dim)
   {
@@ -1774,18 +1771,18 @@ bool ScaTra::ScaTraTimIntImpl::convergence_check(int itnum, int itmax, const dou
     std::shared_ptr<Core::LinAlg::Vector<double>> vec1 =
         splitter_->extract_other_vector(*residual_);
     std::shared_ptr<Core::LinAlg::Vector<double>> vec2 = splitter_->extract_cond_vector(*residual_);
-    vec1->Norm2(&res1norm_L2);
-    vec2->Norm2(&res2norm_L2);
+    vec1->norm_2(&res1norm_L2);
+    vec2->norm_2(&res2norm_L2);
 
     vec1 = splitter_->extract_other_vector(*increment_);
     vec2 = splitter_->extract_cond_vector(*increment_);
-    vec1->Norm2(&phi1incnorm_L2);
-    vec2->Norm2(&phi2incnorm_L2);
+    vec1->norm_2(&phi1incnorm_L2);
+    vec2->norm_2(&phi2incnorm_L2);
 
     vec1 = splitter_->extract_other_vector(*phinp_);
     vec2 = splitter_->extract_cond_vector(*phinp_);
-    vec1->Norm2(&phi1norm_L2);
-    vec2->Norm2(&phi2norm_L2);
+    vec1->norm_2(&phi1norm_L2);
+    vec2->norm_2(&phi2norm_L2);
 
     // check for any INF's and NaN's
     if (std::isnan(res1norm_L2) or std::isnan(phi1incnorm_L2) or std::isnan(phi1norm_L2) or
@@ -1836,9 +1833,9 @@ bool ScaTra::ScaTraTimIntImpl::convergence_check(int itnum, int itmax, const dou
   else if (num_scal() == 1)
   {
     // compute L2-norm of residual, incremental scalar and scalar
-    residual_->Norm2(&res1norm_L2);
-    increment_->Norm2(&phi1incnorm_L2);
-    phinp_->Norm2(&phi1norm_L2);
+    residual_->norm_2(&res1norm_L2);
+    increment_->norm_2(&phi1incnorm_L2);
+    phinp_->norm_2(&phi1norm_L2);
 
     // check for any INF's and NaN's
     if (std::isnan(res1norm_L2) or std::isnan(phi1incnorm_L2) or std::isnan(phi1norm_L2))
@@ -1893,24 +1890,20 @@ void ScaTra::ScaTraTimIntImpl::fd_check()
   // make a copy of state variables to undo perturbations later
   Core::LinAlg::Vector<double> phinp_original(*phinp_);
 
-  // make a copy of system matrix as Epetra_CrsMatrix
-  std::shared_ptr<Epetra_CrsMatrix> sysmat_original = nullptr;
+  std::shared_ptr<Core::LinAlg::SparseMatrix> sysmat_original = nullptr;
   if (std::dynamic_pointer_cast<Core::LinAlg::SparseMatrix>(sysmat_) != nullptr)
   {
-    sysmat_original = (new Core::LinAlg::SparseMatrix(
-                           *(std::static_pointer_cast<Core::LinAlg::SparseMatrix>(sysmat_))))
-                          ->epetra_matrix();
+    sysmat_original = std::make_shared<Core::LinAlg::SparseMatrix>(
+        *(std::static_pointer_cast<Core::LinAlg::SparseMatrix>(sysmat_)));
   }
   else if (std::dynamic_pointer_cast<Core::LinAlg::BlockSparseMatrixBase>(sysmat_) != nullptr)
   {
-    sysmat_original =
-        (new Core::LinAlg::SparseMatrix(
-             *(std::static_pointer_cast<Core::LinAlg::BlockSparseMatrixBase>(sysmat_)->merge())))
-            ->epetra_matrix();
+    sysmat_original = std::make_shared<Core::LinAlg::SparseMatrix>(
+        *(std::static_pointer_cast<Core::LinAlg::BlockSparseMatrixBase>(sysmat_)->merge()));
   }
   else
     FOUR_C_THROW("Type of system matrix unknown!");
-  sysmat_original->FillComplete();
+  sysmat_original->complete();
 
   // make a copy of system right-hand side vector
   Core::LinAlg::Vector<double> rhs_original(*residual_);
@@ -1922,20 +1915,20 @@ void ScaTra::ScaTraTimIntImpl::fd_check()
   double maxabserr(0.);
   double maxrelerr(0.);
 
-  for (int colgid = 0; colgid <= sysmat_original->ColMap().MaxAllGID(); ++colgid)
+  for (int colgid = 0; colgid <= sysmat_original->col_map().MaxAllGID(); ++colgid)
   {
     // check whether current column index is a valid global column index and continue loop if not
-    int collid(sysmat_original->ColMap().LID(colgid));
+    int collid(sysmat_original->col_map().LID(colgid));
     int maxcollid(-1);
     Core::Communication::max_all(&collid, &maxcollid, 1, discret_->get_comm());
     if (maxcollid < 0) continue;
 
     // fill state vector with original state variables
-    phinp_->Update(1., phinp_original, 0.);
+    phinp_->update(1., phinp_original, 0.);
 
     // impose perturbation
-    if (phinp_->Map().MyGID(colgid))
-      if (phinp_->SumIntoGlobalValue(colgid, 0, fdcheckeps_))
+    if (phinp_->get_block_map().MyGID(colgid))
+      if (phinp_->sum_into_global_value(colgid, 0, fdcheckeps_))
         FOUR_C_THROW(
             "Perturbation could not be imposed on state vector for finite difference check!");
 
@@ -1960,19 +1953,20 @@ void ScaTra::ScaTraTimIntImpl::fd_check()
     for (int rowlid = 0; rowlid < discret_->dof_row_map()->NumMyElements(); ++rowlid)
     {
       // get global index of current matrix row
-      const int rowgid = sysmat_original->RowMap().GID(rowlid);
+      const int rowgid = sysmat_original->col_map().GID(rowlid);
       if (rowgid < 0) FOUR_C_THROW("Invalid global ID of matrix row!");
 
       // get relevant entry in current row of original system matrix
       double entry(0.);
-      int length = sysmat_original->NumMyEntries(rowlid);
+      int length = sysmat_original->num_my_entries(rowlid);
       int numentries;
       std::vector<double> values(length);
       std::vector<int> indices(length);
-      sysmat_original->ExtractMyRowCopy(rowlid, length, numentries, values.data(), indices.data());
+      sysmat_original->extract_my_row_copy(
+          rowlid, length, numentries, values.data(), indices.data());
       for (int ientry = 0; ientry < length; ++ientry)
       {
-        if (sysmat_original->ColMap().GID(indices[ientry]) == colgid)
+        if (sysmat_original->col_map().GID(indices[ientry]) == colgid)
         {
           entry = values[ientry];
           break;
@@ -2072,7 +2066,7 @@ void ScaTra::ScaTraTimIntImpl::fd_check()
   }
 
   // undo perturbations of state variables
-  phinp_->Update(1., phinp_original, 0.);
+  phinp_->update(1., phinp_original, 0.);
   compute_intermediate_values();
 
   // recompute system matrix and right-hand side vector based on original state variables
@@ -2105,7 +2099,7 @@ void ScaTra::ScaTraTimIntImpl::evaluate_error_compared_to_analytical_sol()
       }
 
       // set vector values needed by elements
-      discret_->set_state("phinp", phinp_);
+      discret_->set_state("phinp", *phinp_);
 
       // get (squared) error values
       std::shared_ptr<Core::LinAlg::SerialDenseVector> errors =
@@ -2177,7 +2171,7 @@ void ScaTra::ScaTraTimIntImpl::evaluate_error_compared_to_analytical_sol()
         eleparams.set<int>("error function number", errorfunctnumber);
 
         // set state vector needed by elements
-        discret_->set_state("phinp", phinp_);
+        discret_->set_state("phinp", *phinp_);
 
         // get (squared) error values
         Core::LinAlg::SerialDenseVector errors(4 * num_dof_per_node());
@@ -2310,12 +2304,12 @@ void ScaTra::ScaTraTimIntImpl::perform_aitken_relaxation(
     // compute L2 norm of difference between current and previous increments of macro-scale state
     // vector
     double phinp_inc_diff_L2(0.);
-    phinp_inc_diff.Norm2(&phinp_inc_diff_L2);
+    phinp_inc_diff.norm_2(&phinp_inc_diff_L2);
 
     // compute dot product between increment of macro-scale state vector and difference between
     // current and previous increments of macro-scale state vector
     double phinp_inc_dot_phinp_inc_diff(0.);
-    if (phinp_inc_diff.Dot(*phinp_inc_, &phinp_inc_dot_phinp_inc_diff))
+    if (phinp_inc_diff.dot(*phinp_inc_, &phinp_inc_dot_phinp_inc_diff))
       FOUR_C_THROW("Couldn't compute dot product!");
 
     // compute Aitken relaxation factor
@@ -2323,7 +2317,7 @@ void ScaTra::ScaTraTimIntImpl::perform_aitken_relaxation(
       omega_[0] *= 1 - phinp_inc_dot_phinp_inc_diff / (phinp_inc_diff_L2 * phinp_inc_diff_L2);
 
     // perform Aitken relaxation
-    phinp.Update(omega_[0], *phinp_inc_, 1.);
+    phinp.update(omega_[0], *phinp_inc_, 1.);
   }
 
   else
@@ -2368,7 +2362,7 @@ void ScaTra::OutputScalarsStrategyBase::prepare_evaluate(
   const std::shared_ptr<Core::FE::Discretization>& discret = scatratimint->discret_;
 
   // add state vector to discretization
-  discret->set_state("phinp", scatratimint->phinp_);
+  discret->set_state("phinp", *scatratimint->phinp_);
 
   // set action for elements
   Core::Utils::add_enum_class_to_parameter_list<ScaTra::Action>(

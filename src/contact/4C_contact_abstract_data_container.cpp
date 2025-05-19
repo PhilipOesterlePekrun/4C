@@ -66,7 +66,6 @@ CONTACT::AbstractStrategyDataContainer::AbstractStrategyDataContainer()
       isselfcontact_(false),
       friction_(false),
       non_smooth_contact_(false),
-      regularized_(false),
       dualquadslavetrafo_(false),
       trafo_(nullptr),
       invtrafo_(nullptr),
@@ -74,8 +73,8 @@ CONTACT::AbstractStrategyDataContainer::AbstractStrategyDataContainer()
       doldmod_(nullptr),
       inttime_(0.0),
       ivel_(0),
-      stype_(Inpar::CONTACT::solution_vague),
-      constr_direction_(Inpar::CONTACT::constr_vague)
+      stype_(CONTACT::SolvingStrategy::vague),
+      constr_direction_(CONTACT::ConstraintDirection::vague)
 {
   return;
 }

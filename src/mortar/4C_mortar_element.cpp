@@ -13,7 +13,7 @@
 #include "4C_linalg_serialdensevector.hpp"
 #include "4C_material_base.hpp"
 #include "4C_mortar_node.hpp"
-#include "4C_so3_surface.hpp"
+#include "4C_solid_3D_ele_surface.hpp"
 
 #include <memory>
 
@@ -327,8 +327,9 @@ bool Mortar::Element::local_coordinates_of_node(int lid, double* xi) const
           xi[0] = 0.0;
           break;
         default:
-          FOUR_C_THROW("ERROR: local_coordinates_of_node: Node number % in segment % out of range",
-              lid, id());
+          FOUR_C_THROW(
+              "ERROR: local_coordinates_of_node: Node number {} in segment {} out of range", lid,
+              id());
       }
       // we are in the 2D case here!
       xi[1] = 0.0;
@@ -380,7 +381,7 @@ bool Mortar::Element::local_coordinates_of_node(int lid, double* xi) const
           break;
         }
         default:
-          FOUR_C_THROW("LocCoordsOfNode: Node number % in segment % out of range", lid, id());
+          FOUR_C_THROW("LocCoordsOfNode: Node number {} in segment {} out of range", lid, id());
       }
 
       break;
@@ -450,7 +451,7 @@ bool Mortar::Element::local_coordinates_of_node(int lid, double* xi) const
           break;
         }
         default:
-          FOUR_C_THROW("LocCoordsOfNode: Node number % in segment % out of range", lid, id());
+          FOUR_C_THROW("LocCoordsOfNode: Node number {} in segment {} out of range", lid, id());
       }
 
       break;
@@ -465,8 +466,8 @@ bool Mortar::Element::local_coordinates_of_node(int lid, double* xi) const
       else if (lid == 1)
         xi[0] = 1.0;
       else
-        FOUR_C_THROW(
-            "ERROR: local_coordinates_of_node: Node number % in segment % out of range", lid, id());
+        FOUR_C_THROW("ERROR: local_coordinates_of_node: Node number {} in segment {} out of range",
+            lid, id());
 
       // we are in the 2D case here!
       xi[1] = 0.0;
@@ -482,8 +483,8 @@ bool Mortar::Element::local_coordinates_of_node(int lid, double* xi) const
       else if (lid == 2)
         xi[0] = 1.0;
       else
-        FOUR_C_THROW(
-            "ERROR: local_coordinates_of_node: Node number % in segment % out of range", lid, id());
+        FOUR_C_THROW("ERROR: local_coordinates_of_node: Node number {} in segment {} out of range",
+            lid, id());
 
       // we are in the 2D case here!
       xi[1] = 0.0;
@@ -549,7 +550,7 @@ bool Mortar::Element::local_coordinates_of_node(int lid, double* xi) const
           break;
         }
         default:
-          FOUR_C_THROW("LocCoordsOfNode: Node number % in segment % out of range", lid, id());
+          FOUR_C_THROW("LocCoordsOfNode: Node number {} in segment {} out of range", lid, id());
       }
 
       break;
@@ -557,7 +558,6 @@ bool Mortar::Element::local_coordinates_of_node(int lid, double* xi) const
     // unknown case
     default:
       FOUR_C_THROW("local_coordinates_of_node called for unknown element type");
-      exit(EXIT_FAILURE);
   }
   return true;
 }
@@ -577,7 +577,7 @@ int Mortar::Element::get_local_node_id(int nid) const
       break;
     }
 
-  if (lid < 0) FOUR_C_THROW("Cannot find node % in segment %", nid, id());
+  if (lid < 0) FOUR_C_THROW("Cannot find node {} in segment {}", nid, id());
 
   return lid;
 }
@@ -740,7 +740,7 @@ void Mortar::Element::deriv_unit_normal_at_xi(
   // non-unit normal derivative
   std::vector<Core::Gen::Pairedvector<int, double>> derivnnu(
       3, nderiv);  // assume that each node has 3 dofs...
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator CI;
+  using CI = Core::Gen::Pairedvector<int, double>::const_iterator;
 
   // now the derivative
   for (int n = 0; n < nnodes; ++n)
@@ -908,7 +908,6 @@ void Mortar::Element::metrics(const double* xi, double* gxi, double* geta) const
     }
     default:
       FOUR_C_THROW("Metrics called for unknown element type");
-      exit(EXIT_FAILURE);
   }
 
   Core::LinAlg::SerialDenseVector val(nnodes);
@@ -1064,7 +1063,6 @@ void Mortar::Element::deriv_jacobian(
     }
     default:
       FOUR_C_THROW("Jac. derivative not implemented for this type of Element");
-      exit(EXIT_FAILURE);
   }
 
   // *********************************************************************
@@ -1481,13 +1479,13 @@ double Mortar::Element::min_edge_size() const
     }
     default:
     {
-      FOUR_C_THROW("%s is not implemented for discretization type '%s' of Mortar::Element.",
-          __PRETTY_FUNCTION__, Core::FE::cell_type_to_string(shape()).c_str());
+      FOUR_C_THROW("{} is not implemented for discretization type '{}' of Mortar::Element.",
+          __PRETTY_FUNCTION__, Core::FE::cell_type_to_string(shape()));
       break;
     }
   }
 
-  if (minedgesize == 1.0e12) FOUR_C_THROW("%s went wrong...!", __FUNCTION__);
+  if (minedgesize == 1.0e12) FOUR_C_THROW("{} went wrong...!", __FUNCTION__);
   return minedgesize;
 }
 
@@ -1556,8 +1554,8 @@ double Mortar::Element::max_edge_size() const
     }
     default:
     {
-      FOUR_C_THROW("%s is not implemented for discretization type '%s' of Mortar::Element.",
-          __PRETTY_FUNCTION__, Core::FE::cell_type_to_string(shape()).c_str());
+      FOUR_C_THROW("{} is not implemented for discretization type '{}' of Mortar::Element.",
+          __PRETTY_FUNCTION__, Core::FE::cell_type_to_string(shape()));
       break;
     }
   }
@@ -1648,7 +1646,7 @@ void Mortar::Element::estimate_nitsche_trace_max_eigenvalue()
       "support 2D problems.");
 
   auto surf_ele = parent_element()->surfaces()[face_parent_number()];
-  auto* surf = dynamic_cast<Discret::Elements::StructuralSurface*>(surf_ele.get());
+  auto* surf = dynamic_cast<Discret::Elements::SolidSurface*>(surf_ele.get());
 
   if (mo_data().parent_scalar().empty())
     traceHE_ = 1.0 / surf->estimate_nitsche_trace_max_eigenvalue(mo_data().parent_disp());

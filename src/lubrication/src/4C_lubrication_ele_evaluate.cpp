@@ -11,6 +11,7 @@
 #include "4C_lubrication_ele_factory.hpp"
 #include "4C_lubrication_ele_interface.hpp"
 #include "4C_lubrication_ele_parameter.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_parameter_list.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -51,13 +52,9 @@ int Discret::Elements::Lubrication::evaluate(Teuchos::ParameterList& params,
               this, params, discretization, la, elemat1, elemat2, elevec1, elevec2, elevec3);
       break;
     }
-    case FourC::Lubrication::set_time_parameter:
-    case FourC::Lubrication::set_general_lubrication_parameter:
-      // these actions have already been evaluated during element pre-evaluate
-      break;
     default:
     {
-      FOUR_C_THROW("Unknown type of action '%i' for Lubrication", action);
+      FOUR_C_THROW("Unknown type of action '{}' for Lubrication", action);
       break;
     }
   }  // switch(action)
@@ -80,39 +77,5 @@ int Discret::Elements::Lubrication::evaluate_neumann(Teuchos::ParameterList& par
   return 0;
 }
 
-/*---------------------------------------------------------------------*
-|  Call the element to set all basic parameter             wirtz 10/15 |
-*----------------------------------------------------------------------*/
-void Discret::Elements::LubricationType::pre_evaluate(Core::FE::Discretization& dis,
-    Teuchos::ParameterList& p, std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix1,
-    std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix2,
-    std::shared_ptr<Core::LinAlg::Vector<double>> systemvector1,
-    std::shared_ptr<Core::LinAlg::Vector<double>> systemvector2,
-    std::shared_ptr<Core::LinAlg::Vector<double>> systemvector3)
-{
-  const auto action = Teuchos::getIntegralValue<FourC::Lubrication::Action>(p, "action");
-
-  switch (action)
-  {
-    case FourC::Lubrication::set_general_lubrication_parameter:
-    {
-      Discret::Elements::LubricationEleParameter::instance(dis.name())->set_general_parameters(p);
-
-      break;
-    }
-
-    case FourC::Lubrication::set_time_parameter:
-    {
-      Discret::Elements::LubricationEleParameter::instance(dis.name())->set_time_parameters(p);
-
-      break;
-    }
-    default:
-      // do nothing in all other cases
-      break;
-  }
-
-  return;
-}
 
 FOUR_C_NAMESPACE_CLOSE

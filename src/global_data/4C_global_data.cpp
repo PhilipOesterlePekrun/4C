@@ -15,11 +15,10 @@
 #include "4C_fem_general_utils_createdis.hpp"
 #include "4C_global_legacy_module.hpp"
 #include "4C_inpar_problemtype.hpp"
-#include "4C_inpar_validparameters.hpp"
 #include "4C_io.hpp"
 #include "4C_io_control.hpp"
 #include "4C_io_input_file_utils.hpp"
-#include "4C_mat_materialdefinition.hpp"
+#include "4C_mat_par_bundle.hpp"
 #include "4C_rebalance_graph_based.hpp"
 #include "4C_utils_singleton_owner.hpp"
 
@@ -149,45 +148,10 @@ void Global::Problem::open_control_file(MPI_Comm comm, const std::string& inputf
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void Global::Problem::write_input_parameters()
-{
-  std::string s = output_control_file()->file_name();
-  s.append(".parameter");
-  std::ofstream stream(s.c_str());
-  Core::IO::print_dat(stream, *parameters_, false);
-}
-
-
-
-/*----------------------------------------------------------------------*/
-/*----------------------------------------------------------------------*/
 void Global::Problem::set_parameter_list(
     std::shared_ptr<Teuchos::ParameterList> const& parameter_list)
 {
-  try
-  {
-    // Test parameter list against valid parameters, set default values
-    // and set validator objects to extract numerical values for string
-    // parameters.
-    parameter_list->validateParametersAndSetDefaults(*get_valid_parameters());
-  }
-  catch (Teuchos::Exceptions::InvalidParameter& err)
-  {
-    std::cerr << "\n\n" << err.what();
-    FOUR_C_THROW("Input parameter validation failed. Fix your input file.");
-  }
-
   parameters_ = parameter_list;
-}
-
-
-/*----------------------------------------------------------------------*/
-/*----------------------------------------------------------------------*/
-std::shared_ptr<const Teuchos::ParameterList> Global::Problem::get_valid_parameters() const
-{
-  // call the external method to get the valid parameters
-  // this way the parameter configuration is separate from the source
-  return Input::valid_parameters();
 }
 
 
@@ -210,8 +174,8 @@ void Global::Problem::add_dis(
   {
     // if the same key already exists we have to inform the user since
     // the insert statement did not work in this case
-    FOUR_C_THROW("Could not insert discretization '%s' under (duplicate) key '%s'.",
-        dis->name().c_str(), name.c_str());
+    FOUR_C_THROW(
+        "Could not insert discretization '{}' under (duplicate) key '{}'.", dis->name(), name);
   }
 }
 
@@ -228,7 +192,7 @@ std::shared_ptr<Core::FE::Discretization> Global::Problem::get_dis(const std::st
   }
   else
   {
-    FOUR_C_THROW("Could not find discretization '%s'.", name.c_str());
+    FOUR_C_THROW("Could not find discretization '{}'.", name);
     return nullptr;
   }
 }

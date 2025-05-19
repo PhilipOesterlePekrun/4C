@@ -5,10 +5,10 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
+#include "4C_browniandyn_input.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_extract_values.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_browniandyn.hpp"
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
 #include "4C_mat_spring.hpp"
 #include "4C_structure_new_elements_paramsinterface.hpp"
@@ -95,8 +95,7 @@ int Discret::Elements::Torsion3::evaluate(Teuchos::ParameterList& params,
       std::shared_ptr<const Core::LinAlg::Vector<double>> disp =
           discretization.get_state("displacement");
       if (disp == nullptr) FOUR_C_THROW("Cannot get state vectors 'displacement'");
-      std::vector<double> mydisp(lm.size());
-      Core::FE::extract_my_values(*disp, mydisp, lm);
+      std::vector<double> mydisp = Core::FE::extract_values(*disp, lm);
 
       t3_energy(params, mydisp, &elevec1);
     }
@@ -117,14 +116,12 @@ int Discret::Elements::Torsion3::evaluate(Teuchos::ParameterList& params,
       std::shared_ptr<const Core::LinAlg::Vector<double>> disp =
           discretization.get_state("displacement");
       if (disp == nullptr) FOUR_C_THROW("Cannot get state vectors 'displacement'");
-      std::vector<double> mydisp(lm.size());
-      Core::FE::extract_my_values(*disp, mydisp, lm);
+      std::vector<double> mydisp = Core::FE::extract_values(*disp, lm);
       // get residual displacements
       std::shared_ptr<const Core::LinAlg::Vector<double>> res =
           discretization.get_state("residual displacement");
       if (res == nullptr) FOUR_C_THROW("Cannot get state vectors 'residual displacement'");
-      std::vector<double> myres(lm.size());
-      Core::FE::extract_my_values(*res, myres, lm);
+      std::vector<double> myres = Core::FE::extract_values(*res, lm);
 
       /*first displacement vector is modified for proper element evaluation in case of periodic
        *boundary conditions; in case that no periodic boundary conditions are to be applied the
@@ -341,7 +338,7 @@ void Discret::Elements::Torsion3::t3_nlnstiffmass(std::vector<double>& disp,
 {
   // current node position (first entries 0,1,2 for first node, 3,4,5 for second node , 6,7,8 for
   // third node)
-  Core::LinAlg::Matrix<9, 1> xcurr(true);
+  Core::LinAlg::Matrix<9, 1> xcurr(Core::LinAlg::Initialization::zero);
 
   // current nodal position
   for (int j = 0; j < 3; ++j)
@@ -352,11 +349,11 @@ void Discret::Elements::Torsion3::t3_nlnstiffmass(std::vector<double>& disp,
   }
 
   // auxiliary vector for both internal force and stiffness matrix
-  Core::LinAlg::Matrix<6, 1> aux(true);
+  Core::LinAlg::Matrix<6, 1> aux(Core::LinAlg::Initialization::zero);
   for (int j = 0; j < 6; ++j) aux(j) = xcurr(j + 3) - xcurr(j);
 
   // current length of vectors 1-->2  and 2-->3
-  Core::LinAlg::Matrix<2, 1> lcurr(true);
+  Core::LinAlg::Matrix<2, 1> lcurr(Core::LinAlg::Initialization::zero);
   for (int j = 0; j < 2; ++j)
     lcurr(j) = sqrt(pow(aux(3 * j), 2) + pow(aux(3 * j + 1), 2) + pow(aux(3 * j + 2), 2));
 

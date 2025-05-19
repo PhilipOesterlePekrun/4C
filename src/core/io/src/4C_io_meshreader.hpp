@@ -10,30 +10,41 @@
 
 #include "4C_config.hpp"
 
-#include "4C_io_domainreader.hpp"
-#include "4C_io_elementreader.hpp"
-#include "4C_io_geometry_type.hpp"
+#include "4C_linalg_graph.hpp"
 
-#include <Epetra_CrsGraph.h>
 #include <Teuchos_ParameterList.hpp>
 
 FOUR_C_NAMESPACE_OPEN
+
+namespace Core::FE
+{
+  class Discretization;
+}
 
 namespace Core::IO
 {
   class InputFile;
 
-  /*!
-    \brief helper class to read a mesh
+  namespace Exodus
+  {
+    class Mesh;
+  }
 
-    This is an interface for handling node, element and domain readers
-    and to set up a discretization from a dat file which is fill_complete().
+  namespace Internal
+  {
+    struct ExodusReader;
+  }
+
+
+  /**
+   * A class that reads a mesh from an input file and fills the given discretization objects with
+   * the mesh data.
    */
   class MeshReader
   {
    public:
     /**
-     * Additional parameters that governt the reading process.
+     * Additional parameters that govern the reading process.
      */
     struct MeshReaderParameters
     {
@@ -43,7 +54,7 @@ namespace Core::IO
       Teuchos::ParameterList mesh_partitioning_parameters;
 
       /**
-       * Geometric search parameters for certain partitiong methods.
+       * Geometric search parameters for certain partitioning methods.
        */
       Teuchos::ParameterList geometric_search_parameters;
 
@@ -54,105 +65,60 @@ namespace Core::IO
     };
 
     /**
-     * Construct a mesh reader. Read nodes from the given @p input under section
-     * @p node_section_name.
+     * Destructor.
      */
-    MeshReader(Core::IO::InputFile& input, std::string node_section_name,
-        MeshReaderParameters parameters = {});
+    ~MeshReader();
 
-    /// add an element reader for each discretization
-    /*!
-      Each discretization needs its own ElementReader. These readers
-      have to be registered at the MeshReader.
-
-      \param er (i) a reader of one discretization that uses (a fraction of) our nodes
+    /**
+     * Construct a MeshReader that reads the mesh from the given @p input file.
+     * The optional @p parameters can be used to set additional options for the reader.
+     * Note that you need to call attach_discretization() before calling read_and_partition().
      */
-    void add_element_reader(const ElementReader& er) { element_readers_.emplace_back(er); }
+    MeshReader(const Core::IO::InputFile& input, MeshReaderParameters parameters = {});
 
-    /*!
-     * \brief Adds the selected reader to this meshreader
+    /**
+     * Add a discretization to be filled with the mesh data. The @p section_prefix is used to
+     * identify sections in the input file that contain mesh data.
+     */
+    void attach_discretization(
+        std::shared_ptr<Core::FE::Discretization> dis, const std::string& section_prefix);
+
+    /**
+     * Read the data from the input file and partition the mesh.
      *
-     * This is a version without specific elementtypes. It just calls the full
-     * version with a dummy set.
-     *
-     * \param dis            [in] This discretization will be passed on
-     * \param input          [in] The input file.
-     * \param sectionname    [in] This will be passed on element/domain readers only (not used for
-     *                            file reader)
-     * \param geometrysource [in] selects which reader will be created
-     * \param geofilepath    [in] path to the file for the file reader (not used for the others)
-     */
-    void add_advanced_reader(std::shared_ptr<Core::FE::Discretization> dis,
-        Core::IO::InputFile& input, const std::string& sectionname,
-        const Core::IO::GeometryType geometrysource, const std::string* geofilepath);
-
-    /// do the actual reading
-    /*!
-      This method contains the whole machinery. The reading consists of
-      three steps:
-
-      - Reading and distributing elements using each registered
-        ElementReader. This includes creating the connectivity graph,
-        building the node row and column maps.
-
-      - Reading and distributing all nodes. Each node gets assigned to
-        its discretization.
-
-      - Finalizing the discretizations.
-
-      Actually most of the work gets done by the ElementReader. The
-      reading of both elements and nodes happens in blocks on processor
-      0. After each block read the discretizations are redistributed.
-
+     * After calling this functions, the Discretization objects that were added to this reader
+     * are filled with the mesh data.
      */
     void read_and_partition();
 
+    /**
+     * Get MPI communicator of this mesh reader.
+     */
+    [[nodiscard]] MPI_Comm get_comm() const;
+
+    /**
+     * Access the exodus mesh on rank 0. This is only available if an exodus file was actually read.
+     * On ranks other than 0, this will always return a nullptr.
+     */
+    [[nodiscard]] const Exodus::Mesh* get_exodus_mesh_on_rank_zero() const;
+
    private:
-    /*!
-    \brief Read pre-generated mesh from dat-file and generate related FillCompleted()
-    discretizations
-
-    \param[in/out] max_node_id Maximum node id in a given discretization. To be used as global
-                               offset to start node numbering (based on already existing nodes)
-    */
-    void read_mesh_from_dat_file(int& max_node_id);
-
-    /*!
-    \brief Rebalance discretizations built in read_mesh_from_dat_file()
-    */
-    void rebalance();
-
-    /*!
-    \brief Create inline mesh
-
-    Ask the DomainReader to process input data and create a box shaped mesh at runtime without
-    having to read or process nodes and elements from the input file.
-
-    \param[in/out] max_node_id Maximum node id in a given discretization. To be used as global
-                               offset to start node numbering (based on already existing nodes)
-    */
-    void create_inline_mesh(int& max_node_id);
-
-    /// my comm
+    /// Communicator for this mesh reader.
     MPI_Comm comm_;
 
-    //! graphs of each discretization
-    std::vector<std::shared_ptr<const Epetra_CrsGraph>> graph_;
+    /// Internal exodus readers.
+    std::vector<std::unique_ptr<Internal::ExodusReader>> exodus_readers_;
 
-    /// my element readers
-    std::vector<ElementReader> element_readers_;
-
-    /// my domain readers
-    std::vector<DomainReader> domain_readers_;
-
-    /// Input file contents
-    Core::IO::InputFile& input_;
-
-    /// The name of the section under which we will read the nodes.
-    std::string node_section_name_;
+    /// The input file to read the mesh from.
+    const Core::IO::InputFile& input_;
 
     /// Additional parameters for reading meshes.
     MeshReaderParameters parameters_;
+
+    /// The discretizations to be filled. The key is an identifier for the sections in the input.
+    /// Multiple discretizations might be filled from the same section.
+    std::vector<std::pair<std::string, std::shared_ptr<Core::FE::Discretization>>>
+        target_discretizations_;
   };
 }  // namespace Core::IO
 

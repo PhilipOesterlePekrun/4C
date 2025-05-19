@@ -26,7 +26,7 @@ FOUR_C_NAMESPACE_OPEN
  |  ctor  Initialize coupling matrices                     schott 01/15 |
  *----------------------------------------------------------------------*/
 FLD::XFluidState::CouplingState::CouplingState(
-    const std::shared_ptr<const Epetra_Map>& xfluiddofrowmap,
+    const std::shared_ptr<const Core::LinAlg::Map>& xfluiddofrowmap,
     const std::shared_ptr<Core::FE::Discretization>& slavediscret_mat,
     const std::shared_ptr<Core::FE::Discretization>& slavediscret_rhs)
     : is_active_(true)
@@ -65,19 +65,19 @@ void FLD::XFluidState::CouplingState::zero_coupling_matrices_and_rhs()
   XFEM::zero_matrix(*C_sx_);
   XFEM::zero_matrix(*C_ss_);
 
-  rhC_s_->PutScalar(0.0);
-  rhC_s_col_->PutScalar(0.0);
+  rhC_s_->put_scalar(0.0);
+  rhC_s_col_->put_scalar(0.0);
 }
 
 /*----------------------------------------------------------------------*
  |  complete coupling matrices and rhs vectors             schott 01/15 |
  *----------------------------------------------------------------------*/
 void FLD::XFluidState::CouplingState::complete_coupling_matrices_and_rhs(
-    const Epetra_Map& xfluiddofrowmap, const Epetra_Map& slavedofrowmap)
+    const Core::LinAlg::Map& xfluiddofrowmap, const Core::LinAlg::Map& slavedofrowmap)
 {
   if (!is_active_) return;
 
-  // REMARK: for EpetraFECrs matrices Complete() calls the GlobalAssemble() routine to gather
+  // REMARK: for matrices Complete() calls the GlobalAssemble() routine to gather
   // entries from all processors (domain-map are the columns, range-map are the rows)
   C_xs_->complete(slavedofrowmap, xfluiddofrowmap);
   C_sx_->complete(xfluiddofrowmap, slavedofrowmap);
@@ -89,12 +89,12 @@ void FLD::XFluidState::CouplingState::complete_coupling_matrices_and_rhs(
   //  C_ss_->EpetraMatrix()->MaxNumEntries() << std::endl;
   //-------------------------------------------------------------------------------
   // export the rhs coupling vector to a row vector
-  Core::LinAlg::Vector<double> rhC_s_tmp(rhC_s_->Map(), true);
-  Epetra_Export exporter_rhC_s_col(rhC_s_col_->Map(), rhC_s_tmp.Map());
-  int err = rhC_s_tmp.Export(*rhC_s_col_, exporter_rhC_s_col, Add);
-  if (err) FOUR_C_THROW("Export using exporter returned err=%d", err);
+  Core::LinAlg::Vector<double> rhC_s_tmp(rhC_s_->get_block_map(), true);
+  Epetra_Export exporter_rhC_s_col(rhC_s_col_->get_block_map(), rhC_s_tmp.get_block_map());
+  int err = rhC_s_tmp.export_to(*rhC_s_col_, exporter_rhC_s_col, Add);
+  if (err) FOUR_C_THROW("Export using exporter returned err={}", err);
 
-  rhC_s_->Update(1.0, rhC_s_tmp, 0.0);
+  rhC_s_->update(1.0, rhC_s_tmp, 0.0);
 }
 
 
@@ -121,8 +121,8 @@ void FLD::XFluidState::CouplingState::destroy(bool throw_exception)
  *----------------------------------------------------------------------*/
 FLD::XFluidState::XFluidState(const std::shared_ptr<XFEM::ConditionManager>& condition_manager,
     const std::shared_ptr<Cut::CutWizard>& wizard, const std::shared_ptr<XFEM::XFEMDofSet>& dofset,
-    const std::shared_ptr<const Epetra_Map>& xfluiddofrowmap,
-    const std::shared_ptr<const Epetra_Map>& xfluiddofcolmap)
+    const std::shared_ptr<const Core::LinAlg::Map>& xfluiddofrowmap,
+    const std::shared_ptr<const Core::LinAlg::Map>& xfluiddofcolmap)
     : xfluiddofrowmap_(xfluiddofrowmap),
       xfluiddofcolmap_(xfluiddofcolmap),
       dofset_(dofset),
@@ -141,7 +141,7 @@ FLD::XFluidState::XFluidState(const std::shared_ptr<XFEM::ConditionManager>& con
  *----------------------------------------------------------------------*/
 void FLD::XFluidState::init_system_matrix()
 {
-  // create an EpetraFECrs matrix that does communication for non-local rows and columns
+  // create a matrix that does communication for non-local rows and columns
   // * this enables to do the evaluate loop over just row elements instead of col elements
   // * time consuming assemble for cut elements is done only once on a unique row processor
   // REMARK: call the SparseMatrix: * explicitdirichlet = false (is used in ApplyDirichlet, true
@@ -310,7 +310,7 @@ void FLD::XFluidState::complete_coupling_matrices_and_rhs()
  |  Complete coupling matrices and rhs vectors             schott 12/14 |
  *----------------------------------------------------------------------*/
 void FLD::XFluidState::complete_coupling_matrices_and_rhs(
-    const Epetra_Map& fluiddofrowmap  ///< fluid dof row map used for complete
+    const Core::LinAlg::Map& fluiddofrowmap  ///< fluid dof row map used for complete
 )
 {
   // loop all coupling objects
@@ -340,9 +340,9 @@ void FLD::XFluidState::zero_system_matrix_and_rhs()
   XFEM::zero_matrix(*sysmat_);
 
   // zero residual vectors
-  residual_col_->PutScalar(0.0);
-  residual_->PutScalar(0.0);
-  trueresidual_->PutScalar(0.0);
+  residual_col_->put_scalar(0.0);
+  residual_->put_scalar(0.0);
+  trueresidual_->put_scalar(0.0);
 }
 
 
@@ -362,7 +362,7 @@ void FLD::XFluidState::setup_map_extractors(
   dbcmaps_ = std::make_shared<Core::LinAlg::MapExtractor>();
   xfluiddiscret->evaluate_dirichlet(eleparams, zeros_, nullptr, nullptr, nullptr, dbcmaps_);
 
-  zeros_->PutScalar(0.0);
+  zeros_->put_scalar(0.0);
 
   // create vel-pres splitter
   const int numdim = Global::Problem::instance()->n_dim();

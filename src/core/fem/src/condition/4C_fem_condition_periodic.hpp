@@ -11,8 +11,8 @@
 #include "4C_config.hpp"
 
 #include "4C_fem_condition.hpp"
+#include "4C_linalg_map.hpp"
 
-#include <Epetra_Map.h>
 #include <Teuchos_Time.hpp>
 #include <Teuchos_TimeMonitor.hpp>
 
@@ -43,9 +43,6 @@ namespace Core::Conditions
             in pairs.
 
           o passes list of coupled nodes to the dofset
-
-
-  \author gammi
 
   */
   class PeriodicBoundaryConditions

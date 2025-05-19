@@ -10,13 +10,13 @@
 
 #include "4C_config.hpp"
 
+#include "4C_ale_input.hpp"
 #include "4C_ale_utils_mapextractor.hpp"
-#include "4C_inpar_ale.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
 #include "4C_utils_result_test.hpp"
 
-#include <Epetra_Map.h>
 #include <Epetra_Operator.h>
 
 #include <memory>
@@ -66,7 +66,6 @@ namespace Adapter
    *  \sa ALE::Ale
    *  \sa Adapter::Structure, Adapter::Fluid
    *
-   *  \author mayr.mt \date 10/2014
    */
   class Ale
   {
@@ -93,7 +92,7 @@ namespace Adapter
     //! @name Misc
 
     //! dof map of vector of unknowns
-    virtual std::shared_ptr<const Epetra_Map> dof_row_map() const = 0;
+    virtual std::shared_ptr<const Core::LinAlg::Map> dof_row_map() const = 0;
 
     //! direct access to system matrix
     virtual std::shared_ptr<Core::LinAlg::SparseMatrix> system_matrix() = 0;
@@ -194,7 +193,6 @@ namespace Adapter
      *  repeated. Therefore, we need to reset the solution back to the initial
      *  solution of the time step.
      *
-     *  \author mayr.mt \date 08/2013
      */
     virtual void reset_step() = 0;
 

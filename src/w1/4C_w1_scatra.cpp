@@ -63,7 +63,7 @@ void Discret::Elements::Wall1ScatraType::setup_element_definition(
   {
     defs[key] = all_of({
         wall_line_def,
-        entry<std::string>("TYPE"),
+        parameter<std::string>("TYPE"),
     });
   }
 }
@@ -164,8 +164,6 @@ bool Discret::Elements::Wall1Scatra::read_element(const std::string& eletype,
     impltype_ = Inpar::ScaTra::impltype_chemoreac;
   else if (impltype == "Loma")
     impltype_ = Inpar::ScaTra::impltype_loma;
-  else if (impltype == "RefConcReac")
-    impltype_ = Inpar::ScaTra::impltype_refconcreac;
   else if (impltype == "Std")
     impltype_ = Inpar::ScaTra::impltype_std;
   else

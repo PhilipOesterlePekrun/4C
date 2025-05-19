@@ -15,7 +15,6 @@
 #include "4C_fem_geometry_searchtree_service.hpp"
 #include "4C_io.hpp"
 #include "4C_io_control.hpp"
-#include "4C_io_gmsh.hpp"
 #include "4C_io_pstream.hpp"
 #include "4C_linalg_serialdensevector.hpp"
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
@@ -79,7 +78,7 @@ void XFEM::MeshProjector::set_source_position_vector(
     {
       // get the current displacement
       sourcedis_->dof(node, 0, src_dofs);
-      Core::FE::extract_my_values(*sourcedisp, mydisp, src_dofs);
+      mydisp = Core::FE::extract_values(*sourcedisp, src_dofs);
     }
 
     for (int d = 0; d < 3; ++d) src_nodepositions_n_[node->id()](d) = node->x()[d] + mydisp.at(d);
@@ -226,7 +225,7 @@ void XFEM::MeshProjector::project(std::map<int, std::set<int>>& projection_nodeT
     {
       // get the current displacement
       targetdis_->dof(node, 0, tar_dofs);
-      Core::FE::extract_my_values(*targetdisp, mydisp, tar_dofs);
+      mydisp = Core::FE::extract_values(*targetdisp, tar_dofs);
     }
 
     Core::LinAlg::Matrix<3, 1> pos;
@@ -240,7 +239,7 @@ void XFEM::MeshProjector::project(std::map<int, std::set<int>>& projection_nodeT
 
     tar_nodepositions_n.push_back(pos);
     projection_targetnodes.push_back(i->first);
-    interpolated_vecs.push_back(Core::LinAlg::Matrix<8, 1>(true));
+    interpolated_vecs.push_back(Core::LinAlg::Matrix<8, 1>(Core::LinAlg::Initialization::zero));
   }
 
   setup_search_tree();
@@ -284,7 +283,7 @@ void XFEM::MeshProjector::project(std::map<int, std::set<int>>& projection_nodeT
 
         for (unsigned isd = 0; isd < numdofperset; ++isd)
         {
-          (*target_statevecs[iv])[target_statevecs[iv]->Map().LID(dofs[isd])] =
+          (*target_statevecs[iv])[target_statevecs[iv]->get_block_map().LID(dofs[isd])] =
               interpolated_vecs[ni](isd + offset);
         }
         dofs.clear();
@@ -326,9 +325,9 @@ bool XFEM::MeshProjector::check_position_and_project(const Core::Elements::Eleme
     const Core::LinAlg::Matrix<3, 1>& node_xyz, Core::LinAlg::Matrix<8, 1>& interpolatedvec)
 {
   // number of element's nodes
-  const unsigned int src_numnodes = Core::FE::num_nodes<distype>;
+  const unsigned int src_numnodes = Core::FE::num_nodes(distype);
   // nodal coordinates
-  Core::LinAlg::Matrix<3, src_numnodes> src_xyze(true);
+  Core::LinAlg::Matrix<3, src_numnodes> src_xyze(Core::LinAlg::Initialization::zero);
 
   for (int in = 0; in < src_ele->num_node(); ++in)
   {
@@ -370,7 +369,7 @@ bool XFEM::MeshProjector::check_position_and_project(const Core::Elements::Eleme
       {
         if (source_statevecs_[iv] == nullptr) continue;
 
-        Core::FE::extract_my_values(*source_statevecs_[iv], myval, src_dofs);
+        myval = Core::FE::extract_values(*source_statevecs_[iv], src_dofs);
         for (unsigned isd = 0; isd < numdofpernode; ++isd)
         {
           interpolatedvec(isd + offset) += myval[isd] * shp(in);
@@ -401,7 +400,7 @@ void XFEM::MeshProjector::find_covering_elements_and_interpolate_values(
     // node coordinate
     const Core::LinAlg::Matrix<3, 1>& node_xyz = tar_nodepositions.at(ni);
     // interpolated vector which is zero at the beginning
-    Core::LinAlg::Matrix<8, 1> interpolatedvec(true);
+    Core::LinAlg::Matrix<8, 1> interpolatedvec(Core::LinAlg::Initialization::zero);
 
     // search for near elements
     std::map<int, std::set<int>> closeeles = search_tree_->search_elements_in_radius(
@@ -437,8 +436,8 @@ void XFEM::MeshProjector::find_covering_elements_and_interpolate_values(
                 pele, node_xyz, interpolatedvec);
             break;
           default:
-            FOUR_C_THROW("Unsupported element shape %s!",
-                Core::FE::cell_type_to_string(pele->shape()).c_str());
+            FOUR_C_THROW(
+                "Unsupported element shape {}!", Core::FE::cell_type_to_string(pele->shape()));
             break;
         }
 
@@ -592,54 +591,6 @@ void XFEM::MeshProjector::pack_values(std::vector<Core::LinAlg::Matrix<3, 1>>& t
   add_to_pack(data, projection_targetnodes);
   add_to_pack(data, have_values);
   swap(sblock, data());
-}
-
-void XFEM::MeshProjector::gmsh_output(
-    int step, std::shared_ptr<const Core::LinAlg::Vector<double>> targetdisp)
-{
-  // output of source discretization with element numbers and target nodes together with element id
-  // of source element for value projection
-  const std::string filename = Core::IO::Gmsh::get_new_file_name_and_delete_old_files(
-      "tarnode_to_src_ele", targetdis_->writer()->output()->file_name(), step, 30, 0,
-      Core::Communication::my_mpi_rank(targetdis_->get_comm()));
-  std::ofstream gmshfilecontent(filename.c_str());
-  {
-    XFEM::Utils::print_discretization_to_stream(
-        std::const_pointer_cast<Core::FE::Discretization>(sourcedis_), sourcedis_->name(), true,
-        false, false, false, false, false, gmshfilecontent, &src_nodepositions_n_);
-
-    gmshfilecontent << "View \" "
-                    << "nodeToEle n\" {\n";
-
-    std::vector<int> tar_dofs(3);
-    std::vector<double> mydisp(3, 0.0);
-    for (int i = 0; i < targetdis_->num_my_col_nodes(); ++i)
-    {
-      const Core::Nodes::Node* actnode = targetdis_->l_col_node(i);
-      Core::LinAlg::Matrix<3, 1> pos(actnode->x().data(), false);
-      if (targetdisp != nullptr)
-      {
-        // get the current displacement
-        targetdis_->dof(actnode, 0, tar_dofs);
-        Core::FE::extract_my_values(*targetdisp, mydisp, tar_dofs);
-        for (unsigned isd = 0; isd < 3; ++isd)
-        {
-          pos(isd, 0) += mydisp[isd];
-        }
-        mydisp.clear();
-      }
-      tar_dofs.clear();
-
-      std::map<int, int>::const_iterator iter = targetnode_to_parent_.find(actnode->id());
-
-      if (iter != targetnode_to_parent_.end())
-      {
-        int id = iter->second;
-        Core::IO::Gmsh::scalar_to_stream(pos, id, gmshfilecontent);
-      }
-    }
-    gmshfilecontent << "};\n";
-  }
 }
 
 FOUR_C_NAMESPACE_CLOSE

@@ -39,7 +39,7 @@ NLNSOL                          fullnewton
 TIMESTEP                        0.01
 NUMSTEP                         100
 MAXTIME                         1
-DAMPING                         No
+DAMPING                         None
 PREDICT                         ConstDis
 TOLRES                          1.0e-8
 TOLDISP                         1.0e-12
@@ -62,9 +62,8 @@ PENALTY_PARAMETER               1e3
 --------------------------------------------------------------BEAM POTENTIAL
 POT_LAW_PREFACTOR               4e-3
 POT_LAW_EXPONENT                1.0
-BEAMPOTENTIAL_TYPE              Surface
-STRATEGY                        DoubleLengthSpecific_LargeSepApprox
-BEAMPOT_BTSPH                   Yes
+TYPE                            surface
+STRATEGY                        double_length_specific_large_separations
 --------------------------------------------------------------------SOLVER 1
 NAME                            Structure_Solver
 SOLVER                          UMFPACK
@@ -73,16 +72,13 @@ Outer Iteration                 = Yes
 Inner Iteration                 = No
 Outer Iteration StatusTest      = No
 ----------------------------------------------DESIGN POINT DIRICH CONDITIONS
-DPOINT                          3
-E 1 - NUMDOF 6 ONOFF 1 1 1 0 0 0 VAL 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0
-E 2 - NUMDOF 6 ONOFF 1 1 1 0 0 0 VAL 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0
-E 3 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 -1.0 FUNCT 0 0 1
+E 1 NUMDOF 6 ONOFF 1 1 1 0 0 0 VAL 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0
+E 2 NUMDOF 6 ONOFF 1 1 1 0 0 0 VAL 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0
+E 3 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 -1.0 FUNCT 0 0 1
 ------------------------DESIGN POINT RIGIDSPHERE POTENTIAL CHARGE CONDITIONS
-DPOINT                          1
-E 3 - POTLAW 1 VAL 1.0 FUNCT -1
+E 3 POTLAW 1 VAL 1.0 FUNCT -1
 --------------------------------DESIGN LINE BEAM POTENTIAL CHARGE CONDITIONS
-DLINE                           1
-E 1 - POTLAW 1 VAL -1.0 FUNCT -1
+E 1 POTLAW 1 VAL -1.0 FUNCT -1
 ---------------------------------------------------------DNODE-NODE TOPOLOGY
 NODE 1 DNODE 1
 NODE 5 DNODE 2

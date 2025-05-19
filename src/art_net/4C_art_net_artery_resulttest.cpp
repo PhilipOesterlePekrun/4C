@@ -12,6 +12,7 @@
 #include "4C_comm_mpi_utils.hpp"
 #include "4C_fem_general_element.hpp"
 #include "4C_fem_general_node.hpp"
+#include "4C_io_input_parameter_container.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -53,7 +54,7 @@ void Arteries::ArteryResultTest::test_node(
 
   if (isnodeofanybody == 0)
   {
-    FOUR_C_THROW("Node %d does not belong to discretization %s", node + 1, dis_->name().c_str());
+    FOUR_C_THROW("Node {} does not belong to discretization {}", node + 1, dis_->name());
   }
   else
   {
@@ -67,7 +68,7 @@ void Arteries::ArteryResultTest::test_node(
       if (actnode->owner() != Core::Communication::my_mpi_rank(dis_->get_comm())) return;
 
       double result = 0.;
-      const Epetra_BlockMap& pnpmap = mysol_->Map();
+      const Epetra_BlockMap& pnpmap = mysol_->get_block_map();
       std::string position = container.get<std::string>("QUANTITY");
 
       // test result value of single scalar field
@@ -79,8 +80,8 @@ void Arteries::ArteryResultTest::test_node(
         result = (*mysol_)[pnpmap.LID(dis_->dof(actnode, 1))];
       else
       {
-        FOUR_C_THROW("Quantity '%s' not supported in result-test of artery transport problems",
-            position.c_str());
+        FOUR_C_THROW(
+            "Quantity '{}' not supported in result-test of artery transport problems", position);
       }
 
       nerr += compare_values(result, "NODE", container);
@@ -108,8 +109,7 @@ void Arteries::ArteryResultTest::test_element(
 
   if (iselementofanybody == 0)
   {
-    FOUR_C_THROW(
-        "Element %d does not belong to discretization %s", element + 1, dis_->name().c_str());
+    FOUR_C_THROW("Element {} does not belong to discretization {}", element + 1, dis_->name());
   }
   else
   {
@@ -137,8 +137,8 @@ void Arteries::ArteryResultTest::test_element(
       }
       else
       {
-        FOUR_C_THROW("Quantity '%s' not supported in result-test of artery transport problems",
-            quantity.c_str());
+        FOUR_C_THROW(
+            "Quantity '{}' not supported in result-test of artery transport problems", quantity);
       }
 
       nerr += compare_values(result, "ELEMENT", container);

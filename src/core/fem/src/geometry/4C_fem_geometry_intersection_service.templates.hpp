@@ -35,7 +35,7 @@ namespace Core::Geo
       XAABB(dim, 1) = xyze(dim, 0) + TOL7;
     }
     // remaining nodes
-    const int numNodes = Core::FE::num_nodes<distype>;
+    const int numNodes = Core::FE::num_nodes(distype);
     for (int i = 1; i < numNodes; ++i)
       for (int dim = 0; dim < ndim; dim++)
       {
@@ -90,7 +90,7 @@ namespace Core::Geo
         std::cout << Core::FE::cell_type_to_string(distype) << std::endl;
         FOUR_C_THROW("add your distype to this switch!");
     }
-    return Core::LinAlg::Matrix<3, 2>(true);
+    return Core::LinAlg::Matrix<3, 2>(Core::LinAlg::Initialization::zero);
   }
 
 

@@ -33,6 +33,12 @@ function(enable_linker_flag_if_supported _flag)
   four_c_check_compiles(FOUR_C_LINKER_HAS_FLAG_${_flag_var} LINK_OPTIONS ${_flag} APPEND_ON_SUCCESS)
 endfunction()
 
+four_c_process_global_option(
+  FOUR_C_ENABLE_DEVELOPER_MODE
+  "Enable developer mode (tries to optimize setup for iterative development cycles)"
+  OFF
+  )
+
 # Enable all warnings that are supported by the compiler
 enable_compiler_flag_if_supported("-Wall")
 enable_compiler_flag_if_supported("-Wextra")
@@ -146,6 +152,17 @@ else()
   enable_compiler_flag_if_supported("-fno-trapping-math")
 endif()
 
+four_c_process_global_option(FOUR_C_ENABLE_IWYU "Enable include-what-you-use" OFF)
+if(FOUR_C_ENABLE_IWYU)
+  find_program(FOUR_C_IWYU_EXECUTABLE NAMES include-what-you-use iwyu)
+  if(NOT FOUR_C_IWYU_EXECUTABLE)
+    message(
+      FATAL_ERROR "Option FOUR_C_ENABLE_IWYU is ON but include-what-you-use/iwyu is not found."
+                  "You can specify the path in the CMake variable FOUR_C_IWYU_EXECUTABLE."
+      )
+  endif()
+endif()
+
 ##
 # Optimization flags
 # These flags are reasonable defaults. Users may amend them by setting FOUR_C_CXX_FLAGS and/or FOUR_C_CXX_FLAGS_<CONFIG>.
@@ -190,6 +207,12 @@ four_c_process_global_option(
   FOUR_C_ENABLE_ASSERTIONS
   "Turn on assertions and debug sections in code. Automatically turned on for DEBUG as CMAKE_BUILD_TYPE."
   OFF
+  )
+
+four_c_process_global_option(
+  FOUR_C_ENABLE_METADATA_GENERATION
+  "Generate metadata after building 4C. Requires python and invokes 4C."
+  ON
   )
 
 ##

@@ -65,15 +65,13 @@ namespace Discret
       Right now we do not read any stabilization parameters from the
       input file but have a fixed version.
 
-      \author gjb
-      \date 08/08
     */
     template <Core::FE::CellType distype, int probdim = Core::FE::dim<distype> + 1>
     class ScaTraEleBoundaryCalc : public ScaTraBoundaryInterface
     {
      public:
       //! number of element nodes (nomenclature: T. Hughes, The finite element method)
-      static constexpr int nen_ = Core::FE::num_nodes<distype>;
+      static constexpr int nen_ = Core::FE::num_nodes(distype);
 
       //! number of boundary(!) space dimensions
       static constexpr int nsd_ = probdim;
@@ -89,7 +87,7 @@ namespace Discret
         double elediam = 0.0;
 
         // number of nodes of this element
-        const size_t numnode = Core::FE::num_nodes<pdistype>;
+        const size_t numnode = Core::FE::num_nodes(pdistype);
 
         // check all possible connections between nodes of an element
         // node 1 to 2
@@ -150,20 +148,16 @@ namespace Discret
       //! Evaluate the element (using location array)
       int evaluate(Core::Elements::FaceElement* ele, Teuchos::ParameterList& params,
           Core::FE::Discretization& discretization, Core::Elements::LocationArray& la,
-          Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec3_epetra) override;
+          Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+          Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+          Core::LinAlg::SerialDenseVector& elevec3) override;
 
       //! evaluate action
       virtual int evaluate_action(Core::Elements::FaceElement* ele, Teuchos::ParameterList& params,
           Core::FE::Discretization& discretization, ScaTra::BoundaryAction action,
-          Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec3_epetra);
+          Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1,
+          Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+          Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3);
 
       //! evaluate Neumann boundary condition
       int evaluate_neumann(Core::Elements::FaceElement* ele, Teuchos::ParameterList& params,
@@ -203,12 +197,12 @@ namespace Discret
       template <Core::FE::CellType distype_master>
       static void evaluate_s2_i_coupling_at_integration_point(
           const std::vector<Core::LinAlg::Matrix<nen_, 1>>& eslavephinp,
-          const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>>&
+          const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>>&
               emasterphinp,
           double pseudo_contact_fac, const Core::LinAlg::Matrix<nen_, 1>& funct_slave,
-          const Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>& funct_master,
+          const Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>& funct_master,
           const Core::LinAlg::Matrix<nen_, 1>& test_slave,
-          const Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>& test_master,
+          const Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>& test_master,
           int numscal,
           const Discret::Elements::ScaTraEleParameterBoundary* const scatra_parameter_boundary,
           double timefacfac, double timefacrhsfac, Core::LinAlg::SerialDenseMatrix& k_ss,
@@ -514,8 +508,7 @@ namespace Discret
       void weak_dirichlet(Core::Elements::FaceElement* ele, Teuchos::ParameterList& params,
           Core::FE::Discretization& discretization,
           std::shared_ptr<const Core::Mat::Material> material,
-          Core::LinAlg::SerialDenseMatrix& elemat_epetra,
-          Core::LinAlg::SerialDenseVector& elevec_epetra);
+          Core::LinAlg::SerialDenseMatrix& elemat, Core::LinAlg::SerialDenseVector& elevec);
 
 
       //! calculate boundary conditions for impl. Characteristic Galerkin time integration, just for
@@ -523,20 +516,20 @@ namespace Discret
       template <Core::FE::CellType bdistype,
           Core::FE::CellType pdistype>
       void reinit_characteristic_galerkin_boundary(
-          Core::Elements::FaceElement* ele,                //!< transport element
-          Teuchos::ParameterList& params,                  //!< parameter list
-          Core::FE::Discretization& discretization,        //!< discretization
-          const Core::Mat::Material& material,             //!< material
-          Core::LinAlg::SerialDenseMatrix& elemat_epetra,  //!< ele sysmat
-          Core::LinAlg::SerialDenseVector& elevec_epetra   //!< ele rhs
+          Core::Elements::FaceElement* ele,          //!< transport element
+          Teuchos::ParameterList& params,            //!< parameter list
+          Core::FE::Discretization& discretization,  //!< discretization
+          const Core::Mat::Material& material,       //!< material
+          Core::LinAlg::SerialDenseMatrix& elemat,   //!< ele sysmat
+          Core::LinAlg::SerialDenseVector& elevec    //!< ele rhs
       );
 
       //! evaluate Robin boundary condition
       virtual void calc_robin_boundary(Core::Elements::FaceElement* ele,
           Teuchos::ParameterList& params, Core::FE::Discretization& discretization,
           Core::Elements::LocationArray& la,  ///< location array
-          Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra, const double scalar);
+          Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseVector& elevec1,
+          const double scalar);
 
       //! evaluate integral of all positive fluxes on s2i condition
       virtual void calc_s2_i_coupling_flux(const Core::Elements::FaceElement* ele,

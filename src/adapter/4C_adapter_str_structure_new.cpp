@@ -11,22 +11,21 @@
 #include "4C_adapter_str_fbiwrapper.hpp"
 #include "4C_adapter_str_fpsiwrapper.hpp"
 #include "4C_adapter_str_pasiwrapper.hpp"
-#include "4C_adapter_str_redairway.hpp"
 #include "4C_adapter_str_ssiwrapper.hpp"
 #include "4C_adapter_str_timeada.hpp"
 #include "4C_adapter_str_timeloop.hpp"
 #include "4C_adapter_str_wrapper.hpp"
 #include "4C_beam3_kirchhoff.hpp"
 #include "4C_beam3_reissner.hpp"
+#include "4C_beamcontact_input.hpp"
 #include "4C_binstrategy.hpp"
 #include "4C_comm_utils.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_fem_condition.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_global_data.hpp"
 #include "4C_inpar_beam_to_solid.hpp"
-#include "4C_inpar_beamcontact.hpp"
 #include "4C_inpar_beaminteraction.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_inpar_fsi.hpp"
 #include "4C_inpar_poroelast.hpp"
 #include "4C_io.hpp"
@@ -36,7 +35,6 @@
 #include "4C_rebalance_binning_based.hpp"
 #include "4C_rigidsphere.hpp"
 #include "4C_shell7p_ele.hpp"
-#include "4C_so3_base.hpp"
 #include "4C_solid_3D_ele.hpp"
 #include "4C_solver_nonlin_nox_group.hpp"
 #include "4C_solver_nonlin_nox_group_prepostoperator.hpp"
@@ -46,6 +44,7 @@
 #include "4C_structure_new_timint_factory.hpp"
 #include "4C_utils_exceptions.hpp"
 #include "4C_utils_parameter_list.hpp"
+#include "4C_w1.hpp"
 
 #include <Teuchos_ParameterList.hpp>
 #include <Teuchos_StandardParameterEntryValidators.hpp>
@@ -87,20 +86,18 @@ void Adapter::StructureBaseAlgorithmNew::setup()
   // major switch to different time integrators
   switch (Teuchos::getIntegralValue<Inpar::Solid::DynamicType>(*sdyn_, "DYNAMICTYPE"))
   {
-    case Inpar::Solid::dyna_statics:
-    case Inpar::Solid::dyna_genalpha:
-    case Inpar::Solid::dyna_genalpha_liegroup:
-    case Inpar::Solid::dyna_onesteptheta:
-    case Inpar::Solid::dyna_expleuler:
-    case Inpar::Solid::dyna_centrdiff:
-    case Inpar::Solid::dyna_ab2:
-    case Inpar::Solid::dyna_ab4:
+    case Inpar::Solid::DynamicType::Statics:
+    case Inpar::Solid::DynamicType::GenAlpha:
+    case Inpar::Solid::DynamicType::GenAlphaLieGroup:
+    case Inpar::Solid::DynamicType::OneStepTheta:
+    case Inpar::Solid::DynamicType::ExplEuler:
+    case Inpar::Solid::DynamicType::CentrDiff:
+    case Inpar::Solid::DynamicType::AdamsBashforth2:
+    case Inpar::Solid::DynamicType::AdamsBashforth4:
       setup_tim_int();  // <-- here is the show
       break;
     default:
-      FOUR_C_THROW("Unknown time integration scheme '%s'",
-          Teuchos::getStringValue<Inpar::Solid::DynamicType>(*sdyn_, "DYNAMICTYPE").c_str());
-      break;
+      FOUR_C_THROW("Unknown time integration scheme");
   }
 
   issetup_ = true;
@@ -246,7 +243,7 @@ void Adapter::StructureBaseAlgorithmNew::setup_tim_int()
       if (mat->type() == Core::Materials::m_struct_multiscale)
       {
         if (Teuchos::getIntegralValue<Inpar::Solid::DynamicType>(*sdyn_, "DYNAMICTYPE") !=
-            Inpar::Solid::dyna_genalpha)
+            Inpar::Solid::DynamicType::GenAlpha)
           FOUR_C_THROW("In multi-scale simulations, you have to use DYNAMICTYPE=GenAlpha");
         else if (Teuchos::getIntegralValue<Inpar::Solid::MidAverageEnum>(
                      sdyn_->sublist("GENALPHA"), "GENAVG") != Inpar::Solid::midavg_trlike)
@@ -345,8 +342,8 @@ void Adapter::StructureBaseAlgorithmNew::set_model_types(
     if (probtype == Core::ProblemType::tsi)
     {
       const Teuchos::ParameterList& contact = Global::Problem::instance()->contact_dynamic_params();
-      if (Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
-          Inpar::CONTACT::solution_nitsche)
+      if (Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
+          CONTACT::SolvingStrategy::nitsche)
         modeltypes.insert(Inpar::Solid::model_contact);
     }
     else
@@ -435,16 +432,15 @@ void Adapter::StructureBaseAlgorithmNew::set_model_types(
     case Core::ProblemType::ssi:
     case Core::ProblemType::ssti:
     {
-      if (prbdyn_->INVALID_TEMPLATE_QUALIFIER
-              isType<std::shared_ptr<Solid::ModelEvaluator::Generic>>("Partitioned Coupling Model"))
+      if (prbdyn_->isType<std::shared_ptr<Solid::ModelEvaluator::Generic>>(
+              "Partitioned Coupling Model"))
       {
-        if (prbdyn_->INVALID_TEMPLATE_QUALIFIER
-                isType<std::shared_ptr<Solid::ModelEvaluator::Generic>>(
-                    "Monolithic Coupling Model"))
+        if (prbdyn_->isType<std::shared_ptr<Solid::ModelEvaluator::Generic>>(
+                "Monolithic Coupling Model"))
           FOUR_C_THROW("Cannot have both partitioned and monolithic coupling at the same time!");
         const auto coupling_model_ptr =
-            prbdyn_->INVALID_TEMPLATE_QUALIFIER
-                get<std::shared_ptr<Solid::ModelEvaluator::Generic>>("Partitioned Coupling Model");
+            prbdyn_->get<std::shared_ptr<Solid::ModelEvaluator::Generic>>(
+                "Partitioned Coupling Model");
         if (!coupling_model_ptr)
           FOUR_C_THROW("The partitioned coupling model pointer is not allowed to be nullptr!");
         // set the model type
@@ -454,13 +450,12 @@ void Adapter::StructureBaseAlgorithmNew::set_model_types(
             "Partitioned Coupling Model", coupling_model_ptr);
       }
 
-      else if (prbdyn_->INVALID_TEMPLATE_QUALIFIER
-                   isType<std::shared_ptr<Solid::ModelEvaluator::Generic>>(
-                       "Monolithic Coupling Model"))
+      else if (prbdyn_->isType<std::shared_ptr<Solid::ModelEvaluator::Generic>>(
+                   "Monolithic Coupling Model"))
       {
         const auto coupling_model_ptr =
-            prbdyn_->INVALID_TEMPLATE_QUALIFIER
-                get<std::shared_ptr<Solid::ModelEvaluator::Generic>>("Monolithic Coupling Model");
+            prbdyn_->get<std::shared_ptr<Solid::ModelEvaluator::Generic>>(
+                "Monolithic Coupling Model");
         if (!coupling_model_ptr)
           FOUR_C_THROW("The monolithic coupling model pointer is not allowed to be nullptr!");
         // set the model type
@@ -470,12 +465,11 @@ void Adapter::StructureBaseAlgorithmNew::set_model_types(
             "Monolithic Coupling Model", coupling_model_ptr);
       }
 
-      else if (prbdyn_->INVALID_TEMPLATE_QUALIFIER
-                   isType<std::shared_ptr<Solid::ModelEvaluator::Generic>>("Basic Coupling Model"))
+      else if (prbdyn_->isType<std::shared_ptr<Solid::ModelEvaluator::Generic>>(
+                   "Basic Coupling Model"))
       {
         const auto coupling_model_ptr =
-            prbdyn_->INVALID_TEMPLATE_QUALIFIER
-                get<std::shared_ptr<Solid::ModelEvaluator::Generic>>("Basic Coupling Model");
+            prbdyn_->get<std::shared_ptr<Solid::ModelEvaluator::Generic>>("Basic Coupling Model");
         if (!coupling_model_ptr)
           FOUR_C_THROW("The basic coupling model pointer is not allowed to be nullptr!");
         // set the model type
@@ -496,11 +490,10 @@ void Adapter::StructureBaseAlgorithmNew::set_model_types(
   // ---------------------------------------------------------------------------
   // get beam contact strategy
   const Teuchos::ParameterList& beamcontact = Global::Problem::instance()->beam_contact_params();
-  auto strategy =
-      Teuchos::getIntegralValue<Inpar::BeamContact::Strategy>(beamcontact, "BEAMS_STRATEGY");
+  auto strategy = Teuchos::getIntegralValue<BeamContact::Strategy>(beamcontact, "BEAMS_STRATEGY");
 
   auto modelevaluator =
-      Teuchos::getIntegralValue<Inpar::BeamContact::Modelevaluator>(beamcontact, "MODELEVALUATOR");
+      Teuchos::getIntegralValue<BeamContact::Modelevaluator>(beamcontact, "MODELEVALUATOR");
 
   // conditions for potential-based beam interaction
   std::vector<Core::Conditions::Condition*> beampotconditions(0);
@@ -511,7 +504,7 @@ void Adapter::StructureBaseAlgorithmNew::set_model_types(
   actdis_->get_condition("PenaltyPointCouplingCondition", beampenaltycouplingconditions);
 
 
-  if (strategy != Inpar::BeamContact::bstr_none and modelevaluator == Inpar::BeamContact::bstr_old)
+  if (strategy != BeamContact::bstr_none and modelevaluator == BeamContact::bstr_old)
     modeltypes.insert(Inpar::Solid::model_beam_interaction_old);
 
   // ---------------------------------------------------------------------------
@@ -596,10 +589,10 @@ void Adapter::StructureBaseAlgorithmNew::detect_element_technologies(
   {
     Core::Elements::Element* actele = actdis_->l_row_element(i);
     // Detect EAS --------------------------------------------------------------
-    auto* so_base_ele = dynamic_cast<Discret::Elements::SoBase*>(actele);
-    if (so_base_ele != nullptr)
+    auto* wall_ele = dynamic_cast<Discret::Elements::Wall1*>(actele);
+    if (wall_ele != nullptr)
     {
-      if (so_base_ele->have_eas()) iseas_local = 1;
+      if (wall_ele->have_eas()) iseas_local = 1;
     }
 
     Discret::Elements::Shell7p* shell7p = dynamic_cast<Discret::Elements::Shell7p*>(actele);
@@ -666,7 +659,7 @@ void Adapter::StructureBaseAlgorithmNew::set_params(Teuchos::ParameterList& iofl
   sdyn_->set<int>("RESTARTEVERY", prbdyn_->get<int>("RESTARTEVERY"));
   sdyn_->set<int>("RESULTSEVERY", prbdyn_->get<int>("RESULTSEVERY"));
 
-  // Check if for chosen Rayleigh damping the regarding parameters are given explicitly in the .dat
+  // Check if for chosen Rayleigh damping the regarding parameters are given explicitly in the input
   // file
   if (Teuchos::getIntegralValue<Inpar::Solid::DampKind>(*sdyn_, "DAMPING") ==
       Inpar::Solid::damp_rayleigh)
@@ -707,7 +700,6 @@ void Adapter::StructureBaseAlgorithmNew::set_params(Teuchos::ParameterList& iofl
    *
    * ToDO: Find something nicer here!
    *
-   * \author mayr.mt \date 12/2013
    */
   // ---------------------------------------------------------------------------
   switch (probtype)
@@ -858,9 +850,6 @@ void Adapter::StructureBaseAlgorithmNew::create_wrapper(
       str_wrapper_ = std::make_shared<PASIStructureWrapper>(ti_strategy);
       break;
     }
-    case Core::ProblemType::redairways_tissue:
-      str_wrapper_ = std::make_shared<StructureRedAirway>(ti_strategy);
-      break;
     case Core::ProblemType::poroelast:
     case Core::ProblemType::poroscatra:
     case Core::ProblemType::fpsi:

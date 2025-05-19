@@ -12,11 +12,10 @@
 #include "4C_global_data.hpp"
 #include "4C_mat_list.hpp"
 #include "4C_mat_list_reactions.hpp"
-#include "4C_mat_scatra.hpp"
-#include "4C_mat_scatra_reaction.hpp"
 #include "4C_mat_so3_material.hpp"
 #include "4C_scatra_ele_parameter_std.hpp"
 #include "4C_scatra_ele_parameter_timint.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_singleton_owner.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -142,7 +141,7 @@ void Discret::Elements::ScaTraEleCalcAdvReac<distype, probdim>::materials(
       my::mat_scatra(material, k, densn, densnp, densam, visc, iquad);
       break;
     default:
-      FOUR_C_THROW("Material type %i is not supported", material->material_type());
+      FOUR_C_THROW("Material type {} is not supported", material->material_type());
       break;
   }
   return;
@@ -328,11 +327,13 @@ void Discret::Elements::ScaTraEleCalcAdvReac<distype, probdim>::set_advanced_rea
 {
   const std::shared_ptr<ScaTraEleReaManagerAdvReac> remanager = rea_manager();
 
-  remanager->add_to_rea_body_force(
-      matreaclist->calc_rea_body_force_term(k, my::scatravarmanager_->phinp(), gpcoord), k);
+  auto time = my::scatraparatimint_->time();
 
-  matreaclist->calc_rea_body_force_deriv_matrix(
-      k, remanager->get_rea_body_force_deriv_vector(k), my::scatravarmanager_->phinp(), gpcoord);
+  remanager->add_to_rea_body_force(
+      matreaclist->calc_rea_body_force_term(k, my::scatravarmanager_->phinp(), gpcoord, time), k);
+
+  matreaclist->calc_rea_body_force_deriv_matrix(k, remanager->get_rea_body_force_deriv_vector(k),
+      my::scatravarmanager_->phinp(), gpcoord, time);
 }
 
 /*----------------------------------------------------------------------*

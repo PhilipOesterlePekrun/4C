@@ -17,8 +17,6 @@
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
 #include "4C_red_airways_dyn_drt.hpp"
 
-#include <Epetra_MpiComm.h>
-
 #include <memory>
 
 FOUR_C_NAMESPACE_OPEN
@@ -80,7 +78,7 @@ namespace FLD
 
 
       void evaluate_dirichlet(
-          Core::LinAlg::Vector<double>& velnp, const Epetra_Map& condmap, double time);
+          Core::LinAlg::Vector<double>& velnp, const Core::LinAlg::Map& condmap, double time);
 
       /*!
       \brief Wrapper for FluidCouplingWrapper::write_restart
@@ -244,7 +242,7 @@ namespace FLD
 
 
       void evaluate_dirichlet(
-          Core::LinAlg::Vector<double>& velnp, const Epetra_Map& condmap, double time);
+          Core::LinAlg::Vector<double>& velnp, const Core::LinAlg::Map& condmap, double time);
 
       /*!
       \brief compute TimeUpdate

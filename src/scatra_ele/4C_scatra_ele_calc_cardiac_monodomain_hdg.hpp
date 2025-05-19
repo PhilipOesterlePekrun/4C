@@ -34,10 +34,6 @@ namespace Discret
       ScaTraEleCalcHDGCardiacMonodomain(
           const int numdofpernode, const int numscal, const std::string& disname);
 
-      //    typedef ScaTraEleCalc<distype,probdim> my;
-      //    typedef ScaTraEleCalcAniso<distype,probdim> aniso;
-      //    typedef ScaTraEleCalcAdvReac<distype,probdim> advreac;
-
       std::vector<Core::LinAlg::SerialDenseVector> values_mat_gp_all_;
       std::vector<double> gp_mat_alpha_;
 
@@ -49,11 +45,9 @@ namespace Discret
       //! evaluate the element
       int evaluate_action(Core::Elements::Element* ele, Teuchos::ParameterList& params,
           Core::FE::Discretization& discretization, const ScaTra::Action& action,
-          Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec3_epetra)
+          Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1,
+          Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+          Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3)
       {
         return 0;
       };

@@ -45,7 +45,7 @@ void Solid::ModelEvaluator::SpringDashpot::setup()
   // new instance of spring dashpot BC for each condition
   for (auto& springdashpot : springdashpots)
     springs_.emplace_back(
-        std::make_shared<CONSTRAINTS::SpringDashpot>(discret_ptr(), springdashpot));
+        std::make_shared<Constraints::SpringDashpot>(discret_ptr(), springdashpot));
 
   // setup the displacement pointer
   disnp_ptr_ = global_state().get_dis_np();
@@ -75,7 +75,7 @@ void Solid::ModelEvaluator::SpringDashpot::reset(const Core::LinAlg::Vector<doub
   // update the structural displacement vector
   velnp_ptr_ = global_state().get_vel_np();
 
-  fspring_np_ptr_->PutScalar(0.0);
+  fspring_np_ptr_->put_scalar(0.0);
   stiff_spring_ptr_->zero();
 }
 
@@ -91,15 +91,15 @@ bool Solid::ModelEvaluator::SpringDashpot::evaluate_force()
       std::make_shared<Core::LinAlg::Vector<double>>(*global_state().dof_row_map_view());
   for (const auto& spring : springs_)
   {
-    const CONSTRAINTS::SpringDashpot::SpringType stype = spring->get_spring_type();
+    const Constraints::SpringDashpot::RobinSpringDashpotType stype = spring->get_spring_type();
 
-    if (stype == CONSTRAINTS::SpringDashpot::xyz or
-        stype == CONSTRAINTS::SpringDashpot::refsurfnormal)
+    if (stype == Constraints::SpringDashpot::RobinSpringDashpotType::xyz or
+        stype == Constraints::SpringDashpot::RobinSpringDashpotType::refsurfnormal)
     {
-      springdashpotparams.set("total time", global_state().get_time_np());
+      springdashpotparams.set("total time", eval_data().get_total_time());
       spring->evaluate_robin(nullptr, fspring_np_ptr_, disnp_ptr_, velnp_ptr_, springdashpotparams);
     }
-    if (stype == CONSTRAINTS::SpringDashpot::cursurfnormal)
+    if (stype == Constraints::SpringDashpot::RobinSpringDashpotType::cursurfnormal)
     {
       springdashpotparams.set("dt", (*global_state().get_delta_time())[0]);
       spring->evaluate_force(*fspring_np_ptr_, disnp_ptr_, *velnp_ptr_, springdashpotparams);
@@ -129,16 +129,16 @@ bool Solid::ModelEvaluator::SpringDashpot::evaluate_stiff()
   // loop over all spring dashpot conditions and evaluate them
   for (const auto& spring : springs_)
   {
-    const CONSTRAINTS::SpringDashpot::SpringType stype = spring->get_spring_type();
+    const Constraints::SpringDashpot::RobinSpringDashpotType stype = spring->get_spring_type();
 
-    if (stype == CONSTRAINTS::SpringDashpot::xyz or
-        stype == CONSTRAINTS::SpringDashpot::refsurfnormal)
+    if (stype == Constraints::SpringDashpot::RobinSpringDashpotType::xyz or
+        stype == Constraints::SpringDashpot::RobinSpringDashpotType::refsurfnormal)
     {
-      springdashpotparams.set("total time", global_state().get_time_np());
+      springdashpotparams.set("total time", eval_data().get_total_time());
       spring->evaluate_robin(
           stiff_spring_ptr_, nullptr, disnp_ptr_, velnp_ptr_, springdashpotparams);
     }
-    if (stype == CONSTRAINTS::SpringDashpot::cursurfnormal)
+    if (stype == Constraints::SpringDashpot::RobinSpringDashpotType::cursurfnormal)
     {
       springdashpotparams.set("dt", (*global_state().get_delta_time())[0]);
       spring->evaluate_force_stiff(
@@ -173,16 +173,16 @@ bool Solid::ModelEvaluator::SpringDashpot::evaluate_force_stiff()
   // loop over all spring dashpot conditions and evaluate them
   for (const auto& spring : springs_)
   {
-    const CONSTRAINTS::SpringDashpot::SpringType stype = spring->get_spring_type();
+    const Constraints::SpringDashpot::RobinSpringDashpotType stype = spring->get_spring_type();
 
-    if (stype == CONSTRAINTS::SpringDashpot::xyz or
-        stype == CONSTRAINTS::SpringDashpot::refsurfnormal)
+    if (stype == Constraints::SpringDashpot::RobinSpringDashpotType::xyz or
+        stype == Constraints::SpringDashpot::RobinSpringDashpotType::refsurfnormal)
     {
-      springdashpotparams.set("total time", global_state().get_time_np());
+      springdashpotparams.set("total time", eval_data().get_total_time());
       spring->evaluate_robin(
           stiff_spring_ptr_, fspring_np_ptr_, disnp_ptr_, velnp_ptr_, springdashpotparams);
     }
-    if (stype == CONSTRAINTS::SpringDashpot::cursurfnormal)
+    if (stype == Constraints::SpringDashpot::RobinSpringDashpotType::cursurfnormal)
     {
       springdashpotparams.set("dt", (*global_state().get_delta_time())[0]);
       spring->evaluate_force_stiff(
@@ -232,12 +232,12 @@ void Solid::ModelEvaluator::SpringDashpot::write_restart(
   for (const auto& spring : springs_)
   {
     // get spring type from current condition
-    const CONSTRAINTS::SpringDashpot::SpringType stype = spring->get_spring_type();
+    const Constraints::SpringDashpot::RobinSpringDashpotType stype = spring->get_spring_type();
 
-    if (stype == CONSTRAINTS::SpringDashpot::xyz or
-        stype == CONSTRAINTS::SpringDashpot::refsurfnormal)
+    if (stype == Constraints::SpringDashpot::RobinSpringDashpotType::xyz or
+        stype == Constraints::SpringDashpot::RobinSpringDashpotType::refsurfnormal)
       spring->output_prestr_offset(*springoffsetprestr);
-    if (stype == CONSTRAINTS::SpringDashpot::cursurfnormal)
+    if (stype == Constraints::SpringDashpot::RobinSpringDashpotType::cursurfnormal)
       spring->output_prestr_offset_old(*springoffsetprestr_old);
   }
 
@@ -263,12 +263,13 @@ void Solid::ModelEvaluator::SpringDashpot::read_restart(Core::IO::Discretization
   for (const auto& spring : springs_)
   {
     // get spring type from current condition
-    const CONSTRAINTS::SpringDashpot::SpringType stype = spring->get_spring_type();
+    const Constraints::SpringDashpot::RobinSpringDashpotType stype = spring->get_spring_type();
 
-    if (stype == CONSTRAINTS::SpringDashpot::xyz or
-        stype == CONSTRAINTS::SpringDashpot::refsurfnormal)
+    if (stype == Constraints::SpringDashpot::RobinSpringDashpotType::xyz or
+        stype == Constraints::SpringDashpot::RobinSpringDashpotType::refsurfnormal)
       spring->set_restart(*tempvec);
-    if (stype == CONSTRAINTS::SpringDashpot::cursurfnormal) spring->set_restart_old(*tempvecold);
+    if (stype == Constraints::SpringDashpot::RobinSpringDashpotType::cursurfnormal)
+      spring->set_restart_old(*tempvecold);
   }
 }
 
@@ -279,7 +280,7 @@ void Solid::ModelEvaluator::SpringDashpot::update_step_state(const double& timef
   // add the old time factor scaled contributions to the residual
   std::shared_ptr<Core::LinAlg::Vector<double>>& fstructold_ptr =
       global_state().get_fstructure_old();
-  fstructold_ptr->Update(timefac_n, *fspring_np_ptr_, 1.0);
+  fstructold_ptr->update(timefac_n, *fspring_np_ptr_, 1.0);
 
   // check for prestressing and reset if necessary
   const Inpar::Solid::PreStress prestress_type = tim_int().get_data_sdyn().get_pre_stress_type();
@@ -318,8 +319,9 @@ void Solid::ModelEvaluator::SpringDashpot::output_step_state(
     spring->output_gap_normal(*gap, normals, springstress);
 
     // get spring type from current condition
-    const CONSTRAINTS::SpringDashpot::SpringType stype = spring->get_spring_type();
-    if (stype == CONSTRAINTS::SpringDashpot::cursurfnormal) found_cursurfnormal = true;
+    const Constraints::SpringDashpot::RobinSpringDashpotType stype = spring->get_spring_type();
+    if (stype == Constraints::SpringDashpot::RobinSpringDashpotType::cursurfnormal)
+      found_cursurfnormal = true;
   }
 
   // write vectors to output
@@ -348,8 +350,8 @@ void Solid::ModelEvaluator::SpringDashpot::reset_step_state()
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-std::shared_ptr<const Epetra_Map> Solid::ModelEvaluator::SpringDashpot::get_block_dof_row_map_ptr()
-    const
+std::shared_ptr<const Core::LinAlg::Map>
+Solid::ModelEvaluator::SpringDashpot::get_block_dof_row_map_ptr() const
 {
   check_init_setup();
   return global_state().dof_row_map();

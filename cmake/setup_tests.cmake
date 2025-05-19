@@ -6,20 +6,32 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
 if(FOUR_C_BUILD_TYPE_UPPER STREQUAL "DEBUG")
-  set(FOUR_C_TEST_TIMEOUT_SCALE
-      4
-      CACHE STRING "Scale timeout of tests by this factor."
-      )
+  set(_default_timeout_scale 4)
 else()
-  set(FOUR_C_TEST_TIMEOUT_SCALE
-      1
-      CACHE STRING "Scale timeout of tests by this factor."
-      )
+  set(_default_timeout_scale 1)
 endif()
-message(STATUS "Global test timeout scale is ${FOUR_C_TEST_TIMEOUT_SCALE}.")
+four_c_process_cache_variable(
+  FOUR_C_TEST_TIMEOUT_SCALE
+  TYPE
+  STRING
+  DESCRIPTION
+  "Scale timeout of tests by this factor."
+  DEFAULT
+  ${_default_timeout_scale}
+  )
 
 math(EXPR FOUR_C_TEST_GLOBAL_TIMEOUT "120*${FOUR_C_TEST_TIMEOUT_SCALE}")
 message(STATUS "The scaled global test timeout is ${FOUR_C_TEST_GLOBAL_TIMEOUT} s.")
+
+four_c_process_cache_variable(
+  FOUR_C_PVPYTHON
+  TYPE
+  FILEPATH
+  DESCRIPTION
+  "Path to the pvpython executable used for post-processing tests"
+  DEFAULT
+  "pvpython-not-set"
+  )
 
 # Fetch GoogleTest and setup the unit tests if option is enabled
 four_c_process_global_option(FOUR_C_WITH_GOOGLETEST "Use GoogleTest for unit testing" ON)
@@ -31,7 +43,8 @@ if(FOUR_C_WITH_GOOGLETEST)
 
   if(TARGET gtest)
     message(
-      FATAL_ERROR "A target <gtest> has already been included by a TPL." "This is not supported."
+      FATAL_ERROR "A target <gtest> has already been included by another library."
+                  "This is not supported."
       )
   endif()
 
@@ -50,20 +63,51 @@ else()
   message(STATUS "Unit tests with GoogleTest: disabled")
 endif()
 
+# Fetch Google Benchmark and setup benchmark tests if option is enabled
+four_c_process_global_option(
+  FOUR_C_WITH_GOOGLE_BENCHMARK "Use Google Benchmark for micro benchmark tests" OFF
+  )
+if(FOUR_C_WITH_GOOGLE_BENCHMARK)
+  # Define a convenience target for all benchmark tests and add it to 'full'
+  # All benchmark test executables should add themselves as a dependency to 'benchmarktests'
+  # disable tests from google benchmark
+  set(BENCHMARK_ENABLE_TESTING OFF)
+  add_custom_target(benchmarktests)
+  add_dependencies(full benchmarktests)
+
+  if(TARGET benchmark_main)
+    message(
+      FATAL_ERROR "A target <benchmark_main> has already been included by another library."
+                  "This is not supported."
+      )
+  endif()
+
+  include(FetchContent)
+  fetchcontent_declare(
+    googlebenchmark
+    GIT_REPOSITORY https://github.com/google/benchmark.git
+    GIT_TAG afa23b7699c17f1e26c88cbf95257b20d78d6247 # v1.9.2
+    )
+  fetchcontent_makeavailable(googlebenchmark)
+
+else()
+  message(STATUS "Benchmark tests with Google Benchmark: disabled")
+endif()
+
 # setup test for installation
 set(FOURC_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/cmake/4C)
 configure_file(
-  ${CMAKE_SOURCE_DIR}/tests/install_test/main.cpp.in
-  ${CMAKE_BINARY_DIR}/tests/install_test/main.cpp
+  ${PROJECT_SOURCE_DIR}/tests/install_test/main.cpp.in
+  ${PROJECT_BINARY_DIR}/tests/install_test/main.cpp
   @ONLY
   )
 configure_file(
-  ${CMAKE_SOURCE_DIR}/tests/install_test/CMakeLists.txt.in
-  ${CMAKE_BINARY_DIR}/tests/install_test/CMakeLists.txt
+  ${PROJECT_SOURCE_DIR}/tests/install_test/CMakeLists.txt.in
+  ${PROJECT_BINARY_DIR}/tests/install_test/CMakeLists.txt
   @ONLY
   )
 configure_file(
-  ${CMAKE_SOURCE_DIR}/tests/install_test/test_install.sh.in
-  ${CMAKE_BINARY_DIR}/tests/install_test/test_install.sh
+  ${PROJECT_SOURCE_DIR}/tests/install_test/test_install.sh.in
+  ${PROJECT_BINARY_DIR}/tests/install_test/test_install.sh
   @ONLY
   )

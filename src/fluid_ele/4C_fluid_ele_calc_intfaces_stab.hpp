@@ -17,6 +17,8 @@
 #include "4C_fluid_ele_parameter_timint.hpp"
 #include "4C_utils_singleton_owner.hpp"
 
+#include <set>
+
 FOUR_C_NAMESPACE_OPEN
 
 namespace Discret
@@ -127,13 +129,13 @@ namespace Discret
       static constexpr int numdofpernode_ = nsd_ + 1;
 
       /// number of nodes
-      static constexpr int iel = Core::FE::num_nodes<distype>;
+      static constexpr int iel = Core::FE::num_nodes(distype);
 
       /// number of parentnodes
-      static constexpr int piel = Core::FE::num_nodes<pdistype>;
+      static constexpr int piel = Core::FE::num_nodes(pdistype);
 
       /// number of parentnodes of neighbor element
-      static constexpr int niel = Core::FE::num_nodes<ndistype>;
+      static constexpr int niel = Core::FE::num_nodes(ndistype);
 
       /// number of second order derivatives for master element
       static constexpr int numderiv2_p = Core::FE::DisTypeToNumDeriv2<pdistype>::numderiv2;
@@ -500,7 +502,7 @@ namespace Discret
           double& h_e                      ///< element length w.r.t parent element
       )
       {
-        static Core::LinAlg::Matrix<nsd_, numnode> xyz_surf(true);
+        static Core::LinAlg::Matrix<nsd_, numnode> xyz_surf(Core::LinAlg::Initialization::zero);
         xyz_surf.clear();
 
         if (connectivity.size() != numnode)
@@ -603,7 +605,7 @@ namespace Discret
           double& h_e                      ///< element length w.r.t parent element
       )
       {
-        static Core::LinAlg::Matrix<nsd_, numnode> xyz_surf(true);
+        static Core::LinAlg::Matrix<nsd_, numnode> xyz_surf(Core::LinAlg::Initialization::zero);
         xyz_surf.clear();
 
         if (connectivity.size() != numnode)

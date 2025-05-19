@@ -24,7 +24,7 @@ namespace Cut
   /*----------------------------------------------------------------------------*/
   /** \brief Base class of all \e Position objects
    *
-   *  \author hiermeier \date 08/16 */
+   *  */
   class Position
   {
    public:
@@ -34,7 +34,7 @@ namespace Cut
      *  used for comparison operations. As soon as all position cases are working
      *  flawlessly this enum list can and should be adapted.
      *
-     *  \author hiermeier \date 01/17 */
+     *  */
     enum Status
     {
       position_outside_of_bbox =
@@ -66,7 +66,6 @@ namespace Cut
         default:
           return "Unknown PositionStatus";
       }
-      exit(EXIT_FAILURE);
     };
 
    public:
@@ -89,7 +88,7 @@ namespace Cut
      *  \param xyz     (in) : Global coordinates of the given point.
      *  \param floattype (in) : Floattype to compute geometric operations.
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     template <unsigned rdim>
     static std::shared_ptr<Position> create(const Element& element,
         const Core::LinAlg::Matrix<rdim, 1>& xyz, CutFloatType floattype = floattype_double);
@@ -100,7 +99,7 @@ namespace Cut
      *  \param distype (in) : element discretization type.
      *  \param floattype (in) : Floattype to compute geometric operations.
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     template <unsigned rdim, unsigned cdim, unsigned rdim_2>
     static std::shared_ptr<Position> create(const Core::LinAlg::Matrix<rdim, cdim>& xyze,
         const Core::LinAlg::Matrix<rdim_2, 1>& xyz, const Core::FE::CellType& distype,
@@ -119,7 +118,7 @@ namespace Cut
      *  \param distype (in) : element discretization type (optional).
      *  \param floattype (in) : Floattype to compute geometric operations.
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     template <unsigned rdim>
     static std::shared_ptr<Position> create(const std::vector<Node*> nodes,
         const Core::LinAlg::Matrix<rdim, 1>& xyz,
@@ -161,7 +160,7 @@ namespace Cut
     {
       if (rst.m() < n_dim())
         FOUR_C_THROW(
-            "rst has the wrong row number! ( DIM = %d ( rst.m() = %d < DIM ) )", n_dim(), rst.m());
+            "rst has the wrong row number! ( DIM = {} ( rst.m() = {} < DIM ) )", n_dim(), rst.m());
       local_coordinates(rst.data());
 
       std::fill(rst.data() + n_dim(), rst.data() + rst.m(), 0.0);
@@ -169,11 +168,7 @@ namespace Cut
 
     /*! \brief Return the scalar signed perpendicular distance between
      *         given point and embedded element */
-    virtual double distance() const
-    {
-      FOUR_C_THROW("Unsupported for the standard case!");
-      exit(EXIT_FAILURE);
-    }
+    virtual double distance() const { FOUR_C_THROW("Unsupported for the standard case!"); }
 
     /*! \brief Return the signed perpendicular distance vector between
      *         given point and embedded element.
@@ -186,14 +181,14 @@ namespace Cut
      *
      *  \param d (in) : access calculated distance value(s)
      *
-     *  \author hiermeier \date 01/17 */
+     *  */
     template <class T>
     void distance(T& d) const
     {
       if (d.m() < (n_prob_dim() - n_dim()))
         FOUR_C_THROW(
             "The distance vector has the wrong row number! "
-            "( DIM = %d ( rst.m() = %d < DIM ) )",
+            "( DIM = {} ( rst.m() = {} < DIM ) )",
             n_dim(), d.m());
 
       distance(d.data());
@@ -211,7 +206,6 @@ namespace Cut
     virtual bool within_limits_tol(const double& Tol, const bool& allow_dist) const
     {
       FOUR_C_THROW("Unsupported for the standard case!");
-      exit(EXIT_FAILURE);
     }
 
    protected:
@@ -246,10 +240,9 @@ namespace Cut
    *                             the element dimension \c dim.
    *
    *
-   *  \author hiermeier
-   *  \date 08/16 */
+   */
   template <unsigned probdim, Core::FE::CellType eletype,
-      unsigned num_nodes_element = Core::FE::num_nodes<eletype>,
+      unsigned num_nodes_element = Core::FE::num_nodes(eletype),
       unsigned dim = Core::FE::dim<eletype>, CutFloatType floattype = floattype_double>
   class PositionGeneric : public Position
   {
@@ -292,7 +285,7 @@ namespace Cut
      *
      *  \param rst: local coordinates.
      *
-     *  \author hiermeier */
+     *  */
     void local_coordinates(double* rst) override
     {
       if (pos_status_ != position_valid)
@@ -301,7 +294,7 @@ namespace Cut
         msg << "The local coordinates are not valid. "
                "( Position::Status = "
             << status_to_string(pos_status_) << " )";
-        FOUR_C_THROW(msg.str());
+        FOUR_C_THROW("{}", msg.str());
       }
 
       std::copy(xsi_.data(), xsi_.data() + xsi_.m(), rst);
@@ -320,7 +313,7 @@ namespace Cut
         FOUR_C_THROW(
             "The compute_tolerance seems not trustworthy, "
             "properly the Compute() routine failed in some way. "
-            "( tol = %e )",
+            "( tol = {} )",
             compute_tolerance_);
       return compute_tolerance_;
     }
@@ -391,9 +384,9 @@ namespace Cut
   /*----------------------------------------------------------------------------*/
   /** \brief class for the position computation in the standard/non-embedded case
    *
-   *  \author hiermeier \date 08/16 */
+   *  */
   template <unsigned probdim, Core::FE::CellType eletype,
-      unsigned num_nodes_element = Core::FE::num_nodes<eletype>,
+      unsigned num_nodes_element = Core::FE::num_nodes(eletype),
       unsigned dim = Core::FE::dim<eletype>, CutFloatType floattype = floattype_double>
   class ComputePosition
       : public PositionGeneric<probdim, eletype, num_nodes_element, dim, floattype>
@@ -436,9 +429,9 @@ namespace Cut
   /*----------------------------------------------------------------------------*/
   /** \brief class for the position computation in the embedded case
    *
-   *  \author hiermeier \date 08/16 */
+   *  */
   template <unsigned probdim, Core::FE::CellType eletype,
-      unsigned num_nodes_element = Core::FE::num_nodes<eletype>,
+      unsigned num_nodes_element = Core::FE::num_nodes(eletype),
       unsigned dim = Core::FE::dim<eletype>, CutFloatType floattype = floattype_double>
   class ComputeEmbeddedPosition
       : public PositionGeneric<probdim, eletype, num_nodes_element, dim, floattype>
@@ -475,7 +468,7 @@ namespace Cut
         msg << "Neither the position nor the distance value is valid! "
                "( Position::Status = "
             << Position::status_to_string(this->pos_status_) << " )";
-        FOUR_C_THROW(msg.str());
+        FOUR_C_THROW("{}", msg.str());
       }
 
       switch (probdim - dim)
@@ -484,7 +477,6 @@ namespace Cut
           return xsi_aug_(dim, 0);
         default:
           FOUR_C_THROW("A scalar signed distance value is not available!");
-          exit(EXIT_FAILURE);
       }
     }
 
@@ -496,7 +488,7 @@ namespace Cut
         msg << "Neither the position nor the distance value is valid! "
                "( Position::Status = "
             << Position::status_to_string(this->pos_status_) << " )";
-        FOUR_C_THROW(msg.str());
+        FOUR_C_THROW("{}", msg.str());
       }
 
       std::copy(xsi_aug_.data() + dim, xsi_aug_.data() + probdim, distance);
@@ -527,7 +519,7 @@ namespace Cut
   /*----------------------------------------------------------------------------*/
   /** \class Position factory
    *
-   *  \author hiermeier \date 11/16 */
+   *  */
   class PositionFactory
   {
    public:
@@ -587,7 +579,7 @@ namespace Cut
    private:
     /// template class for the actual position creation
     template <bool isembedded, unsigned probdim, unsigned dim, Core::FE::CellType eletype,
-        unsigned num_nodes_element = Core::FE::num_nodes<eletype>>
+        unsigned num_nodes_element = Core::FE::num_nodes(eletype)>
     class PositionCreator
     {
      public:
@@ -612,7 +604,6 @@ namespace Cut
         FOUR_C_THROW(
             "Wrong template combination: ProbDim must be unequal"
             " element Dim for the embedded case.");
-        exit(EXIT_FAILURE);
       }
     };
 
@@ -626,7 +617,6 @@ namespace Cut
         FOUR_C_THROW(
             "Wrong template combination: ProbDim must be larger"
             " than the element Dim for the embedded case.");
-        exit(EXIT_FAILURE);
       }
     };
 
@@ -640,7 +630,6 @@ namespace Cut
         FOUR_C_THROW(
             "Wrong template combination: ProbDim must be larger"
             " than the element Dim for the embedded case.");
-        exit(EXIT_FAILURE);
       }
     };
 
@@ -654,7 +643,6 @@ namespace Cut
         FOUR_C_THROW(
             "Wrong template combination: ProbDim must be larger"
             " than the element Dim for the embedded case.");
-        exit(EXIT_FAILURE);
       }
     };
 
@@ -669,7 +657,6 @@ namespace Cut
         FOUR_C_THROW(
             "Wrong template combination: ProbDim must be equal"
             " element Dim for the standard case.");
-        exit(EXIT_FAILURE);
       }
     };
 
@@ -746,9 +733,9 @@ namespace Cut
      *                        point lies inside / on it.
      *  \param point   (in) : Given global point
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     template <unsigned probdim, Core::FE::CellType eletype, unsigned dim = Core::FE::dim<eletype>,
-        unsigned num_nodes_element = Core::FE::num_nodes<eletype>>
+        unsigned num_nodes_element = Core::FE::num_nodes(eletype)>
     std::shared_ptr<Position> build_position(
         const Element& element, const Point& point, CutFloatType floattype = floattype_double) const
     {
@@ -770,10 +757,8 @@ namespace Cut
       else
         FOUR_C_THROW(
             "The element dimension is larger than the problem dimension! \n"
-            "dim = %d, probdim = %d",
+            "dim = {}, probdim = {}",
             dim, probdim);
-
-      exit(EXIT_FAILURE);
     }
 
     /// concrete create variant #1
@@ -785,7 +770,7 @@ namespace Cut
       if (dim > probdim_)
         FOUR_C_THROW(
             "The element dimension is larger than the problem dimension! \n"
-            "dim = %d, probdim = %d",
+            "dim = {}, probdim = {}",
             dim, probdim_);
 
       switch (probdim_)
@@ -795,11 +780,8 @@ namespace Cut
         case 3:
           return build_position<3, eletype>(element, point, floattype);
         default:
-          FOUR_C_THROW("Unsupported problem dimension! (probdim = %d)", probdim_);
-          exit(EXIT_FAILURE);
+          FOUR_C_THROW("Unsupported problem dimension! (probdim = {})", probdim_);
       }
-
-      exit(EXIT_FAILURE);
     }
 
     /// @}
@@ -814,9 +796,9 @@ namespace Cut
      *                        point lies inside / on it.
      *  \param xyz     (in) : Global coordinates of the given point.
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     template <unsigned probdim, Core::FE::CellType eletype, unsigned dim = Core::FE::dim<eletype>,
-        unsigned num_nodes_element = Core::FE::num_nodes<eletype>>
+        unsigned num_nodes_element = Core::FE::num_nodes(eletype)>
     static std::shared_ptr<Position> build_position(const Element& element,
         const Core::LinAlg::Matrix<probdim, 1>& xyz, CutFloatType floattype = floattype_double)
     {
@@ -836,10 +818,8 @@ namespace Cut
       else
         FOUR_C_THROW(
             "The element dimension is larger than the problem dimension! \n"
-            "dim = %d, probdim = %d",
+            "dim = {}, probdim = {}",
             dim, probdim);
-
-      exit(EXIT_FAILURE);
     }
 
    private:
@@ -852,7 +832,7 @@ namespace Cut
       if (dim > probdim_)
         FOUR_C_THROW(
             "The element dimension is larger than the problem dimension! \n"
-            "dim = %d, probdim = %d",
+            "dim = {}, probdim = {}",
             dim, probdim_);
 
       switch (probdim_)
@@ -868,11 +848,8 @@ namespace Cut
           return build_position<3, eletype>(element, xyz_mat, floattype);
         }
         default:
-          FOUR_C_THROW("Unsupported problem dimension! (probdim = %d)", probdim_);
-          exit(EXIT_FAILURE);
+          FOUR_C_THROW("Unsupported problem dimension! (probdim = {})", probdim_);
       }
-
-      exit(EXIT_FAILURE);
     }
 
     /// @}
@@ -886,9 +863,9 @@ namespace Cut
      *  \param xyze    (in) : Global nodal positions of the element.
      *  \param xyz     (in) : Global coordinates of the given point.
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     template <unsigned probdim, Core::FE::CellType eletype, unsigned dim = Core::FE::dim<eletype>,
-        unsigned num_nodes_element = Core::FE::num_nodes<eletype>>
+        unsigned num_nodes_element = Core::FE::num_nodes(eletype)>
     static std::shared_ptr<Position> build_position(
         const Core::LinAlg::Matrix<probdim, num_nodes_element>& xyze,
         const Core::LinAlg::Matrix<probdim, 1>& xyz, CutFloatType floattype = floattype_double)
@@ -906,10 +883,8 @@ namespace Cut
       else
         FOUR_C_THROW(
             "The element dimension is larger than the problem dimension! \n"
-            "dim = %d, probdim = %d",
+            "dim = {}, probdim = {}",
             dim, probdim);
-
-      exit(EXIT_FAILURE);
     }
 
    private:
@@ -918,7 +893,7 @@ namespace Cut
     std::shared_ptr<Position> create_concrete_position(
         const double* xyze, const double* xyz, CutFloatType floattype = floattype_double) const
     {
-      const unsigned num_nodes_ele = Core::FE::num_nodes<eletype>;
+      const unsigned num_nodes_ele = Core::FE::num_nodes(eletype);
       switch (probdim_)
       {
         case 2:
@@ -934,11 +909,8 @@ namespace Cut
           return build_position<3, eletype>(xyze_mat, xyz_mat, floattype);
         }
         default:
-          FOUR_C_THROW("Unsupported problem dimension! (probdim = %d)", probdim_);
-          exit(EXIT_FAILURE);
+          FOUR_C_THROW("Unsupported problem dimension! (probdim = {})", probdim_);
       }
-
-      exit(EXIT_FAILURE);
     }
 
     /// @}
@@ -952,16 +924,16 @@ namespace Cut
      *  \param nodes (in) : Nodes of the element we want to check.
      *  \param xyz   (in) : Global coordinates of the given point.
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     template <unsigned probdim, Core::FE::CellType eletype, unsigned dim = Core::FE::dim<eletype>,
-        unsigned num_nodes_element = Core::FE::num_nodes<eletype>>
+        unsigned num_nodes_element = Core::FE::num_nodes(eletype)>
     static std::shared_ptr<Position> build_position(const std::vector<Node*> nodes,
         const Core::LinAlg::Matrix<probdim, 1>& xyz, CutFloatType floattype = floattype_double)
     {
       if (not(nodes.size() == num_nodes_element))
         FOUR_C_THROW(
             "node number for this element is not correct\n"
-            "numNodesElement = %d, nodes.size() = %d",
+            "numNodesElement = {}, nodes.size() = {}",
             num_nodes_element, nodes.size());
 
       Core::LinAlg::Matrix<probdim, num_nodes_element> xyze;
@@ -984,10 +956,8 @@ namespace Cut
       else
         FOUR_C_THROW(
             "The element dimension is larger than the problem dimension! \n"
-            "dim = %d, probdim = %d",
+            "dim = {}, probdim = {}",
             dim, probdim);
-
-      exit(EXIT_FAILURE);
     }
 
    private:
@@ -1009,11 +979,8 @@ namespace Cut
           return build_position<3, eletype>(nodes, xyz_mat, floattype);
         }
         default:
-          FOUR_C_THROW("Unsupported problem dimension! (probdim = %d)", probdim_);
-          exit(EXIT_FAILURE);
+          FOUR_C_THROW("Unsupported problem dimension! (probdim = {})", probdim_);
       }
-
-      exit(EXIT_FAILURE);
     }
 
     /// @}

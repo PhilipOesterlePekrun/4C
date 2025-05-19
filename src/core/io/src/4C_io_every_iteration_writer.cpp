@@ -32,8 +32,7 @@ Core::IO::EveryIterationWriter::EveryIterationWriter()
       parent_writer_(nullptr),
       interface_(nullptr),
       every_iter_writer_(nullptr)
-{
-  /* empty */
+{ /* empty */
 }
 
 /*----------------------------------------------------------------------------*
@@ -126,7 +125,7 @@ void Core::IO::create_directory(const std::string& dir_path, const int myrank)
   std::filesystem::path dir(dir_path);
   if (!std::filesystem::is_directory(dir))
     if (!std::filesystem::create_directory(dir))
-      FOUR_C_THROW("The directory \"%s\" could not be created!", dir_path.c_str());
+      FOUR_C_THROW("The directory \"{}\" could not be created!", dir_path);
 }
 
 /*----------------------------------------------------------------------------*
@@ -262,7 +261,7 @@ void Core::IO::EveryIterationWriter::add_line_search_iteration(
 
   if (linesearch_iteration >= static_cast<int>(MAX_NUMBER_LINE_SEARCH_ITERATIONS_))
     FOUR_C_THROW(
-        "The EveryIterationWriter does not support more than %d line search"
+        "The EveryIterationWriter does not support more than {} line search"
         " steps. If this number is exceeded, the counters will get mixed up.",
         MAX_NUMBER_LINE_SEARCH_ITERATIONS_ - 1);
 

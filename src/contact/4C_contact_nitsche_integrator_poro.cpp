@@ -13,14 +13,14 @@
 #include "4C_contact_node.hpp"
 #include "4C_contact_paramsinterface.hpp"
 #include "4C_mat_structporo.hpp"
-#include "4C_so3_base.hpp"
-#include "4C_so3_hex8.hpp"
-#include "4C_so3_poro.hpp"
 #include "4C_solid_3D_ele.hpp"
+#include "4C_solid_poro_3D_ele_pressure_velocity_based.hpp"
 #include "4C_utils_exceptions.hpp"
 
 #include <Epetra_FEVector.h>
 #include <Teuchos_StandardParameterEntryValidators.hpp>
+
+#include <optional>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -29,7 +29,7 @@ FOUR_C_NAMESPACE_OPEN
 CONTACT::IntegratorNitschePoro::IntegratorNitschePoro(
     Teuchos::ParameterList& params, Core::FE::CellType eletype, MPI_Comm comm)
     : IntegratorNitsche(params, eletype, comm),
-      no_penetration_(params.get<bool>("CONTACTNOPEN")),
+      no_penetration_(params.get<bool>("CONTACT_NO_PENETRATION")),
       dv_dd_(params.get<double>("porotimefac"))
 {
   if (fabs(theta_) > 1e-16) FOUR_C_THROW("Poro Contact just implemented Adjoint free ...");
@@ -50,7 +50,7 @@ void CONTACT::IntegratorNitschePoro::integrate_gp_3d(Mortar::Element& sele, Mort
 {
   // TEUCHOS_FUNC_TIME_MONITOR("CONTACT::IntegratorNitsche::integrate_gp_3d");
   // We use the consistent element normal for poro contact!
-  // if (nit_normal_==Inpar::CONTACT::NitNor_ele)
+  // if (nit_normal_==CONTACT::NitNor_ele)
   {
     double n[3];
     sele.compute_unit_normal_at_xi(sxi, n);
@@ -60,7 +60,7 @@ void CONTACT::IntegratorNitschePoro::integrate_gp_3d(Mortar::Element& sele, Mort
     gpts_forces<3>(sele, mele, sval, sderiv, derivsxi, mval, mderiv, derivmxi, jac, derivjac, wgt,
         gap, deriv_gap, n, dn, sxi, mxi);
   }
-  //  else if (nit_normal_==Inpar::CONTACT::NitNor_sm)
+  //  else if (nit_normal_==CONTACT::NitNor_sm)
   //    FOUR_C_THROW("Want to use the element normal!");
 }
 
@@ -167,7 +167,7 @@ void CONTACT::IntegratorNitschePoro::so_ele_cauchy(Mortar::Element& moEle, doubl
     double& cauchy_nt, Core::Gen::Pairedvector<int, double>& deriv_sigma_nt_d,
     Core::Gen::Pairedvector<int, double>& deriv_sigma_nt_p)
 {
-  Core::LinAlg::Matrix<dim, 1> pxsi(true);
+  Core::LinAlg::Matrix<dim, 1> pxsi(Core::LinAlg::Initialization::zero);
   Core::LinAlg::Matrix<dim, dim> derivtravo_slave;
   CONTACT::Utils::map_gp_to_parent<dim>(moEle, boundary_gpcoord, gp_wgt, pxsi, derivtravo_slave);
 
@@ -177,15 +177,8 @@ void CONTACT::IntegratorNitschePoro::so_ele_cauchy(Mortar::Element& moEle, doubl
 
   if (!moEle.mo_data().parent_pf_pres().size())
   {
-    // The element can be either an old so3 element or a new solid element
-    if (auto* solid_ele = dynamic_cast<Discret::Elements::SoBase*>(moEle.parent_element());
-        solid_ele != nullptr)
-    {
-      solid_ele->get_cauchy_n_dir_and_derivatives_at_xi(pxsi, moEle.mo_data().parent_disp(), normal,
-          direction, sigma_nt, &dsntdd, nullptr, nullptr, nullptr, nullptr, &dsntdn, &dsntdt,
-          &dsntdpxi, nullptr, nullptr, nullptr, nullptr, nullptr);
-    }
-    else if (auto* solid_ele = dynamic_cast<Discret::Elements::Solid*>(moEle.parent_element());
+    // The element can be either a solid or solid-poro element
+    if (auto* solid_ele = dynamic_cast<Discret::Elements::Solid*>(moEle.parent_element());
         solid_ele != nullptr)
     {
       Discret::Elements::CauchyNDirLinearizations<3> cauchy_linearizations{};
@@ -194,8 +187,21 @@ void CONTACT::IntegratorNitschePoro::so_ele_cauchy(Mortar::Element& moEle, doubl
       cauchy_linearizations.d_cauchyndir_ddir = &dsntdt;
       cauchy_linearizations.d_cauchyndir_dxi = &dsntdpxi;
 
-      sigma_nt = solid_ele->get_normal_cauchy_stress_at_xi<3>(
+      sigma_nt = solid_ele->get_normal_cauchy_stress_at_xi(
           moEle.mo_data().parent_disp(), pxsi, normal, direction, cauchy_linearizations);
+    }
+    else if (auto* solid_ele = dynamic_cast<Discret::Elements::SolidPoroPressureVelocityBased*>(
+                 moEle.parent_element());
+        solid_ele != nullptr)
+    {
+      Discret::Elements::SolidPoroCauchyNDirLinearizations<3> cauchy_linearizations{};
+      cauchy_linearizations.solid.d_cauchyndir_dd = &dsntdd;
+      cauchy_linearizations.solid.d_cauchyndir_dn = &dsntdn;
+      cauchy_linearizations.solid.d_cauchyndir_ddir = &dsntdt;
+      cauchy_linearizations.solid.d_cauchyndir_dxi = &dsntdpxi;
+
+      sigma_nt = solid_ele->get_normal_cauchy_stress_at_xi(moEle.mo_data().parent_disp(),
+          std::nullopt, pxsi, normal, direction, cauchy_linearizations);
     }
     else
     {
@@ -204,11 +210,24 @@ void CONTACT::IntegratorNitschePoro::so_ele_cauchy(Mortar::Element& moEle, doubl
   }
   else
   {
-    dynamic_cast<Discret::Elements::So3Poro<Discret::Elements::SoHex8, Core::FE::CellType::hex8>*>(
-        moEle.parent_element())
-        ->get_cauchy_n_dir_and_derivatives_at_xi(pxsi, moEle.mo_data().parent_disp(),
-            moEle.mo_data().parent_pf_pres(), normal, direction, sigma_nt, &dsntdd, &dsntdp,
-            &dsntdn, &dsntdt, &dsntdpxi);
+    if (auto* solid_ele = dynamic_cast<Discret::Elements::SolidPoroPressureVelocityBased*>(
+            moEle.parent_element());
+        solid_ele != nullptr)
+    {
+      Discret::Elements::SolidPoroCauchyNDirLinearizations<3> cauchy_linearizations{};
+      cauchy_linearizations.solid.d_cauchyndir_dd = &dsntdd;
+      cauchy_linearizations.solid.d_cauchyndir_dn = &dsntdn;
+      cauchy_linearizations.solid.d_cauchyndir_ddir = &dsntdt;
+      cauchy_linearizations.solid.d_cauchyndir_dxi = &dsntdpxi;
+      cauchy_linearizations.d_cauchyndir_dp = &dsntdp;
+
+      sigma_nt = solid_ele->get_normal_cauchy_stress_at_xi(moEle.mo_data().parent_disp(),
+          moEle.mo_data().parent_pf_pres(), pxsi, normal, direction, cauchy_linearizations);
+    }
+    else
+    {
+      FOUR_C_THROW("Unsupported solid-poro element type");
+    }
   }
 
   cauchy_nt += w * sigma_nt;

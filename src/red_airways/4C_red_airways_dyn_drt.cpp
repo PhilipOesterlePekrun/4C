@@ -7,13 +7,12 @@
 
 #include "4C_red_airways_dyn_drt.hpp"
 
-#include "4C_adapter_str_redairway.hpp"
 #include "4C_global_data.hpp"
 #include "4C_io_control.hpp"
 #include "4C_io_pstream.hpp"
 #include "4C_red_airways_implicitintegration.hpp"
+#include "4C_red_airways_input.hpp"
 #include "4C_red_airways_resulttest.hpp"
-#include "4C_red_airways_tissue.hpp"
 #include "4C_utils_result_test.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
@@ -98,7 +97,7 @@ std::shared_ptr<Airway::RedAirwayImplicitTimeInt> dyn_red_airways_drt(bool Coupl
   airwaystimeparams.set("write solution every", rawdyn.get<int>("RESULTSEVERY"));
 
   // Solver type
-  airwaystimeparams.set("solver type", rawdyn.get<RedAirwaysDyntype>("SOLVERTYPE"));
+  airwaystimeparams.set("solver type", rawdyn.get<Airway::RedAirwaysSolvertype>("SOLVERTYPE"));
   // Tolerance
   airwaystimeparams.set("tolerance", rawdyn.get<double>("TOLERANCE"));
   // Maximum number of iterations
@@ -161,44 +160,6 @@ std::shared_ptr<Airway::RedAirwayImplicitTimeInt> dyn_red_airways_drt(bool Coupl
   {
     return airwayimplicit;
   }
-
-}  // end of dyn_red_airways_drt()
-
-
-/*----------------------------------------------------------------------*
- | dyn routine for redairway_tissue coupling                 roth 10/13 |
- *----------------------------------------------------------------------*/
-void redairway_tissue_dyn()
-{
-  const Teuchos::ParameterList& rawdyn =
-      Global::Problem::instance()->red_airway_tissue_dynamic_params();
-  std::shared_ptr<Core::FE::Discretization> actdis =
-      Global::Problem::instance()->get_dis("structure");
-  std::shared_ptr<Airway::RedAirwayTissue> redairway_tissue =
-      std::make_shared<Airway::RedAirwayTissue>(actdis->get_comm(), rawdyn);
-
-  // Read the restart information, set vectors and variables
-  const int restart = Global::Problem::instance()->restart();
-  if (restart)
-  {
-    redairway_tissue->read_restart(restart);
-  }
-
-  // Time integration loop for red_airway-tissue coupling
-  redairway_tissue->integrate();
-
-  // Print time monitor
-  Teuchos::TimeMonitor::summarize(std::cout, false, true, false);
-
-  // Resulttest for red_airway-tissue coupling
-  // create result tests for single fields
-  Global::Problem::instance()->add_field_test(
-      redairway_tissue->red_airway_field()->create_field_test());
-  Global::Problem::instance()->add_field_test(
-      redairway_tissue->structure_field()->create_field_test());
-
-  // Do the actual testing
-  Global::Problem::instance()->test_all(actdis->get_comm());
 }
 
 FOUR_C_NAMESPACE_CLOSE

@@ -9,11 +9,11 @@
 
 #include "4C_comm_exporter.hpp"
 #include "4C_coupling_adapter.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 #include "4C_linalg_vector.hpp"
 
 #include <Epetra_Export.h>
-#include <Epetra_Map.h>
 
 #include <memory>
 
@@ -35,22 +35,24 @@ Coupling::Adapter::CouplingMasterConverter::dst_to_src(
   return coup_.slave_to_master(*destination_vector);
 }
 
-std::shared_ptr<const Epetra_Map> Coupling::Adapter::CouplingMasterConverter::src_map() const
+std::shared_ptr<const Core::LinAlg::Map> Coupling::Adapter::CouplingMasterConverter::src_map() const
 {
   return coup_.master_dof_map();
 }
 
-std::shared_ptr<const Epetra_Map> Coupling::Adapter::CouplingMasterConverter::dst_map() const
+std::shared_ptr<const Core::LinAlg::Map> Coupling::Adapter::CouplingMasterConverter::dst_map() const
 {
   return coup_.slave_dof_map();
 }
 
-std::shared_ptr<const Epetra_Map> Coupling::Adapter::CouplingMasterConverter::perm_src_map() const
+std::shared_ptr<const Core::LinAlg::Map> Coupling::Adapter::CouplingMasterConverter::perm_src_map()
+    const
 {
   return coup_.perm_master_dof_map();
 }
 
-std::shared_ptr<const Epetra_Map> Coupling::Adapter::CouplingMasterConverter::perm_dst_map() const
+std::shared_ptr<const Core::LinAlg::Map> Coupling::Adapter::CouplingMasterConverter::perm_dst_map()
+    const
 {
   return coup_.perm_slave_dof_map();
 }
@@ -74,22 +76,24 @@ std::shared_ptr<Core::LinAlg::Vector<double>> Coupling::Adapter::CouplingSlaveCo
   return coup_.master_to_slave(*destination_vector);
 }
 
-std::shared_ptr<const Epetra_Map> Coupling::Adapter::CouplingSlaveConverter::src_map() const
+std::shared_ptr<const Core::LinAlg::Map> Coupling::Adapter::CouplingSlaveConverter::src_map() const
 {
   return coup_.slave_dof_map();
 }
 
-std::shared_ptr<const Epetra_Map> Coupling::Adapter::CouplingSlaveConverter::dst_map() const
+std::shared_ptr<const Core::LinAlg::Map> Coupling::Adapter::CouplingSlaveConverter::dst_map() const
 {
   return coup_.master_dof_map();
 }
 
-std::shared_ptr<const Epetra_Map> Coupling::Adapter::CouplingSlaveConverter::perm_src_map() const
+std::shared_ptr<const Core::LinAlg::Map> Coupling::Adapter::CouplingSlaveConverter::perm_src_map()
+    const
 {
   return coup_.perm_slave_dof_map();
 }
 
-std::shared_ptr<const Epetra_Map> Coupling::Adapter::CouplingSlaveConverter::perm_dst_map() const
+std::shared_ptr<const Core::LinAlg::Map> Coupling::Adapter::CouplingSlaveConverter::perm_dst_map()
+    const
 {
   return coup_.perm_master_dof_map();
 }
@@ -103,23 +107,23 @@ void Coupling::Adapter::CouplingSlaveConverter::fill_src_to_dst_map(
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
 bool Coupling::Adapter::MatrixLogicalSplitAndTransform::operator()(
-    const Core::LinAlg::SparseMatrix& src, const Epetra_Map& logical_range_map,
-    const Epetra_Map& logical_domain_map, double scale, const CouplingConverter* row_converter,
-    const CouplingConverter* col_converter, Core::LinAlg::SparseMatrix& dst, bool exactmatch,
-    bool addmatrix)
+    const Core::LinAlg::SparseMatrix& src, const Core::LinAlg::Map& logical_range_map,
+    const Core::LinAlg::Map& logical_domain_map, double scale,
+    const CouplingConverter* row_converter, const CouplingConverter* col_converter,
+    Core::LinAlg::SparseMatrix& dst, bool exactmatch, bool addmatrix)
 {
   std::shared_ptr<Epetra_CrsMatrix> esrc = src.epetra_matrix();
-  const Epetra_Map* final_range_map = &logical_range_map;
-  const Epetra_Map* matching_dst_rows = &logical_range_map;
+  const Core::LinAlg::Map* final_range_map = &logical_range_map;
+  const Core::LinAlg::Map* matching_dst_rows = &logical_range_map;
 
   if (row_converter)
   {
-    const Epetra_Map& permsrcmap = *row_converter->perm_src_map();
+    const Core::LinAlg::Map& permsrcmap = *row_converter->perm_src_map();
 
     // check if the permuted map is simply a subset of the current rowmap (no communication)
     int subset = 1;
     for (int i = 0; i < permsrcmap.NumMyElements(); ++i)
-      if (!src.row_map().MyGID(permsrcmap.GID(i)))
+      if (!src.row_map().MyGID(permsrcmap.get_epetra_map().GID(i)))
       {
         subset = 0;
         break;
@@ -134,15 +138,16 @@ bool Coupling::Adapter::MatrixLogicalSplitAndTransform::operator()(
     {
       if (exporter_ == nullptr)
       {
-        exporter_ = std::make_shared<Epetra_Export>(permsrcmap, src.row_map());
+        exporter_ = std::make_shared<Epetra_Export>(
+            permsrcmap.get_epetra_map(), src.row_map().get_epetra_map());
       }
 
       std::shared_ptr<Epetra_CrsMatrix> permsrc =
-          std::make_shared<Epetra_CrsMatrix>(::Copy, permsrcmap, 0);
+          std::make_shared<Epetra_CrsMatrix>(::Copy, permsrcmap.get_epetra_map(), 0);
       int err = permsrc->Import(*src.epetra_matrix(), *exporter_, Insert);
-      if (err) FOUR_C_THROW("Import failed with err=%d", err);
+      if (err) FOUR_C_THROW("Import failed with err={}", err);
 
-      permsrc->FillComplete(src.domain_map(), permsrcmap);
+      permsrc->FillComplete(src.domain_map().get_epetra_map(), permsrcmap.get_epetra_map());
       esrc = permsrc;
     }
 
@@ -150,8 +155,9 @@ bool Coupling::Adapter::MatrixLogicalSplitAndTransform::operator()(
     matching_dst_rows = row_converter->dst_map().get();
   }
 
-  setup_gid_map(col_converter ? *col_converter->src_map() : esrc->RowMap(), esrc->ColMap(),
-      col_converter, Core::Communication::unpack_epetra_comm(src.Comm()));
+  setup_gid_map(col_converter ? *col_converter->src_map() : Core::LinAlg::Map(esrc->RowMap()),
+      Core::LinAlg::Map(esrc->ColMap()), col_converter,
+      Core::Communication::unpack_epetra_comm(src.Comm()));
 
   if (!addmatrix) dst.zero();
 
@@ -166,8 +172,9 @@ bool Coupling::Adapter::MatrixLogicalSplitAndTransform::operator()(
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void Coupling::Adapter::MatrixLogicalSplitAndTransform::setup_gid_map(const Epetra_Map& rowmap,
-    const Epetra_Map& colmap, const CouplingConverter* converter, MPI_Comm comm)
+void Coupling::Adapter::MatrixLogicalSplitAndTransform::setup_gid_map(
+    const Core::LinAlg::Map& rowmap, const Core::LinAlg::Map& colmap,
+    const CouplingConverter* converter, MPI_Comm comm)
 {
   if (not havegidmap_)
   {
@@ -188,13 +195,14 @@ void Coupling::Adapter::MatrixLogicalSplitAndTransform::setup_gid_map(const Epet
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
 void Coupling::Adapter::MatrixLogicalSplitAndTransform::internal_add(Epetra_CrsMatrix& esrc,
-    const Epetra_Map& logical_range_map, const Epetra_Map& logical_domain_map,
-    const Epetra_Map& matching_dst_rows, Epetra_CrsMatrix& edst, bool exactmatch, double scale)
+    const Core::LinAlg::Map& logical_range_map, const Core::LinAlg::Map& logical_domain_map,
+    const Core::LinAlg::Map& matching_dst_rows, Epetra_CrsMatrix& edst, bool exactmatch,
+    double scale)
 {
   if (not esrc.Filled()) FOUR_C_THROW("filled source matrix expected");
 
   Core::LinAlg::Vector<double> dselector(esrc.DomainMap());
-  for (int i = 0; i < dselector.MyLength(); ++i)
+  for (int i = 0; i < dselector.local_length(); ++i)
   {
     const int gid = esrc.DomainMap().GID(i);
     if (logical_domain_map.MyGID(gid))
@@ -218,12 +226,12 @@ void Coupling::Adapter::MatrixLogicalSplitAndTransform::internal_add(Epetra_CrsM
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
 void Coupling::Adapter::MatrixLogicalSplitAndTransform::add_into_filled(Epetra_CrsMatrix& esrc,
-    const Epetra_Map& logical_range_map, const Epetra_Map& logical_domain_map,
-    const Core::LinAlg::Vector<double>& selector, const Epetra_Map& matching_dst_rows,
+    const Core::LinAlg::Map& logical_range_map, const Core::LinAlg::Map& logical_domain_map,
+    const Core::LinAlg::Vector<double>& selector, const Core::LinAlg::Map& matching_dst_rows,
     Epetra_CrsMatrix& edst, bool exactmatch, double scale)
 {
-  const Epetra_Map& srccolmap = esrc.ColMap();
-  const Epetra_Map& dstrowmap = edst.RowMap();
+  const Core::LinAlg::Map& srccolmap = Core::LinAlg::Map(esrc.ColMap());
+  const Core::LinAlg::Map& dstrowmap = Core::LinAlg::Map(edst.RowMap());
 
   // If the destination matrix is filled, we can add in local indices. This code is similar
   // to what is done in Core::LinAlg::Add(SparseMatrix, SparseMatrix) for the filled case.
@@ -254,12 +262,12 @@ void Coupling::Adapter::MatrixLogicalSplitAndTransform::add_into_filled(Epetra_C
     const int rowA = esrc.RowMap().LID(logical_range_map.GID(i));
     if (rowA == -1) FOUR_C_THROW("Internal error");
     int err = esrc.ExtractMyRowView(rowA, NumEntriesA, ValuesA, IndicesA);
-    if (err != 0) FOUR_C_THROW("ExtractMyRowView error: %d", err);
+    if (err != 0) FOUR_C_THROW("ExtractMyRowView error: {}", err);
 
     // identify the local row index in the destination matrix corresponding to i
     const int rowB = dstrowmap.LID(matching_dst_rows.GID(i));
     err = edst.ExtractMyRowView(rowB, NumEntriesB, ValuesB, IndicesB);
-    if (err != 0) FOUR_C_THROW("ExtractMyRowView error: %d", err);
+    if (err != 0) FOUR_C_THROW("ExtractMyRowView error: {}", err);
 
     // loop through the columns in source matrix and find respective place in destination
     for (int jA = 0, jB = 0; jA < NumEntriesA; ++jA)
@@ -271,7 +279,7 @@ void Coupling::Adapter::MatrixLogicalSplitAndTransform::add_into_filled(Epetra_C
       if (col == -1)
       {
         if (exactmatch)
-          FOUR_C_THROW("gid %d not found in map for lid %d at %d", srccolmap.GID(IndicesA[jA]),
+          FOUR_C_THROW("gid {} not found in map for lid {} at {}", srccolmap.GID(IndicesA[jA]),
               IndicesA[jA], jA);
         else
           continue;
@@ -289,8 +297,8 @@ void Coupling::Adapter::MatrixLogicalSplitAndTransform::add_into_filled(Epetra_C
       if (jB == NumEntriesB || IndicesB[jB] != col)
       {
         FOUR_C_THROW(
-            "Source matrix entry with global row ID %d and global column ID %d couldn't be added to"
-            " destination matrix entry with global row ID %d and unknown global column ID %d!",
+            "Source matrix entry with global row ID {} and global column ID {} couldn't be added to"
+            " destination matrix entry with global row ID {} and unknown global column ID {}!",
             esrc.RowMap().GID(i), srccolmap.GID(IndicesA[jA]), matching_dst_rows.GID(i),
             edst.ColMap().GID(col));
       }
@@ -305,11 +313,11 @@ void Coupling::Adapter::MatrixLogicalSplitAndTransform::add_into_filled(Epetra_C
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
 void Coupling::Adapter::MatrixLogicalSplitAndTransform::add_into_unfilled(Epetra_CrsMatrix& esrc,
-    const Epetra_Map& logical_range_map, const Epetra_Map& logical_domain_map,
-    const Core::LinAlg::Vector<double>& selector, const Epetra_Map& matching_dst_rows,
+    const Core::LinAlg::Map& logical_range_map, const Core::LinAlg::Map& logical_domain_map,
+    const Core::LinAlg::Vector<double>& selector, const Core::LinAlg::Map& matching_dst_rows,
     Epetra_CrsMatrix& edst, bool exactmatch, double scale)
 {
-  const Epetra_Map& srccolmap = esrc.ColMap();
+  const Core::LinAlg::Map& srccolmap = Core::LinAlg::Map(esrc.ColMap());
 
   // standard code for the unfilled case
   std::vector<int> idx;
@@ -322,7 +330,7 @@ void Coupling::Adapter::MatrixLogicalSplitAndTransform::add_into_unfilled(Epetra
     int* Indices;
     int err = esrc.ExtractMyRowView(
         esrc.RowMap().LID(logical_range_map.GID(i)), NumEntries, Values, Indices);
-    if (err != 0) FOUR_C_THROW("ExtractMyRowView error: %d", err);
+    if (err != 0) FOUR_C_THROW("ExtractMyRowView error: {}", err);
 
     idx.clear();
     vals.clear();
@@ -343,7 +351,7 @@ void Coupling::Adapter::MatrixLogicalSplitAndTransform::add_into_unfilled(Epetra
       {
         // only complain if an exact match is demanded
         if (exactmatch)
-          FOUR_C_THROW("gid %d not found in map for lid %d at %d", gid, Indices[j], j);
+          FOUR_C_THROW("gid {} not found in map for lid {} at {}", gid, Indices[j], j);
       }
     }
 
@@ -358,7 +366,7 @@ void Coupling::Adapter::MatrixLogicalSplitAndTransform::add_into_unfilled(Epetra
     if (edst.NumAllocatedGlobalEntries(globalRow) == 0)
     {
       int err = edst.InsertGlobalValues(globalRow, NumEntries, vals.data(), idx.data());
-      if (err < 0) FOUR_C_THROW("InsertGlobalValues error: %d", err);
+      if (err < 0) FOUR_C_THROW("InsertGlobalValues error: {}", err);
     }
     else
       for (int j = 0; j < NumEntries; ++j)
@@ -368,10 +376,10 @@ void Coupling::Adapter::MatrixLogicalSplitAndTransform::add_into_unfilled(Epetra
         if (err > 0)
         {
           err = edst.InsertGlobalValues(globalRow, 1, &vals[j], &idx[j]);
-          if (err < 0) FOUR_C_THROW("InsertGlobalValues error: %d", err);
+          if (err < 0) FOUR_C_THROW("InsertGlobalValues error: {}", err);
         }
         else if (err < 0)
-          FOUR_C_THROW("SumIntoGlobalValues error: %d", err);
+          FOUR_C_THROW("SumIntoGlobalValues error: {}", err);
       }
   }
 }
@@ -388,9 +396,10 @@ bool Coupling::Adapter::MatrixRowTransform::operator()(const Core::LinAlg::Spars
 
 
 
-bool Coupling::Adapter::MatrixColTransform::operator()(const Epetra_Map&, const Epetra_Map&,
-    const Core::LinAlg::SparseMatrix& src, double scale, const CouplingConverter& converter,
-    Core::LinAlg::SparseMatrix& dst, bool exactmatch, bool addmatrix)
+bool Coupling::Adapter::MatrixColTransform::operator()(const Core::LinAlg::Map&,
+    const Core::LinAlg::Map&, const Core::LinAlg::SparseMatrix& src, double scale,
+    const CouplingConverter& converter, Core::LinAlg::SparseMatrix& dst, bool exactmatch,
+    bool addmatrix)
 {
   return transformer_(src, src.range_map(), src.domain_map(), scale, nullptr, &converter, dst,
       exactmatch, addmatrix);

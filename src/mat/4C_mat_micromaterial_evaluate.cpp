@@ -9,12 +9,14 @@
 #include "4C_comm_mpi_utils.hpp"
 #include "4C_comm_pack_helpers.hpp"
 #include "4C_comm_utils.hpp"
+#include "4C_fem_discretization.hpp"
 #include "4C_global_data.hpp"
 #include "4C_linalg_utils_densematrix_svd.hpp"
 #include "4C_mat_micromaterial.hpp"
 #include "4C_mat_micromaterialgp_static.hpp"
 #include "4C_mat_par_bundle.hpp"
 #include "4C_stru_multi_microstatic.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -126,8 +128,8 @@ void Mat::MicroMaterial::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
 
   // maps are created and data is broadcast to the supporting procs
   int tag = 0;
-  Epetra_Map oldmap(1, 1, &tag, 0, Core::Communication::as_epetra_comm(subcomm));
-  Epetra_Map newmap(1, 1, &tag, 0, Core::Communication::as_epetra_comm(subcomm));
+  Core::LinAlg::Map oldmap(1, 1, &tag, 0, Core::Communication::as_epetra_comm(subcomm));
+  Core::LinAlg::Map newmap(1, 1, &tag, 0, Core::Communication::as_epetra_comm(subcomm));
   Core::Communication::Exporter exporter(oldmap, newmap, subcomm);
   exporter.do_export<MultiScale::MicroStaticParObject>(condnamemap);
 
@@ -135,15 +137,7 @@ void Mat::MicroMaterial::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
   if (matgp_.find(gp) == matgp_.end())
   {
     matgp_[gp] = std::make_shared<MicroMaterialGP>(gp, eleGID, eleowner, microdisnum, V0);
-
-    /// save density of this micromaterial
-    /// -> since we can assign only one material per element, all Gauss points have
-    /// the same density -> arbitrarily ask micromaterialgp at gp=0
-    if (gp == 0)
-    {
-      std::shared_ptr<MicroMaterialGP> actmicromatgp = matgp_[gp];
-      density_ = actmicromatgp->density();
-    }
+    initialize_density(gp);
   }
 
   std::shared_ptr<MicroMaterialGP> actmicromatgp = matgp_[gp];
@@ -243,6 +237,14 @@ void Mat::MicroMaterial::prepare_output()
   }
 }
 
+void Mat::MicroMaterial::initialize_density(const int gp)
+{
+  if (gp == 0)
+  {
+    density_ = matgp_[gp]->density();
+  }
+}
+
 // output for all procs
 void Mat::MicroMaterial::output_step_state()
 {
@@ -313,14 +315,15 @@ void Mat::MicroMaterial::read_restart(const int gp, const int eleID, const bool 
 
   // maps are created and data is broadcast to the supporting procs
   int tag = 0;
-  Epetra_Map oldmap(1, 1, &tag, 0, Core::Communication::as_epetra_comm(subcomm));
-  Epetra_Map newmap(1, 1, &tag, 0, Core::Communication::as_epetra_comm(subcomm));
+  Core::LinAlg::Map oldmap(1, 1, &tag, 0, Core::Communication::as_epetra_comm(subcomm));
+  Core::LinAlg::Map newmap(1, 1, &tag, 0, Core::Communication::as_epetra_comm(subcomm));
   Core::Communication::Exporter exporter(oldmap, newmap, subcomm);
   exporter.do_export<MultiScale::MicroStaticParObject>(condnamemap);
 
   if (matgp_.find(gp) == matgp_.end())
   {
     matgp_[gp] = std::make_shared<MicroMaterialGP>(gp, eleID, eleowner, microdisnum, V0);
+    initialize_density(gp);
   }
 
   std::shared_ptr<MicroMaterialGP> actmicromatgp = matgp_[gp];
@@ -335,6 +338,7 @@ void Mat::MicroMaterial::read_restart(
   if (matgp_.find(gp) == matgp_.end())
   {
     matgp_[gp] = std::make_shared<MicroMaterialGP>(gp, eleID, eleowner, microdisnum, V0);
+    initialize_density(gp);
   }
 
   std::shared_ptr<MicroMaterialGP> actmicromatgp = matgp_[gp];

@@ -14,8 +14,7 @@
 #include "4C_fem_dofset_base.hpp"
 #include "4C_fem_general_element.hpp"
 #include "4C_fem_general_node.hpp"
-
-#include <Epetra_Map.h>
+#include "4C_linalg_map.hpp"
 
 #include <memory>
 
@@ -44,10 +43,7 @@ namespace Core::DOFSets
           standard versions are called instead. The reason for this is, that boundary elements
           (which are face elements) built from a condition do not have unique GIDs, so
           a unique GID based mapping is not possible.
-
-    \author Andreas Rauch
-    \author Anh-Tu Vuong
-    \date 10/16    */
+*/
   class DofSetGIDBasedWrapper : public DofSetBase
   {
    public:
@@ -219,14 +215,14 @@ namespace Core::DOFSets
     };
 
     /// Get degree of freedom row map
-    const Epetra_Map* dof_row_map() const override
+    const Core::LinAlg::Map* dof_row_map() const override
     {
       check_is_assigned();
       return sourcedofset_->dof_row_map();
     };
 
     /// Get degree of freedom column map
-    const Epetra_Map* dof_col_map() const override
+    const Core::LinAlg::Map* dof_col_map() const override
     {
       check_is_assigned();
       return sourcedofset_->dof_col_map();
@@ -248,10 +244,10 @@ namespace Core::DOFSets
 
     /// Get Max of all GID assigned in the DofSets in front of current one in the list
     /// #static_dofsets_
-    int max_gi_din_list(MPI_Comm comm) const override
+    int max_gid_in_list(MPI_Comm comm) const override
     {
       check_is_assigned();
-      return sourcedofset_->max_gi_din_list(comm);
+      return sourcedofset_->max_gid_in_list(comm);
     };
 
     /// are the dof maps already initialized?

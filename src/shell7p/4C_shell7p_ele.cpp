@@ -68,7 +68,7 @@ Core::LinAlg::SerialDenseMatrix Discret::Elements::Shell7pType::compute_null_spa
 
   // set director
   const Core::LinAlg::SerialDenseMatrix nodal_directors = shell->get_directors();
-  Core::LinAlg::Matrix<Shell::Internal::num_dim, 1> director(true);
+  Core::LinAlg::Matrix<Shell::Internal::num_dim, 1> director(Core::LinAlg::Initialization::zero);
   for (int dim = 0; dim < Shell::Internal::num_dim; ++dim)
     director(dim, 0) = nodal_directors(j, dim) * half_thickness;
 
@@ -84,74 +84,74 @@ void Discret::Elements::Shell7pType::setup_element_definition(
   using namespace Core::IO::InputSpecBuilders;
 
   defsgeneral["QUAD4"] = all_of({
-      entry<std::vector<int>>("QUAD4", {.size = 4}),
-      entry<int>("MAT"),
-      entry<double>("THICK"),
-      entry<std::vector<std::string>>("EAS", {.size = 5}),
-      entry<double>("SDC"),
-      tag("ANS"),
-      entry<std::vector<double>>("RAD", {.required = false, .size = 3}),
-      entry<std::vector<double>>("AXI", {.required = false, .size = 3}),
-      entry<std::vector<double>>("CIR", {.required = false, .size = 3}),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
-      entry<std::vector<double>>("FIBER2", {.required = false, .size = 3}),
-      entry<std::vector<double>>("FIBER3", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("QUAD4", {.size = 4}),
+      parameter<int>("MAT"),
+      parameter<double>("THICK"),
+      parameter<std::vector<std::string>>("EAS", {.size = 5}),
+      parameter<double>("SDC"),
+      parameter<bool>("USE_ANS", {.default_value = false}),
+      parameter<std::optional<std::vector<double>>>("RAD", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("AXI", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("CIR", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("FIBER2", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("FIBER3", {.size = 3}),
   });
 
   defsgeneral["QUAD8"] = all_of({
-      entry<std::vector<int>>("QUAD8", {.size = 8}),
-      entry<int>("MAT"),
-      entry<double>("THICK"),
-      entry<std::vector<std::string>>("EAS", {.size = 5}),
-      entry<double>("SDC"),
-      tag("ANS"),
-      entry<std::vector<double>>("RAD", {.required = false, .size = 3}),
-      entry<std::vector<double>>("AXI", {.required = false, .size = 3}),
-      entry<std::vector<double>>("CIR", {.required = false, .size = 3}),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
-      entry<std::vector<double>>("FIBER2", {.required = false, .size = 3}),
-      entry<std::vector<double>>("FIBER3", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("QUAD8", {.size = 8}),
+      parameter<int>("MAT"),
+      parameter<double>("THICK"),
+      parameter<std::vector<std::string>>("EAS", {.size = 5}),
+      parameter<double>("SDC"),
+      parameter<bool>("USE_ANS", {.default_value = false}),
+      parameter<std::optional<std::vector<double>>>("RAD", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("AXI", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("CIR", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("FIBER2", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("FIBER3", {.size = 3}),
   });
 
   defsgeneral["QUAD9"] = all_of({
-      entry<std::vector<int>>("QUAD9", {.size = 9}),
-      entry<int>("MAT"),
-      entry<double>("THICK"),
-      entry<std::vector<std::string>>("EAS", {.size = 5}),
-      entry<double>("SDC"),
-      tag("ANS"),
-      entry<std::vector<double>>("RAD", {.required = false, .size = 3}),
-      entry<std::vector<double>>("AXI", {.required = false, .size = 3}),
-      entry<std::vector<double>>("CIR", {.required = false, .size = 3}),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
-      entry<std::vector<double>>("FIBER2", {.required = false, .size = 3}),
-      entry<std::vector<double>>("FIBER3", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("QUAD9", {.size = 9}),
+      parameter<int>("MAT"),
+      parameter<double>("THICK"),
+      parameter<std::vector<std::string>>("EAS", {.size = 5}),
+      parameter<double>("SDC"),
+      parameter<bool>("USE_ANS", {.default_value = false}),
+      parameter<std::optional<std::vector<double>>>("RAD", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("AXI", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("CIR", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("FIBER2", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("FIBER3", {.size = 3}),
   });
 
   defsgeneral["TRI3"] = all_of({
-      entry<std::vector<int>>("TRI3", {.size = 3}),
-      entry<int>("MAT"),
-      entry<double>("THICK"),
-      entry<double>("SDC"),
-      entry<std::vector<double>>("RAD", {.required = false, .size = 3}),
-      entry<std::vector<double>>("AXI", {.required = false, .size = 3}),
-      entry<std::vector<double>>("CIR", {.required = false, .size = 3}),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
-      entry<std::vector<double>>("FIBER2", {.required = false, .size = 3}),
-      entry<std::vector<double>>("FIBER3", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("TRI3", {.size = 3}),
+      parameter<int>("MAT"),
+      parameter<double>("THICK"),
+      parameter<double>("SDC"),
+      parameter<std::optional<std::vector<double>>>("RAD", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("AXI", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("CIR", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("FIBER2", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("FIBER3", {.size = 3}),
   });
 
   defsgeneral["TRI6"] = all_of({
-      entry<std::vector<int>>("TRI6", {.size = 6}),
-      entry<int>("MAT"),
-      entry<double>("THICK"),
-      entry<double>("SDC"),
-      entry<std::vector<double>>("RAD", {.required = false, .size = 3}),
-      entry<std::vector<double>>("AXI", {.required = false, .size = 3}),
-      entry<std::vector<double>>("CIR", {.required = false, .size = 3}),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
-      entry<std::vector<double>>("FIBER2", {.required = false, .size = 3}),
-      entry<std::vector<double>>("FIBER3", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("TRI6", {.size = 6}),
+      parameter<int>("MAT"),
+      parameter<double>("THICK"),
+      parameter<double>("SDC"),
+      parameter<std::optional<std::vector<double>>>("RAD", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("AXI", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("CIR", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("FIBER2", {.size = 3}),
+      parameter<std::optional<std::vector<double>>>("FIBER3", {.size = 3}),
   });
 }
 
@@ -343,7 +343,7 @@ bool Discret::Elements::Shell7p::read_element(const std::string& eletype,
   if (distype_ == Core::FE::CellType::quad4 or distype_ == Core::FE::CellType::quad6 or
       distype_ == Core::FE::CellType::quad9)
   {
-    if (container.get<bool>("ANS"))
+    if (container.get<bool>("USE_ANS"))
     {
       shell_data.num_ans = Solid::Utils::Shell::ReadElement::read_and_set_num_ans(distype_);
     }

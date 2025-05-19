@@ -15,7 +15,7 @@ FOUR_C_NAMESPACE_OPEN
 
 
 
-int CONSTRAINTS::ConstraintDofSet::assign_degrees_of_freedom(
+int Constraints::ConstraintDofSet::assign_degrees_of_freedom(
     const std::shared_ptr<Core::FE::Discretization> dis, const int ndofs, const int start)
 {
   // A definite offset is currently not supported.
@@ -23,7 +23,7 @@ int CONSTRAINTS::ConstraintDofSet::assign_degrees_of_freedom(
 
   // Add DofSets in order of assignment to list. Once it is there it has its
   // place and will get its starting id from the previous DofSet.
-  add_dof_setto_list();
+  add_dof_set_to_list();
 
   // We assume that all dof sets before this one have been set up. Otherwise
   // we'd have to reorder the list.
@@ -41,16 +41,16 @@ int CONSTRAINTS::ConstraintDofSet::assign_degrees_of_freedom(
   // try to understand what you do.
 
   // Get highest GID used so far and add one
-  const int count = max_gi_din_list(dis->get_comm()) + 1;
+  const int count = max_gid_in_list(dis->get_comm()) + 1;
 
   // dofrowmap with index base = count, which is undesired
-  Epetra_Map dofrowmap(ndofs, count, Core::Communication::as_epetra_comm(dis->get_comm()));
+  Core::LinAlg::Map dofrowmap(ndofs, count, Core::Communication::as_epetra_comm(dis->get_comm()));
 
   std::vector<int> gids;
   for (int i = 0; i < dofrowmap.NumMyElements(); i++) gids.push_back(dofrowmap.GID(i));
 
   // dofrowmap with index base = 0
-  dofrowmap_ = std::make_shared<Epetra_Map>(
+  dofrowmap_ = std::make_shared<Core::LinAlg::Map>(
       -1, gids.size(), gids.data(), 0, Core::Communication::as_epetra_comm(dis->get_comm()));
 
   return count;

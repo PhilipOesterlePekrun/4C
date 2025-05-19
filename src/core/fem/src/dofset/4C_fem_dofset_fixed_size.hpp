@@ -11,8 +11,7 @@
 #include "4C_config.hpp"
 
 #include "4C_fem_dofset.hpp"
-
-#include <Epetra_Map.h>
+#include "4C_linalg_map.hpp"
 
 #include <map>
 #include <memory>
@@ -30,8 +29,6 @@ namespace Core::DOFSets
 {
   /*!
   \brief A set of degrees of freedom
-
-  \author
   */
   class FixedSizeDofSet : virtual public DofSet
   {

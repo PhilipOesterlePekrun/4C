@@ -213,7 +213,7 @@ namespace Adapter
     virtual void set_step_end(int step_end) = 0;
 
     /// Take the time and integrate (time loop)
-    /// \date 11/08
+
     int integrate() override = 0;
 
     /// fixme: this can go when the old structure time integration is gone and PerformErrorAction is
@@ -318,8 +318,6 @@ namespace Adapter
     Therefore, we need to reset the solution back to the initial solution of the
     time step.
 
-    \author mayr.mt
-    \date 08/2013
     */
     void reset_step() override = 0;
 
@@ -415,18 +413,21 @@ namespace Adapter
     /// @name Misc
     ///@{
     /// dof map of vector of unknowns
-    std::shared_ptr<const Epetra_Map> dof_row_map() override = 0;
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map() override = 0;
 
     /// DOF map of vector of unknowns for multiple dofsets
-    std::shared_ptr<const Epetra_Map> dof_row_map(unsigned nds) override = 0;
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map(unsigned nds) override = 0;
 
     /// DOF map view of vector of unknowns
-    const Epetra_Map* dof_row_map_view() override = 0;
+    const Core::LinAlg::Map* dof_row_map_view() override = 0;
 
     /// domain map of system matrix (do we really need this?)
     /// ToDo Replace the deprecated version with the new version
-    [[nodiscard]] virtual const Epetra_Map& get_mass_domain_map() const = 0;
-    [[nodiscard]] const Epetra_Map& domain_map() const override { return get_mass_domain_map(); }
+    [[nodiscard]] virtual const Core::LinAlg::Map& get_mass_domain_map() const = 0;
+    [[nodiscard]] const Core::LinAlg::Map& domain_map() const override
+    {
+      return get_mass_domain_map();
+    }
 
     /// direct access to system matrix
     std::shared_ptr<Core::LinAlg::SparseMatrix> system_matrix() override = 0;
@@ -458,7 +459,7 @@ namespace Adapter
     bool have_constraint() override = 0;
 
     /// get constraint manager defined in the structure
-    std::shared_ptr<CONSTRAINTS::ConstrManager> get_constraint_manager() override = 0;
+    std::shared_ptr<Constraints::ConstrManager> get_constraint_manager() override = 0;
 
     /// Get type of thickness scaling for thin shell structures
     Inpar::Solid::StcScale get_stc_algo() override = 0;
@@ -492,7 +493,7 @@ namespace Adapter
     }
 
     /// get SpringDashpot manager defined in the structure
-    std::shared_ptr<CONSTRAINTS::SpringDashpotManager> get_spring_dashpot_manager() override
+    std::shared_ptr<Constraints::SpringDashpotManager> get_spring_dashpot_manager() override
     {
       FOUR_C_THROW("This function seems to be unused!");
       return nullptr;
@@ -540,8 +541,7 @@ namespace Adapter
      *   variant from outside, because these vectors should always be consistent with
      *   our primary variable (i.e. the displacements).
      *
-     *  \author rauch
-     *  \date 10/17
+
      */
     void set_state(const std::shared_ptr<Core::LinAlg::Vector<double>>& x) override = 0;
 
@@ -570,7 +570,7 @@ namespace Adapter
      *
      *  This can be used e.g. by coupled problems.
      *
-     *  \date 11/16 */
+     */
     void register_model_evaluator(
         const std::string name, std::shared_ptr<Solid::ModelEvaluator::Generic> me);
 
@@ -633,8 +633,7 @@ namespace Adapter
      *  The constructor is supposed to stay empty. If you need a safety check, you can overload
      *  the Generic::check_init() and Generic::check_init_setup() routines, instead.
      *
-     *  \author hiermeier
-     *  \date 09/16 */
+     */
     void set_model_types(std::set<enum Inpar::Solid::ModelType>& modeltypes) const;
 
     /// Set all found model types.

@@ -7,65 +7,77 @@
 
 #include "4C_inpar_pasi.hpp"
 
-#include "4C_utils_parameter_list.hpp"
-
+#include "4C_io_input_spec_builders.hpp"
 FOUR_C_NAMESPACE_OPEN
 
 /*---------------------------------------------------------------------------*
  | set valid parameters for pasi                                             |
  *---------------------------------------------------------------------------*/
-void Inpar::PaSI::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::PaSI::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
-  using Teuchos::tuple;
+  using namespace Core::IO::InputSpecBuilders;
 
-  Teuchos::ParameterList& pasidyn = list.sublist("PASI DYNAMIC", false,
-      "general control parameters for particle structure interaction problems");
+  list["PASI DYNAMIC"] = group("PASI DYNAMIC",
+      {
 
-  // time loop control
-  Core::Utils::int_parameter("RESULTSEVERY", 1, "Increment for writing solution", &pasidyn);
-  Core::Utils::int_parameter("RESTARTEVERY", 1, "Increment for writing restart", &pasidyn);
-  Core::Utils::double_parameter("TIMESTEP", 0.01, "Time increment dt", &pasidyn);
-  Core::Utils::int_parameter("NUMSTEP", 100, "Total number of Timesteps", &pasidyn);
-  Core::Utils::double_parameter("MAXTIME", 1.0, "Total simulation time", &pasidyn);
+          // time loop control
+          parameter<int>("RESULTSEVERY",
+              {.description = "Increment for writing solution", .default_value = 1}),
+          parameter<int>(
+              "RESTARTEVERY", {.description = "Increment for writing restart", .default_value = 1}),
 
-  // type of partitioned coupling
-  setStringToIntegralParameter<PartitionedCouplingType>("COUPLING", "partitioned_onewaycoup",
-      "partitioned coupling strategies for particle structure interaction",
-      tuple<std::string>("partitioned_onewaycoup", "partitioned_twowaycoup",
-          "partitioned_twowaycoup_disprelax", "partitioned_twowaycoup_disprelaxaitken"),
-      tuple<PartitionedCouplingType>(partitioned_onewaycoup, partitioned_twowaycoup,
-          partitioned_twowaycoup_disprelax, partitioned_twowaycoup_disprelaxaitken),
-      &pasidyn);
+          parameter<double>(
+              "TIMESTEP", {.description = "Time increment dt", .default_value = 0.01}),
+          parameter<int>(
+              "NUMSTEP", {.description = "Total number of Timesteps", .default_value = 100}),
 
-  // partitioned iteration dependent parameters
-  Core::Utils::int_parameter(
-      "ITEMAX", 10, "maximum number of partitioned iterations over fields", &pasidyn);
+          parameter<double>(
+              "MAXTIME", {.description = "Total simulation time", .default_value = 1.0}),
 
-  Core::Utils::double_parameter("CONVTOLSCALEDDISP", -1.0,
-      "tolerance of dof and dt scaled interface displacement increments in partitioned iterations",
-      &pasidyn);
+          // type of partitioned coupling
+          parameter<PartitionedCouplingType>("COUPLING",
+              {.description = "partitioned coupling strategies for particle structure interaction",
+                  .default_value = partitioned_onewaycoup}),
 
-  Core::Utils::double_parameter("CONVTOLRELATIVEDISP", -1.0,
-      "tolerance of relative interface displacement increments in partitioned iterations",
-      &pasidyn);
+          // partitioned iteration dependent parameters
+          parameter<int>(
+              "ITEMAX", {.description = "maximum number of partitioned iterations over fields",
+                            .default_value = 10}),
 
-  Core::Utils::double_parameter("CONVTOLSCALEDFORCE", -1.0,
-      "tolerance of dof and dt scaled interface force increments in partitioned iterations",
-      &pasidyn);
+          parameter<double>("CONVTOLSCALEDDISP",
+              {.description = "tolerance of dof and dt scaled interface displacement "
+                              "increments in partitioned iterations",
+                  .default_value = -1.0}),
 
-  Core::Utils::double_parameter("CONVTOLRELATIVEFORCE", -1.0,
-      "tolerance of relative interface force increments in partitioned iterations", &pasidyn);
+          parameter<double>(
+              "CONVTOLRELATIVEDISP", {.description = "tolerance of relative interface displacement "
+                                                     "increments in partitioned iterations",
+                                         .default_value = -1.0}),
 
-  Core::Utils::bool_parameter(
-      "IGNORE_CONV_CHECK", "no", "ignore convergence check and proceed simulation", &pasidyn);
+          parameter<double>("CONVTOLSCALEDFORCE",
+              {.description = "tolerance of dof and dt scaled interface force "
+                              "increments in partitioned iterations",
+                  .default_value = -1.0}),
 
-  // parameters for relaxation
-  Core::Utils::double_parameter("STARTOMEGA", 1.0, "fixed relaxation parameter", &pasidyn);
-  Core::Utils::double_parameter(
-      "MAXOMEGA", 10.0, "largest omega allowed for Aitken relaxation", &pasidyn);
-  Core::Utils::double_parameter(
-      "MINOMEGA", 0.1, "smallest omega allowed for Aitken relaxation", &pasidyn);
+          parameter<double>("CONVTOLRELATIVEFORCE",
+              {.description =
+                      "tolerance of relative interface force increments in partitioned iterations",
+                  .default_value = -1.0}),
+
+          parameter<bool>("IGNORE_CONV_CHECK",
+              {.description = "ignore convergence check and proceed simulation",
+                  .default_value = false}),
+
+          // parameters for relaxation
+          parameter<double>(
+              "STARTOMEGA", {.description = "fixed relaxation parameter", .default_value = 1.0}),
+          parameter<double>(
+              "MAXOMEGA", {.description = "largest omega allowed for Aitken relaxation",
+                              .default_value = 10.0}),
+          parameter<double>(
+              "MINOMEGA", {.description = "smallest omega allowed for Aitken relaxation",
+                              .default_value = 0.1})},
+      {.defaultable = true});
 }
 
 FOUR_C_NAMESPACE_CLOSE

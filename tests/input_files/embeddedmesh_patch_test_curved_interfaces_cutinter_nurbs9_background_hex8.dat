@@ -25,7 +25,7 @@ NLNSOL                                fullnewton
 TIMESTEP                              1
 NUMSTEP                               1
 MAXTIME                               2.0
-DAMPING                               No
+DAMPING                               None
 M_DAMP                                0.00001
 K_DAMP                                0.00001
 TOLRES                                1.E-6
@@ -38,6 +38,7 @@ DIVERCONT                             stop
 ------------------------------------------------------------------------SOLVER 1
 NAME                                  Struct_Solver
 SOLVER                                Belos
+IFPACK_XML_FILE                       xml/preconditioner/ifpack.xml
 --------------------------------------------------------------------XFEM GENERAL
 GMSH_DEBUG_OUT                        Yes
 GMSH_CUT_OUT                          Yes
@@ -56,26 +57,22 @@ MORTAR_SHAPE_FUNCTION                 nurbs9
 CONSTRAINT_ENFORCEMENT                penalty
 CONSTRAINT_ENFORCEMENT_PENALTYPARAM   100
 ---------------------------------DESIGN EMBEDDED SOLID VOL BACKGROUND CONDITIONS
-DVOL                                  1
-E 3 - COUPLINGID 1
+E 3 COUPLINGID 1
 -----------------------------------------------------------------------MATERIALS
 MAT 1 MAT_Struct_StVenantKirchhoff YOUNG 1 NUE 0.3 DENS 7.8e-07
 -----------------------------DESIGN EMBEDDED MESH SOLID SURF COUPLING CONDITIONS
-DSURF 2
-E 2 - COUPLINGID 1
-E 8 - COUPLINGID 1
+E 2 COUPLINGID 1
+E 8 COUPLINGID 1
 ---------------------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF 7
-E 3 - NUMDOF 3 ONOFF 1 0 0 VAL 0 0 0 FUNCT 0 0 0
-E 4 - NUMDOF 3 ONOFF 0 0 1 VAL 0 0 0 FUNCT 0 0 0
-E 12 - NUMDOF 3 ONOFF 0 0 1 VAL 0 0 0 FUNCT 0 0 0
-E 7 - NUMDOF 3 ONOFF 0 1 0 VAL 0 0 0 FUNCT 0 0 0
-E 9 - NUMDOF 3 ONOFF 1 0 0 VAL 0 0 0 FUNCT 0 0 0
-E 13 - NUMDOF 3 ONOFF 1 0 0 VAL 0 0 0 FUNCT 0 0 0
-E 14 - NUMDOF 3 ONOFF 0 0 1 VAL 0 0 0 FUNCT 0 0 0
+E 3 NUMDOF 3 ONOFF 1 0 0 VAL 0 0 0 FUNCT 0 0 0
+E 4 NUMDOF 3 ONOFF 0 0 1 VAL 0 0 0 FUNCT 0 0 0
+E 12 NUMDOF 3 ONOFF 0 0 1 VAL 0 0 0 FUNCT 0 0 0
+E 7 NUMDOF 3 ONOFF 0 1 0 VAL 0 0 0 FUNCT 0 0 0
+E 9 NUMDOF 3 ONOFF 1 0 0 VAL 0 0 0 FUNCT 0 0 0
+E 13 NUMDOF 3 ONOFF 1 0 0 VAL 0 0 0 FUNCT 0 0 0
+E 14 NUMDOF 3 ONOFF 0 0 1 VAL 0 0 0 FUNCT 0 0 0
 ---------------------------------------------------DESIGN SURF NEUMANN CONDITIONS
-DSURF 1
-E 1 - NUMDOF 3 ONOFF 0 1 0 VAL 0 -0.01 0 FUNCT 0 0 0
+E 1 NUMDOF 3 ONOFF 0 1 0 VAL 0 -0.01 0 FUNCT 0 0 0
 -----------------------------------------------------------STRUCTURE KNOTVECTORS
 NURBS_DIMENSION                       3
 BEGIN                                 NURBSPATCH

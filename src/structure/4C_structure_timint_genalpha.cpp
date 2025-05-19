@@ -17,6 +17,7 @@
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
 #include "4C_structure_aux.hpp"
 #include "4C_structure_new_impl_genalpha.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -76,7 +77,7 @@ void Solid::TimIntGenAlpha::verify_coeff()
   if (midavg_ != Inpar::Solid::midavg_trlike)
     FOUR_C_THROW("mid-averaging of internal forces only implemented TR-like");
   else
-    std::cout << "   midavg = " << Inpar::Solid::mid_average_string(midavg_) << '\n';
+    std::cout << "   midavg = " << midavg_ << '\n';
 }
 
 /*----------------------------------------------------------------------*/
@@ -150,7 +151,7 @@ void Solid::TimIntGenAlpha::setup()
   // call setup() in base class
   Solid::TimIntImpl::setup();
 
-  if (!have_nonlinear_mass())
+  if (have_nonlinear_mass() == Inpar::Solid::MassLin::ml_none)
   {
     // determine mass, damping and initial accelerations
     determine_mass_damp_consist_accel();
@@ -161,7 +162,7 @@ void Solid::TimIntGenAlpha::setup()
      * vanishing initial accelerations, i.e. the initial external
      * forces and initial velocities have to be chosen consistently!!!
      */
-    (*acc_)(0)->PutScalar(0.0);
+    (*acc_)(0)->put_scalar(0.0);
   }
 
   // create state vectors
@@ -221,7 +222,7 @@ void Solid::TimIntGenAlpha::setup()
   pwindk.set("time_step_size", (*dt_)[0]);
   apply_force_stiff_cardiovascular0_d((*time_)[0], (*dis_)(0), fint_, stiff_, pwindk);
 
-  if (have_nonlinear_mass() == Inpar::Solid::ml_none)
+  if (have_nonlinear_mass() == Inpar::Solid::MassLin::ml_none)
   {
     // set initial internal force vector
     apply_force_stiff_internal(
@@ -239,7 +240,8 @@ void Solid::TimIntGenAlpha::setup()
 
     nonlinear_mass_sanity_check(fext_, (*dis_)(0), (*vel_)(0), (*acc_)(0), &sdynparams_);
 
-    if (have_nonlinear_mass() == Inpar::Solid::ml_rotations and !solely_beam3_elements(*discret_))
+    if (have_nonlinear_mass() == Inpar::Solid::MassLin::ml_rotations and
+        !solely_beam3_elements(*discret_))
     {
       FOUR_C_THROW(
           "Multiplicative Gen-Alpha time integration scheme only implemented for beam elements so "
@@ -248,7 +250,7 @@ void Solid::TimIntGenAlpha::setup()
   }
 
   // init old time step value
-  if (fintn_str_ != nullptr) fint_str_->Update(1., *fintn_str_, 0.);
+  if (fintn_str_ != nullptr) fint_str_->update(1., *fintn_str_, 0.);
 }
 
 /*----------------------------------------------------------------------*/
@@ -257,20 +259,20 @@ void Solid::TimIntGenAlpha::setup()
 void Solid::TimIntGenAlpha::predict_const_dis_consist_vel_acc()
 {
   // constant predictor : displacement in domain
-  disn_->Update(1.0, *(*dis_)(0), 0.0);
+  disn_->update(1.0, *(*dis_)(0), 0.0);
 
   // consistent velocities following Newmark formulas
-  veln_->Update(1.0, *disn_, -1.0, *(*dis_)(0), 0.0);
-  veln_->Update((beta_ - gamma_) / beta_, *(*vel_)(0),
+  veln_->update(1.0, *disn_, -1.0, *(*dis_)(0), 0.0);
+  veln_->update((beta_ - gamma_) / beta_, *(*vel_)(0),
       (2. * beta_ - gamma_) * (*dt_)[0] / (2. * beta_), *(*acc_)(0), gamma_ / (beta_ * (*dt_)[0]));
 
   // consistent accelerations following Newmark formulas
-  accn_->Update(1.0, *disn_, -1.0, *(*dis_)(0), 0.0);
-  accn_->Update(-1. / (beta_ * (*dt_)[0]), *(*vel_)(0), (2. * beta_ - 1.) / (2. * beta_),
+  accn_->update(1.0, *disn_, -1.0, *(*dis_)(0), 0.0);
+  accn_->update(-1. / (beta_ * (*dt_)[0]), *(*vel_)(0), (2. * beta_ - 1.) / (2. * beta_),
       *(*acc_)(0), 1. / (beta_ * (*dt_)[0] * (*dt_)[0]));
 
   // reset the residual displacement
-  disi_->PutScalar(0.0);
+  disi_->put_scalar(0.0);
 }
 
 /*----------------------------------------------------------------------*/
@@ -280,20 +282,20 @@ void Solid::TimIntGenAlpha::predict_const_vel_consist_acc()
 {
   // extrapolated displacements based upon constant velocities
   // d_{n+1} = d_{n} + dt * v_{n}
-  disn_->Update(1.0, (*dis_)[0], (*dt_)[0], (*vel_)[0], 0.0);
+  disn_->update(1.0, (*dis_)[0], (*dt_)[0], (*vel_)[0], 0.0);
 
   // consistent velocities following Newmark formulas
-  veln_->Update(1.0, *disn_, -1.0, *(*dis_)(0), 0.0);
-  veln_->Update((beta_ - gamma_) / beta_, *(*vel_)(0),
+  veln_->update(1.0, *disn_, -1.0, *(*dis_)(0), 0.0);
+  veln_->update((beta_ - gamma_) / beta_, *(*vel_)(0),
       (2. * beta_ - gamma_) * (*dt_)[0] / (2. * beta_), *(*acc_)(0), gamma_ / (beta_ * (*dt_)[0]));
 
   // consistent accelerations following Newmark formulas
-  accn_->Update(1.0, *disn_, -1.0, *(*dis_)(0), 0.0);
-  accn_->Update(-1. / (beta_ * (*dt_)[0]), *(*vel_)(0), (2. * beta_ - 1.) / (2. * beta_),
+  accn_->update(1.0, *disn_, -1.0, *(*dis_)(0), 0.0);
+  accn_->update(-1. / (beta_ * (*dt_)[0]), *(*vel_)(0), (2. * beta_ - 1.) / (2. * beta_),
       *(*acc_)(0), 1. / (beta_ * (*dt_)[0] * (*dt_)[0]));
 
   // reset the residual displacement
-  disi_->PutScalar(0.0);
+  disi_->put_scalar(0.0);
 }
 
 /*----------------------------------------------------------------------*/
@@ -303,18 +305,18 @@ void Solid::TimIntGenAlpha::predict_const_acc()
 {
   // extrapolated displacements based upon constant accelerations
   // d_{n+1} = d_{n} + dt * v_{n} + dt^2 / 2 * a_{n}
-  disn_->Update(1.0, (*dis_)[0], (*dt_)[0], (*vel_)[0], 0.0);
-  disn_->Update((*dt_)[0] * (*dt_)[0] / 2., (*acc_)[0], 1.0);
+  disn_->update(1.0, (*dis_)[0], (*dt_)[0], (*vel_)[0], 0.0);
+  disn_->update((*dt_)[0] * (*dt_)[0] / 2., (*acc_)[0], 1.0);
 
   // extrapolated velocities (equal to consistent velocities)
   // v_{n+1} = v_{n} + dt * a_{n}
-  veln_->Update(1.0, (*vel_)[0], (*dt_)[0], (*acc_)[0], 0.0);
+  veln_->update(1.0, (*vel_)[0], (*dt_)[0], (*acc_)[0], 0.0);
 
   // constant accelerations (equal to consistent accelerations)
-  accn_->Update(1.0, (*acc_)[0], 0.0);
+  accn_->update(1.0, (*acc_)[0], 0.0);
 
   // reset the residual displacement
-  disi_->PutScalar(0.0);
+  disi_->put_scalar(0.0);
 }
 
 /*----------------------------------------------------------------------*/
@@ -339,20 +341,20 @@ void Solid::TimIntGenAlpha::evaluate_force_stiff_residual(Teuchos::ParameterList
   // ************************** (1) EXTERNAL FORCES ***************************
 
   // build new external forces
-  fextn_->PutScalar(0.0);
+  fextn_->put_scalar(0.0);
   apply_force_stiff_external(timen_, (*dis_)(0), disn_, (*vel_)(0), *fextn_, stiff_);
 
   // additional external forces are added (e.g. interface forces)
-  fextn_->Update(1.0, *fifc_, 1.0);
+  fextn_->update(1.0, *fifc_, 1.0);
 
   // external mid-forces F_{ext;n+1-alpha_f} ----> TR-like
   // F_{ext;n+1-alpha_f} := (1.-alphaf) * F_{ext;n+1} + alpha_f * F_{ext;n}
-  fextm_->Update(1. - alphaf_, *fextn_, alphaf_, *fext_, 0.0);
+  fextm_->update(1. - alphaf_, *fextn_, alphaf_, *fext_, 0.0);
 
   // ************************** (2) INTERNAL FORCES ***************************
-  fintn_->PutScalar(0.0);
+  fintn_->put_scalar(0.0);
   // build new internal forces and stiffness
-  if (have_nonlinear_mass() == Inpar::Solid::ml_none)
+  if (have_nonlinear_mass() == Inpar::Solid::MassLin::ml_none)
   {
     apply_force_stiff_internal(
         timen_, (*dt_)[0], disn_, disi_, veln_, fintn_, stiff_, params, damp_);
@@ -368,7 +370,7 @@ void Solid::TimIntGenAlpha::evaluate_force_stiff_residual(Teuchos::ParameterList
 
     // If we have nonlinear inertia forces, the corresponding contributions are computed together
     // with the internal forces
-    finertn_->PutScalar(0.0);
+    finertn_->put_scalar(0.0);
     mass_->zero();
 
     // In general the nonlinear inertia force can depend on displacements, velocities and
@@ -412,15 +414,15 @@ void Solid::TimIntGenAlpha::evaluate_force_stiff_residual(Teuchos::ParameterList
 
   // total internal mid-forces F_{int;n+1-alpha_f} ----> TR-like
   // F_{int;n+1-alpha_f} := (1.-alphaf) * F_{int;n+1} + alpha_f * F_{int;n}
-  fintm_->Update(1. - alphaf_, *fintn_, alphaf_, *fint_, 0.0);
+  fintm_->update(1. - alphaf_, *fintn_, alphaf_, *fint_, 0.0);
 
   // ************************** (3) INERTIA FORCES ***************************
 
   // build new inertia forces and stiffness
-  if (have_nonlinear_mass() == Inpar::Solid::ml_none)
+  if (have_nonlinear_mass() == Inpar::Solid::MassLin::ml_none)
   {
     // build new inertia forces and stiffness
-    finertm_->PutScalar(0.0);
+    finertm_->put_scalar(0.0);
     // inertia forces #finertm_
     mass_->multiply(false, *accm_, *finertm_);
   }
@@ -428,7 +430,7 @@ void Solid::TimIntGenAlpha::evaluate_force_stiff_residual(Teuchos::ParameterList
   {
     // total inertia mid-forces F_{inert;n+1-alpha_m} ----> TR-like
     // F_{inert;n+1-alpha_m} := (1.-alpham) * F_{inert;n+1} + alpha_m * F_{inert;n}
-    finertm_->Update(1. - alpham_, *finertn_, alpham_, *finert_, 0.0);
+    finertm_->update(1. - alpham_, *finertn_, alpham_, *finert_, 0.0);
   }
 
   // ************************** (4) DAMPING FORCES ****************************
@@ -442,19 +444,19 @@ void Solid::TimIntGenAlpha::evaluate_force_stiff_residual(Teuchos::ParameterList
   // ******************** Finally, put everything together ********************
 
   // build residual and tangent matrix for standard case
-  if (have_nonlinear_mass() != Inpar::Solid::ml_rotations)
+  if (have_nonlinear_mass() != Inpar::Solid::MassLin::ml_rotations)
   {
     // build residual
     //    Res = M . A_{n+1-alpha_m}
     //        + C . V_{n+1-alpha_f}
     //        + F_{int;n+1-alpha_f}
     //        - F_{ext;n+1-alpha_f}
-    fres_->Update(-1.0, *fextm_, 0.0);
-    fres_->Update(1.0, *fintm_, 1.0);
-    fres_->Update(1.0, *finertm_, 1.0);
+    fres_->update(-1.0, *fextm_, 0.0);
+    fres_->update(1.0, *fintm_, 1.0);
+    fres_->update(1.0, *finertm_, 1.0);
     if (damping_ == Inpar::Solid::damp_rayleigh)
     {
-      fres_->Update(1.0, *fviscm_, 1.0);
+      fres_->update(1.0, *fviscm_, 1.0);
     }
 
     // build tangent matrix : effective dynamic stiffness matrix
@@ -489,11 +491,11 @@ void Solid::TimIntGenAlpha::evaluate_force_stiff_residual(Teuchos::ParameterList
   {
     // total internal mid-forces F_{int;n+1-alpha_f} ----> TR-like
     // F_{int;n+1-alpha_f} := (1.-alphaf) * F_{int;n+1} + alpha_f * F_{int;n}
-    fresn_str_->Update(1., *fintn_str_, 0.);
-    fresn_str_->Update(alphaf_, *fint_str_, 1. - alphaf_);
-    fresn_str_->Update(-1.0, *fextm_, 1.0);
-    fresn_str_->Update(1.0, *finertm_, 1.0);
-    if (damping_ == Inpar::Solid::damp_rayleigh) fresn_str_->Update(1.0, *fviscm_, 1.0);
+    fresn_str_->update(1., *fintn_str_, 0.);
+    fresn_str_->update(alphaf_, *fint_str_, 1. - alphaf_);
+    fresn_str_->update(-1.0, *fextm_, 1.0);
+    fresn_str_->update(1.0, *finertm_, 1.0);
+    if (damping_ == Inpar::Solid::damp_rayleigh) fresn_str_->update(1.0, *fviscm_, 1.0);
     Core::LinAlg::apply_dirichlet_to_system(*fresn_str_, *zeros_, *(dbcmaps_->cond_map()));
   }
 
@@ -510,16 +512,16 @@ void Solid::TimIntGenAlpha::evaluate_force_stiff_residual_relax(Teuchos::Paramet
   evaluate_force_stiff_residual(params);
 
   // overwrite the residual forces #fres_ with interface load
-  if (have_nonlinear_mass() != Inpar::Solid::ml_rotations)
+  if (have_nonlinear_mass() != Inpar::Solid::MassLin::ml_rotations)
   {
     // standard case
-    fres_->Update(-1 + alphaf_, *fifc_, 0.0);
+    fres_->update(-1 + alphaf_, *fifc_, 0.0);
   }
   else
   {
     // Remark: In the case of an multiplicative Gen-Alpha time integration scheme, all forces are
     // evaluated at the end point n+1.
-    fres_->Update(-1.0, *fifc_, 0.0);
+    fres_->update(-1.0, *fifc_, 0.0);
   }
 }
 
@@ -533,22 +535,22 @@ void Solid::TimIntGenAlpha::evaluate_force_residual()
   // ************************** (1) EXTERNAL FORCES ***************************
 
   // build new external forces
-  fextn_->PutScalar(0.0);
+  fextn_->put_scalar(0.0);
   apply_force_external(timen_, (*dis_)(0), disn_, (*vel_)(0), *fextn_);
 
   // additional external forces are added (e.g. interface forces)
-  fextn_->Update(1.0, *fifc_, 1.0);
+  fextn_->update(1.0, *fifc_, 1.0);
 
   // external mid-forces F_{ext;n+1-alpha_f} ----> TR-like
   // F_{ext;n+1-alpha_f} := (1.-alphaf) * F_{ext;n+1} + alpha_f * F_{ext;n}
-  fextm_->Update(1. - alphaf_, *fextn_, alphaf_, *fext_, 0.0);
+  fextm_->update(1. - alphaf_, *fextn_, alphaf_, *fext_, 0.0);
 
   // ************************** (2) INTERNAL FORCES ***************************
 
-  fintn_->PutScalar(0.0);
+  fintn_->put_scalar(0.0);
 
   // build new internal forces and stiffness
-  if (have_nonlinear_mass() == Inpar::Solid::ml_none)
+  if (have_nonlinear_mass() == Inpar::Solid::MassLin::ml_none)
   {
     apply_force_internal(timen_, (*dt_)[0], disn_, disi_, veln_, fintn_);
   }
@@ -559,15 +561,15 @@ void Solid::TimIntGenAlpha::evaluate_force_residual()
 
   // total internal mid-forces F_{int;n+1-alpha_f} ----> TR-like
   // F_{int;n+1-alpha_f} := (1.-alphaf) * F_{int;n+1} + alpha_f * F_{int;n}
-  fintm_->Update(1. - alphaf_, *fintn_, alphaf_, *fint_, 0.0);
+  fintm_->update(1. - alphaf_, *fintn_, alphaf_, *fint_, 0.0);
 
   // ************************** (3) INERTIAL FORCES ***************************
 
   // build new inertia forces and stiffness
-  if (have_nonlinear_mass() == Inpar::Solid::ml_none)
+  if (have_nonlinear_mass() == Inpar::Solid::MassLin::ml_none)
   {
     // build new inertia forces and stiffness
-    finertm_->PutScalar(0.0);
+    finertm_->put_scalar(0.0);
     // inertia forces #finertm_
     mass_->multiply(false, *accm_, *finertm_);
   }
@@ -587,19 +589,19 @@ void Solid::TimIntGenAlpha::evaluate_force_residual()
   // ******************** Finally, put everything together ********************
 
   // build residual and tangent matrix for standard case
-  if (have_nonlinear_mass() != Inpar::Solid::ml_rotations)
+  if (have_nonlinear_mass() != Inpar::Solid::MassLin::ml_rotations)
   {
     // build residual
     //    Res = M . A_{n+1-alpha_m}
     //        + C . V_{n+1-alpha_f}
     //        + F_{int;n+1-alpha_f}
     //        - F_{ext;n+1-alpha_f}
-    fres_->Update(-1.0, *fextm_, 0.0);
-    fres_->Update(1.0, *fintm_, 1.0);
-    fres_->Update(1.0, *finertm_, 1.0);
+    fres_->update(-1.0, *fextm_, 0.0);
+    fres_->update(1.0, *fintm_, 1.0);
+    fres_->update(1.0, *finertm_, 1.0);
     if (damping_ == Inpar::Solid::damp_rayleigh)
     {
-      fres_->Update(1.0, *fviscm_, 1.0);
+      fres_->update(1.0, *fviscm_, 1.0);
     }
   }
   else /* build residual vector and tangent matrix if a multiplicative Gen-Alpha
@@ -613,11 +615,11 @@ void Solid::TimIntGenAlpha::evaluate_force_residual()
   {
     // total internal mid-forces F_{int;n+1-alpha_f} ----> TR-like
     // F_{int;n+1-alpha_f} := (1.-alphaf) * F_{int;n+1} + alpha_f * F_{int;n}
-    fresn_str_->Update(1., *fintn_str_, 0.);
-    fresn_str_->Update(alphaf_, *fint_str_, 1. - alphaf_);
-    fresn_str_->Update(-1.0, *fextm_, 1.0);
-    fresn_str_->Update(1.0, *finertm_, 1.0);
-    if (damping_ == Inpar::Solid::damp_rayleigh) fresn_str_->Update(1.0, *fviscm_, 1.0);
+    fresn_str_->update(1., *fintn_str_, 0.);
+    fresn_str_->update(alphaf_, *fint_str_, 1. - alphaf_);
+    fresn_str_->update(-1.0, *fextm_, 1.0);
+    fresn_str_->update(1.0, *finertm_, 1.0);
+    if (damping_ == Inpar::Solid::damp_rayleigh) fresn_str_->update(1.0, *fviscm_, 1.0);
 
     Core::LinAlg::apply_dirichlet_to_system(*fresn_str_, *zeros_, *(dbcmaps_->cond_map()));
   }
@@ -629,15 +631,15 @@ void Solid::TimIntGenAlpha::evaluate_mid_state()
 {
   // mid-displacements D_{n+1-alpha_f} (dism)
   //    D_{n+1-alpha_f} := (1.-alphaf) * D_{n+1} + alpha_f * D_{n}
-  dism_->Update(1. - alphaf_, *disn_, alphaf_, (*dis_)[0], 0.0);
+  dism_->update(1. - alphaf_, *disn_, alphaf_, (*dis_)[0], 0.0);
 
   // mid-velocities V_{n+1-alpha_f} (velm)
   //    V_{n+1-alpha_f} := (1.-alphaf) * V_{n+1} + alpha_f * V_{n}
-  velm_->Update(1. - alphaf_, *veln_, alphaf_, (*vel_)[0], 0.0);
+  velm_->update(1. - alphaf_, *veln_, alphaf_, (*vel_)[0], 0.0);
 
   // mid-accelerations A_{n+1-alpha_m} (accm)
   //    A_{n+1-alpha_m} := (1.-alpha_m) * A_{n+1} + alpha_m * A_{n}
-  accm_->Update(1. - alpham_, *accn_, alpham_, (*acc_)[0], 0.0);
+  accm_->update(1. - alpham_, *accn_, alpham_, (*acc_)[0], 0.0);
 }
 
 /*----------------------------------------------------------------------*/
@@ -687,16 +689,16 @@ void Solid::TimIntGenAlpha::update_iter_incrementally()
 
   // new end-point displacements
   // D_{n+1}^{<k+1>} := D_{n+1}^{<k>} + IncD_{n+1}^{<k>}
-  disn_->Update(1.0, *disi_, 1.0);
+  disn_->update(1.0, *disi_, 1.0);
 
   // new end-point velocities
-  veln_->Update(1.0, *disn_, -1.0, (*dis_)[0], 0.0);
-  veln_->Update((beta_ - gamma_) / beta_, (*vel_)[0], (2.0 * beta_ - gamma_) * dt / (2.0 * beta_),
+  veln_->update(1.0, *disn_, -1.0, (*dis_)[0], 0.0);
+  veln_->update((beta_ - gamma_) / beta_, (*vel_)[0], (2.0 * beta_ - gamma_) * dt / (2.0 * beta_),
       (*acc_)[0], gamma_ / (beta_ * dt));
 
   // new end-point accelerations
-  accn_->Update(1.0, *disn_, -1.0, (*dis_)[0], 0.0);
-  accn_->Update(-1.0 / (beta_ * dt), (*vel_)[0], (2.0 * beta_ - 1.0) / (2.0 * beta_), (*acc_)[0],
+  accn_->update(1.0, *disn_, -1.0, (*dis_)[0], 0.0);
+  accn_->update(-1.0 / (beta_ * dt), (*vel_)[0], (2.0 * beta_ - 1.0) / (2.0 * beta_), (*acc_)[0],
       1.0 / (beta_ * dt * dt));
 }
 
@@ -706,13 +708,13 @@ void Solid::TimIntGenAlpha::update_iter_iteratively()
 {
   // new end-point displacements
   // D_{n+1}^{<k+1>} := D_{n+1}^{<k>} + IncD_{n+1}^{<k>}
-  disn_->Update(1.0, *disi_, 1.0);
+  disn_->update(1.0, *disi_, 1.0);
 
   // new end-point velocities
-  veln_->Update(gamma_ / (beta_ * (*dt_)[0]), *disi_, 1.0);
+  veln_->update(gamma_ / (beta_ * (*dt_)[0]), *disi_, 1.0);
 
   // new end-point accelerations
-  accn_->Update(1.0 / (beta_ * (*dt_)[0] * (*dt_)[0]), *disi_, 1.0);
+  accn_->update(1.0 / (beta_ * (*dt_)[0] * (*dt_)[0]), *disi_, 1.0);
 }
 
 /*----------------------------------------------------------------------*/
@@ -738,18 +740,18 @@ void Solid::TimIntGenAlpha::update_step_state()
 
   // update new external force
   //    F_{ext;n} := F_{ext;n+1}
-  fext_->Update(1.0, *fextn_, 0.0);
+  fext_->update(1.0, *fextn_, 0.0);
 
   // update new internal force
   //    F_{int;n} := F_{int;n+1}
-  fint_->Update(1.0, *fintn_, 0.0);
+  fint_->update(1.0, *fintn_, 0.0);
 
   // update new inertial force
   //    F_{inert;n} := F_{inert;n+1}
-  finert_->Update(1.0, *finertn_, 0.0);
+  finert_->update(1.0, *finertn_, 0.0);
 
   // update residual force vector for NewtonLS
-  if (fresn_str_ != nullptr) fint_str_->Update(1., *fintn_str_, 0.);
+  if (fresn_str_ != nullptr) fint_str_->update(1., *fintn_str_, 0.);
 
   // update constraints
   update_step_constraint();
@@ -782,9 +784,9 @@ void Solid::TimIntGenAlpha::update_step_element()
 
   // go to elements
   discret_->clear_state();
-  discret_->set_state("displacement", (*dis_)(0));
+  discret_->set_state("displacement", *(*dis_)(0));
 
-  if (!have_nonlinear_mass())
+  if (have_nonlinear_mass() == Inpar::Solid::MassLin::ml_none)
   {
     discret_->evaluate(p, nullptr, nullptr, nullptr, nullptr, nullptr);
   }
@@ -796,8 +798,8 @@ void Solid::TimIntGenAlpha::update_step_element()
      * rule has to be implemented in the element, otherwise displacements,
      * velocities and accelerations remain unchanged.
      */
-    discret_->set_state("velocity", (*vel_)(0));
-    discret_->set_state("acceleration", (*acc_)(0));
+    discret_->set_state("velocity", *(*vel_)(0));
+    discret_->set_state("acceleration", *(*acc_)(0));
 
     std::shared_ptr<Core::LinAlg::Vector<double>> update_disp;
     update_disp = Core::LinAlg::create_vector(*dof_row_map_view(), true);
@@ -811,12 +813,12 @@ void Solid::TimIntGenAlpha::update_step_element()
 
     discret_->evaluate(p, nullptr, nullptr, update_disp, update_vel, update_acc);
 
-    disn_->Update(1.0, *update_disp, 1.0);
-    (*dis_)(0)->Update(1.0, *update_disp, 1.0);
-    veln_->Update(1.0, *update_vel, 1.0);
-    (*vel_)(0)->Update(1.0, *update_vel, 1.0);
-    accn_->Update(1.0, *update_acc, 1.0);
-    (*acc_)(0)->Update(1.0, *update_acc, 1.0);
+    disn_->update(1.0, *update_disp, 1.0);
+    (*dis_)(0)->update(1.0, *update_disp, 1.0);
+    veln_->update(1.0, *update_vel, 1.0);
+    (*vel_)(0)->update(1.0, *update_vel, 1.0);
+    accn_->update(1.0, *update_acc, 1.0);
+    (*acc_)(0)->update(1.0, *update_acc, 1.0);
   }
 
   discret_->clear_state();
@@ -859,9 +861,9 @@ void Solid::TimIntGenAlpha::build_res_stiff_nl_mass_rot(Core::LinAlg::Vector<dou
    * Remark: In the case of an multiplicative Gen-Alpha time integration scheme,
    * all forces are evaluated at the end point n+1.
    */
-  fres_.Update(-1.0, fextn_, 0.0);
-  fres_.Update(1.0, fintn_, 1.0);
-  fres_.Update(1.0, finertn_, 1.0);
+  fres_.update(-1.0, fextn_, 0.0);
+  fres_.update(1.0, fintn_, 1.0);
+  fres_.update(1.0, finertn_, 1.0);
 
   /* build tangent matrix : effective dynamic stiffness matrix
    *    K_{Teffdyn} = M

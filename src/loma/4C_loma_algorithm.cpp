@@ -144,12 +144,12 @@ void LowMach::Algorithm::setup()
       FOUR_C_THROW("Incorrect number of dof sets in fluid field!");
 
     // create combined map for loma problem
-    std::vector<std::shared_ptr<const Epetra_Map>> dofrowmaps;
+    std::vector<std::shared_ptr<const Core::LinAlg::Map>> dofrowmaps;
 
     // insert actual (zeroth) map of the discretization: first fluid, then scatra
     {
       dofrowmaps.push_back(fluid_field()->dof_row_map(0));
-      const Epetra_Map* dofrowmapscatra = (scatra_field()->discretization())->dof_row_map(0);
+      const Core::LinAlg::Map* dofrowmapscatra = (scatra_field()->discretization())->dof_row_map(0);
       dofrowmaps.push_back(Core::Utils::shared_ptr_from_ref(*dofrowmapscatra));
     }
 
@@ -157,7 +157,8 @@ void LowMach::Algorithm::setup()
     if (dofrowmaps[0]->NumGlobalElements() == 0) FOUR_C_THROW("No fluid elements!");
     if (dofrowmaps[1]->NumGlobalElements() == 0) FOUR_C_THROW("No scatra elements!");
 
-    std::shared_ptr<Epetra_Map> fullmap = Core::LinAlg::MultiMapExtractor::merge_maps(dofrowmaps);
+    std::shared_ptr<Core::LinAlg::Map> fullmap =
+        Core::LinAlg::MultiMapExtractor::merge_maps(dofrowmaps);
 
     // full loma block dofrowmap
     lomablockdofrowmap_.setup(*fullmap, dofrowmaps);
@@ -180,7 +181,7 @@ void LowMach::Algorithm::setup()
 
     if (solvertype != Core::LinearSolver::SolverType::belos)
       FOUR_C_THROW(
-          "SOLVER %i is not valid for LOMA. It has to be an iterative Solver (with BGS2x2 block "
+          "SOLVER {} is not valid for LOMA. It has to be an iterative Solver (with BGS2x2 block "
           "preconditioner)",
           linsolvernumber);
 
@@ -188,7 +189,7 @@ void LowMach::Algorithm::setup()
         lomasolverparams, "AZPREC");
     if (azprectype != Core::LinearSolver::PreconditionerType::block_teko)
       FOUR_C_THROW(
-          "SOLVER %i is not valid for LOMA. It has to be an iterative Solver with 2x2 block "
+          "SOLVER {} is not valid for LOMA. It has to be an iterative Solver with 2x2 block "
           "preconditioner",
           linsolvernumber);
 
@@ -249,9 +250,10 @@ void LowMach::Algorithm::setup()
     zeros_ = std::make_shared<Core::LinAlg::Vector<double>>(*lomablockdofrowmap_.full_map(), true);
 
     // create combined Dirichlet boundary condition map
-    const std::shared_ptr<const Epetra_Map> fdbcmap =
+    const std::shared_ptr<const Core::LinAlg::Map> fdbcmap =
         fluid_field()->get_dbc_map_extractor()->cond_map();
-    const std::shared_ptr<const Epetra_Map> sdbcmap = scatra_field()->dirich_maps()->cond_map();
+    const std::shared_ptr<const Core::LinAlg::Map> sdbcmap =
+        scatra_field()->dirich_maps()->cond_map();
     lomadbcmap_ = Core::LinAlg::merge_map(fdbcmap, sdbcmap, false);
   }
 
@@ -309,10 +311,13 @@ void LowMach::Algorithm::time_loop()
 /*----------------------------------------------------------------------*/
 void LowMach::Algorithm::initial_calculations()
 {
-  // set initial velocity field for evaluation of initial scalar time
-  // derivative in SCATRA
-  scatra_field()->set_velocity_field(
-      fluid_field()->velnp(), nullptr, nullptr, fluid_field()->fs_vel());
+  // set initial velocity field for evaluation of initial scalar time derivative in SCATRA
+  scatra_field()->set_convective_velocity(*fluid_field()->velnp());
+  scatra_field()->set_velocity_field(*fluid_field()->velnp());
+  if (scatra_field()->fine_scale_velocity_field_required())
+  {
+    scatra_field()->set_fine_scale_velocity(*fluid_field()->fs_vel());
+  }
 
   // set initial value of thermodynamic pressure in SCATRA
   std::dynamic_pointer_cast<ScaTra::ScaTraTimIntLoma>(scatra_field())->set_initial_therm_pressure();
@@ -326,11 +331,6 @@ void LowMach::Algorithm::initial_calculations()
   fluid_field()->set_scalar_fields(scatra_field()->phinp(),
       std::dynamic_pointer_cast<ScaTra::ScaTraTimIntLoma>(scatra_field())->therm_press_np(),
       nullptr, scatra_field()->discretization());
-
-  // write initial fields
-  // output();
-
-  return;
 }
 
 
@@ -530,8 +530,6 @@ void LowMach::Algorithm::mono_loop()
     // check convergence and stop iteration loop if convergence is achieved
     stopnonliniter = convergence_check(itnum);
   }
-
-  return;
 }
 
 
@@ -545,22 +543,32 @@ void LowMach::Algorithm::set_fluid_values_in_scatra()
   {
     case Inpar::FLUID::timeint_afgenalpha:
     {
-      scatra_field()->set_velocity_field(
-          fluid_field()->velaf(), fluid_field()->accam(), nullptr, fluid_field()->fs_vel(), true);
+      scatra_field()->set_acceleration_field(*fluid_field()->accam());
+      scatra_field()->set_convective_velocity(*fluid_field()->velaf());
+      scatra_field()->set_velocity_field(*fluid_field()->velaf());
+      if (scatra_field()->fine_scale_velocity_field_required() and
+          fluid_field()->fs_vel() != nullptr)
+      {
+        scatra_field()->set_fine_scale_velocity(*fluid_field()->fs_vel());
+      }
     }
     break;
     case Inpar::FLUID::timeint_one_step_theta:
     case Inpar::FLUID::timeint_bdf2:
     {
-      scatra_field()->set_velocity_field(
-          fluid_field()->velnp(), fluid_field()->hist(), nullptr, fluid_field()->fs_vel(), true);
+      scatra_field()->set_acceleration_field(*fluid_field()->hist());
+      scatra_field()->set_convective_velocity(*fluid_field()->velnp());
+      scatra_field()->set_velocity_field(*fluid_field()->velnp());
+      if (scatra_field()->fine_scale_velocity_field_required() and
+          fluid_field()->fs_vel() != nullptr)
+      {
+        scatra_field()->set_fine_scale_velocity(*fluid_field()->fs_vel());
+      }
     }
     break;
     default:
       FOUR_C_THROW("Time integration scheme not supported");
-      break;
   }
-  return;
 }
 
 
@@ -631,7 +639,7 @@ void LowMach::Algorithm::setup_mono_loma_matrix()
   mat_ff->un_complete();
 
   // assign matrix block
-  lomasystemmatrix_->assign(0, 0, Core::LinAlg::View, *mat_ff);
+  lomasystemmatrix_->assign(0, 0, Core::LinAlg::DataAccess::View, *mat_ff);
 
   //----------------------------------------------------------------------
   // 2nd diagonal block (lower right): scatra weighting - scatra solution
@@ -643,7 +651,7 @@ void LowMach::Algorithm::setup_mono_loma_matrix()
   mat_ss->un_complete();
 
   // assign matrix block
-  lomasystemmatrix_->assign(1, 1, Core::LinAlg::View, *mat_ss);
+  lomasystemmatrix_->assign(1, 1, Core::LinAlg::DataAccess::View, *mat_ss);
 
   // complete loma block matrix
   lomasystemmatrix_->complete();
@@ -663,7 +671,7 @@ void LowMach::Algorithm::setup_mono_loma_matrix()
   mat_fs->un_complete();
 
   // assign matrix block
-  lomasystemmatrix_->assign(0, 1, Core::LinAlg::View, *mat_fs);
+  lomasystemmatrix_->assign(0, 1, Core::LinAlg::DataAccess::View, *mat_fs);
 
   //----------------------------------------------------------------------
   // 2nd off-diagonal block (lower left): scatra weighting - fluid solution
@@ -681,7 +689,7 @@ void LowMach::Algorithm::setup_mono_loma_matrix()
   mat_sf->un_complete();
 
   // assign matrix block
-  lomasystemmatrix_->assign(1, 0, Core::LinAlg::View, *mat_sf);
+  lomasystemmatrix_->assign(1, 0, Core::LinAlg::DataAccess::View, *mat_sf);
 
   // complete loma block matrix
   lomasystemmatrix_->complete();
@@ -701,10 +709,10 @@ void LowMach::Algorithm::evaluate_loma_od_block_mat_fluid(
 
   // set general vector values needed by elements
   fluid_field()->discretization()->clear_state();
-  fluid_field()->discretization()->set_state(0, "hist", fluid_field()->hist());
-  fluid_field()->discretization()->set_state(0, "accam", fluid_field()->accam());
-  fluid_field()->discretization()->set_state(0, "scaaf", fluid_field()->scaaf());
-  fluid_field()->discretization()->set_state(0, "scaam", fluid_field()->scaam());
+  fluid_field()->discretization()->set_state(0, "hist", *fluid_field()->hist());
+  fluid_field()->discretization()->set_state(0, "accam", *fluid_field()->accam());
+  fluid_field()->discretization()->set_state(0, "scaaf", *fluid_field()->scaaf());
+  fluid_field()->discretization()->set_state(0, "scaam", *fluid_field()->scaam());
 
   // set time-integration-scheme-specific element parameters and vector values
   if (fluid_field()->tim_int_scheme() == Inpar::FLUID::timeint_afgenalpha)
@@ -720,7 +728,7 @@ void LowMach::Algorithm::evaluate_loma_od_block_mat_fluid(
         std::dynamic_pointer_cast<ScaTra::ScaTraTimIntLoma>(scatra_field())->therm_press_dt_am());
 
     // set velocity vector
-    fluid_field()->discretization()->set_state(0, "velaf", fluid_field()->velaf());
+    fluid_field()->discretization()->set_state(0, "velaf", *fluid_field()->velaf());
   }
   else if (fluid_field()->tim_int_scheme() == Inpar::FLUID::timeint_one_step_theta)
   {
@@ -735,7 +743,7 @@ void LowMach::Algorithm::evaluate_loma_od_block_mat_fluid(
         std::dynamic_pointer_cast<ScaTra::ScaTraTimIntLoma>(scatra_field())->therm_press_dt_np());
 
     // set velocity vector
-    fluid_field()->discretization()->set_state(0, "velaf", fluid_field()->velnp());
+    fluid_field()->discretization()->set_state(0, "velaf", *fluid_field()->velnp());
   }
   else
     FOUR_C_THROW("Time integration scheme not supported");
@@ -775,7 +783,7 @@ void LowMach::Algorithm::mono_loma_system_solve()
   check_is_setup();
 
   // set incremental solution vector to zero
-  lomaincrement_->PutScalar(0.0);
+  lomaincrement_->put_scalar(0.0);
 
   // apply Dirichlet boundary conditions to system
   Core::LinAlg::apply_dirichlet_to_system(

@@ -10,6 +10,7 @@
 #include "4C_comm_pack_helpers.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_io_input_spec_builders.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_exceptions.hpp"
 #include "4C_utils_shared_ptr_from_ref.hpp"
 
@@ -59,11 +60,11 @@ void Discret::Elements::ArteryType::setup_element_definition(
   using namespace Core::IO::InputSpecBuilders;
 
   defs["LINE2"] = all_of({
-      entry<std::vector<int>>("LINE2", {.size = 2}),
-      entry<int>("MAT"),
-      entry<int>("GP"),
-      entry<std::string>("TYPE"),
-      entry<double>("DIAM"),
+      parameter<std::vector<int>>("LINE2", {.size = 2}),
+      parameter<int>("MAT"),
+      parameter<int>("GP"),
+      parameter<std::string>("TYPE"),
+      parameter<double>("DIAM"),
   });
 }
 
@@ -110,7 +111,7 @@ Core::FE::CellType Discret::Elements::Artery::shape() const
     case 2:
       return Core::FE::CellType::line2;
     default:
-      FOUR_C_THROW("unexpected number of nodes %d", num_node());
+      FOUR_C_THROW("unexpected number of nodes {}", num_node());
   }
 }
 
@@ -158,6 +159,30 @@ void Discret::Elements::Artery::unpack(Core::Communication::UnpackBuffer& buffer
 std::vector<std::shared_ptr<Core::Elements::Element>> Discret::Elements::Artery::lines()
 {
   return {Core::Utils::shared_ptr_from_ref(*this)};
+}
+
+int Discret::Elements::Artery::num_dof_per_node(const Core::Nodes::Node& node) const
+{
+  switch (impltype_)
+  {
+    case Inpar::ArtDyn::impltype_lin_exp:
+    {
+      return 2;
+      break;
+    }
+    case Inpar::ArtDyn::impltype_pressure_based:
+    {
+      return 1;
+      break;
+    }
+    default:
+    {
+      FOUR_C_THROW("Defined problem type {} does not exist!!", impltype_);
+      break;
+    }
+  }
+
+  return 0;
 }
 
 

@@ -17,7 +17,7 @@
 
 FOUR_C_NAMESPACE_OPEN
 
-namespace GEOMETRYPAIR
+namespace GeometryPair
 {
   /**
    * \brief Struct to evaluate the shape functions for an element
@@ -65,7 +65,7 @@ namespace GEOMETRYPAIR
       }
       else
       {
-        FOUR_C_THROW("Got unexpected element dimension %d", ElementType::element_dim_);
+        FOUR_C_THROW("Got unexpected element dimension {}", ElementType::element_dim_);
       }
     }
 
@@ -97,7 +97,7 @@ namespace GEOMETRYPAIR
       }
       else
       {
-        FOUR_C_THROW("Got unexpected element dimension %d", ElementType::element_dim_);
+        FOUR_C_THROW("Got unexpected element dimension {}", ElementType::element_dim_);
       }
     }
   };
@@ -174,7 +174,7 @@ namespace GEOMETRYPAIR
       }
       else
       {
-        FOUR_C_THROW("Got unexpected element dimension %d", ElementType::element_dim_);
+        FOUR_C_THROW("Got unexpected element dimension {}", ElementType::element_dim_);
       }
     }
 
@@ -210,7 +210,7 @@ namespace GEOMETRYPAIR
       }
       else
       {
-        FOUR_C_THROW("Got unexpected element dimension %d", ElementType::element_dim_);
+        FOUR_C_THROW("Got unexpected element dimension {}", ElementType::element_dim_);
       }
     }
   };
@@ -233,7 +233,7 @@ namespace GEOMETRYPAIR
   {
     // Matrix for shape function values.
     Core::LinAlg::Matrix<1, ElementType::n_nodes_ * ElementType::n_val_, ScalarTypeResult> N_flat(
-        true);
+        Core::LinAlg::Initialization::zero);
 
     // Evaluate the shape function values.
     EvaluateShapeFunction<ElementType>::evaluate(N_flat, xi, shape_function_data...);
@@ -248,7 +248,7 @@ namespace GEOMETRYPAIR
               N_flat(ElementType::n_val_ * node + val);
   }
 
-}  // namespace GEOMETRYPAIR
+}  // namespace GeometryPair
 
 FOUR_C_NAMESPACE_CLOSE
 

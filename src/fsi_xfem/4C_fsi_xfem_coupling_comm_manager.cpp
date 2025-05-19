@@ -76,7 +76,7 @@ void XFEM::CouplingCommManager::insert_vector(const int idxA,
     {
       std::shared_ptr<Core::LinAlg::MultiMapExtractor> mmeb = get_map_extractor(idxB);
       std::shared_ptr<Core::LinAlg::Vector<double>> tmpvec =
-          std::make_shared<Core::LinAlg::Vector<double>>(*mmeb->Map(1), true);
+          std::make_shared<Core::LinAlg::Vector<double>>(*mmeb->map(1), true);
       insert_vector(idxA, vecA, idxB, tmpvec, CouplingCommManager::full_to_partial, false, scale);
       if (!add)
         mmeb->insert_vector(*tmpvec, 1, *vecB);
@@ -94,7 +94,7 @@ void XFEM::CouplingCommManager::insert_vector(const int idxA,
     {
       std::shared_ptr<Core::LinAlg::MultiMapExtractor> mmeb = get_map_extractor(idxB);
       std::shared_ptr<Core::LinAlg::Vector<double>> tmpvec =
-          std::make_shared<Core::LinAlg::Vector<double>>(*mmeb->Map(1), true);
+          std::make_shared<Core::LinAlg::Vector<double>>(*mmeb->map(1), true);
       insert_vector(
           idxA, vecA, idxB, tmpvec, CouplingCommManager::partial_to_partial, false, scale);
       if (!add)
@@ -111,33 +111,33 @@ void XFEM::CouplingCommManager::insert_vector(const int idxA,
         if (!add)
           *vecB = *get_coupling(idxA, idxB)->master_to_slave(*vecA);
         else
-          vecB->Update(scale, *get_coupling(idxA, idxB)->master_to_slave(*vecA), 1.0);
+          vecB->update(scale, *get_coupling(idxA, idxB)->master_to_slave(*vecA), 1.0);
       }
       else if (idxA > idxB)  // just the inverse Coupling Object is stored
       {
         if (!add)
           *vecB = *get_coupling(idxB, idxA)->slave_to_master(*vecA);
         else
-          vecB->Update(scale, *get_coupling(idxB, idxA)->slave_to_master(*vecA), 1.0);
+          vecB->update(scale, *get_coupling(idxB, idxA)->slave_to_master(*vecA), 1.0);
       }
       else
       {
         if (!add)
         {
           // *vecB = *vecA; //we don't do any transformation!
-          vecB->Update(1.0, *vecA, 0.0);
+          vecB->update(1.0, *vecA, 0.0);
         }
         else
-          vecB->Update(scale, *vecA, 1.0);
+          vecB->update(scale, *vecA, 1.0);
       }
-      if (!add && scale != 1.0) vecB->Scale(scale);
+      if (!add && scale != 1.0) vecB->scale(scale);
       break;
     }
     case CouplingCommManager::partial_to_global:
     {
       std::shared_ptr<Core::LinAlg::MultiMapExtractor> mme = get_full_map_extractor();
       std::shared_ptr<Core::LinAlg::Vector<double>> fullvec =
-          std::make_shared<Core::LinAlg::Vector<double>>(*mme->Map(idxB), true);
+          std::make_shared<Core::LinAlg::Vector<double>>(*mme->map(idxB), true);
       insert_vector(idxA, vecA, idxB, fullvec, CouplingCommManager::partial_to_full, false, scale);
       if (!add)
         mme->insert_vector(*fullvec, idxB, *vecB);
@@ -149,7 +149,7 @@ void XFEM::CouplingCommManager::insert_vector(const int idxA,
     {
       std::shared_ptr<Core::LinAlg::MultiMapExtractor> mme = get_full_map_extractor();
       std::shared_ptr<Core::LinAlg::Vector<double>> fullvec =
-          std::make_shared<Core::LinAlg::Vector<double>>(*mme->Map(idxB), true);
+          std::make_shared<Core::LinAlg::Vector<double>>(*mme->map(idxB), true);
       insert_vector(idxA, vecA, idxB, fullvec, CouplingCommManager::full_to_full, false, scale);
       if (!add)
         mme->insert_vector(*fullvec, idxB, *vecB);
@@ -231,11 +231,10 @@ void XFEM::CouplingCommManager::setup_multi_map_extractors(
   for (std::map<int, std::shared_ptr<const Core::FE::Discretization>>::iterator dit = dis.begin();
       dit != dis.end(); ++dit)
   {
-    Core::Conditions::MultiConditionSelector mcs;
     mme_[dit->first] = std::make_shared<Core::LinAlg::MultiMapExtractor>();
-    mcs.add_selector(std::make_shared<Core::Conditions::NDimConditionSelector>(
-        *dit->second, cond_name_, startdim_, enddim_));
-    mcs.setup_extractor(*dit->second, *dit->second->dof_row_map(), *mme_[dit->first]);
+    Core::Conditions::setup_extractor(*dit->second, *mme_[dit->first],
+        std::vector<Core::Conditions::Selector>{
+            Core::Conditions::Selector(cond_name_, startdim_, enddim_)});
   }
 }
 
@@ -298,14 +297,14 @@ void XFEM::CouplingCommManager::setup_couplings(
       std::map<int, std::shared_ptr<const Core::FE::Discretization>>::iterator alphadis =
           dis.find((*mmealpha).first);
       if (alphadis == dis.end())
-        FOUR_C_THROW("Couldn't find discretization for key %d", (*mmealpha).first);
+        FOUR_C_THROW("Couldn't find discretization for key {}", (*mmealpha).first);
       std::map<int, std::shared_ptr<const Core::FE::Discretization>>::iterator betadis =
           dis.find((*mmebeta).first);
       if (betadis == dis.end())
-        FOUR_C_THROW("Couldn't find discretization for key %d", (*mmebeta).first);
+        FOUR_C_THROW("Couldn't find discretization for key {}", (*mmebeta).first);
 
-      coup_[key]->setup_condition_coupling(*(*alphadis).second, (*mmealpha).second->Map(1),
-          *(*betadis).second, (*mmebeta).second->Map(1), cond_name_, enddim_ - startdim_, true);
+      coup_[key]->setup_condition_coupling(*(*alphadis).second, (*mmealpha).second->map(1),
+          *(*betadis).second, (*mmebeta).second->map(1), cond_name_, enddim_ - startdim_, true);
     }
   }
   return;
@@ -331,10 +330,10 @@ void XFEM::CouplingCommManager::setup_full_couplings(
 
       std::map<int, std::shared_ptr<const Core::FE::Discretization>>::iterator alphadis =
           dis.find(idx_a);
-      if (alphadis == dis.end()) FOUR_C_THROW("Couldn't find discretization for key %d", idx_a);
+      if (alphadis == dis.end()) FOUR_C_THROW("Couldn't find discretization for key {}", idx_a);
       std::map<int, std::shared_ptr<const Core::FE::Discretization>>::iterator betadis =
           dis.find(idx_b);
-      if (betadis == dis.end()) FOUR_C_THROW("Couldn't find discretization for key %d", idx_b);
+      if (betadis == dis.end()) FOUR_C_THROW("Couldn't find discretization for key {}", idx_b);
 
       coup_[key]->setup_coupling(*(*alphadis).second, *(*betadis).second,
           *(*alphadis).second->node_row_map(), *(*betadis).second->node_row_map(),
@@ -352,14 +351,14 @@ void XFEM::CouplingCommManager::setup_full_extractor(
 {
   if (dis.size() < 2) return;
 
-  std::vector<std::shared_ptr<const Epetra_Map>> maps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> maps;
   for (std::map<int, std::shared_ptr<const Core::FE::Discretization>>::iterator dit = dis.begin();
       dit != dis.end(); ++dit)
   {
-    maps.push_back(std::make_shared<Epetra_Map>(*(*dit).second->dof_row_map()));
+    maps.push_back(std::make_shared<Core::LinAlg::Map>(*(*dit).second->dof_row_map()));
   }
 
-  std::shared_ptr<Epetra_Map> fullmap = Core::LinAlg::MultiMapExtractor::merge_maps(maps);
+  std::shared_ptr<Core::LinAlg::Map> fullmap = Core::LinAlg::MultiMapExtractor::merge_maps(maps);
   fullextractor_ = std::make_shared<Core::LinAlg::MultiMapExtractor>(*fullmap, maps);
 }
 
@@ -380,7 +379,7 @@ XFEM::CouplingCommManager::get_coupling_converter(int idxA, int idxB)
   else
   {
     FOUR_C_THROW(
-        "Coupling_Comm_Manager::get_coupling_converter: Coupling Converter from %d to %d makes not "
+        "Coupling_Comm_Manager::get_coupling_converter: Coupling Converter from {} to {} makes not "
         "really sense, does it?",
         idxA, idxB);
   }
@@ -404,7 +403,7 @@ std::shared_ptr<Coupling::Adapter::Coupling> XFEM::CouplingCommManager::get_coup
     }
     else
     {
-      FOUR_C_THROW("Coupling_Comm_Manager::GetCoupling: Couldn't find Coupling for key (%d,%d)",
+      FOUR_C_THROW("Coupling_Comm_Manager::GetCoupling: Couldn't find Coupling for key ({},{})",
           key.first, key.second);
     }
   }
@@ -451,7 +450,7 @@ std::shared_ptr<Core::LinAlg::MultiMapExtractor> XFEM::CouplingCommManager::get_
   else
   {
     FOUR_C_THROW(
-        "Coupling_Comm_Manager::GetMapExtractor: Couldn't find Map Extractor for key (%d)", idx);
+        "Coupling_Comm_Manager::GetMapExtractor: Couldn't find Map Extractor for key ({})", idx);
   }
   return nullptr;  // to guarantee that the compiler feels comfortable in his skin...
 }

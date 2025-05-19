@@ -70,7 +70,7 @@ void Solid::Dbc::setup()
       "function_manager", &Global::Problem::instance()->function_manager());
   discret_ptr_->evaluate_dirichlet(p, zeros_ptr_, nullptr, nullptr, nullptr, dbcmap_ptr_);
   // clear the system vector of possibly inserted non-zero DBC values
-  zeros_ptr_->PutScalar(0.0);
+  zeros_ptr_->put_scalar(0.0);
 
   // ---------------------------------------------------------------------------
   // Create local coordinate system manager
@@ -151,7 +151,7 @@ void Solid::Dbc::update_loc_sys_manager()
 {
   if (!is_loc_sys()) return;
 
-  discret_ptr()->set_state("dispnp", g_state().get_dis_np());
+  discret_ptr()->set_state("dispnp", *g_state().get_dis_np());
   locsysman_ptr_->update(
       g_state().get_time_np(), {}, Global::Problem::instance()->function_manager());
   discret_ptr()->clear_state();
@@ -173,7 +173,7 @@ std::shared_ptr<Core::LinAlg::Vector<double>> Solid::Dbc::get_dirichlet_incremen
   /* Subtract the displacements of the last converged step:
    * --> DBC-DOFs hold increments of current step
    * --> free-DOFs hold zeros. */
-  dbcincr->Update(-1.0, *disn, 1.0);
+  dbcincr->update(-1.0, *disn, 1.0);
 
   return dbcincr;
 }
@@ -391,7 +391,7 @@ void Solid::Dbc::extract_freact(Core::LinAlg::Vector<double>& b) const
   check_init_setup();
 
   Core::LinAlg::extract_my_vector(b, freact());
-  freact().Scale(-1.0);
+  freact().scale(-1.0);
 
   // put zeros on all non-DBC dofs
   insert_vector_in_non_dbc_dofs(zeros_ptr_, Core::Utils::shared_ptr_from_ref(freact()));
@@ -460,23 +460,25 @@ const Solid::TimeInt::BaseDataGlobalState& Solid::Dbc::g_state() const
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-void Solid::Dbc::add_dirich_dofs(const std::shared_ptr<const Epetra_Map> maptoadd)
+void Solid::Dbc::add_dirich_dofs(const std::shared_ptr<const Core::LinAlg::Map> maptoadd)
 {
-  std::vector<std::shared_ptr<const Epetra_Map>> condmaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> condmaps;
   condmaps.push_back(maptoadd);
   condmaps.push_back(dbcmap_ptr_->cond_map());
-  std::shared_ptr<Epetra_Map> condmerged = Core::LinAlg::MultiMapExtractor::merge_maps(condmaps);
+  std::shared_ptr<Core::LinAlg::Map> condmerged =
+      Core::LinAlg::MultiMapExtractor::merge_maps(condmaps);
   *dbcmap_ptr_ = Core::LinAlg::MapExtractor(*(discret_ptr_->dof_row_map()), condmerged);
 }
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-void Solid::Dbc::remove_dirich_dofs(const std::shared_ptr<const Epetra_Map> maptoremove)
+void Solid::Dbc::remove_dirich_dofs(const std::shared_ptr<const Core::LinAlg::Map> maptoremove)
 {
-  std::vector<std::shared_ptr<const Epetra_Map>> othermaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> othermaps;
   othermaps.push_back(maptoremove);
   othermaps.push_back(dbcmap_ptr_->other_map());
-  std::shared_ptr<Epetra_Map> othermerged = Core::LinAlg::MultiMapExtractor::merge_maps(othermaps);
+  std::shared_ptr<Core::LinAlg::Map> othermerged =
+      Core::LinAlg::MultiMapExtractor::merge_maps(othermaps);
   *dbcmap_ptr_ = Core::LinAlg::MapExtractor(*(discret_ptr_->dof_row_map()), othermerged, false);
 }
 
@@ -495,7 +497,7 @@ void NOX::Nln::LinSystem::PrePostOp::Dbc::run_pre_apply_jacobian_inverse(
     const NOX::Nln::LinearSystem& linsys)
 {
   ::NOX::Epetra::Vector& rhs_epetra = dynamic_cast<::NOX::Epetra::Vector&>(rhs);
-  Core::LinAlg::VectorView rhs_view(rhs_epetra.getEpetraVector());
+  Core::LinAlg::View rhs_view(rhs_epetra.getEpetraVector());
   std::shared_ptr<Core::LinAlg::SparseOperator> jac_ptr = Core::Utils::shared_ptr_from_ref(jac);
   // apply the dirichlet condition and rotate the system if desired
   dbc_ptr_->apply_dirichlet_to_local_system(*jac_ptr, rhs_view);

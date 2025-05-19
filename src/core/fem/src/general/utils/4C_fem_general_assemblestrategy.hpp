@@ -10,11 +10,10 @@
 
 #include "4C_config.hpp"
 
+#include "4C_linalg_graph.hpp"
 #include "4C_linalg_serialdensematrix.hpp"
 #include "4C_linalg_serialdensevector.hpp"
 #include "4C_linalg_vector.hpp"
-
-#include <Epetra_CrsGraph.h>
 
 #include <memory>
 #include <vector>
@@ -34,8 +33,6 @@ namespace Core::FE
     process. This class manages the element assembling. This simplifies the
     element loop in Core::FE::Discretization::evaluate(). Furthermore, the strategy
     can be exchanged in the assembly process needs to be modified.
-
-    \author u.kue
    */
   class AssembleStrategy
   {

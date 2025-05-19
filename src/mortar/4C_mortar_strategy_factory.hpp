@@ -10,7 +10,7 @@
 
 #include "4C_config.hpp"
 
-#include "4C_inpar_contact.hpp"
+#include "4C_contact_input.hpp"
 
 #include <mpi.h>
 
@@ -115,7 +115,7 @@ namespace Mortar
        *
        *  Stores knot vector, zerosized information and normal factor
        *
-       *  \author Farah */
+       *  */
       void prepare_nurbs_element(const Core::FE::Discretization& discret,
           std::shared_ptr<Core::Elements::Element> ele, Mortar::Element& cele) const;
 
@@ -123,7 +123,7 @@ namespace Mortar
        *
        *  Stores control point weight
        *
-       *  \author Farah */
+       *  */
       void prepare_nurbs_node(const Core::Nodes::Node* node, Mortar::Node& mnode) const;
 
       //!@}
@@ -158,7 +158,7 @@ namespace Mortar
 
       //!@}
       //! pointer to a COPY of the structural communicator
-      MPI_Comm comm_ptr_;
+      MPI_Comm comm_;
 
       int dim_;
     };  // namespace STRATEGY

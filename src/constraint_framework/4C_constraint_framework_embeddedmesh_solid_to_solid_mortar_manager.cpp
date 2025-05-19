@@ -23,10 +23,10 @@ FOUR_C_NAMESPACE_OPEN
 /**
  *
  */
-CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::SolidToSolidMortarManager(
+Constraints::EmbeddedMesh::SolidToSolidMortarManager::SolidToSolidMortarManager(
     std::shared_ptr<Core::FE::Discretization>& discret,
     const Core::LinAlg::Vector<double>& displacement_vector,
-    CONSTRAINTS::EMBEDDEDMESH::EmbeddedMeshParams& embedded_mesh_coupling_params,
+    Constraints::EmbeddedMesh::EmbeddedMeshParams& embedded_mesh_coupling_params,
     std::shared_ptr<Core::IO::VisualizationManager> visualization_manager,
     int start_value_lambda_gid)
     : discret_(discret),
@@ -36,7 +36,7 @@ CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::SolidToSolidMortarManager(
 {
   // Initialize cutwizard instance and perform the cut
   std::shared_ptr<Cut::CutWizard> cutwizard = std::make_shared<Cut::CutWizard>(discret_);
-  CONSTRAINTS::EMBEDDEDMESH::prepare_and_perform_cut(
+  Constraints::EmbeddedMesh::prepare_and_perform_cut(
       cutwizard, discret_, embedded_mesh_coupling_params_);
 
   // Obtain the information of the background and its related interface elements
@@ -49,7 +49,7 @@ CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::SolidToSolidMortarManager(
       embedded_mesh_coupling_params_, *discret_, embedded_mesh_solid_pairs_);
 
   // Change integration rule of elements if they are cut
-  CONSTRAINTS::EMBEDDEDMESH::change_gauss_rule_of_cut_elements(
+  Constraints::EmbeddedMesh::change_gauss_rule_of_cut_elements(
       cut_elements_col_vector_, *cutwizard);
 
   // Get the number of Lagrange multiplier DOF on a solid node and on a solid element
@@ -94,14 +94,14 @@ CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::SolidToSolidMortarManager(
   setup(disp_col_vec);
 }
 
-void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::set_state(
+void Constraints::EmbeddedMesh::SolidToSolidMortarManager::set_state(
     const Core::LinAlg::Vector<double>& displacement_vector)
 {
   for (auto couplig_pair_iter : embedded_mesh_solid_pairs_)
     couplig_pair_iter->set_current_element_position(*discret_, displacement_vector);
 }
 
-void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::setup(
+void Constraints::EmbeddedMesh::SolidToSolidMortarManager::setup(
     const Core::LinAlg::Vector<double>& displacement_vector)
 {
   // Get the global ids of all mesh nodes on this rank
@@ -109,7 +109,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::setup(
   for (int i_node = 0; i_node < discret_->node_row_map()->NumMyElements(); i_node++)
   {
     Core::Nodes::Node const& node = *(discret_->l_row_node(i_node));
-    if (CONSTRAINTS::EMBEDDEDMESH::is_interface_node(node)) my_nodes_gid.push_back(node.id());
+    if (Constraints::EmbeddedMesh::is_interface_node(node)) my_nodes_gid.push_back(node.id());
   }
 
   // Calculate the local number of interface nodes
@@ -138,13 +138,13 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::setup(
   }
 
   // Rowmap for the additional GIDs used by the mortar contact discretization.
-  lambda_dof_rowmap_ = std::make_shared<Epetra_Map>(-1, my_lambda_gid.size(), my_lambda_gid.data(),
-      0, Core::Communication::as_epetra_comm(discret_->get_comm()));
+  lambda_dof_rowmap_ = std::make_shared<Core::LinAlg::Map>(-1, my_lambda_gid.size(),
+      my_lambda_gid.data(), 0, Core::Communication::as_epetra_comm(discret_->get_comm()));
 
   // We need to be able to get the global ids for a Lagrange multiplier DOF from the global id
   // of a node. To do so, we 'abuse' the Core::LinAlg::MultiVector<double> as map between the
   // global node ids and the global Lagrange multiplier DOF ids.
-  Epetra_Map node_gid_rowmap(
+  Core::LinAlg::Map node_gid_rowmap(
       -1, n_nodes, &my_nodes_gid[0], 0, Core::Communication::as_epetra_comm(discret_->get_comm()));
 
   // Map from global node ids to global lagrange multiplier ids. Only create the
@@ -167,7 +167,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::setup(
 
         // Set the global Lagrange multiplier id for this node.
         error_code = node_gid_to_lambda_gid_->ReplaceMyValue(i_node, i_lambda, lagrange_gid);
-        if (error_code != 0) FOUR_C_THROW("Got error code %d!", error_code);
+        if (error_code != 0) FOUR_C_THROW("Got error code {}!", error_code);
       }
   }
 
@@ -175,7 +175,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::setup(
   set_global_maps();
 
   // Create the global coupling matrices.
-  global_constraint_ = std::make_shared<Epetra_FEVector>(*lambda_dof_rowmap_);
+  global_constraint_ = std::make_shared<Epetra_FEVector>(lambda_dof_rowmap_->get_epetra_map());
   global_g_bl_ = std::make_shared<Core::LinAlg::SparseMatrix>(
       *lambda_dof_rowmap_, 30, true, true, Core::LinAlg::SparseMatrix::FE_MATRIX);
   global_g_bg_ = std::make_shared<Core::LinAlg::SparseMatrix>(
@@ -184,8 +184,8 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::setup(
       *boundary_layer_interface_dof_rowmap_, 30, true, true, Core::LinAlg::SparseMatrix::FE_MATRIX);
   global_fbg_l_ = std::make_shared<Core::LinAlg::SparseMatrix>(
       *background_dof_rowmap_, 100, true, true, Core::LinAlg::SparseMatrix::FE_MATRIX);
-  global_kappa_ = std::make_shared<Epetra_FEVector>(*lambda_dof_rowmap_);
-  global_active_lambda_ = std::make_shared<Epetra_FEVector>(*lambda_dof_rowmap_);
+  global_kappa_ = std::make_shared<Epetra_FEVector>(lambda_dof_rowmap_->get_epetra_map());
+  global_active_lambda_ = std::make_shared<Epetra_FEVector>(lambda_dof_rowmap_->get_epetra_map());
 
   // Set flag for successful setup.
   is_setup_ = true;
@@ -195,7 +195,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::setup(
   set_local_maps(displacement_vector);
 }
 
-void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::set_global_maps()
+void Constraints::EmbeddedMesh::SolidToSolidMortarManager::set_global_maps()
 {
   // Get the dofs of the background and interface elements
   std::vector<int> boundary_layer_interface_dofs(0);
@@ -205,15 +205,15 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::set_global_maps()
     const Core::Nodes::Node* node = discret_->l_row_node(i_node);
     if (is_cut_node(*node))
       discret_->dof(node, background_dofs);
-    else if (CONSTRAINTS::EMBEDDEDMESH::is_interface_node(*node))
+    else if (Constraints::EmbeddedMesh::is_interface_node(*node))
       discret_->dof(node, boundary_layer_interface_dofs);
   }
 
   // Create the beam and solid maps.
-  boundary_layer_interface_dof_rowmap_ = std::make_shared<Epetra_Map>(-1,
+  boundary_layer_interface_dof_rowmap_ = std::make_shared<Core::LinAlg::Map>(-1,
       boundary_layer_interface_dofs.size(), &boundary_layer_interface_dofs[0], 0,
       Core::Communication::as_epetra_comm(discret_->get_comm()));
-  background_dof_rowmap_ = std::make_shared<Epetra_Map>(-1, background_dofs.size(),
+  background_dof_rowmap_ = std::make_shared<Core::LinAlg::Map>(-1, background_dofs.size(),
       &background_dofs[0], 0, Core::Communication::as_epetra_comm(discret_->get_comm()));
 
   // Reset the local maps.
@@ -224,7 +224,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::set_global_maps()
   is_local_maps_build_ = false;
 }
 
-void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::set_local_maps(
+void Constraints::EmbeddedMesh::SolidToSolidMortarManager::set_local_maps(
     const Core::LinAlg::Vector<double>& displacement_vector)
 {
   check_setup();
@@ -242,7 +242,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::set_local_maps(
   // Loop over the pairs and get the global node and element indices needed on this rank.
   for (unsigned int i_pair = 0; i_pair < embedded_mesh_solid_pairs_.size(); i_pair++)
   {
-    const std::shared_ptr<EMBEDDEDMESH::SolidInteractionPair>& pair =
+    const std::shared_ptr<EmbeddedMesh::SolidInteractionPair>& pair =
         embedded_mesh_solid_pairs_[i_pair];
 
     // The second (background) element should always be on the same processor as the pair.
@@ -251,7 +251,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::set_local_maps(
           "The current implementation needs the background element of "
           "a interface coupling pair to be on on the same "
           "processor as the pair! The background element id"
-          " is %i trying to be processed in proc %i",
+          " is {} trying to be processed in proc {}",
           pair->element_2().id(), Core::Communication::my_mpi_rank(discret_->get_comm()));
 
     // Get the global id of the nodes that the pairs on this rank need.
@@ -267,7 +267,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::set_local_maps(
   node_gid_needed.resize(std::distance(node_gid_needed.begin(), it));
 
   // Create the maps for the extraction of the values.
-  Epetra_Map node_gid_needed_rowmap(-1, node_gid_needed.size(), &node_gid_needed[0], 0,
+  Core::LinAlg::Map node_gid_needed_rowmap(-1, node_gid_needed.size(), &node_gid_needed[0], 0,
       Core::Communication::as_epetra_comm(discret_->get_comm()));
 
   // Create the Multivectors that will be filled with all values needed on this rank.
@@ -298,15 +298,15 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::set_local_maps(
   }
 
   // Create the global lambda col map.
-  lambda_dof_colmap_ = std::make_shared<Epetra_Map>(-1, lambda_gid_for_col_map.size(),
+  lambda_dof_colmap_ = std::make_shared<Core::LinAlg::Map>(-1, lambda_gid_for_col_map.size(),
       &lambda_gid_for_col_map[0], 0, Core::Communication::as_epetra_comm(discret_->get_comm()));
 
   // Set flags for local maps.
   is_local_maps_build_ = true;
 }
 
-void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::location_vector(
-    const CONSTRAINTS::EMBEDDEDMESH::SolidInteractionPair* interaction_pair,
+void Constraints::EmbeddedMesh::SolidToSolidMortarManager::location_vector(
+    const Constraints::EmbeddedMesh::SolidInteractionPair* interaction_pair,
     std::vector<int>& lambda_row) const
 {
   check_setup();
@@ -327,7 +327,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::location_vector(
       // Check if the id is in the map. If it is, add it to the output vector.
       auto search_key_in_map = node_gid_to_lambda_gid_map_.find(node_id);
       if (search_key_in_map == node_gid_to_lambda_gid_map_.end())
-        FOUR_C_THROW("Global node id %d not in map!", node_id);
+        FOUR_C_THROW("Global node id {} not in map!", node_id);
       for (auto const& lambda_gid : search_key_in_map->second) lambda_row.push_back(lambda_gid);
     }
   }
@@ -336,7 +336,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::location_vector(
 /**
  *
  */
-void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::evaluate_global_coupling_contributions(
+void Constraints::EmbeddedMesh::SolidToSolidMortarManager::evaluate_global_coupling_contributions(
     const Core::LinAlg::Vector<double>& displacement_vector)
 {
   check_setup();
@@ -376,7 +376,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::evaluate_global_coupl
   if (0 != global_constraint_->GlobalAssemble(Add, false)) FOUR_C_THROW("Error in GlobalAssemble!");
 }
 
-void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::
+void Constraints::EmbeddedMesh::SolidToSolidMortarManager::
     add_global_force_stiffness_penalty_contributions(
         Solid::TimeInt::BaseDataGlobalState& data_state,
         std::shared_ptr<Core::LinAlg::SparseMatrix> stiff,
@@ -430,8 +430,8 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::
     Core::LinAlg::Vector<double> boundary_layer_interface_force(
         *boundary_layer_interface_dof_rowmap_);
     Core::LinAlg::Vector<double> background_force(*background_dof_rowmap_);
-    boundary_layer_interface_force.PutScalar(0.);
-    background_force.PutScalar(0.);
+    boundary_layer_interface_force.put_scalar(0.);
+    background_force.put_scalar(0.);
     linalg_error = global_fbl_l_->multiply(false, *lambda, boundary_layer_interface_force);
     if (linalg_error != 0) FOUR_C_THROW("Error in Multiply!");
     linalg_error = global_fbg_l_->multiply(false, *lambda, background_force);
@@ -441,7 +441,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::
     Core::LinAlg::export_to(background_force, global_temp);
 
     // Add force contributions to global vector.
-    linalg_error = force->Update(rhs_factor, global_temp, 1.0);
+    linalg_error = force->update(rhs_factor, global_temp, 1.0);
     if (linalg_error != 0) FOUR_C_THROW("Error in Update");
   }
 }
@@ -450,7 +450,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::
  *
  */
 std::shared_ptr<Core::LinAlg::Vector<double>>
-CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::get_global_lambda() const
+Constraints::EmbeddedMesh::SolidToSolidMortarManager::get_global_lambda() const
 {
   check_setup();
   check_global_maps();
@@ -475,7 +475,7 @@ CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::get_global_lambda() const
  *
  */
 std::shared_ptr<Core::LinAlg::Vector<double>>
-CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::get_global_lambda_col() const
+Constraints::EmbeddedMesh::SolidToSolidMortarManager::get_global_lambda_col() const
 {
   std::shared_ptr<Core::LinAlg::Vector<double>> lambda_col =
       std::make_shared<Core::LinAlg::Vector<double>>(*lambda_dof_colmap_);
@@ -484,7 +484,7 @@ CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::get_global_lambda_col() co
 }
 
 std::shared_ptr<Core::LinAlg::Vector<double>>
-CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::penalty_invert_kappa() const
+Constraints::EmbeddedMesh::SolidToSolidMortarManager::penalty_invert_kappa() const
 {
   // Create the inverse vector.
   std::shared_ptr<Core::LinAlg::Vector<double>> global_kappa_inv =
@@ -505,7 +505,7 @@ CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::penalty_invert_kappa() con
       if (lambda_dof_rowmap_->LID(gid) != -1)
         penalty = penalty_params;
       else
-        FOUR_C_THROW("Could not find the GID %d in translation map", gid);
+        FOUR_C_THROW("Could not find the GID {} in translation map", gid);
 
       local_kappa_inv_value = penalty / global_kappa_->Values()[lid];
     }
@@ -513,13 +513,13 @@ CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::penalty_invert_kappa() con
       // This LID is inactive.
       local_kappa_inv_value = 0.0;
 
-    global_kappa_inv->ReplaceMyValue(lid, 0, local_kappa_inv_value);
+    global_kappa_inv->replace_local_value(lid, 0, local_kappa_inv_value);
   }
 
   return global_kappa_inv;
 }
 
-void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::write_output(
+void Constraints::EmbeddedMesh::SolidToSolidMortarManager::write_output(
     double time, int timestep_number)
 {
   // Clear the data of visualization manager
@@ -536,7 +536,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::write_output(
   visualization_manager_->write_to_disk(time, timestep_number);
 }
 
-void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::collect_output_lagrange_multipliers()
+void Constraints::EmbeddedMesh::SolidToSolidMortarManager::collect_output_lagrange_multipliers()
 {
   auto& lagrange_multipliers_visualization_data =
       visualization_manager_->get_visualization_data("lagrange_multipliers");
@@ -554,7 +554,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::collect_output_lagran
   }
 }
 
-void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::collect_output_integration_points()
+void Constraints::EmbeddedMesh::SolidToSolidMortarManager::collect_output_integration_points()
 {
   auto& background_integration_points_visualization_data =
       visualization_manager_->get_visualization_data("background_integration_points");
@@ -581,7 +581,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::collect_output_integr
   }
 }
 
-bool CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager::is_cut_node(
+bool Constraints::EmbeddedMesh::SolidToSolidMortarManager::is_cut_node(
     Core::Nodes::Node const& node)
 {
   bool is_cut_node = false;

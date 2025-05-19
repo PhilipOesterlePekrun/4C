@@ -11,6 +11,7 @@
 #include "4C_mat_scatra.hpp"
 #include "4C_scatra_ele_parameter_std.hpp"
 #include "4C_scatra_ele_parameter_timint.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_singleton_owner.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -29,7 +30,7 @@ Discret::Elements::ScaTraEleCalcArtery<distype, probdim>::ScaTraEleCalcArtery(
   if (nen_ != 2)
   {
     FOUR_C_THROW(
-        "Only line2 elements supported so far, you have %d nodes, if called with 2D or 3D element, "
+        "Only line2 elements supported so far, you have {} nodes, if called with 2D or 3D element, "
         "think again",
         nen_);
   }
@@ -104,7 +105,7 @@ void Discret::Elements::ScaTraEleCalcArtery<distype, probdim>::materials(
     }
     default:
     {
-      FOUR_C_THROW("Material type %i is not supported!", material->material_type());
+      FOUR_C_THROW("Material type {} is not supported!", material->material_type());
       break;
     }
   }
@@ -164,9 +165,7 @@ void Discret::Elements::ScaTraEleCalcArtery<distype, probdim>::extract_element_a
   {
     std::shared_ptr<const Core::LinAlg::Vector<double>> curr_seg_lengths =
         discretization.get_state(1, "curr_seg_lengths");
-    std::vector<double> seglengths(la[1].lm_.size());
-
-    Core::FE::extract_my_values(*curr_seg_lengths, seglengths, la[1].lm_);
+    std::vector<double> seglengths = Core::FE::extract_values(*curr_seg_lengths, la[1].lm_);
 
     const double curr_ele_length = std::accumulate(seglengths.begin(), seglengths.end(), 0.0);
 

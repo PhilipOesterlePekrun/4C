@@ -26,7 +26,7 @@ else() # Fetch MIRCO from GIT repository
   set(TRILINOS_IN_MIRCO "OFF")
 
   set(MIRCO_GIT_REPO "https://github.com/imcs-compsim/MIRCO.git")
-  set(MIRCO_GIT_TAG "8a8ae9c703a762459995d56d36292b77ff6c1985")
+  set(MIRCO_GIT_TAG "100f8ab0e10090f625c283f0a8b7d13fc5fb55eb")
 
   fetchcontent_declare(
     mirco
@@ -34,13 +34,14 @@ else() # Fetch MIRCO from GIT repository
     GIT_TAG ${MIRCO_GIT_TAG}
     )
   fetchcontent_makeavailable(mirco)
+  # MIRCO requires a specific path, possibly due to inconsistent naming "mirco" vs "mirco_lib".
   set(FOUR_C_MIRCO_ROOT "${CMAKE_INSTALL_PREFIX}/lib/cmake/mirco")
 
   four_c_add_external_dependency(four_c_all_enabled_external_dependencies mirco::mirco_lib)
 endif()
 
 configure_file(
-  ${CMAKE_SOURCE_DIR}/cmake/templates/MIRCO.cmake.in
-  ${CMAKE_BINARY_DIR}/cmake/templates/MIRCO.cmake
+  ${PROJECT_SOURCE_DIR}/cmake/templates/MIRCO.cmake.in
+  ${PROJECT_BINARY_DIR}/cmake/templates/MIRCO.cmake
   @ONLY
   )

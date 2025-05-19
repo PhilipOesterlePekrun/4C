@@ -12,8 +12,6 @@
 #include "4C_inpar_geometry_pair.hpp"
 #include "4C_io_input_spec_builders.hpp"
 #include "4C_utils_exceptions.hpp"
-#include "4C_utils_parameter_list.hpp"
-
 FOUR_C_NAMESPACE_OPEN
 
 
@@ -49,310 +47,263 @@ void Inpar::BeamToSolid::beam_to_solid_interaction_get_string(
 /**
  *
  */
-void Inpar::BeamToSolid::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::BeamToSolid::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
-  using Teuchos::tuple;
-
-  Teuchos::ParameterList& beaminteraction = list.sublist("BEAM INTERACTION", false, "");
+  using namespace Core::IO::InputSpecBuilders;
 
   // Beam to solid volume mesh tying parameters.
-  Teuchos::ParameterList& beam_to_solid_volume_mestying =
-      beaminteraction.sublist("BEAM TO SOLID VOLUME MESHTYING", false, "");
-  {
-    setStringToIntegralParameter<BeamToSolidContactDiscretization>("CONTACT_DISCRETIZATION", "none",
-        "Type of employed contact discretization",
-        tuple<std::string>("none", "gauss_point_to_segment", "mortar", "gauss_point_cross_section",
-            "mortar_cross_section"),
-        tuple<BeamToSolidContactDiscretization>(BeamToSolidContactDiscretization::none,
-            BeamToSolidContactDiscretization::gauss_point_to_segment,
-            BeamToSolidContactDiscretization::mortar,
-            BeamToSolidContactDiscretization::gauss_point_cross_section,
-            BeamToSolidContactDiscretization::mortar_cross_section),
-        &beam_to_solid_volume_mestying);
+  std::vector<Core::IO::InputSpec> beam_to_solid_volume_mestying = {
+      parameter<BeamToSolidContactDiscretization>(
+          "CONTACT_DISCRETIZATION", {.description = "Type of employed contact discretization",
+                                        .default_value = BeamToSolidContactDiscretization::none}),
 
-    setStringToIntegralParameter<BeamToSolidConstraintEnforcement>("CONSTRAINT_STRATEGY", "none",
-        "Type of employed constraint enforcement strategy", tuple<std::string>("none", "penalty"),
-        tuple<BeamToSolidConstraintEnforcement>(
-            BeamToSolidConstraintEnforcement::none, BeamToSolidConstraintEnforcement::penalty),
-        &beam_to_solid_volume_mestying);
+      parameter<BeamToSolidConstraintEnforcement>(
+          "CONSTRAINT_STRATEGY", {.description = "Type of employed constraint enforcement strategy",
+                                     .default_value = BeamToSolidConstraintEnforcement::none}),
 
-    setStringToIntegralParameter<BeamToSolidMortarShapefunctions>("MORTAR_SHAPE_FUNCTION", "none",
-        "Shape function for the mortar Lagrange-multipliers",
-        tuple<std::string>("none", "line2", "line3", "line4"),
-        tuple<BeamToSolidMortarShapefunctions>(BeamToSolidMortarShapefunctions::none,
-            BeamToSolidMortarShapefunctions::line2, BeamToSolidMortarShapefunctions::line3,
-            BeamToSolidMortarShapefunctions::line4),
-        &beam_to_solid_volume_mestying);
+      parameter<BeamToSolidMortarShapefunctions>("MORTAR_SHAPE_FUNCTION",
+          {.description = "Shape function for the mortar Lagrange-multipliers",
+              .default_value = BeamToSolidMortarShapefunctions::none}),
 
-    Core::Utils::int_parameter("MORTAR_FOURIER_MODES", -1,
-        "Number of fourier modes to be used for cross-section mortar coupling",
-        &beam_to_solid_volume_mestying);
+      parameter<int>("MORTAR_FOURIER_MODES",
+          {.description = "Number of fourier modes to be used for cross-section mortar coupling",
+              .default_value = -1}),
 
-    Core::Utils::double_parameter("PENALTY_PARAMETER", 0.0,
-        "Penalty parameter for beam-to-solid volume meshtying", &beam_to_solid_volume_mestying);
+      parameter<double>("PENALTY_PARAMETER",
+          {.description = "Penalty parameter for beam-to-solid volume meshtying",
+              .default_value = 0.0}),
 
-    // Add the geometry pair input parameters.
-    Inpar::GEOMETRYPAIR::set_valid_parameters_line_to3_d(beam_to_solid_volume_mestying);
 
-    // This option only has an effect during a restart simulation.
-    // - No:  (default) The coupling is treated the same way as during a non restart simulation,
-    //        i.e. the initial configurations (zero displacement) of the beams and solids are
-    //        coupled.
-    // - Yes: The beam and solid states at the restart configuration are coupled. This allows to
-    //        pre-deform the structures and then couple them.
-    Core::Utils::bool_parameter("COUPLE_RESTART_STATE", "No",
-        "Enable / disable the coupling of the restart configuration.",
-        &beam_to_solid_volume_mestying);
+      // This option only has an effect during a restart simulation.
+      // - No:  (default) The coupling is treated the same way as during a non restart
+      // simulation,
+      //        i.e. the initial configurations (zero displacement) of the beams and solids are
+      //        coupled.
+      // - Yes: The beam and solid states at the restart configuration are coupled. This allows
+      // to
+      //        pre-deform the structures and then couple them.
+      parameter<bool>("COUPLE_RESTART_STATE",
+          {.description = "Enable / disable the coupling of the restart configuration.",
+              .default_value = false}),
 
-    setStringToIntegralParameter<BeamToSolidRotationCoupling>("ROTATION_COUPLING", "none",
-        "Type of rotational coupling",
-        tuple<std::string>("none", "deformation_gradient_3d_general_in_cross_section_plane",
-            "polar_decomposition_2d", "deformation_gradient_y_2d", "deformation_gradient_z_2d",
-            "deformation_gradient_average_2d", "fix_triad_2d", "deformation_gradient_3d_local_1",
-            "deformation_gradient_3d_local_2", "deformation_gradient_3d_local_3",
-            "deformation_gradient_3d_general",
+      parameter<BeamToSolidRotationCoupling>(
+          "ROTATION_COUPLING", {.description = "Type of rotational coupling",
+                                   .default_value = BeamToSolidRotationCoupling::none}),
 
-            "deformation_gradient_3d_base_1"),
-        tuple<BeamToSolidRotationCoupling>(BeamToSolidRotationCoupling::none,
-            BeamToSolidRotationCoupling::deformation_gradient_3d_general_in_cross_section_plane,
-            BeamToSolidRotationCoupling::polar_decomposition_2d,
-            BeamToSolidRotationCoupling::deformation_gradient_y_2d,
-            BeamToSolidRotationCoupling::deformation_gradient_z_2d,
-            BeamToSolidRotationCoupling::deformation_gradient_average_2d,
-            BeamToSolidRotationCoupling::fix_triad_2d,
-            BeamToSolidRotationCoupling::deformation_gradient_3d_local_1,
-            BeamToSolidRotationCoupling::deformation_gradient_3d_local_2,
-            BeamToSolidRotationCoupling::deformation_gradient_3d_local_3,
-            BeamToSolidRotationCoupling::deformation_gradient_3d_general,
-            BeamToSolidRotationCoupling::deformation_gradient_3d_base_1),
-        &beam_to_solid_volume_mestying);
 
-    setStringToIntegralParameter<BeamToSolidMortarShapefunctions>(
-        "ROTATION_COUPLING_MORTAR_SHAPE_FUNCTION", "none",
-        "Shape function for the mortar Lagrange-multipliers",
-        tuple<std::string>("none", "line2", "line3", "line4"),
-        tuple<BeamToSolidMortarShapefunctions>(BeamToSolidMortarShapefunctions::none,
-            BeamToSolidMortarShapefunctions::line2, BeamToSolidMortarShapefunctions::line3,
-            BeamToSolidMortarShapefunctions::line4),
-        &beam_to_solid_volume_mestying);
+      parameter<BeamToSolidMortarShapefunctions>("ROTATION_COUPLING_MORTAR_SHAPE_FUNCTION",
+          {.description = "Shape function for the mortar Lagrange-multipliers",
+              .default_value = BeamToSolidMortarShapefunctions::none}),
 
-    Core::Utils::double_parameter("ROTATION_COUPLING_PENALTY_PARAMETER", 0.0,
-        "Penalty parameter for rotational coupling in beam-to-solid volume mesh tying",
-        &beam_to_solid_volume_mestying);
-  }
+
+      parameter<double>("ROTATION_COUPLING_PENALTY_PARAMETER",
+          {.description = "Penalty parameter for rotational coupling in beam-to-solid volume "
+                          "mesh tying",
+              .default_value = 0.0}),
+  };
+  // Add the geometry pair input parameters.
+  Inpar::GeometryPair::set_valid_parameters_line_to3_d(beam_to_solid_volume_mestying);
+
+  list["BEAM INTERACTION/BEAM TO SOLID VOLUME MESHTYING"] =
+      group("BEAM INTERACTION/BEAM TO SOLID VOLUME MESHTYING", beam_to_solid_volume_mestying,
+          {.defaultable = true});
+
 
   // Beam to solid volume mesh tying output parameters.
-  Teuchos::ParameterList& beam_to_solid_volume_mestying_output =
-      beam_to_solid_volume_mestying.sublist("RUNTIME VTK OUTPUT", false, "");
-  {
-    // Whether to write visualization output at all for btsvmt.
-    Core::Utils::bool_parameter("WRITE_OUTPUT", "No",
-        "Enable / disable beam-to-solid volume mesh tying output.",
-        &beam_to_solid_volume_mestying_output);
+  list["BEAM INTERACTION/BEAM TO SOLID VOLUME MESHTYING/RUNTIME VTK OUTPUT"] = group(
+      "BEAM INTERACTION/BEAM TO SOLID VOLUME MESHTYING/RUNTIME VTK OUTPUT",
+      {
+          // Whether to write visualization output at all for btsvmt.
+          parameter<bool>("WRITE_OUTPUT",
+              {.description = "Enable / disable beam-to-solid volume mesh tying output.",
+                  .default_value = false}),
 
-    Core::Utils::bool_parameter("NODAL_FORCES", "No",
-        "Enable / disable output of the resulting nodal forces due to beam to solid interaction.",
-        &beam_to_solid_volume_mestying_output);
+          parameter<bool>("NODAL_FORCES",
+              {.description = "Enable / disable output of the resulting nodal forces due "
+                              "to beam to solid interaction.",
+                  .default_value = false}),
 
-    Core::Utils::bool_parameter("MORTAR_LAMBDA_DISCRET", "No",
-        "Enable / disable output of the discrete Lagrange multipliers at the node of the Lagrange "
-        "multiplier shape functions.",
-        &beam_to_solid_volume_mestying_output);
+          parameter<bool>("MORTAR_LAMBDA_DISCRET",
+              {.description =
+                      "Enable / disable output of the discrete Lagrange multipliers at the node "
+                      "of the Lagrange multiplier shape functions.",
+                  .default_value = false}),
 
-    Core::Utils::bool_parameter("MORTAR_LAMBDA_CONTINUOUS", "No",
-        "Enable / disable output of the continuous Lagrange multipliers function along the beam.",
-        &beam_to_solid_volume_mestying_output);
+          parameter<bool>("MORTAR_LAMBDA_CONTINUOUS",
+              {.description = "Enable / disable output of the continuous "
+                              "Lagrange multipliers function along the beam.",
+                  .default_value = false}),
 
-    Core::Utils::int_parameter("MORTAR_LAMBDA_CONTINUOUS_SEGMENTS", 5,
-        "Number of segments for continuous mortar output", &beam_to_solid_volume_mestying_output);
+          parameter<int>("MORTAR_LAMBDA_CONTINUOUS_SEGMENTS",
+              {.description = "Number of segments for continuous mortar output",
+                  .default_value = 5}),
 
-    Core::Utils::int_parameter("MORTAR_LAMBDA_CONTINUOUS_SEGMENTS_CIRCUMFERENCE", 8,
-        "Number of segments for continuous mortar output along the beam cross-section "
-        "circumference",
-        &beam_to_solid_volume_mestying_output);
+          parameter<int>("MORTAR_LAMBDA_CONTINUOUS_SEGMENTS_CIRCUMFERENCE",
+              {.description = "Number of segments for continuous mortar output along the beam "
+                              "cross-section circumference",
+                  .default_value = 8}),
 
-    Core::Utils::bool_parameter("SEGMENTATION", "No",
-        "Enable / disable output of segmentation points.", &beam_to_solid_volume_mestying_output);
+          parameter<bool>(
+              "SEGMENTATION", {.description = "Enable / disable output of segmentation points.",
+                                  .default_value = false}),
 
-    Core::Utils::bool_parameter("INTEGRATION_POINTS", "No",
-        "Enable / disable output of used integration points. If the contact method has 'forces' at "
-        "the integration point, they will also be output.",
-        &beam_to_solid_volume_mestying_output);
+          parameter<bool>("INTEGRATION_POINTS",
+              {.description =
+                      "Enable / disable output of used integration points. If the contact method "
+                      "has 'forces' at the integration point, they will also be output.",
+                  .default_value = false}),
 
-    Core::Utils::bool_parameter("UNIQUE_IDS", "No",
-        "Enable / disable output of unique IDs (mainly for testing of created VTK files).",
-        &beam_to_solid_volume_mestying_output);
-  }
+          parameter<bool>(
+              "UNIQUE_IDS", {.description = "Enable / disable output of unique IDs (mainly "
+                                            "for testing of created VTK files).",
+                                .default_value = false}),
+      },
+      {.defaultable = true});
+
 
   // Beam to solid surface mesh tying parameters.
-  Teuchos::ParameterList& beam_to_solid_surface_mestying =
-      beaminteraction.sublist("BEAM TO SOLID SURFACE MESHTYING", false, "");
-  {
-    setStringToIntegralParameter<BeamToSolidContactDiscretization>("CONTACT_DISCRETIZATION", "none",
-        "Type of employed contact discretization",
-        tuple<std::string>("none", "gauss_point_to_segment", "mortar"),
-        tuple<BeamToSolidContactDiscretization>(BeamToSolidContactDiscretization::none,
-            BeamToSolidContactDiscretization::gauss_point_to_segment,
-            BeamToSolidContactDiscretization::mortar),
-        &beam_to_solid_surface_mestying);
+  std::vector<Core::IO::InputSpec> beam_to_solid_surface_meshtying = {
+      parameter<BeamToSolidContactDiscretization>(
+          "CONTACT_DISCRETIZATION", {.description = "Type of employed contact discretization",
+                                        .default_value = BeamToSolidContactDiscretization::none}),
 
-    setStringToIntegralParameter<BeamToSolidConstraintEnforcement>("CONSTRAINT_STRATEGY", "none",
-        "Type of employed constraint enforcement strategy", tuple<std::string>("none", "penalty"),
-        tuple<BeamToSolidConstraintEnforcement>(
-            BeamToSolidConstraintEnforcement::none, BeamToSolidConstraintEnforcement::penalty),
-        &beam_to_solid_surface_mestying);
+      parameter<BeamToSolidConstraintEnforcement>(
+          "CONSTRAINT_STRATEGY", {.description = "Type of employed constraint enforcement strategy",
+                                     .default_value = BeamToSolidConstraintEnforcement::none}),
 
-    setStringToIntegralParameter<BeamToSolidSurfaceCoupling>("COUPLING_TYPE", "none",
-        "How the coupling constraints are formulated/",
-        tuple<std::string>("none", "reference_configuration_forced_to_zero",
-            "reference_configuration_forced_to_zero_fad", "displacement", "displacement_fad",
-            "consistent_fad"),
-        tuple<BeamToSolidSurfaceCoupling>(BeamToSolidSurfaceCoupling::none,
-            BeamToSolidSurfaceCoupling::reference_configuration_forced_to_zero,
-            BeamToSolidSurfaceCoupling::reference_configuration_forced_to_zero_fad,
-            BeamToSolidSurfaceCoupling::displacement, BeamToSolidSurfaceCoupling::displacement_fad,
-            BeamToSolidSurfaceCoupling::consistent_fad),
-        &beam_to_solid_surface_mestying);
+      parameter<BeamToSolidSurfaceCoupling>(
+          "COUPLING_TYPE", {.description = "How the coupling constraints are formulated/",
+                               .default_value = BeamToSolidSurfaceCoupling::none}),
 
-    setStringToIntegralParameter<BeamToSolidMortarShapefunctions>("MORTAR_SHAPE_FUNCTION", "none",
-        "Shape function for the mortar Lagrange-multipliers",
-        tuple<std::string>("none", "line2", "line3", "line4"),
-        tuple<BeamToSolidMortarShapefunctions>(BeamToSolidMortarShapefunctions::none,
-            BeamToSolidMortarShapefunctions::line2, BeamToSolidMortarShapefunctions::line3,
-            BeamToSolidMortarShapefunctions::line4),
-        &beam_to_solid_surface_mestying);
 
-    Core::Utils::double_parameter("PENALTY_PARAMETER", 0.0,
-        "Penalty parameter for beam-to-solid surface meshtying", &beam_to_solid_surface_mestying);
+      parameter<BeamToSolidMortarShapefunctions>("MORTAR_SHAPE_FUNCTION",
+          {.description = "Shape function for the mortar Lagrange-multipliers",
+              .default_value = BeamToSolidMortarShapefunctions::none}),
 
-    // Parameters for rotational coupling.
-    Core::Utils::bool_parameter("ROTATIONAL_COUPLING", "No", "Enable / disable rotational coupling",
-        &beam_to_solid_surface_mestying);
-    Core::Utils::double_parameter("ROTATIONAL_COUPLING_PENALTY_PARAMETER", 0.0,
-        "Penalty parameter for beam-to-solid surface rotational meshtying",
-        &beam_to_solid_surface_mestying);
-    setStringToIntegralParameter<BeamToSolidSurfaceRotationCoupling>(
-        "ROTATIONAL_COUPLING_SURFACE_TRIAD", "none", "Construction method for surface triad",
-        tuple<std::string>("none", "surface_cross_section_director", "averaged"),
-        tuple<BeamToSolidSurfaceRotationCoupling>(BeamToSolidSurfaceRotationCoupling::none,
-            BeamToSolidSurfaceRotationCoupling::surface_cross_section_director,
-            BeamToSolidSurfaceRotationCoupling::averaged),
-        &beam_to_solid_surface_mestying);
+      parameter<double>("PENALTY_PARAMETER",
+          {.description = "Penalty parameter for beam-to-solid surface meshtying",
+              .default_value = 0.0}),
 
-    // Add the geometry pair input parameters.
-    Inpar::GEOMETRYPAIR::set_valid_parameters_line_to3_d(beam_to_solid_surface_mestying);
+      // Parameters for rotational coupling.
+      parameter<bool>("ROTATIONAL_COUPLING",
+          {.description = "Enable / disable rotational coupling", .default_value = false}),
 
-    // Add the surface options.
-    Inpar::GEOMETRYPAIR::set_valid_parameters_line_to_surface(beam_to_solid_surface_mestying);
-  }
+      parameter<double>("ROTATIONAL_COUPLING_PENALTY_PARAMETER",
+          {.description = "Penalty parameter for beam-to-solid surface rotational meshtying",
+              .default_value = 0.0}),
+
+      parameter<BeamToSolidSurfaceRotationCoupling>("ROTATIONAL_COUPLING_SURFACE_TRIAD",
+          {.description = "Construction method for surface triad",
+              .default_value = BeamToSolidSurfaceRotationCoupling::none}),
+  };
+  // Add the geometry pair input parameters.
+  Inpar::GeometryPair::set_valid_parameters_line_to3_d(beam_to_solid_surface_meshtying);
+
+  // Add the surface options.
+  Inpar::GeometryPair::set_valid_parameters_line_to_surface(beam_to_solid_surface_meshtying);
+  list["BEAM INTERACTION/BEAM TO SOLID SURFACE MESHTYING"] =
+      group("BEAM INTERACTION/BEAM TO SOLID SURFACE MESHTYING", beam_to_solid_surface_meshtying,
+          {.defaultable = true});
+
 
   // Beam to solid surface contact parameters.
-  Teuchos::ParameterList& beam_to_solid_surface_contact =
-      beaminteraction.sublist("BEAM TO SOLID SURFACE CONTACT", false, "");
-  {
-    setStringToIntegralParameter<BeamToSolidContactDiscretization>("CONTACT_DISCRETIZATION", "none",
-        "Type of employed contact discretization",
-        tuple<std::string>("none", "gauss_point_to_segment", "mortar"),
-        tuple<BeamToSolidContactDiscretization>(BeamToSolidContactDiscretization::none,
-            BeamToSolidContactDiscretization::gauss_point_to_segment,
-            BeamToSolidContactDiscretization::mortar),
-        &beam_to_solid_surface_contact);
+  std::vector<Core::IO::InputSpec> beam_to_solid_surface_contact = {
+      parameter<BeamToSolidContactDiscretization>(
+          "CONTACT_DISCRETIZATION", {.description = "Type of employed contact discretization",
+                                        .default_value = BeamToSolidContactDiscretization::none}),
 
-    setStringToIntegralParameter<BeamToSolidConstraintEnforcement>("CONSTRAINT_STRATEGY", "none",
-        "Type of employed constraint enforcement strategy", tuple<std::string>("none", "penalty"),
-        tuple<BeamToSolidConstraintEnforcement>(
-            BeamToSolidConstraintEnforcement::none, BeamToSolidConstraintEnforcement::penalty),
-        &beam_to_solid_surface_contact);
+      parameter<BeamToSolidConstraintEnforcement>(
+          "CONSTRAINT_STRATEGY", {.description = "Type of employed constraint enforcement strategy",
+                                     .default_value = BeamToSolidConstraintEnforcement::none}),
 
-    Core::Utils::double_parameter("PENALTY_PARAMETER", 0.0,
-        "Penalty parameter for beam-to-solid surface contact", &beam_to_solid_surface_contact);
+      parameter<double>("PENALTY_PARAMETER",
+          {.description = "Penalty parameter for beam-to-solid surface contact",
+              .default_value = 0.0}),
 
-    setStringToIntegralParameter<BeamToSolidSurfaceContact>("CONTACT_TYPE", "none",
-        "How the contact constraints are formulated",
-        tuple<std::string>("none", "gap_variation", "potential"),
-        tuple<BeamToSolidSurfaceContact>(BeamToSolidSurfaceContact::none,
-            BeamToSolidSurfaceContact::gap_variation, BeamToSolidSurfaceContact::potential),
-        &beam_to_solid_surface_contact);
+      parameter<BeamToSolidSurfaceContact>(
+          "CONTACT_TYPE", {.description = "How the contact constraints are formulated",
+                              .default_value = BeamToSolidSurfaceContact::none}),
 
-    setStringToIntegralParameter<BeamToSolidSurfaceContactPenaltyLaw>("PENALTY_LAW", "none",
-        "Type of penalty law", tuple<std::string>("none", "linear", "linear_quadratic"),
-        tuple<BeamToSolidSurfaceContactPenaltyLaw>(BeamToSolidSurfaceContactPenaltyLaw::none,
-            BeamToSolidSurfaceContactPenaltyLaw::linear,
-            BeamToSolidSurfaceContactPenaltyLaw::linear_quadratic),
-        &beam_to_solid_surface_contact);
+      parameter<BeamToSolidSurfaceContactPenaltyLaw>(
+          "PENALTY_LAW", {.description = "Type of penalty law",
+                             .default_value = BeamToSolidSurfaceContactPenaltyLaw::none}),
 
-    Core::Utils::double_parameter("PENALTY_PARAMETER_G0", 0.0,
-        "First penalty regularization parameter G0 >=0: For gap<G0 contact is active",
-        &beam_to_solid_surface_contact);
+      parameter<double>("PENALTY_PARAMETER_G0",
+          {.description =
+                  "First penalty regularization parameter G0 >=0: For gap<G0 contact is active",
+              .default_value = 0.0}),
 
-    setStringToIntegralParameter<BeamToSolidSurfaceContactMortarDefinedIn>(
-        "MORTAR_CONTACT_DEFINED_IN", "none", "Configuration where the mortar contact is defined",
-        tuple<std::string>("none", "reference_configuration", "current_configuration"),
-        tuple<BeamToSolidSurfaceContactMortarDefinedIn>(
-            BeamToSolidSurfaceContactMortarDefinedIn::none,
-            BeamToSolidSurfaceContactMortarDefinedIn::reference_configuration,
-            BeamToSolidSurfaceContactMortarDefinedIn::current_configuration),
-        &beam_to_solid_surface_contact);
 
-    // Add the geometry pair input parameters.
-    Inpar::GEOMETRYPAIR::set_valid_parameters_line_to3_d(beam_to_solid_surface_contact);
+      parameter<BeamToSolidSurfaceContactMortarDefinedIn>("MORTAR_CONTACT_DEFINED_IN",
+          {.description = "Configuration where the mortar contact is defined",
+              .default_value = BeamToSolidSurfaceContactMortarDefinedIn::none}),
 
-    // Add the surface options.
-    Inpar::GEOMETRYPAIR::set_valid_parameters_line_to_surface(beam_to_solid_surface_contact);
+      // Define the mortar shape functions for contact
 
-    // Define the mortar shape functions for contact
-    setStringToIntegralParameter<BeamToSolidMortarShapefunctions>("MORTAR_SHAPE_FUNCTION", "none",
-        "Shape function for the mortar Lagrange-multipliers", tuple<std::string>("none", "line2"),
-        tuple<BeamToSolidMortarShapefunctions>(
-            BeamToSolidMortarShapefunctions::none, BeamToSolidMortarShapefunctions::line2),
-        &beam_to_solid_surface_contact);
-  }
+      parameter<BeamToSolidMortarShapefunctions>("MORTAR_SHAPE_FUNCTION",
+          {.description = "Shape function for the mortar Lagrange-multipliers",
+              .default_value = BeamToSolidMortarShapefunctions::none}),
+  };
+  // Add the geometry pair input parameters.
+  Inpar::GeometryPair::set_valid_parameters_line_to3_d(beam_to_solid_surface_contact);
 
-  // Beam to solid surface parameters.
-  Teuchos::ParameterList& beam_to_solid_surface =
-      beaminteraction.sublist("BEAM TO SOLID SURFACE", false, "");
+  // Add the surface options.
+  Inpar::GeometryPair::set_valid_parameters_line_to_surface(beam_to_solid_surface_contact);
+
+  list["BEAM INTERACTION/BEAM TO SOLID SURFACE CONTACT"] =
+      group("BEAM INTERACTION/BEAM TO SOLID SURFACE CONTACT", beam_to_solid_surface_contact,
+          {.defaultable = true});
+
 
   // Beam to solid surface output parameters.
-  Teuchos::ParameterList& beam_to_solid_surface_output =
-      beam_to_solid_surface.sublist("RUNTIME VTK OUTPUT", false, "");
-  {
-    // Whether to write visualization output at all.
-    Core::Utils::bool_parameter("WRITE_OUTPUT", "No",
-        "Enable / disable beam-to-solid volume mesh tying output.", &beam_to_solid_surface_output);
+  list["BEAM INTERACTION/BEAM TO SOLID SURFACE/RUNTIME VTK OUTPUT"] = group(
+      "BEAM INTERACTION/BEAM TO SOLID SURFACE/RUNTIME VTK OUTPUT",
+      {
+          // Whether to write visualization output at all.
+          parameter<bool>("WRITE_OUTPUT",
+              {.description = "Enable / disable beam-to-solid volume mesh tying output.",
+                  .default_value = false}),
 
-    Core::Utils::bool_parameter("NODAL_FORCES", "No",
-        "Enable / disable output of the resulting nodal forces due to beam to solid interaction.",
-        &beam_to_solid_surface_output);
+          parameter<bool>("NODAL_FORCES",
+              {.description = "Enable / disable output of the resulting nodal forces due "
+                              "to beam to solid interaction.",
+                  .default_value = false}),
 
-    Core::Utils::bool_parameter("AVERAGED_NORMALS", "No",
-        "Enable / disable output of averaged nodal normals on the surface.",
-        &beam_to_solid_surface_output);
+          parameter<bool>("AVERAGED_NORMALS",
+              {.description = "Enable / disable output of averaged nodal normals on the surface.",
+                  .default_value = false}),
 
-    Core::Utils::bool_parameter("MORTAR_LAMBDA_DISCRET", "No",
-        "Enable / disable output of the discrete Lagrange multipliers at the node of the Lagrange "
-        "multiplier shape functions.",
-        &beam_to_solid_surface_output);
+          parameter<bool>("MORTAR_LAMBDA_DISCRET",
+              {.description =
+                      "Enable / disable output of the discrete Lagrange multipliers at the node "
+                      "of the Lagrange multiplier shape functions.",
+                  .default_value = false}),
 
-    Core::Utils::bool_parameter("MORTAR_LAMBDA_CONTINUOUS", "No",
-        "Enable / disable output of the continuous Lagrange multipliers function along the beam.",
-        &beam_to_solid_surface_output);
+          parameter<bool>("MORTAR_LAMBDA_CONTINUOUS",
+              {.description = "Enable / disable output of the continuous "
+                              "Lagrange multipliers function along the beam.",
+                  .default_value = false}),
 
-    Core::Utils::int_parameter("MORTAR_LAMBDA_CONTINUOUS_SEGMENTS", 5,
-        "Number of segments for continuous mortar output", &beam_to_solid_surface_output);
+          parameter<int>("MORTAR_LAMBDA_CONTINUOUS_SEGMENTS",
+              {.description = "Number of segments for continuous mortar output",
+                  .default_value = 5}),
 
-    Core::Utils::bool_parameter("SEGMENTATION", "No",
-        "Enable / disable output of segmentation points.", &beam_to_solid_surface_output);
+          parameter<bool>(
+              "SEGMENTATION", {.description = "Enable / disable output of segmentation points.",
+                                  .default_value = false}),
 
-    Core::Utils::bool_parameter("INTEGRATION_POINTS", "No",
-        "Enable / disable output of used integration points. If the contact method has 'forces' at "
-        "the integration point, they will also be output.",
-        &beam_to_solid_surface_output);
+          parameter<bool>("INTEGRATION_POINTS",
+              {.description =
+                      "Enable / disable output of used integration points. If the contact method "
+                      "has 'forces' at the integration point, they will also be output.",
+                  .default_value = false}),
 
-    Core::Utils::bool_parameter("UNIQUE_IDS", "No",
-        "Enable / disable output of unique IDs (mainly for testing of created VTK files).",
-        &beam_to_solid_surface_output);
-  }
+          parameter<bool>(
+              "UNIQUE_IDS", {.description = "Enable / disable output of unique IDs (mainly "
+                                            "for testing of created VTK files).",
+                                .default_value = false}),
+      },
+      {.defaultable = true});
 }
 
 /**
@@ -375,7 +326,7 @@ void Inpar::BeamToSolid::set_valid_conditions(
         "Beam-to-volume mesh tying conditions - volume definition",
         Core::Conditions::BeamToSolidVolumeMeshtyingVolume, true,
         Core::Conditions::geometry_type_volume);
-    beam_to_solid_volume_meshtying_condition.add_component(entry<int>("COUPLING_ID"));
+    beam_to_solid_volume_meshtying_condition.add_component(parameter<int>("COUPLING_ID"));
     condlist.push_back(beam_to_solid_volume_meshtying_condition);
 
     beam_to_solid_volume_meshtying_condition = Core::Conditions::ConditionDefinition(
@@ -383,7 +334,7 @@ void Inpar::BeamToSolid::set_valid_conditions(
         "Beam-to-volume mesh tying conditions - line definition",
         Core::Conditions::BeamToSolidVolumeMeshtyingLine, true,
         Core::Conditions::geometry_type_line);
-    beam_to_solid_volume_meshtying_condition.add_component(entry<int>("COUPLING_ID"));
+    beam_to_solid_volume_meshtying_condition.add_component(parameter<int>("COUPLING_ID"));
     condlist.push_back(beam_to_solid_volume_meshtying_condition);
   }
 
@@ -399,7 +350,7 @@ void Inpar::BeamToSolid::set_valid_conditions(
         "Beam-to-surface mesh tying conditions - surface definition",
         Core::Conditions::BeamToSolidSurfaceMeshtyingSurface, true,
         Core::Conditions::geometry_type_surface);
-    beam_to_solid_surface_meshtying_condition.add_component(entry<int>("COUPLING_ID"));
+    beam_to_solid_surface_meshtying_condition.add_component(parameter<int>("COUPLING_ID"));
     condlist.push_back(beam_to_solid_surface_meshtying_condition);
 
     beam_to_solid_surface_meshtying_condition = Core::Conditions::ConditionDefinition(
@@ -407,7 +358,7 @@ void Inpar::BeamToSolid::set_valid_conditions(
         "Beam-to-surface mesh tying conditions - line definition",
         Core::Conditions::BeamToSolidSurfaceMeshtyingLine, true,
         Core::Conditions::geometry_type_line);
-    beam_to_solid_surface_meshtying_condition.add_component(entry<int>("COUPLING_ID"));
+    beam_to_solid_surface_meshtying_condition.add_component(parameter<int>("COUPLING_ID"));
     condlist.push_back(beam_to_solid_surface_meshtying_condition);
   }
 
@@ -423,7 +374,7 @@ void Inpar::BeamToSolid::set_valid_conditions(
         "Beam-to-surface contact conditions - surface definition",
         Core::Conditions::BeamToSolidSurfaceContactSurface, true,
         Core::Conditions::geometry_type_surface);
-    beam_to_solid_surface_contact_condition.add_component(entry<int>("COUPLING_ID"));
+    beam_to_solid_surface_contact_condition.add_component(parameter<int>("COUPLING_ID"));
     condlist.push_back(beam_to_solid_surface_contact_condition);
 
     beam_to_solid_surface_contact_condition =
@@ -431,7 +382,7 @@ void Inpar::BeamToSolid::set_valid_conditions(
             condition_names[0], "Beam-to-surface contact conditions - line definition",
             Core::Conditions::BeamToSolidSurfaceContactLine, true,
             Core::Conditions::geometry_type_line);
-    beam_to_solid_surface_contact_condition.add_component(entry<int>("COUPLING_ID"));
+    beam_to_solid_surface_contact_condition.add_component(parameter<int>("COUPLING_ID"));
     condlist.push_back(beam_to_solid_surface_contact_condition);
   }
 }

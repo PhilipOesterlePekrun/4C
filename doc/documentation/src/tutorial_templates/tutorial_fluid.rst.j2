@@ -1,0 +1,142 @@
+{% set tutorial_file = "tutorial_fluid.4C.yaml" %}
+{% set input_file_content = load_input_file(tutorial_file) %}
+
+.. _fluidtutorial:
+
+Fluid Tutorial
+==============
+
+Introduction
+------------
+
+In this tutorial we want to simulate the incompressible flow past a
+circular cylinder. For further details and references we refer the reader to:
+[Wall99]_
+
+
+.. figure:: /_assets/tut_fluid_problem.jpg
+   :alt: Problem definition and geometrical setup (with friendly permission ;-))
+   :width: 95%
+   :align: center
+
+   Problem definition and geometrical setup (with friendly permission ;-))
+
+
+Preprocessing
+-------------
+
+Creating the Geometry with Cubit
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+We will use Cubit for creating the geometry and the mesh.
+Within Cubit, open the Journal-Editor (*Tools* :math:`\to` *Journal
+Editor*), paste the text below and press *play*.
+After successful geometry and mesh creation, export everything to an
+EXODUS file of your choice via *File* :math:`\to`\ *Export...* and
+set the dimension explicitly to 2D.
+
+.. literalinclude::  /tutorial_fluid.jou
+   :linenos:
+
+The generated mesh should look like this:
+
+.. figure:: /_assets/tut_fluid_mesh.jpg
+   :alt: Mesh for a flow past a circular cylinder.
+   :name: fig_domainDecomposition
+   :width: 95.0%
+   :align: center
+
+   Mesh for a flow past a circular cylinder.
+
+Working with |FOURC|
+--------------------
+
+General Procedure of Creating a Valid |FOURC| Input File
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The execution of |FOURC| is controlled by an input file. Let us create a file
+``tutorial_fluid.4C.yaml`` and enter the essential parameters:
+
+{{ section_dump(input_file_content, ["PROBLEM TYPE", "FLUID DYNAMIC", "SOLVER 1", "MATERIALS", "FUNCT1"]) }}
+
+The mesh is read from the EXODUS file created in the previous step. We can read the mesh as
+follows:
+
+{{ section_dump(input_file_content, ["FLUID GEOMETRY"]) }}
+
+This tells |FOURC| to read the mesh as the fluid geometry and assign corresponding
+elements.
+
+Setting the boundary conditions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The boundary conditions are set as follows:
+
+{{ section_dump(input_file_content, ["DESIGN LINE DIRICH CONDITIONS", "DESIGN POINT DIRICH CONDITIONS"]) }}
+
+
+Running a Simulation with |FOURC|
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Execute 4C as usual:
+
+.. container:: center
+
+   ``./4C <input_directory>/<input_file_name> <output_directory>/output_prefix``
+
+The prefix that you choose will be applied to all output files that |FOURC| generates.
+
+Postprocessing
+--------------
+
+You can postprocess your results with any visualization software you
+like. In this tutorial, we choose *Paraview*.
+
+Filtering result data
+~~~~~~~~~~~~~~~~~~~~~
+
+-  Before you can admire your results, you have to generate a filter
+   which converts the generic binary |FOURC| output to the desired format.
+   Starting from the ``build-release`` directory, execute
+   ``make post_drt_ensight``.
+
+-  The filter should now be available in the ``build-release`` folder.
+   Filter your results with the following call inside the
+   ``build-release`` folder:
+
+   .. container:: center
+
+      ``./post_drt_ensight - -file=<outputdirectory>/outputprefix``
+
+-  Further options of the filter program are made visible by the command
+   ``./post_drt_ensight –help``
+
+Visualize your results in Paraview
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+-  After the filtering process is finished open *paraview* by typing
+
+::
+
+      paraview &
+
+-  *File :math:`\to` Open* and select the filtered ``*\*.case*`` file:
+   *outputprefix_fluid.case*
+
+-  Press *Apply* to activate the display.
+
+-  Set the time step in the top menu bar to :math:`19` (:math:`=0.2`).
+
+-  In the *Color* section you can now choose between *pressure* and
+   *velocity*. Select velocity and pick the :math:`X`-component from the
+   adjacent drop-down menu. Then press the *Rescale* button and the
+   *Show* button. You receive a visualization of the :math:`X`-velocity
+   field, which should look similar to this figure:
+
+.. figure:: /_assets/tut_fluid_xvel.png
+   :alt: X-velocity for a flow past a circular cylinder
+   :name: fig_FlowPastCylinder_x-velocity
+   :width: 95.0%
+   :align: center
+
+   :math:`X`-velocity for a flow past a circular cylinder

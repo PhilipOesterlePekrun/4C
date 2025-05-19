@@ -10,7 +10,7 @@
 #include "4C_fem_condition_utils.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_dofset_base.hpp"
-#include "4C_fem_geometric_search_matchingoctree.hpp"
+#include "4C_geometric_search_matchingoctree.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -105,7 +105,7 @@ int Core::DOFSets::DofSetDefinedMappingWrapper::assign_degrees_of_freedom(
     if (targetnodes.size() != condcoupling.size())
       FOUR_C_THROW(
           "Did not get unique target to source spatial node coordinate mapping.\n"
-          "targetnodes.size()=%d, coupling.size()=%d.\n"
+          "targetnodes.size()={}, coupling.size()={}.\n"
           "The heterogeneous reaction strategy requires matching source and target meshes!",
           targetnodes.size(), condcoupling.size());
 
@@ -141,10 +141,10 @@ int Core::DOFSets::DofSetDefinedMappingWrapper::assign_degrees_of_freedom(
   }
 
   // Epetra maps
-  Epetra_Map targetnodemap(-1, patchedtargetnodes.size(), patchedtargetnodes.data(), 0,
+  Core::LinAlg::Map targetnodemap(-1, patchedtargetnodes.size(), patchedtargetnodes.data(), 0,
       Core::Communication::as_epetra_comm(com));
 
-  Epetra_Map permsourcenodemap(-1, permsourcenodes.size(), permsourcenodes.data(), 0,
+  Core::LinAlg::Map permsourcenodemap(-1, permsourcenodes.size(), permsourcenodes.data(), 0,
       Core::Communication::as_epetra_comm(com));
 
   // we expect to get maps of exactly the same shape
@@ -158,7 +158,7 @@ int Core::DOFSets::DofSetDefinedMappingWrapper::assign_degrees_of_freedom(
   targetlidtosourcegidmapping_ = std::make_shared<Core::LinAlg::Vector<int>>(*dis.node_col_map());
 
   // default value -1
-  targetlidtosourcegidmapping_->PutValue(-1);
+  targetlidtosourcegidmapping_->put_value(-1);
 
   // export to column map
   Core::LinAlg::export_to(permsourcenodevec, *targetlidtosourcegidmapping_);
@@ -205,7 +205,8 @@ const Core::Nodes::Node* Core::DOFSets::DofSetDefinedMappingWrapper::get_source_
     int targetLid) const
 {
   // check
-  FOUR_C_ASSERT(targetLid <= targetlidtosourcegidmapping_->MyLength(), "Target Lid out of range!");
+  FOUR_C_ASSERT(
+      targetLid <= targetlidtosourcegidmapping_->local_length(), "Target Lid out of range!");
 
   // get the gid of the source node
   int sourcegid = (*targetlidtosourcegidmapping_)[targetLid];

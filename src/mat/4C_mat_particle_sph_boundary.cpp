@@ -10,6 +10,7 @@
 #include "4C_comm_pack_helpers.hpp"
 #include "4C_global_data.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -100,7 +101,7 @@ void Mat::ParticleMaterialSPHBoundary::unpack(Core::Communication::UnpackBuffer&
       if (mat->type() == material_type())
         params_ = dynamic_cast<Mat::PAR::ParticleMaterialSPHBoundary*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
 }

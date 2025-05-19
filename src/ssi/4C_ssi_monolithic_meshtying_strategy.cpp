@@ -12,12 +12,11 @@
 #include "4C_coupling_adapter_converter.hpp"
 #include "4C_fem_condition_locsys.hpp"
 #include "4C_linalg_blocksparsematrix.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
 #include "4C_scatra_timint_meshtying_strategy_s2i.hpp"
 #include "4C_ssi_monolithic.hpp"
 #include "4C_ssi_utils.hpp"
-
-#include <Epetra_Map.h>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -221,7 +220,7 @@ Core::LinAlg::Vector<double> SSI::MeshtyingStrategyBase::apply_meshtying_to_stru
   }
 
   // assemble master-side part of structure right-hand side vector
-  rhs_structure.Update(1.0, *rhs_structure_master, 1.0);
+  rhs_structure.update(1.0, *rhs_structure_master, 1.0);
 
   return rhs_structure;
 }
@@ -416,15 +415,13 @@ void SSI::MeshtyingStrategyBase::finalize_meshtying_structure_matrix(
     {
       const int rowlid_slave = ssi_structure_matrix.row_map().LID(dofgid_slave);
       if (rowlid_slave < 0) FOUR_C_THROW("Global ID not found!");
-      if (ssi_structure_matrix.epetra_matrix()->ReplaceMyValues(
-              rowlid_slave, 1, &one, &rowlid_slave))
+      if (ssi_structure_matrix.replace_my_values(rowlid_slave, 1, &one, &rowlid_slave))
         FOUR_C_THROW("ReplaceMyValues failed!");
     }
 
     // apply pseudo Dirichlet conditions to unfilled matrix, i.e., to global row and column indices
     else
-      ssi_structure_matrix.epetra_matrix()->InsertGlobalValues(
-          dofgid_slave, 1, &one, &dofgid_slave);
+      ssi_structure_matrix.insert_global_values(dofgid_slave, 1, &one, &dofgid_slave);
   }
 }
 

@@ -40,8 +40,7 @@ namespace Thermo
    *   and Engineering, 190:305-319, 2000.
    *
    *
-   * \author danowski
-   * \date 06/13
+
    */
   class TimIntGenAlpha : public TimIntImpl
   {
@@ -65,41 +64,13 @@ namespace Thermo
         std::shared_ptr<Core::IO::DiscretizationWriter> output  //!< the output
     );
 
-    //! Destructor
-    // ....
-
-    //! Resize #TimIntMStep<T> multi-step quantities
-    //! Single-step method: nothing to do here
-    void resize_m_step() override { ; }
-
     //@}
 
     //! @name Pure virtual methods which have to be implemented
     //@{
 
     //! Return name
-    enum Inpar::Thermo::DynamicType method_name() const override
-    {
-      return Inpar::Thermo::dyna_genalpha;
-    }
-
-    //! Provide number of steps, e.g. a single-step method returns 1,
-    //! a m-multistep method returns m
-    int method_steps() override { return 1; }
-
-    //! Give linear order of accuracy of temperature part
-    int method_order_of_accuracy() override
-    {
-      return (fabs(method_lin_err_coeff()) < 1e-6) ? 2 : 1;
-    }
-
-    // TODO 2013-07-05 check the calculation of the factor again
-    //! Return linear error coefficient of temperatures
-    double method_lin_err_coeff() override
-    {
-      // at least true for am<1/2 and large enough n->infty
-      return 1.0 / 2.0 - gamma_ + alphaf_ - alpham_;
-    }
+    enum Thermo::DynamicType method_name() const override { return Thermo::DynamicType::GenAlpha; }
 
     //! Consistent predictor with constant temperatures
     //! and consistent temperature rates and temperatures
@@ -136,11 +107,9 @@ namespace Thermo
     void evaluate_rhs_tang_residual() override;
 
     //! Determine characteristic norm for temperatures
-    //! \author lw (originally)
     double calc_ref_norm_temperature() override;
 
     //! Determine characteristic norm for force
-    //! \author lw (originally)
     double calc_ref_norm_force() override;
 
     //! Update iteration incrementally
@@ -202,7 +171,7 @@ namespace Thermo
     //! @name set-up
     //@{
     //! mid-average type more at #MidAverageEnum
-    enum Inpar::Thermo::MidAverageEnum midavg_;
+    enum Thermo::MidAverageEnum midavg_;
     //@}
 
     //! @name Key coefficients

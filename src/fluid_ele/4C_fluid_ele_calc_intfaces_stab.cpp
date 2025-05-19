@@ -15,6 +15,7 @@
 #include "4C_mat_fluidporo.hpp"
 #include "4C_mat_list.hpp"
 #include "4C_mat_newtonianfluid.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 
 #include <Teuchos_TimeMonitor.hpp>
@@ -197,7 +198,7 @@ Discret::Elements::FluidIntFaceStab* Discret::Elements::FluidIntFaceStab::impl(
     }
     default:
       FOUR_C_THROW(
-          "shape %d (%d nodes) not supported by internalfaces stabilization. Just switch on!",
+          "shape {} ({} nodes) not supported by internalfaces stabilization. Just switch on!",
           surfele->shape(), surfele->num_node());
       break;
   }
@@ -237,82 +238,82 @@ Discret::Elements::FluidInternalSurfaceStab<distype, pdistype, ndistype>::instan
 template <Core::FE::CellType distype, Core::FE::CellType pdistype, Core::FE::CellType ndistype>
 Discret::Elements::FluidInternalSurfaceStab<distype, pdistype, ndistype>::FluidInternalSurfaceStab()
     : FluidIntFaceStab(),
-      elematrix_mm_(true),  ///< element matrix master-master block
-      elematrix_ms_(true),  ///< element matrix master-slave block
-      elematrix_sm_(true),  ///< element matrix slave-master block
-      elematrix_ss_(true),  ///< element matrix slave-slave block
-      elevector_m_(true),   ///< element vector master block
-      elevector_s_(true),   ///< element vector slave block
-      pxyze_(true),
-      pevelaf_(true),
-      pegridv_(true),
-      pevelnp_(true),
-      peconvvelaf_(true),
-      peprenp_(true),
-      pedispnp_(true),
-      edispnp_(true),
-      nxyze_(true),
-      nevelaf_(true),
-      negridv_(true),
-      nevelnp_(true),
-      neconvvelaf_(true),
-      neprenp_(true),
-      nedispnp_(true),
-      xyze_(true),
-      p_conv_c_(true),
-      n_conv_c_(true),
-      pxjm_(true),
-      pxji_(true),
-      pfunct_(true),
-      pderiv_(true),
-      pderxy_(true),
-      pderiv2_(true),
-      pderxy2_(true),
-      nxjm_(true),
-      nxji_(true),
-      nfunct_(true),
-      nderiv_(true),
-      nderxy_(true),
-      nderiv2_(true),
-      nderxy2_(true),
-      funct_(true),
-      deriv_(true),
-      n_(true),
-      dxyzdrs_(true),
-      metrictensor_(true),
+      elematrix_mm_(),  ///< element matrix master-master block
+      elematrix_ms_(),  ///< element matrix master-slave block
+      elematrix_sm_(),  ///< element matrix slave-master block
+      elematrix_ss_(),  ///< element matrix slave-slave block
+      elevector_m_(),   ///< element vector master block
+      elevector_s_(),   ///< element vector slave block
+      pxyze_(),
+      pevelaf_(),
+      pegridv_(),
+      pevelnp_(),
+      peconvvelaf_(),
+      peprenp_(),
+      pedispnp_(),
+      edispnp_(),
+      nxyze_(),
+      nevelaf_(),
+      negridv_(),
+      nevelnp_(),
+      neconvvelaf_(),
+      neprenp_(),
+      nedispnp_(),
+      xyze_(),
+      p_conv_c_(),
+      n_conv_c_(),
+      pxjm_(),
+      pxji_(),
+      pfunct_(),
+      pderiv_(),
+      pderxy_(),
+      pderiv2_(),
+      pderxy2_(),
+      nxjm_(),
+      nxji_(),
+      nfunct_(),
+      nderiv_(),
+      nderxy_(),
+      nderiv2_(),
+      nderxy2_(),
+      funct_(),
+      deriv_(),
+      n_(),
+      dxyzdrs_(),
+      metrictensor_(),
       drs_(0.0),
-      xsi_(true),
-      velintaf_(true),
-      velintnp_(true),
-      gridvelint_(true),
-      convvelint_(true),
-      pvderxyaf_(true),
-      nvderxyaf_(true),
-      pvderxynp_(true),
-      nvderxynp_(true),
-      pvderxy2af_(true),
-      nvderxy2af_(true),
-      ppderxy2af_(true),
-      npderxy2af_(true),
-      vderxyaf_diff_(true),
-      vderxynp_diff_(true),
+      xsi_(),
+      velintaf_(),
+      velintnp_(),
+      gridvelint_(),
+      convvelint_(),
+      pvderxyaf_(),
+      nvderxyaf_(),
+      pvderxynp_(),
+      nvderxynp_(),
+      pvderxy2af_(),
+      nvderxy2af_(),
+      ppderxy2af_(),
+      npderxy2af_(),
+      vderxyaf_diff_(),
+      vderxynp_diff_(),
       prenp_(0.0),
-      pprederxy_(true),
-      nprederxy_(true),
-      pderiv_dyad_pderiv_(true),
-      pderiv_dyad_pderiv_tau_timefacfac_(true),
-      pderiv_dyad_pderiv_tau_timefacfacpre_(true),
-      pderiv_dyad_nderiv_(true),
-      pderiv_dyad_nderiv_tau_timefacfac_(true),
-      pderiv_dyad_nderiv_tau_timefacfacpre_(true),
-      nderiv_dyad_nderiv_(true),
-      nderiv_dyad_nderiv_tau_timefacfac_(true),
-      nderiv_dyad_nderiv_tau_timefacfacpre_(true),
-      pderxy_tau_timefacfac_(true),
-      nderxy_tau_timefacfac_(true),
-      face_xi_gp_(true),
-      p_xi_gp_(true),
-      n_xi_gp_(true)
+      pprederxy_(),
+      nprederxy_(),
+      pderiv_dyad_pderiv_(),
+      pderiv_dyad_pderiv_tau_timefacfac_(),
+      pderiv_dyad_pderiv_tau_timefacfacpre_(),
+      pderiv_dyad_nderiv_(),
+      pderiv_dyad_nderiv_tau_timefacfac_(),
+      pderiv_dyad_nderiv_tau_timefacfacpre_(),
+      nderiv_dyad_nderiv_(),
+      nderiv_dyad_nderiv_tau_timefacfac_(),
+      nderiv_dyad_nderiv_tau_timefacfacpre_(),
+      pderxy_tau_timefacfac_(),
+      nderxy_tau_timefacfac_(),
+      face_xi_gp_(),
+      p_xi_gp_(),
+      n_xi_gp_()
 {
   // polynomial degree for exact integration of gradient w.r.t parent element
   const int pdegree = degree(pdistype);
@@ -324,7 +325,7 @@ Discret::Elements::FluidInternalSurfaceStab<distype, pdistype, ndistype>::FluidI
 
   // creating a singleton instance ensures that the object will be deleted at the end
   // create intpoints with computed degree
-  intpoints_ = Core::FE::GaussPointCache::instance().create(distype, patch_degree);
+  intpoints_ = Core::FE::create_gauss_points(distype, patch_degree);
 
   numgp_ = intpoints_->num_points();
 
@@ -351,7 +352,7 @@ Discret::Elements::FluidInternalSurfaceStab<distype, pdistype, ndistype>::FluidI
     s_connectivity_ = Core::FE::get_ele_node_numbering_lines(ndistype);
   }
   else
-    FOUR_C_THROW("not valid nsd %i", nsd_);
+    FOUR_C_THROW("not valid nsd {}", nsd_);
 
   // get the connectivity between lines and surfaces of an parent element
   connectivity_line_nodes_ = Core::FE::get_ele_node_numbering_lines(pdistype);
@@ -651,10 +652,10 @@ int Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
 
 #ifdef FOUR_C_ENABLE_ASSERTIONS
   if (master_numdof != numdofpernode_ * piel)
-    FOUR_C_THROW("wrong number of master dofs %i", master_numdof);
+    FOUR_C_THROW("wrong number of master dofs {}", master_numdof);
   if (slave_numdof != numdofpernode_ * niel)
-    FOUR_C_THROW("wrong number of slave dofs %i", slave_numdof);
-  if (master_numdof != slave_numdof) FOUR_C_THROW("Different element typs?");
+    FOUR_C_THROW("wrong number of slave dofs {}", slave_numdof);
+  if (master_numdof != slave_numdof) FOUR_C_THROW("Different element types?");
 #endif
 
   //---------------------------------------------------
@@ -686,7 +687,7 @@ int Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
 
   for (int i = 0; i < ndofinpatch; ++i)
   {
-    int lid = velaf->Map().LID(patchlm[i]);
+    int lid = velaf->get_block_map().LID(patchlm[i]);
     if (lid == -1) FOUR_C_THROW("Cannot find degree of freedom on this proc");
     patch_velaf[i] = (*velaf)[lid];
   }
@@ -719,7 +720,7 @@ int Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
     std::vector<double> patch_velnp(ndofinpatch);
     for (int i = 0; i < ndofinpatch; ++i)
     {
-      int lid = velnp->Map().LID(patchlm[i]);
+      int lid = velnp->get_block_map().LID(patchlm[i]);
       if (lid == -1) FOUR_C_THROW("Cannot find degree of freedom on this proc");
       patch_velnp[i] = (*velnp)[lid];
     }
@@ -774,11 +775,11 @@ int Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
 
     for (int i = 0; i < ndofinpatch; ++i)
     {
-      int lid_1 = dispnp->Map().LID(patchlm[i]);
+      int lid_1 = dispnp->get_block_map().LID(patchlm[i]);
       if (lid_1 == -1) FOUR_C_THROW("Cannot find degree of freedom on this proc");
       patch_dispnp[i] = (*dispnp)[lid_1];
 
-      int lid_2 = gridv->Map().LID(patchlm[i]);
+      int lid_2 = gridv->get_block_map().LID(patchlm[i]);
       if (lid_2 == -1) FOUR_C_THROW("Cannot find degree of freedom on this proc");
       patch_gridv[i] = (*gridv)[lid_2];
     }
@@ -899,7 +900,8 @@ int Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
 
   //------------------------
   // local coordinates of the face nodes w.r.t slave side
-  Core::LinAlg::Matrix<facensd_, iel> local_slave_coordinates_trafo(true);
+  Core::LinAlg::Matrix<facensd_, iel> local_slave_coordinates_trafo(
+      Core::LinAlg::Initialization::zero);
 
   const std::vector<int>& localtrafomap = intface->get_local_trafo_map();
 
@@ -935,7 +937,7 @@ int Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
           break;
         }
         default:
-          FOUR_C_THROW("intface type not supported %d", distype);
+          FOUR_C_THROW("intface type not supported {}", distype);
           break;
       }
     }
@@ -946,8 +948,10 @@ int Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
   // of the respective parent element
   for (unsigned int q = 0; q < numgp_; q++)
   {
-    Core::LinAlg::Matrix<facensd_, 1> face_xi_points_master_linalg(true);
-    Core::LinAlg::Matrix<facensd_, 1> face_xi_points_slave_linalg(true);
+    Core::LinAlg::Matrix<facensd_, 1> face_xi_points_master_linalg(
+        Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<facensd_, 1> face_xi_points_slave_linalg(
+        Core::LinAlg::Initialization::zero);
 
 
     // Gaussian point in face's element's local coordinates w.r.t master element
@@ -1120,7 +1124,8 @@ int Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
       pderiv_dyad_nderiv_tau_timefacfac_.update(tau_timefacfac, pderiv_dyad_nderiv_, 0.0);
       nderiv_dyad_nderiv_tau_timefacfac_.update(tau_timefacfac, nderiv_dyad_nderiv_, 0.0);
 
-      Core::LinAlg::Matrix<nsd_, nsd_> vderxyaf_diff_scaled(false);
+      Core::LinAlg::Matrix<nsd_, nsd_> vderxyaf_diff_scaled(
+          Core::LinAlg::Initialization::uninitialized);
       vderxyaf_diff_scaled.update(tau_timefacfac_rhs, vderxyaf_diff_, 0.0);
 
       //-----------------------------------------------------
@@ -1220,7 +1225,7 @@ int Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
       }
     }
     else
-      FOUR_C_THROW("unknown assembly pattern for given number of epetra block matrices");
+      FOUR_C_THROW("unknown assembly pattern for given number of block matrices");
   }
 
   // elemat.print(cout);
@@ -1670,7 +1675,7 @@ double Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
   // check for degenerated elements
   if (pdet < 0.0)
   {
-    FOUR_C_THROW("GLOBAL ELEMENT NO.%i\nNEGATIVE JACOBIAN DETERMINANT: %f", master_eid, pdet);
+    FOUR_C_THROW("GLOBAL ELEMENT NO.{}\nNEGATIVE JACOBIAN DETERMINANT: {}", master_eid, pdet);
   }
 
   //-----------------------------------------------------
@@ -1694,11 +1699,11 @@ double Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
   // check for degenerated elements
   if (ndet < 0.0)
   {
-    FOUR_C_THROW("GLOBAL ELEMENT NO.%i\nNEGATIVE JACOBIAN DETERMINANT: %f", slave_eid, ndet);
+    FOUR_C_THROW("GLOBAL ELEMENT NO.{}\nNEGATIVE JACOBIAN DETERMINANT: {}", slave_eid, ndet);
   }
 
   //-----------------------------------------------------
-  // compute global derivates at integration point
+  // compute global derivate at integration point
   //
   //   dN    +-----  dN (xi)    dxi
   //     i    \        i           k
@@ -2017,12 +2022,12 @@ double Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
     FOUR_C_THROW("not implemented for nurbs");
   }
 
-  Core::LinAlg::Matrix<nsd_, 1> x_gp(true);
+  Core::LinAlg::Matrix<nsd_, 1> x_gp(Core::LinAlg::Initialization::zero);
   x_gp.multiply(xyze_, funct_);
 
   //---------------
   // compute local coordinates with respect to slave element
-  Core::LinAlg::Matrix<nsd_, 1> nqxg(true);
+  Core::LinAlg::Matrix<nsd_, 1> nqxg(Core::LinAlg::Initialization::zero);
 
   bool inelement_n = Core::Geo::compute_local_coordinates<ndistype>(nxyze_, x_gp, nqxg);
 
@@ -2032,7 +2037,7 @@ double Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
   //---------------
   // compute local coordinates with respect to master element
 
-  Core::LinAlg::Matrix<nsd_, 1> pqxg(true);
+  Core::LinAlg::Matrix<nsd_, 1> pqxg(Core::LinAlg::Initialization::zero);
   bool inelement_p = Core::Geo::compute_local_coordinates<pdistype>(pxyze_, x_gp, pqxg);
 
   if (!inelement_p) FOUR_C_THROW("point does not lie in element");
@@ -2097,7 +2102,7 @@ double Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
   // check for degenerated elements
   if (pdet < 0.0)
   {
-    FOUR_C_THROW("GLOBAL ELEMENT NO.%i\nNEGATIVE JACOBIAN DETERMINANT: %f", master_eid, pdet);
+    FOUR_C_THROW("GLOBAL ELEMENT NO.{}\nNEGATIVE JACOBIAN DETERMINANT: {}", master_eid, pdet);
   }
 
   //-----------------------------------------------------
@@ -2121,11 +2126,11 @@ double Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
   // check for degenerated elements
   if (ndet < 0.0)
   {
-    FOUR_C_THROW("GLOBAL ELEMENT NO.%i\nNEGATIVE JACOBIAN DETERMINANT: %f", slave_eid, ndet);
+    FOUR_C_THROW("GLOBAL ELEMENT NO.{}\nNEGATIVE JACOBIAN DETERMINANT: {}", slave_eid, ndet);
   }
 
   //-----------------------------------------------------
-  // compute global derivates at integration point
+  // compute global derivate at integration point
   //
   //   dN    +-----  dN (xi)    dxi
   //     i    \        i           k
@@ -2248,7 +2253,7 @@ void Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
 
   // vector of shape function (2nd) derivatives in reference coordinate system, parent element,
   // scaled with normals
-  Core::LinAlg::Matrix<numderiv2_p, piel> pderxy2_n_scaled(true);
+  Core::LinAlg::Matrix<numderiv2_p, piel> pderxy2_n_scaled(Core::LinAlg::Initialization::zero);
   pderxy2_n_scaled.update(1.0, pderxy2_, 0.0);
 
   for (int ui = 0; ui < piel; ++ui)
@@ -2268,7 +2273,7 @@ void Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
 
   //! vector of shape function (2nd) derivatives in global coordinate system, neighbor element,
   //! scaled with normals
-  Core::LinAlg::Matrix<numderiv2_p, niel> nderxy2_n_scaled(true);
+  Core::LinAlg::Matrix<numderiv2_p, niel> nderxy2_n_scaled(Core::LinAlg::Initialization::zero);
   nderxy2_n_scaled.update(1.0, nderxy2_, 0.0);
 
 
@@ -2287,8 +2292,8 @@ void Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
       }
   }
 
-  Core::LinAlg::Matrix<piel, 1> pderxy2_n_scaled_sum(true);
-  Core::LinAlg::Matrix<niel, 1> nderxy2_n_scaled_sum(true);
+  Core::LinAlg::Matrix<piel, 1> pderxy2_n_scaled_sum(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<niel, 1> nderxy2_n_scaled_sum(Core::LinAlg::Initialization::zero);
 
   for (int ui = 0; ui < piel; ++ui)
   {
@@ -2563,7 +2568,7 @@ void Discret::Elements::FluidInternalSurfaceStab<distype, pdistype, ndistype>::p
    */
 
   // grad(p_neighbor) - grad(p_parent)
-  Core::LinAlg::Matrix<nsd_, 1> prederxy_jump(false);
+  Core::LinAlg::Matrix<nsd_, 1> prederxy_jump(Core::LinAlg::Initialization::uninitialized);
   prederxy_jump.update(1.0, nprederxy_, -1.0, pprederxy_);
   prederxy_jump.scale(tau_timefacfacrhs);
 
@@ -2599,14 +2604,16 @@ void Discret::Elements::FluidInternalSurfaceStab<distype, pdistype, ndistype>::p
   }
 
   // q_master (p_slave-p_master)
-  Core::LinAlg::Matrix<piel, 1> pderxy_times_prederxy_jump(false);
+  Core::LinAlg::Matrix<piel, 1> pderxy_times_prederxy_jump(
+      Core::LinAlg::Initialization::uninitialized);
   pderxy_times_prederxy_jump.multiply_tn(pderxy_, prederxy_jump);
 
   for (int vi = 0; vi < piel; ++vi)
     elevector_m_(vi * numdofpernode_ + nsd_, 0) += pderxy_times_prederxy_jump(vi);
 
   // -q_slave (p_slave-p_master)
-  Core::LinAlg::Matrix<niel, 1> nderxy_times_prederxy_jump(false);
+  Core::LinAlg::Matrix<niel, 1> nderxy_times_prederxy_jump(
+      Core::LinAlg::Initialization::uninitialized);
   nderxy_times_prederxy_jump.multiply_tn(nderxy_, prederxy_jump);
 
   for (int vi = 0; vi < niel; ++vi)
@@ -2717,7 +2724,8 @@ void Discret::Elements::FluidInternalSurfaceStab<distype, pdistype, ndistype>::d
   }
 
 
-  Core::LinAlg::Matrix<nsd_, piel> pderxy_times_vderxyaf_diff(false);
+  Core::LinAlg::Matrix<nsd_, piel> pderxy_times_vderxyaf_diff(
+      Core::LinAlg::Initialization::uninitialized);
   pderxy_times_vderxyaf_diff.multiply(vderxyaf_diff_scaled, pderxy_);
 
   // master row
@@ -2725,7 +2733,8 @@ void Discret::Elements::FluidInternalSurfaceStab<distype, pdistype, ndistype>::d
     for (int idim = 0; idim < nsd_; ++idim)  // combined components of u and v
       elevector_m_(vi * numdofpernode_ + idim, 0) += pderxy_times_vderxyaf_diff(idim, vi);
 
-  Core::LinAlg::Matrix<nsd_, niel> nderxy_times_vderxyaf_diff(false);
+  Core::LinAlg::Matrix<nsd_, niel> nderxy_times_vderxyaf_diff(
+      Core::LinAlg::Initialization::uninitialized);
   nderxy_times_vderxyaf_diff.multiply(vderxyaf_diff_scaled, nderxy_);
 
   // slave row
@@ -3713,7 +3722,7 @@ void Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
       // this definition is derived form the following papers
       // E. Burman, P. Hansbo
       // "Edge stabilization for the generalized Stokes problem: A continuous interior penalty
-      // method" Comput. Methods Appl. Mech. Engrg. 2006 C. D'Angelo, P. Zunino "Numerical
+      // method" Compute. Methods Appl. Mech. Engrg. 2006 C. D'Angelo, P. Zunino "Numerical
       // approximation with Nitsche's coupling of transient Stokes'/Darcy's flow problems applied to
       // hemodynamics" Applied Numerical Mathematics 2012 Braack et al. 2007
       //"..."
@@ -3781,7 +3790,7 @@ void Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
       // "Cut finite element method for Oseen problem"
       // E. Burman, P. Hansbo
       // "Edge stabilization for the generalized Stokes problem: A continuous interior penalty
-      // method" Comput. Methods Appl. Mech. Engrg. 2006 C. D'Angelo, P. Zunino "Numerical
+      // method" Compute. Methods Appl. Mech. Engrg. 2006 C. D'Angelo, P. Zunino "Numerical
       // approximation with Nitsche's coupling of transient Stokes'/Darcy's flow problems applied to
       // hemodynamics" Applied Numerical Mathematics 2012 Braack et al. 2007
       //"..."
@@ -3850,7 +3859,7 @@ void Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
       // "Cut finite element method for Oseen problem"
       // E. Burman, P. Hansbo
       // "Edge stabilization for the generalized Stokes problem: A continuous interior penalty
-      // method" Comput. Methods Appl. Mech. Engrg. 2006 C. D'Angelo, P. Zunino "Numerical
+      // method" Compute. Methods Appl. Mech. Engrg. 2006 C. D'Angelo, P. Zunino "Numerical
       // approximation with Nitsche's coupling of transient Stokes'/Darcy's flow problems applied to
       // hemodynamics" Applied Numerical Mathematics 2012 Braack et al. 2007
       //"..."
@@ -4189,7 +4198,7 @@ void Discret::Elements::FluidInternalSurfaceStab<distype, pdistype,
     }
     break;
     default:
-      FOUR_C_THROW("unknown definition for tau\n %i  ", tautype);
+      FOUR_C_THROW("unknown definition for tau\n {}  ", tautype);
       break;
   }
 

@@ -89,7 +89,7 @@ bool Solid::TimeInt::NoxInterface::computeF(
 {
   check_init_setup();
 
-  Core::LinAlg::VectorView F_view(F);
+  Core::LinAlg::View F_view(F);
   if (not int_ptr_->apply_force(Core::LinAlg::Vector<double>(x), F_view)) return false;
 
   /* Apply the DBC on the right hand side, since we need the Dirichlet free
@@ -128,7 +128,7 @@ bool Solid::TimeInt::NoxInterface::compute_f_and_jacobian(
   Core::LinAlg::SparseOperator* jac_ptr = dynamic_cast<Core::LinAlg::SparseOperator*>(&jac);
   FOUR_C_ASSERT(jac_ptr != nullptr, "Dynamic cast failed!");
 
-  Core::LinAlg::VectorView rhs_view(rhs);
+  Core::LinAlg::View rhs_view(rhs);
   if (not int_ptr_->apply_force_stiff(Core::LinAlg::Vector<double>(x), rhs_view, *jac_ptr))
     return false;
 
@@ -158,7 +158,7 @@ bool Solid::TimeInt::NoxInterface::compute_correction_system(
   std::vector<Inpar::Solid::ModelType> constraint_models;
   find_constraint_models(&grp, constraint_models);
 
-  Core::LinAlg::VectorView rhs_view(rhs);
+  Core::LinAlg::View rhs_view(rhs);
   if (not int_ptr_->apply_correction_system(
           type, constraint_models, Core::LinAlg::Vector<double>(x), rhs_view, *jac_ptr))
     return false;
@@ -203,7 +203,7 @@ double Solid::TimeInt::NoxInterface::get_primary_rhs_norms(const Epetra_Vector& 
 
       int_ptr_->remove_condensed_contributions_from_rhs(*rhs_ptr);
 
-      rhsnorm = calculate_norm(rhs_ptr->get_ptr_of_Epetra_Vector(), type, isscaled);
+      rhsnorm = calculate_norm(rhs_ptr->get_ptr_of_epetra_vector(), type, isscaled);
 
       break;
     }
@@ -212,7 +212,7 @@ double Solid::TimeInt::NoxInterface::get_primary_rhs_norms(const Epetra_Vector& 
       // export the model specific solution if necessary
       auto rhs_ptr = gstate_ptr_->extract_model_entries(mt, Core::LinAlg::Vector<double>(F));
 
-      rhsnorm = calculate_norm(rhs_ptr->get_ptr_of_Epetra_Vector(), type, isscaled);
+      rhsnorm = calculate_norm(rhs_ptr->get_ptr_of_epetra_vector(), type, isscaled);
 
       break;
     }
@@ -266,7 +266,7 @@ double Solid::TimeInt::NoxInterface::get_primary_solution_update_rms(const Epetr
       auto model_xnew_ptr =
           gstate_ptr_->extract_model_entries(mt, Core::LinAlg::Vector<double>(xnew));
 
-      model_incr_ptr->Update(1.0, *model_xnew_ptr, -1.0);
+      model_incr_ptr->update(1.0, *model_xnew_ptr, -1.0);
       rms = NOX::Nln::Aux::root_mean_square_norm(
           atol, rtol, *model_xnew_ptr, *model_incr_ptr, disable_implicit_weighting);
       break;
@@ -310,8 +310,8 @@ double Solid::TimeInt::NoxInterface::get_primary_solution_update_norms(const Epe
       auto model_xnew_ptr =
           gstate_ptr_->extract_model_entries(mt, Core::LinAlg::Vector<double>(xnew));
 
-      model_incr_ptr->Update(1.0, *model_xnew_ptr, -1.0);
-      updatenorm = calculate_norm(model_incr_ptr->get_ptr_of_Epetra_Vector(), type, isscaled);
+      model_incr_ptr->update(1.0, *model_xnew_ptr, -1.0);
+      updatenorm = calculate_norm(model_incr_ptr->get_ptr_of_epetra_vector(), type, isscaled);
 
       break;
     }
@@ -323,8 +323,8 @@ double Solid::TimeInt::NoxInterface::get_primary_solution_update_norms(const Epe
       auto model_xnew_ptr =
           gstate_ptr_->extract_model_entries(mt, Core::LinAlg::Vector<double>(xnew));
 
-      model_incr_ptr->Update(1.0, *model_xnew_ptr, -1.0);
-      updatenorm = calculate_norm(model_incr_ptr->get_ptr_of_Epetra_Vector(), type, isscaled);
+      model_incr_ptr->update(1.0, *model_xnew_ptr, -1.0);
+      updatenorm = calculate_norm(model_incr_ptr->get_ptr_of_epetra_vector(), type, isscaled);
 
       break;
     }
@@ -372,7 +372,7 @@ double Solid::TimeInt::NoxInterface::get_previous_primary_solution_norms(const E
       auto model_xold_ptr =
           gstate_ptr_->extract_model_entries(mt, Core::LinAlg::Vector<double>(xold));
 
-      xoldnorm = calculate_norm(model_xold_ptr->get_ptr_of_Epetra_Vector(), type, isscaled);
+      xoldnorm = calculate_norm(model_xold_ptr->get_ptr_of_epetra_vector(), type, isscaled);
 
       break;
     }
@@ -382,7 +382,7 @@ double Solid::TimeInt::NoxInterface::get_previous_primary_solution_norms(const E
       auto model_xold_ptr =
           gstate_ptr_->extract_model_entries(mt, Core::LinAlg::Vector<double>(xold));
 
-      xoldnorm = calculate_norm(model_xold_ptr->get_ptr_of_Epetra_Vector(), type, isscaled);
+      xoldnorm = calculate_norm(model_xold_ptr->get_ptr_of_epetra_vector(), type, isscaled);
 
       break;
     }
@@ -449,10 +449,8 @@ double Solid::TimeInt::NoxInterface::get_model_value(const Epetra_Vector& x, con
     }
     default:
     {
-      FOUR_C_THROW("There is no objective model value for %s | %d.",
-          NOX::Nln::MeritFunction::merit_func_name_to_string(merit_func_type).c_str(),
-          merit_func_type);
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("There is no objective model value for {}.",
+          NOX::Nln::MeritFunction::merit_func_name_to_string(merit_func_type));
     }
   }
 
@@ -473,9 +471,8 @@ double Solid::TimeInt::NoxInterface::get_linearized_model_terms(const ::NOX::Abs
       return 0.0;
     default:
     {
-      FOUR_C_THROW("There is no linearization for the objective model %s | %d.",
-          NOX::Nln::MeritFunction::merit_func_name_to_string(mf_type).c_str(), mf_type);
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("There is no linearization for the objective model {}.",
+          NOX::Nln::MeritFunction::merit_func_name_to_string(mf_type));
     }
   }
 }
@@ -506,7 +503,7 @@ double Solid::TimeInt::NoxInterface::get_linearized_energy_model_terms(
 
           // assemble the force and exclude all constraint models
           int_ptr_->assemble_force(str_gradient, &constraint_models);
-          str_gradient.Dot(dir, &lin_val);
+          str_gradient.dot(dir, &lin_val);
 
           Core::IO::cout(Core::IO::debug)
               << "LinEnergy   D_{d} (Energy) = " << lin_val << Core::IO::endl;
@@ -596,17 +593,6 @@ void Solid::TimeInt::NoxInterface::recover_from_backup_state()
 {
   check_init_setup();
   int_ptr_->recover_from_backup_state();
-}
-
-/*----------------------------------------------------------------------------*
- *----------------------------------------------------------------------------*/
-bool Solid::TimeInt::NoxInterface::compute_element_volumes(
-    const Epetra_Vector& x, Teuchos::RCP<Epetra_Vector>& ele_vols) const
-{
-  check_init_setup();
-  Core::LinAlg::VectorView ele_vols_view(*ele_vols);
-  return int_ptr_->determine_element_volumes(
-      Core::LinAlg::Vector<double>(x), ele_vols_view.get_non_owning_rcp_ref());
 }
 
 /*----------------------------------------------------------------------------*

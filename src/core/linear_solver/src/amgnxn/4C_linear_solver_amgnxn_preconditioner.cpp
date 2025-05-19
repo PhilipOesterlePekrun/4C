@@ -7,6 +7,7 @@
 
 #include "4C_linear_solver_amgnxn_preconditioner.hpp"
 
+#include "4C_io_input_parameter_container.hpp"
 #include "4C_linalg_blocksparsematrix.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 #include "4C_linear_solver_amgnxn_vcycle.hpp"
@@ -19,6 +20,7 @@
 #include <Teuchos_XMLParameterListHelpers.hpp>
 #include <Xpetra_MultiVectorFactory.hpp>
 
+#include <filesystem>
 #include <iostream>
 
 FOUR_C_NAMESPACE_OPEN
@@ -42,12 +44,9 @@ std::shared_ptr<Epetra_Operator> Core::LinearSolver::AmGnxnPreconditioner::prec_
 /*------------------------------------------------------------------------------*/
 /*------------------------------------------------------------------------------*/
 
-void Core::LinearSolver::AmGnxnPreconditioner::setup(bool create, Epetra_Operator* matrix,
+void Core::LinearSolver::AmGnxnPreconditioner::setup(Epetra_Operator* matrix,
     Core::LinAlg::MultiVector<double>* x, Core::LinAlg::MultiVector<double>* b)
 {
-  // Decide if the setup has to be done
-  if (!create) return;
-
   // Check whether this is a block sparse matrix
   Core::LinAlg::BlockSparseMatrixBase* A_bl =
       dynamic_cast<Core::LinAlg::BlockSparseMatrixBase*>(matrix);
@@ -57,8 +56,6 @@ void Core::LinearSolver::AmGnxnPreconditioner::setup(bool create, Epetra_Operato
 
   // Do all the setup
   setup(Core::Utils::shared_ptr_from_ref(*A_bl));
-
-  return;
 }
 
 /*------------------------------------------------------------------------------*/
@@ -78,7 +75,7 @@ void Core::LinearSolver::AmGnxnPreconditioner::setup(
 
   // Create own copy of the system matrix in order to allow reusing the preconditioner
   a_ = A;
-  a_ = a_->clone(Core::LinAlg::Copy);
+  a_ = a_->clone(Core::LinAlg::DataAccess::Copy);
   a_->complete();
 
   // Determine number of blocks
@@ -104,7 +101,7 @@ void Core::LinearSolver::AmGnxnPreconditioner::setup(
         myInterface.get_preconditioner_params(), myInterface.get_smoothers_params());
   }
   else
-    FOUR_C_THROW("Unknown preconditioner type: %s", myInterface.get_preconditioner_type().c_str());
+    FOUR_C_THROW("Unknown preconditioner type: {}", myInterface.get_preconditioner_type());
 
   double elaptime = timer.totalElapsedTime(true);
   if (myInterface.get_preconditioner_params().get<std::string>("verbosity", "off") == "on" and
@@ -179,27 +176,20 @@ Core::LinearSolver::AmGnxnInterface::AmGnxnInterface(Teuchos::ParameterList& par
   if (amgnxn_type == "XML")
   {
     // Parse the whole file
-    std::string amgnxn_xml = amglist.get<std::string>("AMGNXN_XML_FILE", "none");
-    if (amgnxn_xml == "none") FOUR_C_THROW("The input parameter AMGNXN_XML_FILE is empty.");
-    if (not(amgnxn_xml == "none"))
+    auto amgnxn_xml = amglist.get<std::optional<std::filesystem::path>>("AMGNXN_XML_FILE");
+    if (!amgnxn_xml) FOUR_C_THROW("The input parameter AMGNXN_XML_FILE is 'none'.");
     {
       Teuchos::updateParametersFromXmlFile(
-          amgnxn_xml, Teuchos::Ptr<Teuchos::ParameterList>(&smoo_params_));
+          amgnxn_xml->string(), Teuchos::Ptr<Teuchos::ParameterList>(&smoo_params_));
 
       // Find the path to the main xml file and include it in the param list to further usage
-      std::string::size_type pos = amgnxn_xml.rfind('/');
-      if (pos != std::string::npos)
-      {
-        std::string tmp = amgnxn_xml.substr(0, pos + 1);
-        smoo_params_.set<std::string>("main xml path", tmp);
-      }
-      else
-        smoo_params_.set<std::string>("main xml path", "");
+      smoo_params_.set<std::string>(
+          "main xml path", amgnxn_xml->has_parent_path() ? amgnxn_xml->parent_path().string() : "");
     }
   }
   else
     FOUR_C_THROW(
-        "\"%s\" is an invalid value for \"AMGNXN_TYPE\". Fix your .dat", amgnxn_type.c_str());
+        "\"{}\" is an invalid value for \"AMGNXN_TYPE\". Fix your input file", amgnxn_type);
 
 
 
@@ -223,7 +213,7 @@ Core::LinearSolver::AmGnxnInterface::AmGnxnInterface(Teuchos::ParameterList& par
   for (int block = 0; block < NumBlocks; block++)
   {
     if (!params.isSublist(Inverse_str + convert_int(block + 1)))
-      FOUR_C_THROW("Not found inverse list for block %d", block + 1);
+      FOUR_C_THROW("Not found inverse list for block {}", block + 1);
     Teuchos::ParameterList& inverse_list = params.sublist(Inverse_str + convert_int(block + 1));
 
     if (!inverse_list.isSublist("MueLu Parameters")) FOUR_C_THROW("MueLu Parameters not found");
@@ -240,7 +230,7 @@ Core::LinearSolver::AmGnxnInterface::AmGnxnInterface(Teuchos::ParameterList& par
     std::shared_ptr<std::vector<double>> ns =
         std::make_shared<std::vector<double>>(nullspace->MyLength() * nullspace->NumVectors());
 
-    Core::LinAlg::epetra_multi_vector_to_std_vector(*nullspace, *ns, null_spaces_dim_[block]);
+    Core::LinAlg::multi_vector_to_std_vector(*nullspace, *ns, null_spaces_dim_[block]);
     null_spaces_data_[block] = ns;
 
     // Some checks
@@ -347,10 +337,10 @@ int Core::LinearSolver::AmGnxnOperator::ApplyInverse(
   for (int i = 0; i < NumBlocks; i++)
   {
     Teuchos::RCP<Core::LinAlg::MultiVector<double>> Xi =
-        Teuchos::make_rcp<Core::LinAlg::MultiVector<double>>(*(range_ex.Map(i)), NV);
+        Teuchos::make_rcp<Core::LinAlg::MultiVector<double>>(*(range_ex.map(i)), NV);
 
     Teuchos::RCP<Core::LinAlg::MultiVector<double>> Yi =
-        Teuchos::make_rcp<Core::LinAlg::MultiVector<double>>(*(domain_ex.Map(i)), NV);
+        Teuchos::make_rcp<Core::LinAlg::MultiVector<double>>(*(domain_ex.map(i)), NV);
 
     range_ex.extract_vector(Core::LinAlg::MultiVector<double>(X), i, *Xi);
     domain_ex.extract_vector(Core::LinAlg::MultiVector<double>(X), i, *Yi);
@@ -362,7 +352,7 @@ int Core::LinearSolver::AmGnxnOperator::ApplyInverse(
 
   v_->solve(Xbl, Ybl, true);
 
-  Core::LinAlg::VectorView Y_view(Y);
+  Core::LinAlg::View Y_view(Y);
   for (int i = 0; i < NumBlocks; i++) domain_ex.insert_vector(*(Ybl.get_vector(i)), i, Y_view);
 
   return 0;
@@ -387,8 +377,8 @@ void Core::LinearSolver::AmGnxnOperator::setup()
   {
     for (int j = 0; j < NumBlocks; j++)
     {
-      Teuchos::RCP<Core::LinAlg::SparseMatrix> Aij =
-          Teuchos::make_rcp<Core::LinAlg::SparseMatrix>(a_->matrix(i, j), Core::LinAlg::View);
+      Teuchos::RCP<Core::LinAlg::SparseMatrix> Aij = Teuchos::make_rcp<Core::LinAlg::SparseMatrix>(
+          a_->matrix(i, j), Core::LinAlg::DataAccess::View);
       Able->set_matrix(Aij, i, j);
     }
   }
@@ -466,9 +456,9 @@ int Core::LinearSolver::BlockSmootherOperator::ApplyInverse(
   for (int i = 0; i < NumBlocks; i++)
   {
     Teuchos::RCP<Core::LinAlg::MultiVector<double>> Xi =
-        Teuchos::make_rcp<Core::LinAlg::MultiVector<double>>(*(range_ex.Map(i)), NV);
+        Teuchos::make_rcp<Core::LinAlg::MultiVector<double>>(*(range_ex.map(i)), NV);
     Teuchos::RCP<Core::LinAlg::MultiVector<double>> Yi =
-        Teuchos::make_rcp<Core::LinAlg::MultiVector<double>>(*(domain_ex.Map(i)), NV);
+        Teuchos::make_rcp<Core::LinAlg::MultiVector<double>>(*(domain_ex.map(i)), NV);
     range_ex.extract_vector(Core::LinAlg::MultiVector<double>(X), i, *Xi);
     domain_ex.extract_vector(Core::LinAlg::MultiVector<double>(X), i, *Yi);
     Xbl.set_vector(Xi, i);
@@ -480,7 +470,7 @@ int Core::LinearSolver::BlockSmootherOperator::ApplyInverse(
 
   s_->solve(Xbl, Ybl, true);
 
-  Core::LinAlg::VectorView Y_view(Y);
+  Core::LinAlg::View Y_view(Y);
   for (int i = 0; i < NumBlocks; i++) domain_ex.insert_vector(*(Ybl.get_vector(i)), i, Y_view);
 
 
@@ -528,8 +518,8 @@ void Core::LinearSolver::BlockSmootherOperator::setup()
   {
     for (int j = 0; j < NumBlocks; j++)
     {
-      Teuchos::RCP<Core::LinAlg::SparseMatrix> Aij =
-          Teuchos::make_rcp<Core::LinAlg::SparseMatrix>(a_->matrix(i, j), Core::LinAlg::View);
+      Teuchos::RCP<Core::LinAlg::SparseMatrix> Aij = Teuchos::make_rcp<Core::LinAlg::SparseMatrix>(
+          a_->matrix(i, j), Core::LinAlg::DataAccess::View);
       Able->set_matrix(Aij, i, j);
     }
   }

@@ -11,11 +11,11 @@
 #include "4C_beam3_euler_bernoulli.hpp"
 #include "4C_beam3_reissner.hpp"
 #include "4C_beamcontact_beam3contact_manager.hpp"
+#include "4C_beamcontact_input.hpp"
 #include "4C_beaminteraction_beam_to_beam_contact_defines.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_beamcontact.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_io_value_parser.hpp"
 #include "4C_linalg_sparsematrix.hpp"
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
@@ -50,17 +50,16 @@ Beam3ContactOctTree::Beam3ContactOctTree(Teuchos::ParameterList& params,
   extrusionvalue_ = std::make_shared<std::vector<double>>();
   extrusionvalue_->clear();
 
-  Inpar::BeamContact::OctreeType bboxtype_input = Inpar::BeamContact::boct_none;
+  BeamContact::OctreeType bboxtype_input = BeamContact::boct_none;
 
   // This OctTree may be used for contact search as well as search for potential-based interaction
   // it will thus be called with slightly different parameter sets
   // first find out which params we got and extract octtree specifications
 
-  if (params.name() == "DAT FILE->BEAM CONTACT")
+  if (params.name() == "ROOT->BEAM CONTACT")
   {
     // octree specs
-    bboxtype_input =
-        Teuchos::getIntegralValue<Inpar::BeamContact::OctreeType>(params, "BEAMS_OCTREE");
+    bboxtype_input = Teuchos::getIntegralValue<BeamContact::OctreeType>(params, "BEAMS_OCTREE");
 
     // additive or multiplicative extrusion of bounding boxes
     if (params.get<bool>("BEAMS_ADDITEXT"))
@@ -91,10 +90,9 @@ Beam3ContactOctTree::Beam3ContactOctTree(Teuchos::ParameterList& params,
 
     btsol_ = params.get<bool>("BEAMS_BTSOL");
   }
-  else if (params.name() == "DAT FILE->BEAM POTENTIAL")
+  else if (params.name() == "ROOT->BEAM POTENTIAL")
   {
-    bboxtype_input =
-        Teuchos::getIntegralValue<Inpar::BeamContact::OctreeType>(params, "BEAMPOT_OCTREE");
+    bboxtype_input = Teuchos::getIntegralValue<BeamContact::OctreeType>(params, "BEAMPOT_OCTREE");
 
     additiveextrusion_ = true;
     extrusionvalue_->push_back(Teuchos::getDoubleParameter(params, "CUTOFFRADIUS"));
@@ -106,18 +104,18 @@ Beam3ContactOctTree::Beam3ContactOctTree(Teuchos::ParameterList& params,
   }
   else
   {
-    FOUR_C_THROW("OctTree called with unknown type of parameter list!");
+    FOUR_C_THROW("OctTree called with unknown parameter list named '{}'!", params.name());
   }
 
   // sanity checks for extrusion value(s)
   if ((int)extrusionvalue_->size() > 2)
-    FOUR_C_THROW("You gave %i values for BEAMS_EXTVAL! Check your input file.",
+    FOUR_C_THROW("You gave {} values for BEAMS_EXTVAL! Check your input file.",
         (int)extrusionvalue_->size());
   if ((int)extrusionvalue_->size() == 1) extrusionvalue_->push_back(extrusionvalue_->at(0));
   for (int i = 0; i < (int)extrusionvalue_->size(); i++)
     if (extrusionvalue_->at(i) < 1.0 && !additiveextrusion_)
       FOUR_C_THROW(
-          "BEAMS_EXTVAL( %i ) = %4.2f < 1.0 does not make any sense! Check your input file.", i,
+          "BEAMS_EXTVAL( {} ) = {:4.2f} < 1.0 does not make any sense! Check your input file.", i,
           extrusionvalue_->at(i));
   if (boundingbox_ == Beam3ContactOctTree::cyloriented && (int)extrusionvalue_->size() != 2)
     FOUR_C_THROW(
@@ -133,14 +131,14 @@ Beam3ContactOctTree::Beam3ContactOctTree(Teuchos::ParameterList& params,
   // determine bounding box type
   switch (bboxtype_input)
   {
-    case Inpar::BeamContact::boct_aabb:
+    case BeamContact::boct_aabb:
     {
       if (!Core::Communication::my_mpi_rank(discret_.get_comm()))
         std::cout << "Search routine:\nOctree + Axis Aligned BBs" << std::endl;
       boundingbox_ = Beam3ContactOctTree::axisaligned;
     }
     break;
-    case Inpar::BeamContact::boct_cobb:
+    case BeamContact::boct_cobb:
     {
       if (!Core::Communication::my_mpi_rank(discret_.get_comm()))
         std::cout << "Search routine:\nOctree + Cylindrical Oriented BBs" << std::endl;
@@ -151,7 +149,7 @@ Beam3ContactOctTree::Beam3ContactOctTree(Teuchos::ParameterList& params,
             "Only axis aligned or spherical bounding boxes possible for beam-to-solid contact!");
     }
     break;
-    case Inpar::BeamContact::boct_spbb:
+    case BeamContact::boct_spbb:
     {
       if (!Core::Communication::my_mpi_rank(discret_.get_comm()))
         std::cout << "Search routine:\nOctree + Spherical BBs" << std::endl;
@@ -429,7 +427,7 @@ void Beam3ContactOctTree::initialize_octree_search()
   {
     // for this case, the diameter is calculated in create_spbb()
     case Beam3ContactOctTree::spherical:
-      diameter_->PutScalar(0.0);
+      diameter_->put_scalar(0.0);
       break;
     default:
     {
@@ -613,7 +611,7 @@ void Beam3ContactOctTree::create_aabb(Core::LinAlg::SerialDenseMatrix& coord, co
   double extrusionvalue = get_bounding_box_extrusion_value();
 
   if (elecolid < 0 || elecolid >= searchdis_.element_col_map()->NumMyElements())
-    FOUR_C_THROW("Given Element Column Map ID is %d !", elecolid);
+    FOUR_C_THROW("Given Element Column Map ID is {} !", elecolid);
 
   int elegid = searchdis_.element_col_map()->GID(elecolid);
 
@@ -991,7 +989,7 @@ bool Beam3ContactOctTree::locate_all()
   bbox2octant_ = std::make_shared<Core::LinAlg::MultiVector<double>>(
       *(searchdis_.element_col_map()), maxnumoctglobal, true);
 
-  // fill epetra vector
+  // fill vector
   if (!Core::Communication::my_mpi_rank(searchdis_.get_comm()))
   {
     bbox2octant_->PutScalar(-9.0);
@@ -1017,9 +1015,9 @@ bool Beam3ContactOctTree::locate_all()
     std::vector<int> gids;
     for (int i = 0; i < bboxlengthglobal; i++) gids.push_back(i);
     // crosslinker column and row map
-    Epetra_Map octtreerowmap(
+    Core::LinAlg::Map octtreerowmap(
         (int)gids.size(), 0, Core::Communication::as_epetra_comm(discret_.get_comm()));
-    Epetra_Map octtreemap(-1, (int)gids.size(), gids.data(), 0,
+    Core::LinAlg::Map octtreemap(-1, (int)gids.size(), gids.data(), 0,
         Core::Communication::as_epetra_comm(discret_.get_comm()));
 
     // build Core::LinAlg::MultiVector<double>s which hold the BBs of the OctreeMap; for
@@ -1218,7 +1216,7 @@ Core::LinAlg::Matrix<6, 1> Beam3ContactOctTree::get_root_box()
   else
     entriesperbbox = 6;
 
-  Core::LinAlg::Matrix<6, 1> lim(true);
+  Core::LinAlg::Matrix<6, 1> lim(Core::LinAlg::Initialization::zero);
   // determine globally extremal coordinates and use them as root box.
   // initialize
   lim(0) = 1.0e9;
@@ -1682,8 +1680,8 @@ bool Beam3ContactOctTree::intersection_cobb(
   // Distance at which intersection happens
   double distancelimit = 0.5 * (bbox0diameter + bbox1diameter);
 
-  Core::LinAlg::Matrix<3, 1, double> t1(true);
-  Core::LinAlg::Matrix<3, 1, double> t2(true);
+  Core::LinAlg::Matrix<3, 1, double> t1(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1, double> t2(Core::LinAlg::Initialization::zero);
   Core::LinAlg::Matrix<3, 1, double> r1_a;
   Core::LinAlg::Matrix<3, 1, double> r1_b;
   Core::LinAlg::Matrix<3, 1, double> r2_a;
@@ -1814,15 +1812,16 @@ void Beam3ContactOctTree::communicate_vector(Core::LinAlg::Vector<double>& InVec
    * on all processors. */
 
   // first, export the values of OutVec on Proc 0 to InVecs of all participating processors
-  Epetra_Export exporter(OutVec.Map(), InVec.Map());
-  Epetra_Import importer(OutVec.Map(), InVec.Map());
+  Epetra_Export exporter(OutVec.get_block_map(), InVec.get_block_map());
+  Epetra_Import importer(OutVec.get_block_map(), InVec.get_block_map());
   if (doexport)
   {
     // zero out all vectors which are not Proc 0. Then, export Proc 0 data to InVec map.
-    if (Core::Communication::my_mpi_rank(discret_.get_comm()) != 0 && zerofy) OutVec.PutScalar(0.0);
-    InVec.Export(OutVec, exporter, Add);
+    if (Core::Communication::my_mpi_rank(discret_.get_comm()) != 0 && zerofy)
+      OutVec.put_scalar(0.0);
+    InVec.export_to(OutVec, exporter, Add);
   }
-  if (doimport) OutVec.Import(InVec, importer, Insert);
+  if (doimport) OutVec.import(InVec, importer, Insert);
   return;
 }
 
@@ -1852,8 +1851,8 @@ void Beam3ContactOctTree::calc_corner_pos(Core::Elements::Element* element,
     std::map<int, Core::LinAlg::Matrix<3, 1>>& currentpositions,
     Core::LinAlg::SerialDenseMatrix& coord)
 {
-  Core::LinAlg::Matrix<3, 1> coord_max(true);
-  Core::LinAlg::Matrix<3, 1> coord_min(true);
+  Core::LinAlg::Matrix<3, 1> coord_max(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1> coord_min(Core::LinAlg::Initialization::zero);
   for (int k = 0; k < 3; ++k)
   {
     coord_max(k) = -1.0e12;
@@ -1898,7 +1897,7 @@ void Beam3ContactOctTree::undo_effect_of_periodic_boundary_condition(
 {
   if (coord.numRows() != 3 || coord.numCols() != 2)
     FOUR_C_THROW("coord must have the dimension m()==3, n()==2!");
-  if ((int)cut.size() != 3) FOUR_C_THROW("cut is of wrong size %i!", (int)cut.size());
+  if ((int)cut.size() != 3) FOUR_C_THROW("cut is of wrong size {}!", (int)cut.size());
   // By definition, we shift the second position!
   for (int dof = 0; dof < coord.numRows(); dof++)
   {
@@ -1940,7 +1939,7 @@ double Beam3ContactOctTree::get_bounding_box_extrusion_value()
       FOUR_C_THROW("No bounding box type chosen!");
   }
   if (extrusionvalue < 0.0)
-    FOUR_C_THROW("Check bounding box extrusion value %d < 0.0!", extrusionvalue);
+    FOUR_C_THROW("Check bounding box extrusion value {} < 0.0!", extrusionvalue);
   return extrusionvalue;
 }
 

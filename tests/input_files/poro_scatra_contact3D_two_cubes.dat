@@ -22,7 +22,6 @@ RANDSEED                        -1
 ----------------------------------------------------------------IO
 OUTPUT_BIN                      yes
 STRUCT_DISP                     Yes
-STRUCT_VEL_ACC                  No
 STRUCT_STRESS                   cauchy
 STRUCT_COUPLING_STRESS          Yes
 STRUCT_STRAIN                   No
@@ -53,7 +52,7 @@ ITERNORM                        L2
 DIVERCONT                       stop
 NLNSOL                          fullnewton
 LOADLIN                         no
-MASSLIN                         no
+MASSLIN                         none
 PREDICT                         ConstDis
 LINEAR_SOLVER                   1
 ---------------------------------------------------MORTAR COUPLING
@@ -68,7 +67,7 @@ INTTYPE                         Segments
 NUMGP_PER_DIM                   16
 TRIANGULATION                   Center
 ---------------------------MORTAR COUPLING/PARALLEL REDISTRIBUTION
-PARALLEL_REDIST                 none
+PARALLEL_REDIST                 None
 GHOSTING_STRATEGY               redundant_master
 ---------------------------------------------------CONTACT DYNAMIC
 LINEAR_SOLVER                   1
@@ -80,7 +79,6 @@ SEMI_SMOOTH_CN                  1
 SEMI_SMOOTH_CT                  100
 CONTACTFORCE_ENDTIME            No
 VELOCITY_UPDATE                 No
-EMOUTPUT                        None
 NORMCOMBI_RESFCONTCONSTR        And
 NORMCOMBI_DISPLAGR              And
 TOLCONTCONSTR                   1e-06
@@ -104,7 +102,7 @@ NORM_RESF                       AbsGlobal
 NORMCOMBI_RESFINC               And
 SECONDORDER                     Yes
 CONTIPARTINT                    Yes
-CONTACTNOPEN                    Yes
+CONTACT_NO_PENETRATION          Yes
 LINEAR_SOLVER                   1
 -----------------------------------------------------FLUID DYNAMIC
 PHYSICAL_TYPE                   Incompressible
@@ -210,29 +208,22 @@ COMPONENT 0 SYMBOLIC_FUNCTION_OF_SPACE_TIME 0.02*t
 ------------------------------------------------------------FUNCT2
 COMPONENT 0 SYMBOLIC_FUNCTION_OF_SPACE_TIME 1.0*z
 -------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF  2
-E 1 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 2.0 FUNCT 0 0 1
-E 4 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 1 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 2.0 FUNCT 0 0 1
+E 4 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 --------------------------------DESIGN SURF PORO DIRICH CONDITIONS
-DSURF  1
-E 1 - NUMDOF 4 ONOFF 0 0 0 1 VAL 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0
+E 1 NUMDOF 4 ONOFF 0 0 0 1 VAL 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0
 --------------------------------DESIGN VOL PORO DIRICH CONDITIONS
-DVOL  1
-E 2 - NUMDOF 4 ONOFF 1 1 1 1 VAL 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0
+E 2 NUMDOF 4 ONOFF 1 1 1 1 VAL 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0
 ------------------------------DESIGN VOLUME POROCOUPLING CONDITION
-DVOL  2
-E 1 -
-E 2 -
+E 1
+E 2
 ---------------------------DESIGN SURFACE PORO PARTIAL INTEGRATION
-DSURF  1
-E 5 -
+E 5
 --------------------------DESIGN SURF MORTAR CONTACT CONDITIONS 3D
-DSURF  2
-E 2 - InterfaceID 1 Side Slave Initialization Inactive
-E 3 - InterfaceID 1 Side Master Initialization Inactive
+E 2 InterfaceID 1 Side Slave Initialization Inactive
+E 3 InterfaceID 1 Side Master Initialization Inactive
 -------------------------------------DESIGN VOL TRANSPORT DIRICH CONDITIONS
-DVOL                           1
-E 2 - NUMDOF 1 ONOFF 1 VAL 1.0 FUNCT 0
+E 2 NUMDOF 1 ONOFF 1 VAL 1.0 FUNCT 0
 -----------------------------------------------DSURF-NODE TOPOLOGY
 NODE    1 DSURFACE 1
 NODE    4 DSURFACE 1
@@ -407,22 +398,22 @@ NODE        52 COORD  2.5000000000000000e-01  7.5000000000000000e-01  1.25000000
 NODE        53 COORD  2.5000000000000000e-01  7.5000000000000000e-01  1.0000000000000000e+00
 NODE        54 COORD  2.5000000000000000e-01  7.5000000000000000e-01  1.5000000000000000e+00
 ------------------------------------------------STRUCTURE ELEMENTS
-   1 SOLIDH8POROSCATRA HEX8  1 2 3 4 5 6 7 8    MAT 1 KINEM nonlinear EAS none TYPE Poro
-   2 SOLIDH8POROSCATRA HEX8  2 9 10 3 6 11 12 7    MAT 1 KINEM nonlinear EAS none TYPE Poro
-   3 SOLIDH8POROSCATRA HEX8  4 3 13 14 8 7 15 16    MAT 1 KINEM nonlinear EAS none TYPE Poro
-   4 SOLIDH8POROSCATRA HEX8  3 10 17 13 7 12 18 15    MAT 1 KINEM nonlinear EAS none TYPE Poro
-   5 SOLIDH8POROSCATRA HEX8  5 6 7 8 19 20 21 22    MAT 1 KINEM nonlinear EAS none TYPE Poro
-   6 SOLIDH8POROSCATRA HEX8  6 11 12 7 20 23 24 21    MAT 1 KINEM nonlinear EAS none TYPE Poro
-   7 SOLIDH8POROSCATRA HEX8  8 7 15 16 22 21 25 26    MAT 1 KINEM nonlinear EAS none TYPE Poro
-   8 SOLIDH8POROSCATRA HEX8  7 12 18 15 21 24 27 25    MAT 1 KINEM nonlinear EAS none TYPE Poro
-   9 SOLIDH8POROSCATRA HEX8  28 29 30 31 32 33 34 35    MAT 21 KINEM nonlinear EAS none TYPE Poro
-   10 SOLIDH8POROSCATRA HEX8  29 36 37 30 33 38 39 34    MAT 21 KINEM nonlinear EAS none TYPE Poro
-   11 SOLIDH8POROSCATRA HEX8  31 30 40 41 35 34 42 43    MAT 21 KINEM nonlinear EAS none TYPE Poro
-   12 SOLIDH8POROSCATRA HEX8  30 37 44 40 34 39 45 42    MAT 21 KINEM nonlinear EAS none TYPE Poro
-   13 SOLIDH8POROSCATRA HEX8  32 33 34 35 46 47 48 49    MAT 21 KINEM nonlinear EAS none TYPE Poro
-   14 SOLIDH8POROSCATRA HEX8  33 38 39 34 47 50 51 48    MAT 21 KINEM nonlinear EAS none TYPE Poro
-   15 SOLIDH8POROSCATRA HEX8  35 34 42 43 49 48 52 53    MAT 21 KINEM nonlinear EAS none TYPE Poro
-   16 SOLIDH8POROSCATRA HEX8  34 39 45 42 48 51 54 52    MAT 21 KINEM nonlinear EAS none TYPE Poro
+   1 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8  1 2 3 4 5 6 7 8    MAT 1 KINEM nonlinear TYPE Poro
+   2 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8  2 9 10 3 6 11 12 7    MAT 1 KINEM nonlinear TYPE Poro
+   3 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8  4 3 13 14 8 7 15 16    MAT 1 KINEM nonlinear TYPE Poro
+   4 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8  3 10 17 13 7 12 18 15    MAT 1 KINEM nonlinear TYPE Poro
+   5 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8  5 6 7 8 19 20 21 22    MAT 1 KINEM nonlinear TYPE Poro
+   6 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8  6 11 12 7 20 23 24 21    MAT 1 KINEM nonlinear TYPE Poro
+   7 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8  8 7 15 16 22 21 25 26    MAT 1 KINEM nonlinear TYPE Poro
+   8 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8  7 12 18 15 21 24 27 25    MAT 1 KINEM nonlinear TYPE Poro
+   9 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8  28 29 30 31 32 33 34 35    MAT 21 KINEM nonlinear TYPE Poro
+   10 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8  29 36 37 30 33 38 39 34    MAT 21 KINEM nonlinear TYPE Poro
+   11 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8  31 30 40 41 35 34 42 43    MAT 21 KINEM nonlinear TYPE Poro
+   12 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8  30 37 44 40 34 39 45 42    MAT 21 KINEM nonlinear TYPE Poro
+   13 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8  32 33 34 35 46 47 48 49    MAT 21 KINEM nonlinear TYPE Poro
+   14 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8  33 38 39 34 47 50 51 48    MAT 21 KINEM nonlinear TYPE Poro
+   15 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8  35 34 42 43 49 48 52 53    MAT 21 KINEM nonlinear TYPE Poro
+   16 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8  34 39 45 42 48 51 54 52    MAT 21 KINEM nonlinear TYPE Poro
 ------------------------------------------------RESULT DESCRIPTION
 STRUCTURE DIS structure NODE 23 QUANTITY dispx VALUE -3.75339013127226201e-02 TOLERANCE 1e-10
 STRUCTURE DIS structure NODE 23 QUANTITY dispy VALUE  3.75339013127305443e-02 TOLERANCE 1e-10

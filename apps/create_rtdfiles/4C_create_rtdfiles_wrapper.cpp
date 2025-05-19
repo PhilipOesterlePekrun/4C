@@ -15,11 +15,14 @@
 #include "4C_fem_general_element_definition.hpp"
 #include "4C_fem_general_utils_createdis.hpp"
 #include "4C_global_data.hpp"
+#include "4C_global_legacy_module_validconditions.hpp"
 #include "4C_global_legacy_module_validmaterials.hpp"
-#include "4C_inpar_validconditions.hpp"
-#include "4C_inpar_validparameters.hpp"
+#include "4C_global_legacy_module_validparameters.hpp"
 #include "4C_utils_exceptions.hpp"
 #include "4C_utils_function.hpp"
+#include "4C_utils_string.hpp"
+
+#include <Teuchos_StrUtils.hpp>
 
 #include <iostream>
 
@@ -34,7 +37,7 @@ namespace RTD
     // open ascii file for writing the cell type information
     std::ofstream elementinformationfile(elementinformationfilename.c_str());
     if (!elementinformationfile)
-      FOUR_C_THROW("failed to open file: %s", elementinformationfilename.c_str());
+      FOUR_C_THROW("failed to open file: {}", elementinformationfilename);
     elementinformationfile << "# yaml file created using 4C version (git SHA1):\n";
     elementinformationfile << "# " << VersionControl::git_hash << "\n#\n";
 
@@ -49,13 +52,33 @@ namespace RTD
     // open ascii file for writing all header parameters
     std::ofstream headerdocumentationfile(headerdocumentationfilename.c_str());
     if (!headerdocumentationfile)
-      FOUR_C_THROW("failed to open file: %s", headerdocumentationfilename.c_str());
+      FOUR_C_THROW("failed to open file: {}", headerdocumentationfilename);
     headerdocumentationfile << "..\n   Created using 4C version (git SHA1):\n";
     headerdocumentationfile << "   " << VersionControl::git_hash << "\n\n";
     headerdocumentationfile << ".. _headerparameters:\n\n";
     headerdocumentationfile << "Header parameters\n";
     headerdocumentationfile << "=================\n\n";
-    write_header_reference(headerdocumentationfile, *Input::valid_parameters(), "");
+    auto parameters = Global::valid_parameters();
+
+    for (const auto& [section_name, spec] : parameters)
+    {
+      std::string linktarget = section_name;
+      std::ranges::replace(linktarget, '/', '_');
+      linktarget = Teuchos::StrUtils::removeAllSpaces(Core::Utils::to_lower(linktarget));
+
+      // write link:
+      write_linktarget(headerdocumentationfile, "SEC" + linktarget);
+      // write section header
+      write_header(headerdocumentationfile, 1, section_name);
+
+      headerdocumentationfile << section_name << "\n";
+      std::stringstream ss;
+      spec.print_as_dat(ss);
+
+      // Split on newline because this is what the write_code function expects
+      std::vector<std::string> specs_list = Core::Utils::split(ss.str(), "\n");
+      write_code(headerdocumentationfile, specs_list);
+    }
   }
 
   /*----------------------------------------------------------------------*/
@@ -65,7 +88,7 @@ namespace RTD
     // open ascii file for writing all header parameters
     std::ofstream celltypeocumentationfile(celltypedocumentationfilename.c_str());
     if (!celltypeocumentationfile)
-      FOUR_C_THROW("failed to open file: %s", celltypedocumentationfilename.c_str());
+      FOUR_C_THROW("failed to open file: {}", celltypedocumentationfilename);
     celltypeocumentationfile << "..\n   Created using 4C version (git SHA1):\n";
     celltypeocumentationfile << "   " << VersionControl::git_hash << "\n\n";
 
@@ -80,10 +103,10 @@ namespace RTD
     // open ascii file for writing all material parameters
     std::ofstream materialdocumentationfile(materialdocumentationfilename.c_str());
     if (!materialdocumentationfile)
-      FOUR_C_THROW("failed to open file: %s", materialdocumentationfilename.c_str());
+      FOUR_C_THROW("failed to open file: {}", materialdocumentationfilename);
     materialdocumentationfile << "..\n   Created using 4C version (git SHA1):\n";
     materialdocumentationfile << "   " << VersionControl::git_hash << "\n\n";
-    write_material_reference(materialdocumentationfile, *Global::valid_materials());
+    write_material_reference(materialdocumentationfile, Global::valid_materials());
   }
 
   /*----------------------------------------------------------------------*/
@@ -94,10 +117,10 @@ namespace RTD
     // open ascii file for writing all constrains / conditions parameters
     std::ofstream conditiondocumentationfile(conditiondocumentationfilename.c_str());
     if (!conditiondocumentationfile)
-      FOUR_C_THROW("failed to open file: %s", conditiondocumentationfilename.c_str());
+      FOUR_C_THROW("failed to open file: {}", conditiondocumentationfilename);
     conditiondocumentationfile << "..\n   Created using 4C version (git SHA1):\n";
     conditiondocumentationfile << "   " << VersionControl::git_hash << "\n\n";
-    write_conditions_reference(conditiondocumentationfile, Input::valid_conditions());
+    write_conditions_reference(conditiondocumentationfile, Global::valid_conditions());
 
     write_contact_law_reference(
         conditiondocumentationfile, CONTACT::CONSTITUTIVELAW::valid_contact_constitutive_laws());
@@ -111,7 +134,7 @@ namespace RTD
     // open ascii file for writing other (non header) parameters
     std::ofstream variousdocumentationfile(variousdocumentationfilename.c_str());
     if (!variousdocumentationfile)
-      FOUR_C_THROW("failed to open file: %s", variousdocumentationfilename.c_str());
+      FOUR_C_THROW("failed to open file: {}", variousdocumentationfilename);
     variousdocumentationfile << "..\n   Created using 4C version (git SHA1):\n";
     variousdocumentationfile << "   " << VersionControl::git_hash << "\n\n";
     write_various_reference(variousdocumentationfile);
@@ -119,7 +142,7 @@ namespace RTD
 
   void print_help_message()
   {
-    std::cout << "This program writes all necessary reference files for readthedocs\n";
+    std::cout << "This program writes all necessary reference files for the main documentation.\n";
     std::cout << "Usage:\n    create_rtd [pathanem]\n";
     std::cout << " Parameter:\n   pathname (str) path where the reference files are stored.\n";
     std::cout << "                   Default: reference_docs";

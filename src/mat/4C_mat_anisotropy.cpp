@@ -86,10 +86,19 @@ void Mat::Anisotropy::set_number_of_gauss_points(int numgp) { numgp_ = numgp; }
 void Mat::Anisotropy::read_anisotropy_from_element(
     const Core::IO::InputParameterContainer& container)
 {
+  // This method might be called even though there is no anisotropy possible for the element.
+  // In this case, we just return without doing anything.
+  using OptionalFiber = std::optional<std::vector<double>>;
+  const bool any_fibers_found =
+      container.get_if<OptionalFiber>("FIBER1") or container.get_if<OptionalFiber>("RAD") or
+      container.get_if<OptionalFiber>("AXI") or container.get_if<OptionalFiber>("CIR");
+  if (!any_fibers_found) return;
+
+
   // Read coordinate system
-  if (container.get_if<std::vector<double>>("RAD") != nullptr and
-      container.get_if<std::vector<double>>("AXI") != nullptr and
-      container.get_if<std::vector<double>>("CIR") != nullptr)
+  if (container.get<std::optional<std::vector<double>>>("RAD").has_value() and
+      container.get<std::optional<std::vector<double>>>("AXI").has_value() and
+      container.get<std::optional<std::vector<double>>>("CIR").has_value())
   {
     // read fibers in RAD AXI CIR notation
     if (!element_cylinder_coordinate_system_manager_)
@@ -106,7 +115,11 @@ void Mat::Anisotropy::read_anisotropy_from_element(
     for (int fiber_index = 1;; ++fiber_index)
     {
       std::string fiber_name = "FIBER" + std::to_string(fiber_index);
-      if (container.get_if<std::vector<double>>(fiber_name) == nullptr)
+
+      // We count up until we hit a fiber that we do not know about. Thus we need to use the
+      // get_if mechanism.
+      auto* fiber_ptr = container.get_if<std::optional<std::vector<double>>>(fiber_name);
+      if (!fiber_ptr or !fiber_ptr->has_value())
       {
         break;
       }
@@ -158,7 +171,7 @@ void Mat::Anisotropy::set_gauss_point_fibers(
   // Check whether the size of the first vector is the number of Gauss points
   if (fibers.size() != numgp_)
   {
-    FOUR_C_THROW("The Gauss point fibers don't have the expected size of %d (%d given).", numgp_,
+    FOUR_C_THROW("The Gauss point fibers don't have the expected size of {} ({} given).", numgp_,
         fibers.size());
   }
 
@@ -175,7 +188,7 @@ void Mat::Anisotropy::set_gauss_point_fibers(
     {
       FOUR_C_THROW(
           "The size of the Gauss point do not match! At every Gauss point, the same amount of "
-          "fibers are necessary. Error occurred at Gauss point %d. Expected %d fibers, but got %d.",
+          "fibers are necessary. Error occurred at Gauss point {}. Expected {} fibers, but got {}.",
           i, num_fibs, gpfibers.size());
     }
   }
@@ -194,7 +207,7 @@ const Core::LinAlg::Matrix<3, 1>& Mat::Anisotropy::get_element_fiber(unsigned in
   if (i >= element_fibers_.size())
   {
     FOUR_C_THROW(
-        "You requested fiber %d, but only %d fibers are available", i + 1, element_fibers_.size());
+        "You requested fiber {}, but only {} fibers are available", i + 1, element_fibers_.size());
   }
   return element_fibers_[i];
 }
@@ -228,14 +241,13 @@ const Core::LinAlg::Matrix<3, 1>& Mat::Anisotropy::get_gauss_point_fiber(
 
   if (gp >= gp_fibers_.size())
   {
-    FOUR_C_THROW("The number of GP is too large. %d instead of maximum allowed %d", gp + 1,
+    FOUR_C_THROW("The number of GP is too large. {} instead of maximum allowed {}", gp + 1,
         gp_fibers_.size());
   }
 
   if (i >= gp_fibers_[gp].size())
   {
-    FOUR_C_THROW(
-        "You requested fiber %d, but only %d fibers are available", i + 1, element_fibers_.size());
+    FOUR_C_THROW("You requested fiber {} fibers are available", i + 1, element_fibers_.size());
   }
   return gp_fibers_[gp][i];
 }

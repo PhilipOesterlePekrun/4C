@@ -8,7 +8,7 @@
 #include "4C_contact_nox_nln_contact_linearsystem.hpp"  // base class
 
 #include "4C_contact_abstract_strategy.hpp"
-#include "4C_inpar_contact.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_linalg_blocksparsematrix.hpp"
 #include "4C_linalg_utils_sparse_algebra_assemble.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
@@ -119,12 +119,16 @@ Core::LinAlg::SolverParams NOX::Nln::CONTACT::LinearSystem::set_solver_options(
       // (1) slaveDofMap
       // (2) innerDofMap
       // (3) activeDofMap
-      std::vector<Teuchos::RCP<Epetra_Map>> prec_maps(4, Teuchos::null);
+      std::vector<Teuchos::RCP<Core::LinAlg::Map>> prec_maps(4, Teuchos::null);
       i_constr_prec_.begin()->second->fill_maps_for_preconditioner(prec_maps);
-      mueluParams.set<Teuchos::RCP<Epetra_Map>>("contact masterDofMap", prec_maps[0]);
-      mueluParams.set<Teuchos::RCP<Epetra_Map>>("contact slaveDofMap", prec_maps[1]);
-      mueluParams.set<Teuchos::RCP<Epetra_Map>>("contact innerDofMap", prec_maps[2]);
-      mueluParams.set<Teuchos::RCP<Epetra_Map>>("contact activeDofMap", prec_maps[3]);
+      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
+          "contact masterDofMap", Teuchos::rcpFromRef(prec_maps[0]->get_epetra_map()));
+      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
+          "contact slaveDofMap", Teuchos::rcpFromRef(prec_maps[1]->get_epetra_map()));
+      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
+          "contact innerDofMap", Teuchos::rcpFromRef(prec_maps[2]->get_epetra_map()));
+      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
+          "contact activeDofMap", Teuchos::rcpFromRef(prec_maps[3]->get_epetra_map()));
       // contact or contact/meshtying
       if (i_constr_prec_.begin()->first == NOX::Nln::sol_contact)
         mueluParams.set<std::string>("Core::ProblemType", "contact");
@@ -165,10 +169,8 @@ void NOX::Nln::CONTACT::LinearSystem::set_linear_problem_for_solve(
     }
     default:
     {
-      FOUR_C_THROW("Unsupported matrix type! Type = %s",
-          NOX::Nln::LinSystem::operator_type_to_string(jacType_).c_str());
-
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("Unsupported matrix type! Type = {}",
+          NOX::Nln::LinSystem::operator_type_to_string(jacType_));
     }
   }
 }
@@ -375,8 +377,6 @@ void NOX::Nln::CONTACT::LinearSystem::LinearSubProblem::extract_active_blocks(
       FOUR_C_THROW(
           "You are trying to solve a pure diagonal matrix. This is currently not"
           "supported, but feel free to extend the functionality.");
-
-      exit(EXIT_FAILURE);
     }
     case 1:
     {
@@ -396,7 +396,8 @@ void NOX::Nln::CONTACT::LinearSystem::LinearSubProblem::extract_active_blocks(
     default:
     {
       p_jac_ = Teuchos::rcp(
-          block_mat.clone(Core::LinAlg::View, keep_row_col_index, keep_row_col_index).release());
+          block_mat.clone(Core::LinAlg::DataAccess::View, keep_row_col_index, keep_row_col_index)
+              .release());
       p_jac_->complete();
 
       Teuchos::RCP<Core::LinAlg::BlockSparseMatrixBase> active_block_mat =
@@ -428,10 +429,10 @@ void NOX::Nln::CONTACT::LinearSystem::apply_diagonal_inverse(Core::LinAlg::Spars
 
   Core::LinAlg::Vector<double> diag_mat(mat.range_map(), true);
   int err = mat.extract_diagonal_copy(diag_mat);
-  if (err) FOUR_C_THROW("ExtractDiagonalCopy failed! (err=%d)", err);
+  if (err) FOUR_C_THROW("ExtractDiagonalCopy failed! (err={})", err);
 
-  err = lhs_block.ReciprocalMultiply(1.0, diag_mat, rhs_block, 0.0);
-  if (err) FOUR_C_THROW("ReciprocalMultiply failed! (err=%d)", err);
+  err = lhs_block.reciprocal_multiply(1.0, diag_mat, rhs_block, 0.0);
+  if (err) FOUR_C_THROW("ReciprocalMultiply failed! (err={})", err);
 
   Core::LinAlg::assemble_my_vector(0.0, lhs, 1.0, lhs_block);
 }

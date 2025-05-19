@@ -90,8 +90,7 @@ namespace Coupling::Adapter
           and \ref setup(), in case you need parallel redistribution
 
 
-    \date   09/16
-    \author rauch
+
 
     */
     void redistribute(const Teuchos::ParameterList& binning_params,
@@ -174,10 +173,10 @@ namespace Coupling::Adapter
     //@{
 
     /// the interface dof map of the master side
-    std::shared_ptr<const Epetra_Map> master_dof_map() const override;
+    std::shared_ptr<const Core::LinAlg::Map> master_dof_map() const override;
 
     /// the interface dof map of the slave side
-    std::shared_ptr<const Epetra_Map> slave_dof_map() const override;
+    std::shared_ptr<const Core::LinAlg::Map> slave_dof_map() const override;
 
     //@}
 

@@ -54,14 +54,14 @@ namespace Core::Gen
   class Pairedvector : protected InsertPolicy
   {
    private:
-    typedef Pairedvector<Key, T, InsertPolicy> class_type;
-    typedef InsertPolicy base_type;
-    typedef typename base_type::pairedvector_type pairedvector_type;
-    typedef typename base_type::pair_type pair_type;
+    using class_type = Pairedvector<Key, T, InsertPolicy>;
+    using base_type = InsertPolicy;
+    using pairedvector_type = typename base_type::pairedvector_type;
+    using pair_type = typename base_type::pair_type;
 
    public:
-    typedef typename base_type::iterator iterator;
-    typedef typename base_type::const_iterator const_iterator;
+    using iterator = typename base_type::iterator;
+    using const_iterator = typename base_type::const_iterator;
 
     /**
      *  @brief  constructor creates no elements, but reserves the maximum
@@ -99,7 +99,7 @@ namespace Core::Gen
      *  @param[in] source %pairedmatrix object we want to copy.
      *  @param[in] type   Apply this copy type.
      *
-     *  \author hiermeier \date 05/17 */
+     *  */
     Pairedvector(const Pairedvector& source, enum Gen::CopyType type = DeepCopy)
         : m_(0, pair_type()), entries_(0)
 
@@ -252,7 +252,7 @@ namespace Core::Gen
      *  insert_and_sort_policy. See the repetitive_access and operator() methods
      *  for more information.
      *
-     *  @author hiermeier @date 05/17 */
+     */
     void complete() { entries_ = InsertPolicy::complete(m_, entries_); }
 
     /**
@@ -305,7 +305,7 @@ namespace Core::Gen
      *  This exchanges the elements between two vectors in constant time.
      *  (Three pointers and the entries information, so it should be quite fast.)
      *
-     *  \author hiermeier \date 06/17 */
+     *  */
     void swap(class_type& x)
     {
       // swap internal data structure
@@ -355,7 +355,7 @@ namespace Core::Gen
      *  @param[in] type    type for the clone procedure. If ShapeCopy is chosen,
      *                     only the key but not the values are copied.
      *
-     *  @author hiermeier @date 07/17 */
+     */
     void clone(const class_type& source, const enum CopyType type)
     {
       clear();
@@ -382,7 +382,7 @@ namespace Core::Gen
      *  Print the %Pairedvector information in column format. By default the
      *  entries are sorted with respect to their KEY entries.
      *
-     *  @author hiermeier @date 07/17 */
+     */
     void print(std::ostream& os, bool sort = true) const
     {
       pairedvector_type sorted_m(m_.begin(), m_.begin() + entries_);
@@ -408,7 +408,7 @@ namespace Core::Gen
      *
      *  @param[in] isdebug  bool value for activation/deactivation
      *
-     *  @author hiermeier @date 07/17 */
+     */
     void set_debug_mode(bool isdebug) { base_type::set_debug_mode(isdebug); }
 
    protected:
@@ -419,7 +419,7 @@ namespace Core::Gen
      *
      *  @param[in] source  copy the source object into this.
      *
-     *  @author hiermeier @date 05/17 */
+     */
     void clone(const class_type& source)
     {
       base_type::clone(source);
@@ -448,7 +448,7 @@ namespace Core::Gen
    *  @param[in] vec paired vector object which is going to be printed
    *  @return The modified output stream.
    *
-   *  @author hiermeier @date 05/17 */
+   */
   template <typename Key, typename T0, typename... Ts>
   std::ostream& operator<<(std::ostream& os, const Pairedvector<Key, T0, Ts...>& vec)
   {

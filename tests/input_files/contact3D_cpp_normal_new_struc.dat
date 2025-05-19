@@ -36,7 +36,7 @@ NLNSOL                          fullnewton
 TIMESTEP                        0.02
 NUMSTEP                         30
 MAXTIME                         0.6
-DAMPING                         Yes
+DAMPING                         Rayleigh
 M_DAMP                          0.00001
 K_DAMP                          0.00001
 TOLRES                          1.0E-8
@@ -65,19 +65,16 @@ SOLVER                          UMFPACK
 NAME                            Contact_Solver
 SOLVER                          UMFPACK
 -----------------------------------------------DESIGN LINE DIRICH CONDITIONS
-DLINE                           4
-E 1 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
-E 2 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
-E 3 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
-E 4 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
+E 1 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
+E 2 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
+E 3 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
+E 4 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
 -----------------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF                           1
 //E 1 - 3 1 1 1 0.0 0.0 0.0 none none none 0 0 0
-E 12 - NUMDOF 3 ONOFF 1 1 1 VAL 1.0 1.0 -1.0 FUNCT 1  1 2
+E 12 NUMDOF 3 ONOFF 1 1 1 VAL 1.0 1.0 -1.0 FUNCT 1  1 2
 -----------------------------------DESIGN SURF MORTAR CONTACT CONDITIONS 3D
-DSURF                           2
-E 6 - InterfaceID 1 Side Master
-E 7 - InterfaceID 1 Side Slave
+E 6 InterfaceID 1 Side Master
+E 7 InterfaceID 1 Side Slave
 ---------------------------------------------------------DNODE-NODE TOPOLOGY
 NODE 249 DNODE 1
 NODE 175 DNODE 2
@@ -1149,6 +1146,6 @@ VARIABLE 0 NAME a TYPE linearinterpolation NUMPOINTS 4 TIMES 0 0.5 0.6 1000 VALU
 STRUCTURE DIS structure NODE 67 QUANTITY dispx VALUE  1.73934980619254442e-01 TOLERANCE 1e-8
 STRUCTURE DIS structure NODE 67 QUANTITY dispy VALUE  1.67832125003244292e-01 TOLERANCE 1e-8
 STRUCTURE DIS structure NODE 67 QUANTITY dispz VALUE -9.55361262118829990e-01 TOLERANCE 1e-8
-STRUCTURE SPECIAL QUANTITY internal_energy VALUE  4.59057421954749714e+01 TOLERANCE 1e-8
-STRUCTURE SPECIAL QUANTITY kinetic_energy VALUE  3.19246305876570084e-04 TOLERANCE 1e-13
-STRUCTURE SPECIAL QUANTITY total_energy VALUE  4.59060614417808495e+01 TOLERANCE 1e-8
+STRUCTURE SPECIAL true QUANTITY internal_energy VALUE  4.59057421954749714e+01 TOLERANCE 1e-8
+STRUCTURE SPECIAL true QUANTITY kinetic_energy VALUE  3.19246305876570084e-04 TOLERANCE 1e-13
+STRUCTURE SPECIAL true QUANTITY total_energy VALUE  4.59060614417808495e+01 TOLERANCE 1e-8

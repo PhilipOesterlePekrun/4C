@@ -120,6 +120,7 @@ four_c_configure_dependency(HDF5 DEFAULT ON)
 four_c_configure_dependency(MPI DEFAULT ON)
 four_c_configure_dependency(Qhull DEFAULT ON)
 four_c_configure_dependency(Trilinos DEFAULT ON)
+four_c_configure_dependency(deal.II DEFAULT OFF)
 four_c_configure_dependency(Boost DEFAULT ON)
 four_c_configure_dependency(ArborX DEFAULT OFF)
 four_c_configure_dependency(FFTW DEFAULT ON)
@@ -127,16 +128,8 @@ four_c_configure_dependency(CLN DEFAULT ON)
 four_c_configure_dependency(MIRCO DEFAULT OFF)
 four_c_configure_dependency(Backtrace DEFAULT OFF)
 four_c_configure_dependency(ryml DEFAULT ON)
-
-# Generate the macro definition for all dependencies automatically
-get_property(FOUR_C_FLAGS_EXTERNAL_DEPENDENCIES GLOBAL PROPERTY FOUR_C_FLAGS_EXTERNAL_DEPENDENCIES)
-foreach(_dependency ${FOUR_C_FLAGS_EXTERNAL_DEPENDENCIES})
-  if(${_dependency})
-    string(APPEND FOUR_C_DEFINES_FOR_EXTERNAL_DEPENDENCIES "#define ${_dependency}\n")
-  else()
-    string(APPEND FOUR_C_DEFINES_FOR_EXTERNAL_DEPENDENCIES "/* #undef ${_dependency} */\n")
-  endif()
-endforeach()
+four_c_configure_dependency(magic_enum DEFAULT ON)
+four_c_configure_dependency(ZLIB DEFAULT ON)
 
 ### end of configuration and feature detection
 
@@ -145,13 +138,21 @@ enable_testing()
 
 # NOTE: --mca orte_tmpdir_base [...] can be removed for openmpi >= 4.1.1 according to
 # https://github.com/open-mpi/ompi/issues/8510#issuecomment-1329297350
-set(MPIEXEC_EXTRA_OPTS_FOR_TESTING
-    "--bind-to none --use-hwthread-cpus --mca orte_tmpdir_base ${PROJECT_BINARY_DIR}/tmp"
-    )
+four_c_process_cache_variable(
+  FOUR_C_MPIEXEC_ARGS_FOR_TESTING
+  TYPE
+  STRING
+  DESCRIPTION
+  "Arguments to pass to mpiexec for testing."
+  DEFAULT
+  "--bind-to none --use-hwthread-cpus --mca orte_tmpdir_base ${PROJECT_BINARY_DIR}/tmp"
+  )
+# We might need to add more arguments. Initialize with the user input.
+set(_mpiexec_all_args_for_testing ${FOUR_C_MPIEXEC_ARGS_FOR_TESTING})
 
 if(FOUR_C_ENABLE_ADDRESS_SANITIZER)
   # Do not detect leaks, we only care about UB inducing memory issues
-  string(APPEND MPIEXEC_EXTRA_OPTS_FOR_TESTING " -x LSAN_OPTIONS=detect_leaks=0")
+  string(APPEND _mpiexec_all_args_for_testing " -x LSAN_OPTIONS=detect_leaks=0")
   set(FOUR_C_ENABLE_ADDRESS_SANITIZER_TEST_OPTIONS "LSAN_OPTIONS=detect_leaks=0")
 endif()
 
@@ -191,8 +192,7 @@ add_subdirectory(src)
 add_subdirectory(apps)
 
 # Process documentation
-add_subdirectory(doc/doxygen EXCLUDE_FROM_ALL)
-add_subdirectory(doc/readthedocs EXCLUDE_FROM_ALL)
+add_subdirectory(doc EXCLUDE_FROM_ALL)
 
 # Tests
 add_subdirectory(unittests)

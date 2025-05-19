@@ -7,15 +7,17 @@
 
 #include "4C_structure_new_timint_base.hpp"
 
+#include "4C_adapter_str_pasiwrapper.hpp"
 #include "4C_beaminteraction_str_model_evaluator.hpp"
 #include "4C_comm_utils.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_io.hpp"
 #include "4C_io_control.hpp"
 #include "4C_io_gmsh.hpp"
 #include "4C_io_pstream.hpp"
 #include "4C_linalg_blocksparsematrix.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_structure_new_dbc.hpp"
 #include "4C_structure_new_enum_lists.hpp"
@@ -24,11 +26,9 @@
 #include "4C_structure_new_model_evaluator_data.hpp"
 #include "4C_structure_new_model_evaluator_factory.hpp"
 #include "4C_structure_new_resulttest.hpp"
-#include "4C_structure_new_timint_basedataio_monitor_dbc.hpp"
-#include "4C_structure_new_timint_basedataio_runtime_vtk_output.hpp"
 #include "4C_structure_new_timint_basedataio_runtime_vtp_output.hpp"
+#include "4C_utils_enum.hpp"
 
-#include <Epetra_Map.h>
 #include <Teuchos_ParameterList.hpp>
 
 FOUR_C_NAMESPACE_OPEN
@@ -101,8 +101,7 @@ void Solid::TimeInt::Base::setup()
   int_ptr_->init(data_s_dyn_ptr(), data_global_state_ptr(), data_io_ptr(), dbc_ptr_,
       Core::Utils::shared_ptr_from_ref(*this));
   int_ptr_->setup();
-  int_ptr_->post_setup();
-  // Initialize and Setup the input/output writer for every Newton iteration
+  //   Initialize and Setup the input/output writer for every Newton iteration
   dataio_->init_setup_every_iteration_writer(this, data_sdyn().get_nox_params());
 
   // Initialize the output of system energy
@@ -115,6 +114,15 @@ void Solid::TimeInt::Base::setup()
 
   issetup_ = true;
 }
+
+/*----------------------------------------------------------------------------*
+ *----------------------------------------------------------------------------*/
+void Solid::TimeInt::Base::post_setup()
+{
+  check_init_setup();
+  int_ptr_->post_setup();
+}
+
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
@@ -175,7 +183,7 @@ void Solid::TimeInt::Base::set_restart(int stepn, double timen,
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-const Epetra_Map& Solid::TimeInt::Base::get_mass_domain_map() const
+const Core::LinAlg::Map& Solid::TimeInt::Base::get_mass_domain_map() const
 {
   check_init_setup();
   return dataglobalstate_->get_mass_matrix()->domain_map();
@@ -242,7 +250,7 @@ void Solid::TimeInt::Base::resize_m_step_tim_ada()
 
   // resize state vectors, AB2 is a 2-step method, thus we need two
   // past steps at t_{n} and t_{n-1}
-  const Epetra_Map* dofrowmap_ptr = dataglobalstate_->dof_row_map_view();
+  const Core::LinAlg::Map* dofrowmap_ptr = dataglobalstate_->dof_row_map_view();
   dataglobalstate_->get_multi_dis()->resize(-1, 0, dofrowmap_ptr, true);
   dataglobalstate_->get_multi_vel()->resize(-1, 0, dofrowmap_ptr, true);
   dataglobalstate_->get_multi_acc()->resize(-1, 0, dofrowmap_ptr, true);
@@ -427,15 +435,6 @@ void Solid::TimeInt::Base::prepare_output(bool force_prepare_timestep)
   {
     int_ptr_->determine_stress_strain();
     int_ptr_->determine_optional_quantity();
-
-    if (dataio_->is_write_current_ele_volume())
-    {
-      std::shared_ptr<Core::LinAlg::Vector<double>> elevolumes = nullptr;
-      std::shared_ptr<const Core::LinAlg::Vector<double>> disnp = dataglobalstate_->get_dis_np();
-
-      int_ptr_->determine_element_volumes(*disnp, elevolumes);
-      int_ptr_->eval_data().set_element_volume_data(elevolumes);
-    }
   }
   if ((dataio_->is_runtime_output_enabled() && force_prepare_timestep) ||
       dataio_->write_runtime_vtk_results_for_this_step(dataglobalstate_->get_step_np()) ||
@@ -542,15 +541,6 @@ void Solid::TimeInt::Base::output_step(bool forced_writerestart)
   {
     new_io_step(datawritten);
     output_stress_strain();
-    output_optional_quantity();
-  }
-
-  if (dataio_->write_results_for_this_step(dataglobalstate_->get_step_n()) and
-      dataio_->is_write_current_ele_volume())
-  {
-    new_io_step(datawritten);
-    Core::IO::DiscretizationWriter& iowriter = *(dataio_->get_output_ptr());
-    output_element_volume(iowriter);
   }
 
   // output energy
@@ -592,9 +582,6 @@ void Solid::TimeInt::Base::output_debug_state(
     Core::IO::DiscretizationWriter& iowriter, bool write_owner) const
 {
   output_state(iowriter, write_owner);
-
-  // write element volumes as additional debugging information, if activated
-  if (dataio_->is_write_current_ele_volume()) output_element_volume(iowriter);
 }
 
 /*----------------------------------------------------------------------------*
@@ -625,21 +612,6 @@ void Solid::TimeInt::Base::output_reaction_forces()
   check_init_setup();
   Core::IO::DiscretizationWriter& iowriter = *(dataio_->get_output_ptr());
   int_ptr_->monitor_dbc(iowriter);
-}
-
-/*----------------------------------------------------------------------------*
- *----------------------------------------------------------------------------*/
-void Solid::TimeInt::Base::output_element_volume(Core::IO::DiscretizationWriter& iowriter) const
-{
-  check_init_setup();
-
-  Solid::ModelEvaluator::Data& evaldata = int_ptr_->eval_data();
-
-  iowriter.write_vector("current_ele_volumes",
-      Core::Utils::shared_ptr_from_ref(evaldata.current_element_volume_data()),
-      Core::IO::elementvector);
-
-  evaldata.set_element_volume_data(nullptr);
 }
 
 /*----------------------------------------------------------------------------*
@@ -781,37 +753,6 @@ void Solid::TimeInt::Base::output_energy() const
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-void Solid::TimeInt::Base::output_optional_quantity()
-{
-  check_init_setup();
-
-  Solid::ModelEvaluator::Data& evaldata = int_ptr_->eval_data();
-  std::shared_ptr<Core::IO::DiscretizationWriter> output_ptr = dataio_->get_output_ptr();
-
-  // ---------------------------------------------------------------------------
-  // write optional quantity output
-  // ---------------------------------------------------------------------------
-  std::string text = "";
-  if (dataio_->get_opt_quantity_output_type() != Inpar::Solid::optquantity_none)
-  {
-    switch (dataio_->get_opt_quantity_output_type())
-    {
-      case Inpar::Solid::optquantity_membranethickness:
-        text = "gauss_membrane_thickness";
-        break;
-      default:
-        FOUR_C_THROW("Requested optional quantity type is not supported!");
-        break;
-    }
-    output_ptr->write_vector(
-        text, evaldata.opt_quantity_data(), *(discretization()->element_row_map()));
-  }
-  // we don't need this anymore
-  evaldata.opt_quantity_data_ptr() = nullptr;
-}
-
-/*----------------------------------------------------------------------------*
- *----------------------------------------------------------------------------*/
 void Solid::TimeInt::Base::output_restart(bool& datawritten)
 {
   check_init_setup();
@@ -849,13 +790,9 @@ void Solid::TimeInt::Base::add_restart_to_output_state()
 {
   std::shared_ptr<Core::IO::DiscretizationWriter> output_ptr = dataio_->get_output_ptr();
 
-  // force output of velocity and acceleration in case it is not written previously by the model
-  // evaluators
-  if (!dataio_->is_write_vel_acc())
-  {
-    output_ptr->write_vector("velocity", dataglobalstate_->get_vel_n());
-    output_ptr->write_vector("acceleration", dataglobalstate_->get_acc_n());
-  }
+  // output of velocity and acceleration
+  output_ptr->write_vector("velocity", dataglobalstate_->get_vel_n());
+  output_ptr->write_vector("acceleration", dataglobalstate_->get_acc_n());
 
   /* Add the restart information of the different time integrators and model
    * evaluators. */
@@ -886,8 +823,7 @@ void Solid::TimeInt::Base::write_gmsh_struct_output_step()
   std::ofstream gmshfilecontent(filename.c_str());
 
   // add 'View' to Gmsh postprocessing file
-  gmshfilecontent << "View \" "
-                  << "struct displacement \" {" << std::endl;
+  gmshfilecontent << "View \" " << "struct displacement \" {" << std::endl;
   // draw vector field 'struct displacement' for every element
   Core::IO::Gmsh::vector_field_dof_based_to_gmsh(
       *discretization(), dispn(), gmshfilecontent, 0, true);
@@ -940,7 +876,7 @@ void Solid::TimeInt::Base::read_restart(const int stepn)
   // (3) read specific time integrator (forces, etc.) and model evaluator data
   int_ptr_->read_restart(ioreader);
   int_ptr_->post_setup();  // compute here the equilibrium system to account for initial
-                           // displacement/velocity.
+  //  displacement/velocity.
 
   // short screen output
   if (dataglobalstate_->get_my_rank() == 0)
@@ -984,6 +920,11 @@ void Solid::TimeInt::Base::post_time_loop() { int_ptr_->post_time_loop(); }
 bool Solid::TimeInt::Base::has_final_state_been_written() const
 {
   return dataio_->get_last_written_results() == dataglobalstate_->get_step_n();
+}
+
+std::string Solid::TimeInt::Base::method_title() const
+{
+  return std::string(EnumTools::enum_name(method_name()));
 }
 
 FOUR_C_NAMESPACE_CLOSE

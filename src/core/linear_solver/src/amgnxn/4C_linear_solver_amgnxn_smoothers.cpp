@@ -183,7 +183,7 @@ void Core::LinearSolver::AMGNxN::MergeAndSolve::setup(BlockedMatrix matrix)
   }
 
   // Set matrix
-  block_sparse_matrix_ = matrix.get_block_sparse_matrix(Core::LinAlg::View);
+  block_sparse_matrix_ = matrix.get_block_sparse_matrix(Core::LinAlg::DataAccess::View);
   sparse_matrix_ = block_sparse_matrix_->merge();
   a_ = std::dynamic_pointer_cast<Epetra_Operator>(sparse_matrix_->epetra_matrix());
   auto crsA = std::dynamic_pointer_cast<Epetra_CrsMatrix>(a_);
@@ -295,12 +295,11 @@ void Core::LinearSolver::AMGNxN::CoupledAmg::setup()
     std::string param_name = "muelu parameters for block " + ss.str();
     std::string list_name = amgnxn_params_.get<std::string>(param_name, "none");
     if (list_name == "none")
-      FOUR_C_THROW("You must specify the parameters for creating the AMG on block %d", i);
+      FOUR_C_THROW("You must specify the parameters for creating the AMG on block {}", i);
 
     // Parse contents of the list
     Teuchos::ParameterList muelu_list_this_block;
-    if (not muelu_params_.isSublist(list_name))
-      FOUR_C_THROW("list %s not found", list_name.c_str());
+    if (not muelu_params_.isSublist(list_name)) FOUR_C_THROW("list {} not found", list_name);
     std::string xml_file = muelu_params_.sublist(list_name).get<std::string>("xml file", "none");
     if (xml_file != "none")
     {
@@ -440,7 +439,7 @@ Core::LinearSolver::AMGNxN::MueluAMGWrapper::MueluAMGWrapper(
 void Core::LinearSolver::AMGNxN::MueluAMGWrapper::build_hierarchy()
 {
   // Prepare operator for MueLu
-  Teuchos::RCP<Epetra_CrsMatrix> A_crs =
+  auto A_crs =
       Teuchos::rcp_dynamic_cast<Epetra_CrsMatrix>(Teuchos::rcpFromRef(*A_->epetra_operator()));
   if (A_crs == Teuchos::null)
     FOUR_C_THROW("Make sure that the input matrix is a Epetra_CrsMatrix (or derived)");
@@ -594,7 +593,7 @@ void Core::LinearSolver::AMGNxN::SingleFieldAMG::setup()
       myAcrs = MueLuUtils::Op2NonConstEpetraCrs(myA);
       myAspa =
           Teuchos::make_rcp<Core::LinAlg::SparseMatrix>(Core::Utils::shared_ptr_from_ref(*myAcrs),
-              Core::LinAlg::Copy, explicitdirichlet, savegraph);
+              Core::LinAlg::DataAccess::Copy, explicitdirichlet, savegraph);
       Avec[level] = myAspa;
     }
     else
@@ -610,7 +609,7 @@ void Core::LinearSolver::AMGNxN::SingleFieldAMG::setup()
         myAcrs = MueLuUtils::Op2NonConstEpetraCrs(myA);
         myAspa =
             Teuchos::make_rcp<Core::LinAlg::SparseMatrix>(Core::Utils::shared_ptr_from_ref(*myAcrs),
-                Core::LinAlg::Copy, explicitdirichlet, savegraph);
+                Core::LinAlg::DataAccess::Copy, explicitdirichlet, savegraph);
         Pvec[level - 1] = myAspa;
       }
       else
@@ -624,7 +623,7 @@ void Core::LinearSolver::AMGNxN::SingleFieldAMG::setup()
         myAcrs = MueLuUtils::Op2NonConstEpetraCrs(myA);
         myAspa =
             Teuchos::make_rcp<Core::LinAlg::SparseMatrix>(Core::Utils::shared_ptr_from_ref(*myAcrs),
-                Core::LinAlg::Copy, explicitdirichlet, savegraph);
+                Core::LinAlg::DataAccess::Copy, explicitdirichlet, savegraph);
         Rvec[level - 1] = myAspa;
       }
       else
@@ -1518,16 +1517,8 @@ Core::LinearSolver::AMGNxN::SingleFieldAMGFactory::create()
   std::string fine_smoother = get_params().get<std::string>("fine smoother", "none");
   if (fine_smoother == "none") FOUR_C_THROW("You have to set: fine smoother");
   if (not get_params_smoother().isSublist(fine_smoother))
-    FOUR_C_THROW("Not found a list named %s", fine_smoother.c_str());
+    FOUR_C_THROW("Not found a list named {}", fine_smoother);
   Teuchos::ParameterList fine_smoother_list = get_params_smoother().sublist(fine_smoother);
-
-  // std::string coarsest_smoother = GetParams().get<std::string>("coarsest smoother","none");
-  // if(coarsest_smoother == "none")
-  //  FOUR_C_THROW("You have to set: fine smoother");
-  // if(not GetParamsSmoother().isSublist(coarsest_smoother))
-  //  FOUR_C_THROW("Not found a list named %s", coarsest_smoother.c_str() );
-  // Teuchos::ParameterList fine_smoother_list = GetParamsSmoother().sublist(coarsest_smoother);
-
 
   if (get_verbosity() == "on")
   {
@@ -1755,10 +1746,10 @@ Core::LinearSolver::AMGNxN::BgsSmootherFactory::create()
     unsigned ib = 0;
     while (std::getline(ss, token, ','))
     {
-      if (ib >= NumSuperBlocks) FOUR_C_THROW("too many comas in %s", local_sweeps.c_str());
+      if (ib >= NumSuperBlocks) FOUR_C_THROW("too many comas in {}", local_sweeps);
       iters[ib++] = atoi(token.c_str());
     }
-    if (ib < NumSuperBlocks) FOUR_C_THROW("too less comas in %s", local_sweeps.c_str());
+    if (ib < NumSuperBlocks) FOUR_C_THROW("too less comas in {}", local_sweeps);
   }
   if (local_omegas != "none")
   {
@@ -1767,10 +1758,10 @@ Core::LinearSolver::AMGNxN::BgsSmootherFactory::create()
     unsigned ib = 0;
     while (std::getline(ss, token, ','))
     {
-      if (ib >= NumSuperBlocks) FOUR_C_THROW("too many comas in %s", local_omegas.c_str());
+      if (ib >= NumSuperBlocks) FOUR_C_THROW("too many comas in {}", local_omegas);
       omegas[ib++] = atof(token.c_str());
     }
-    if (ib < NumSuperBlocks) FOUR_C_THROW("too less comas in %s", local_omegas.c_str());
+    if (ib < NumSuperBlocks) FOUR_C_THROW("too less comas in {}", local_omegas);
   }
 
 
@@ -2042,8 +2033,8 @@ Core::LinearSolver::AMGNxN::SimpleSmootherFactory::create()
   Teuchos::RCP<BlockedMatrix> Ass = get_operator()->get_blocked_matrix_rcp(schur_vec, schur_vec);
 
   //{
-  //  Epetra_Map myRange  = App->OperatorRangeMap();
-  //  Epetra_Map myDomain = App->OperatorDomainMap();
+  //  Core::LinAlg::Map myRange  = App->OperatorRangeMap();
+  //  Core::LinAlg::Map myDomain = App->OperatorDomainMap();
   //  std::cout << "Matrix App" << std::endl;
   //  std::cout << "   Range   MinAllGID = " << myRange.MinAllGID()  << std::endl;
   //  std::cout << "   Range   MaxAllGID = " << myRange.MaxAllGID()  << std::endl;
@@ -2051,8 +2042,8 @@ Core::LinearSolver::AMGNxN::SimpleSmootherFactory::create()
   //  std::cout << "   Domain  MaxAllGID = " << myDomain.MaxAllGID()  << std::endl;
   //}
   //{
-  //  Epetra_Map myRange  = Ass->OperatorRangeMap();
-  //  Epetra_Map myDomain = Ass->OperatorDomainMap();
+  //  Core::LinAlg::Map myRange  = Ass->OperatorRangeMap();
+  //  Core::LinAlg::Map myDomain = Ass->OperatorDomainMap();
   //  std::cout << "Matrix App" << std::endl;
   //  std::cout << "   Range   MinAllGID = " << myRange.MinAllGID()  << std::endl;
   //  std::cout << "   Range   MaxAllGID = " << myRange.MaxAllGID()  << std::endl;
@@ -2217,15 +2208,15 @@ Core::LinearSolver::AMGNxN::SimpleSmootherFactory::approximate_inverse(
   if (method == "diagonal")
   {
     A.extract_diagonal_copy(invAVector);
-    int err = invAVector.Reciprocal(invAVector);
+    int err = invAVector.reciprocal(invAVector);
     if (err)
       FOUR_C_THROW(
-          "Core::LinAlg::MultiVector<double>::Reciprocal returned %d, are we dividing by 0?", err);
+          "Core::LinAlg::MultiVector<double>::Reciprocal returned {}, are we dividing by 0?", err);
   }
   else if (method == "row sums" or method == "row sums diagonal blocks")
   {
-    int err = A.epetra_matrix()->InvRowSums(invAVector.get_ref_of_Epetra_Vector());
-    if (err) FOUR_C_THROW("Epetra_CrsMatrix::InvRowSums returned %d, are we dividing by 0?", err);
+    int err = A.epetra_matrix()->InvRowSums(invAVector.get_ref_of_epetra_vector());
+    if (err) FOUR_C_THROW("Epetra_CrsMatrix::InvRowSums returned {}, are we dividing by 0?", err);
   }
   else
     FOUR_C_THROW("Invalid value for \"predictor inverse\". Fix your xml file.");

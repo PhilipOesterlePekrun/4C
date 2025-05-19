@@ -12,6 +12,7 @@
 #include "4C_global_data.hpp"
 #include "4C_io.hpp"
 #include "4C_scatra_ele_action.hpp"
+#include "4C_scatra_ele_parameter_timint.hpp"
 #include "4C_scatra_timint_meshtying_strategy_base.hpp"
 #include "4C_scatra_turbulence_hit_scalar_forcing.hpp"
 #include "4C_utils_parameter_list.hpp"
@@ -54,7 +55,7 @@ void ScaTra::TimIntGenAlpha::setup()
   // vectors and matrices
   //                 local <-> global dof numbering
   // -------------------------------------------------------------------
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   // Vectors passed to the element
   // -----------------------------
@@ -120,8 +121,6 @@ void ScaTra::TimIntGenAlpha::set_element_time_parameter(bool forcedincrementalso
 {
   Teuchos::ParameterList eleparams;
 
-  Core::Utils::add_enum_class_to_parameter_list<ScaTra::Action>(
-      "action", ScaTra::Action::set_time_parameter, eleparams);
   eleparams.set<bool>("using generalized-alpha time integration", true);
   eleparams.set<bool>("using stationary formulation", false);
   if (!forcedincrementalsolver)
@@ -134,8 +133,8 @@ void ScaTra::TimIntGenAlpha::set_element_time_parameter(bool forcedincrementalso
   eleparams.set<double>("time factor", genalphafac_ * dta_);
   eleparams.set<double>("alpha_F", alphaF_);
 
-  // call standard loop over elements
-  discret_->evaluate(eleparams, nullptr, nullptr, nullptr, nullptr, nullptr);
+  Discret::Elements::ScaTraEleParameterTimInt::instance(discret_->name())
+      ->set_parameters(eleparams);
 }
 
 
@@ -146,9 +145,6 @@ void ScaTra::TimIntGenAlpha::set_element_time_parameter_backward_euler() const
 {
   Teuchos::ParameterList eleparams;
 
-  Core::Utils::add_enum_class_to_parameter_list<ScaTra::Action>(
-      "action", ScaTra::Action::set_time_parameter, eleparams);
-
   eleparams.set<bool>("using generalized-alpha time integration", false);
   eleparams.set<bool>("using stationary formulation", false);
   eleparams.set<bool>("incremental solver", true);
@@ -158,8 +154,8 @@ void ScaTra::TimIntGenAlpha::set_element_time_parameter_backward_euler() const
   eleparams.set<double>("time factor", 1.0 * dta_);
   eleparams.set<double>("alpha_F", 1.0);
 
-  // call standard loop over elements
-  discret_->evaluate(eleparams, nullptr, nullptr, nullptr, nullptr, nullptr);
+  Discret::Elements::ScaTraEleParameterTimInt::instance(discret_->name())
+      ->set_parameters(eleparams);
 }
 
 
@@ -185,7 +181,7 @@ void ScaTra::TimIntGenAlpha::set_old_part_of_righthandside()
   // (History vector is used in both cases, but in incremental case, it
   // contains time derivatives of scalar, see below.)
   // hist_ = phin_ + dt*(1-(gamma/alpha_M))*phidtn_
-  if (not incremental_) hist_->Update(1.0, *phin_, dta_ * (1.0 - genalphafac_), *phidtn_, 0.0);
+  if (not incremental_) hist_->update(1.0, *phin_, dta_ * (1.0 - genalphafac_), *phidtn_, 0.0);
 }
 
 
@@ -198,7 +194,7 @@ void ScaTra::TimIntGenAlpha::explicit_predictor() const
   ScaTraTimIntImpl::explicit_predictor();
 
   // constant predictor
-  phinp_->Update(1.0, *phin_, 0.0);
+  phinp_->update(1.0, *phin_, 0.0);
 }
 
 
@@ -208,15 +204,15 @@ void ScaTra::TimIntGenAlpha::explicit_predictor() const
 void ScaTra::TimIntGenAlpha::compute_intermediate_values()
 {
   // compute phi at n+alpha_F and n+alpha_M
-  phiaf_->Update(alphaF_, *phinp_, (1.0 - alphaF_), *phin_, 0.0);
-  phiam_->Update(alphaM_, *phinp_, (1.0 - alphaM_), *phin_, 0.0);
+  phiaf_->update(alphaF_, *phinp_, (1.0 - alphaF_), *phin_, 0.0);
+  phiam_->update(alphaM_, *phinp_, (1.0 - alphaM_), *phin_, 0.0);
 
   // accelerations are not independent but rather have to be computed
   // from phinp_, phin_ and phidtn_
   compute_time_derivative();
 
   // compute time derivative of phi at n+alpha_M
-  phidtam_->Update(alphaM_, *phidtnp_, (1.0 - alphaM_), *phidtn_, 0.0);
+  phidtam_->update(alphaM_, *phidtnp_, (1.0 - alphaM_), *phidtn_, 0.0);
 }
 
 
@@ -226,7 +222,7 @@ void ScaTra::TimIntGenAlpha::compute_intermediate_values()
  *----------------------------------------------------------------------*/
 void ScaTra::TimIntGenAlpha::add_neumann_to_residual()
 {
-  residual_->Update(genalphafac_ * dta_, *neumann_loads_, 1.0);
+  residual_->update(genalphafac_ * dta_, *neumann_loads_, 1.0);
 }
 
 
@@ -245,10 +241,10 @@ void ScaTra::TimIntGenAlpha::avm3_separation()
   // separation matrix depends on the number of proc here
   if (turbmodel_ == Inpar::FLUID::multifractal_subgrid_scales and
       extraparams_->sublist("MULTIFRACTAL SUBGRID SCALES").get<bool>("SET_FINE_SCALE_VEL"))
-    fsphiaf_->PutScalar(0.01);
+    fsphiaf_->put_scalar(0.01);
 
   // set fine-scale vector
-  discret_->set_state("fsphinp", fsphiaf_);
+  discret_->set_state("fsphinp", *fsphiaf_);
 }
 
 
@@ -296,14 +292,14 @@ void ScaTra::TimIntGenAlpha::add_time_integration_specific_vectors(bool forcedin
   // call base class routine
   ScaTraTimIntImpl::add_time_integration_specific_vectors(forcedincrementalsolver);
 
-  discret_->set_state("phinp", phiaf_);
+  discret_->set_state("phinp", *phiaf_);
 
   if (incremental_ or forcedincrementalsolver)
-    discret_->set_state("hist", phidtam_);
+    discret_->set_state("hist", *phidtam_);
   else
   {
-    discret_->set_state("hist", hist_);
-    discret_->set_state("phin", phin_);
+    discret_->set_state("hist", *hist_);
+    discret_->set_state("phin", *phin_);
   }
 }
 
@@ -320,8 +316,8 @@ void ScaTra::TimIntGenAlpha::compute_time_derivative()
   // phidt(n+1) = (phi(n+1)-phi(n)) / (gamma*dt) + (1-(1/gamma))*phidt(n)
   const double fact1 = 1.0 / (gamma_ * dta_);
   const double fact2 = 1.0 - (1.0 / gamma_);
-  phidtnp_->Update(fact2, *phidtn_, 0.0);
-  phidtnp_->Update(fact1, *phinp_, -fact1, *phin_, 1.0);
+  phidtnp_->update(fact2, *phidtn_, 0.0);
+  phidtnp_->update(fact1, *phinp_, -fact1, *phin_, 1.0);
 
   // We know the first time derivative on Dirichlet boundaries
   // so we do not need an approximation of these values!
@@ -359,11 +355,11 @@ void ScaTra::TimIntGenAlpha::update()
   ScaTraTimIntImpl::update();
 
   // solution of this step becomes most recent solution of last step
-  phin_->Update(1.0, *phinp_, 0.0);
+  phin_->update(1.0, *phinp_, 0.0);
 
   // time deriv. of this step becomes most recent time derivative of
   // last step
-  phidtn_->Update(1.0, *phidtnp_, 0.0);
+  phidtn_->update(1.0, *phidtnp_, 0.0);
 
   // call time update of forcing routine
   if (homisoturb_forcing_ != nullptr) homisoturb_forcing_->time_update_forcing();

@@ -40,11 +40,11 @@ std::shared_ptr<const Core::FE::Utils::Dbc> Core::FE::Utils::build_dbc(
 {
   // HDG discretization
   if (dynamic_cast<const Core::FE::DiscretizationHDG*>(discret_ptr) != nullptr)
-    return std::shared_ptr<const Core::FE::Utils::Dbc>(new const Core::FE::Utils::DbcHDG());
+    return std::make_shared<const Core::FE::Utils::DbcHDG>();
 
   // Nurbs discretization
   if (dynamic_cast<const Core::FE::Nurbs::NurbsDiscretization*>(discret_ptr) != nullptr)
-    return std::shared_ptr<const Core::FE::Utils::Dbc>(new const Core::FE::Utils::DbcNurbs());
+    return std::make_shared<const Core::FE::Utils::DbcNurbs>();
 
   // default case
   return std::make_shared<const Core::FE::Utils::Dbc>();
@@ -117,15 +117,15 @@ std::shared_ptr<Core::LinAlg::Vector<int>> Core::FE::Utils::Dbc::create_toggle_v
   {
     if (systemvectors[0])
     {
-      toggleaux = std::make_shared<Core::LinAlg::Vector<int>>(systemvectors[0]->Map());
+      toggleaux = std::make_shared<Core::LinAlg::Vector<int>>(systemvectors[0]->get_block_map());
     }
     else if (systemvectors[1])
     {
-      toggleaux = std::make_shared<Core::LinAlg::Vector<int>>(systemvectors[1]->Map());
+      toggleaux = std::make_shared<Core::LinAlg::Vector<int>>(systemvectors[1]->get_block_map());
     }
     else if (systemvectors[2])
     {
-      toggleaux = std::make_shared<Core::LinAlg::Vector<int>>(systemvectors[2]->Map());
+      toggleaux = std::make_shared<Core::LinAlg::Vector<int>>(systemvectors[2]->get_block_map());
     }
     else if (systemvectors[0] == nullptr and systemvectors[1] == nullptr and
              systemvectors[2] == nullptr)
@@ -235,7 +235,7 @@ void Core::FE::Utils::Dbc::read_dirichlet_condition(const Teuchos::ParameterList
   // get val from condition
   const auto val = cond.parameters().get<std::vector<double>>("VAL");
   // get funct from condition
-  const auto funct = cond.parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+  const auto funct = cond.parameters().get<std::vector<std::optional<int>>>("FUNCT");
 
   // loop nodes to identify spatial distributions of Dirichlet boundary conditions
   for (unsigned i = 0; i < nnode; ++i)
@@ -284,14 +284,14 @@ void Core::FE::Utils::Dbc::read_dirichlet_condition(const Teuchos::ParameterList
 
     if ((total_numdf % numdf) != 0)
       FOUR_C_THROW(
-          "Illegal number of DoF's at this node! (nGID=%d)\n"
-          "%d is not a multiple of %d",
+          "Illegal number of DoF's at this node! (nGID={})\n"
+          "{} is not a multiple of {}",
           actnode->id(), total_numdf, numdf);
 
     // is the number of degrees of freedom given in the constraint definition sufficient?
     const int num_dbc_dofs = static_cast<int>(onoff.size());
     if (num_dbc_dofs < numdf)
-      FOUR_C_THROW("%d DOFs given but %d expected in %s", num_dbc_dofs, numdf,
+      FOUR_C_THROW("{} DOFs given but {} expected in {}", num_dbc_dofs, numdf,
           Core::Conditions::to_string(cond.type()).data());
 
     // loop over dofs of current nnode
@@ -301,9 +301,9 @@ void Core::FE::Utils::Dbc::read_dirichlet_condition(const Teuchos::ParameterList
       const int gid = dofs[j];
 
       // get corresponding lid
-      const int lid = info.toggle.Map().LID(gid);
+      const int lid = info.toggle.get_block_map().LID(gid);
       if (lid < 0)
-        FOUR_C_THROW("Global id %d not on this proc %d in system vector", dofs[j],
+        FOUR_C_THROW("Global id {} not on this proc {} in system vector", dofs[j],
             Core::Communication::my_mpi_rank(discret.get_comm()));
 
       // get position of label for this dof in condition line ( e.g. for XFEM )
@@ -384,7 +384,7 @@ void Core::FE::Utils::Dbc::read_dirichlet_condition(const Teuchos::ParameterList
                << " with new value of " << value << " at time " << time << ".\nThe difference is "
                << std::setprecision(13) << std::abs(current_val - value) << " > " << dbc_tol
                << ".\nPlease try to adjust the input.";
-            FOUR_C_THROW(ss.str());
+            FOUR_C_THROW("{}", ss.str());
           }
         }
 
@@ -472,7 +472,7 @@ void Core::FE::Utils::Dbc::do_dirichlet_condition(const Teuchos::ParameterList& 
   const unsigned nnode = (*nodeids).size();
   // get onoff, funct, and val from condition
   const auto onoff = cond.parameters().get<std::vector<int>>("ONOFF");
-  const auto funct = cond.parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+  const auto funct = cond.parameters().get<std::vector<std::optional<int>>>("FUNCT");
   const auto val = cond.parameters().get<std::vector<double>>("VAL");
 
   // determine highest degree of time derivative
@@ -508,8 +508,8 @@ void Core::FE::Utils::Dbc::do_dirichlet_condition(const Teuchos::ParameterList& 
 
     if ((total_numdf % numdf) != 0)
       FOUR_C_THROW(
-          "Illegal number of DoF's at this node! (nGID=%d)\n"
-          "%d is not a multiple of %d",
+          "Illegal number of DoF's at this node! (nGID={})\n"
+          "{} is not a multiple of {}",
           actnode->id(), total_numdf, numdf);
 
     // loop over dofs of current nnode
@@ -518,9 +518,9 @@ void Core::FE::Utils::Dbc::do_dirichlet_condition(const Teuchos::ParameterList& 
       // get dof gid
       const int gid = dofs[j];
       // get corresponding lid
-      const int lid = toggle.Map().LID(gid);
+      const int lid = toggle.get_block_map().LID(gid);
       if (lid < 0)
-        FOUR_C_THROW("Global id %d not on this proc %d in system vector", dofs[j],
+        FOUR_C_THROW("Global id {} not on this proc {} in system vector", dofs[j],
             Core::Communication::my_mpi_rank(discret.get_comm()));
       // get position of label for this dof in condition line
       const int onesetj = j % numdf;
@@ -585,7 +585,7 @@ void Core::FE::Utils::Dbc::build_dbc_map_extractor(const Core::FE::Discretizatio
     nummyelements = dbcgidsv.size();
     myglobalelements = dbcgidsv.data();
   }
-  std::shared_ptr<Epetra_Map> dbcmap = std::make_shared<Epetra_Map>(-1, nummyelements,
+  std::shared_ptr<Core::LinAlg::Map> dbcmap = std::make_shared<Core::LinAlg::Map>(-1, nummyelements,
       myglobalelements, discret.dof_row_map()->IndexBase(), discret.dof_row_map()->Comm());
   // build the map extractor of Dirichlet-conditioned and free DOFs
   dbcmapextractor->setup(*(discret.dof_row_map()), dbcmap);

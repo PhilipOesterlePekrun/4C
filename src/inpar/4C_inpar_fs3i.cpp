@@ -8,115 +8,144 @@
 #include "4C_inpar_fs3i.hpp"
 
 #include "4C_inpar_scatra.hpp"
-#include "4C_utils_parameter_list.hpp"
-
+#include "4C_io_input_spec_builders.hpp"
 FOUR_C_NAMESPACE_OPEN
 
 
 
-void Inpar::FS3I::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::FS3I::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
-  using Teuchos::tuple;
+  using namespace Core::IO::InputSpecBuilders;
 
-  Teuchos::ParameterList& fs3idyn =
-      list.sublist("FS3I DYNAMIC", false, "control parameters for FS3I problems\n");
+  list["FS3I DYNAMIC"] = group("FS3I DYNAMIC",
+      {
 
-  Core::Utils::double_parameter("TIMESTEP", 0.1, "Time increment dt", &fs3idyn);
-  Core::Utils::int_parameter("NUMSTEP", 20, "Total number of time steps", &fs3idyn);
-  Core::Utils::double_parameter("MAXTIME", 1000.0, "Total simulation time", &fs3idyn);
-  Core::Utils::int_parameter("RESULTSEVERY", 1, "Increment for writing solution", &fs3idyn);
-  Core::Utils::int_parameter("RESTARTEVERY", 1, "Increment for writing restart", &fs3idyn);
-  setStringToIntegralParameter<Inpar::ScaTra::SolverType>("SCATRA_SOLVERTYPE", "nonlinear",
-      "type of scalar transport solver", tuple<std::string>("linear", "nonlinear"),
-      tuple<Inpar::ScaTra::SolverType>(
-          Inpar::ScaTra::solvertype_linear_incremental, Inpar::ScaTra::solvertype_nonlinear),
-      &fs3idyn);
-  Core::Utils::bool_parameter("INF_PERM", "yes", "Flag for infinite permeability", &fs3idyn);
-  std::vector<std::string> consthermpress_valid_input = {"No_energy", "No_mass", "Yes"};
-  Core::Utils::string_parameter("CONSTHERMPRESS", "Yes",
-      "treatment of thermodynamic pressure in time", &fs3idyn, consthermpress_valid_input);
+          parameter<double>("TIMESTEP", {.description = "Time increment dt", .default_value = 0.1}),
+          parameter<int>(
+              "NUMSTEP", {.description = "Total number of time steps", .default_value = 20}),
+          parameter<double>(
+              "MAXTIME", {.description = "Total simulation time", .default_value = 1000.0}),
+          parameter<int>("RESULTSEVERY",
+              {.description = "Increment for writing solution", .default_value = 1}),
+          parameter<int>(
+              "RESTARTEVERY", {.description = "Increment for writing restart", .default_value = 1}),
+          deprecated_selection<Inpar::ScaTra::SolverType>("SCATRA_SOLVERTYPE",
+              {
+                  {"linear", Inpar::ScaTra::solvertype_linear_incremental},
+                  {"nonlinear", Inpar::ScaTra::solvertype_nonlinear},
+              },
+              {.description = "type of scalar transport solver",
+                  .default_value = Inpar::ScaTra::solvertype_nonlinear}),
+          parameter<bool>(
+              "INF_PERM", {.description = "Flag for infinite permeability", .default_value = true}),
+          deprecated_selection<std::string>("CONSTHERMPRESS", {"No_energy", "No_mass", "Yes"},
+              {.description = "treatment of thermodynamic pressure in time",
+                  .default_value = "Yes"}),
 
-  // number of linear solver used for fs3i problems
-  Core::Utils::int_parameter(
-      "COUPLED_LINEAR_SOLVER", -1, "number of linear solver used for fs3i problem", &fs3idyn);
-  Core::Utils::int_parameter(
-      "LINEAR_SOLVER1", -1, "number of linear solver used for fluid problem", &fs3idyn);
-  Core::Utils::int_parameter(
-      "LINEAR_SOLVER2", -1, "number of linear solver used for structural problem", &fs3idyn);
+          // number of linear solver used for fs3i problems
+          parameter<int>("COUPLED_LINEAR_SOLVER",
+              {.description = "number of linear solver used for fs3i problem",
+                  .default_value = -1}),
+          parameter<int>(
+              "LINEAR_SOLVER1", {.description = "number of linear solver used for fluid problem",
+                                    .default_value = -1}),
+          parameter<int>("LINEAR_SOLVER2",
+              {.description = "number of linear solver used for structural problem",
+                  .default_value = -1}),
 
-  setStringToIntegralParameter<Inpar::ScaTra::ConvForm>("STRUCTSCAL_CONVFORM", "conservative",
-      "form of convective term of structure scalar",
-      tuple<std::string>("convective", "conservative"),
-      tuple<Inpar::ScaTra::ConvForm>(
-          Inpar::ScaTra::convform_convective, Inpar::ScaTra::convform_conservative),
-      &fs3idyn);
+          deprecated_selection<Inpar::ScaTra::ConvForm>("STRUCTSCAL_CONVFORM",
+              {
+                  {"convective", Inpar::ScaTra::convform_convective},
+                  {"conservative", Inpar::ScaTra::convform_conservative},
+              },
+              {.description = "form of convective term of structure scalar",
+                  .default_value = Inpar::ScaTra::convform_conservative}),
 
-  setStringToIntegralParameter<Inpar::ScaTra::InitialField>("STRUCTSCAL_INITIALFIELD", "zero_field",
-      "Initial Field for structure scalar transport problem",
-      tuple<std::string>("zero_field", "field_by_function"),
-      tuple<Inpar::ScaTra::InitialField>(
-          Inpar::ScaTra::initfield_zero_field, Inpar::ScaTra::initfield_field_by_function),
-      &fs3idyn);
 
-  Core::Utils::int_parameter("STRUCTSCAL_INITFUNCNO", -1,
-      "function number for structure scalar transport initial field", &fs3idyn);
+          deprecated_selection<Inpar::ScaTra::InitialField>("STRUCTSCAL_INITIALFIELD",
+              {
+                  {"zero_field", Inpar::ScaTra::initfield_zero_field},
+                  {"field_by_function", Inpar::ScaTra::initfield_field_by_function},
+              },
+              {.description = "Initial Field for structure scalar transport problem",
+                  .default_value = Inpar::ScaTra::initfield_zero_field}),
 
-  // Type of coupling strategy between structure and structure-scalar field
-  setStringToIntegralParameter<VolumeCoupling>("STRUCTSCAL_FIELDCOUPLING", "volume_matching",
-      "Type of coupling strategy between structure and structure-scalar field",
-      tuple<std::string>("volume_matching", "volume_nonmatching"),
-      tuple<VolumeCoupling>(coupling_match, coupling_nonmatch), &fs3idyn);
+          parameter<int>("STRUCTSCAL_INITFUNCNO",
+              {.description = "function number for structure scalar transport initial field",
+                  .default_value = -1}),
 
-  // Type of coupling strategy between fluid and fluid-scalar field
-  setStringToIntegralParameter<VolumeCoupling>("FLUIDSCAL_FIELDCOUPLING", "volume_matching",
-      "Type of coupling strategy between fluid and fluid-scalar field",
-      tuple<std::string>("volume_matching", "volume_nonmatching"),
-      tuple<VolumeCoupling>(coupling_match, coupling_nonmatch), &fs3idyn);
+          // Type of coupling strategy between structure and structure-scalar field
+          deprecated_selection<VolumeCoupling>("STRUCTSCAL_FIELDCOUPLING",
+              {
+                  {"volume_matching", coupling_match},
+                  {"volume_nonmatching", coupling_nonmatch},
+              },
+              {.description =
+                      "Type of coupling strategy between structure and structure-scalar field",
+                  .default_value = coupling_match}),
 
-  // type of scalar transport
-  setStringToIntegralParameter<Inpar::ScaTra::ImplType>("FLUIDSCAL_SCATRATYPE",
-      "ConvectionDiffusion", "Type of scalar transport problem",
-      tuple<std::string>("Undefined", "ConvectionDiffusion", "Loma", "Advanced_Reaction",
-          "Chemotaxis", "Chemo_Reac"),
-      tuple<Inpar::ScaTra::ImplType>(Inpar::ScaTra::impltype_undefined, Inpar::ScaTra::impltype_std,
-          Inpar::ScaTra::impltype_loma, Inpar::ScaTra::impltype_advreac,
-          Inpar::ScaTra::impltype_chemo, Inpar::ScaTra::impltype_chemoreac),
-      &fs3idyn);
+          // Type of coupling strategy between fluid and fluid-scalar field
+          deprecated_selection<VolumeCoupling>("FLUIDSCAL_FIELDCOUPLING",
+              {
+                  {"volume_matching", coupling_match},
+                  {"volume_nonmatching", coupling_nonmatch},
+              },
+              {.description = "Type of coupling strategy between fluid and fluid-scalar field",
+                  .default_value = coupling_match}),
 
-  // Restart from FSI instead of FS3I
-  Core::Utils::bool_parameter("RESTART_FROM_PART_FSI", "No",
-      "restart from partitioned fsi problem (e.g. from prestress calculations) instead of fs3i",
-      &fs3idyn);
+          // type of scalar transport
+          deprecated_selection<Inpar::ScaTra::ImplType>("FLUIDSCAL_SCATRATYPE",
+              {
+                  {"Undefined", Inpar::ScaTra::impltype_undefined},
+                  {"ConvectionDiffusion", Inpar::ScaTra::impltype_std},
+                  {"Loma", Inpar::ScaTra::impltype_loma},
+                  {"Advanced_Reaction", Inpar::ScaTra::impltype_advreac},
+                  {"Chemotaxis", Inpar::ScaTra::impltype_chemo},
+                  {"Chemo_Reac", Inpar::ScaTra::impltype_chemoreac},
+              },
+              {.description = "Type of scalar transport problem",
+                  .default_value = Inpar::ScaTra::impltype_std}),
+
+          // Restart from FSI instead of FS3I
+          parameter<bool>("RESTART_FROM_PART_FSI",
+              {.description = "restart from partitioned fsi problem (e.g. from "
+                              "prestress calculations) instead of fs3i",
+                  .default_value = false}),
+
+      },
+      {.defaultable = true});
 
   /*----------------------------------------------------------------------*/
   /* parameters for partitioned FS3I */
   /*----------------------------------------------------------------------*/
-  Teuchos::ParameterList& fs3idynpart = fs3idyn.sublist("PARTITIONED", false,
-      "partitioned fluid-structure-scalar-scalar interaction control section");
+  list["FS3I DYNAMIC/PARTITIONED"] = group("FS3I DYNAMIC/PARTITIONED",
+      {
 
-  // Coupling strategy for partitioned FS3I
-  setStringToIntegralParameter<SolutionSchemeOverFields>("COUPALGO", "fs3i_IterStagg",
-      "Coupling strategies for FS3I solvers",
-      tuple<std::string>("fs3i_SequStagg", "fs3i_IterStagg"),
-      tuple<SolutionSchemeOverFields>(fs3i_SequStagg, fs3i_IterStagg), &fs3idynpart);
+          // Coupling strategy for partitioned FS3I
+          parameter<SolutionSchemeOverFields>(
+              "COUPALGO", {.description = "Coupling strategies for FS3I solvers",
+                              .default_value = fs3i_IterStagg}),
 
-  // convergence tolerance of outer iteration loop
-  Core::Utils::double_parameter("CONVTOL", 1e-6,
-      "tolerance for convergence check of outer iteration within partitioned FS3I", &fs3idynpart);
+          // convergence tolerance of outer iteration loop
+          parameter<double>("CONVTOL",
+              {.description =
+                      "tolerance for convergence check of outer iteration within partitioned FS3I",
+                  .default_value = 1e-6}),
 
-  Core::Utils::int_parameter("ITEMAX", 10, "Maximum number of outer iterations", &fs3idynpart);
+          parameter<int>("ITEMAX",
+              {.description = "Maximum number of outer iterations", .default_value = 10})},
+      {.defaultable = true});
 
   /*----------------------------------------------------------------------  */
   /* parameters for stabilization of the structure-scalar field             */
   /*----------------------------------------------------------------------  */
-  Teuchos::ParameterList& fs3idynstructscalstab = fs3idyn.sublist("STRUCTURE SCALAR STABILIZATION",
-      false, "parameters for stabilization of the structure-scalar field");
 
-  Teuchos::ParameterList& scatradyn = list.sublist(
-      "SCALAR TRANSPORT DYNAMIC", true, "control parameters for scalar transport problems\n");
-  fs3idynstructscalstab = scatradyn.sublist("STABILIZATION", true,
-      "control parameters for the stabilization of scalar transport problems");
+  /// HACK!
+  /// reuse the parameters from scatra
+
+  list["FS3I DYNAMIC/STRUCTURE SCALAR STABILIZATION"] =
+      group("FS3I DYNAMIC/STRUCTURE SCALAR STABILIZATION",
+          {Inpar::ScaTra::all_specs_for_scatra_stabilization()}, {.defaultable = true});
 }
 
 FOUR_C_NAMESPACE_CLOSE

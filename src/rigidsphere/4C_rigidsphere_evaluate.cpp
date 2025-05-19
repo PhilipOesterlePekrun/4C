@@ -5,19 +5,20 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
+#include "4C_browniandyn_input.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_extract_values.hpp"
 #include "4C_fem_general_utils_integration.hpp"
-#include "4C_fem_geometric_search_bounding_volume.hpp"
-#include "4C_fem_geometric_search_params.hpp"
+#include "4C_geometric_search_bounding_volume.hpp"
+#include "4C_geometric_search_params.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_browniandyn.hpp"
 #include "4C_linalg_fixedsizematrix.hpp"
 #include "4C_linalg_serialdensevector.hpp"
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
 #include "4C_mat_stvenantkirchhoff.hpp"
 #include "4C_rigidsphere.hpp"
 #include "4C_structure_new_elements_paramsinterface.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_exceptions.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -54,8 +55,7 @@ int Discret::Elements::Rigidsphere::evaluate(Teuchos::ParameterList& params,
       std::shared_ptr<const Core::LinAlg::Vector<double>> disp =
           discretization.get_state("displacement");
       if (disp == nullptr) FOUR_C_THROW("Cannot get state vectors 'displacement'");
-      std::vector<double> mydisp(lm.size());
-      Core::FE::extract_my_values(*disp, mydisp, lm);
+      std::vector<double> mydisp = Core::FE::extract_values(*disp, lm);
 
       std::shared_ptr<const Core::LinAlg::Vector<double>> vel;
       std::vector<double> myvel(lm.size());
@@ -94,15 +94,13 @@ int Discret::Elements::Rigidsphere::evaluate(Teuchos::ParameterList& params,
       std::shared_ptr<const Core::LinAlg::Vector<double>> disp =
           discretization.get_state("displacement");
       if (disp == nullptr) FOUR_C_THROW("Cannot get state vectors 'displacement'");
-      std::vector<double> mydisp(lm.size());
-      Core::FE::extract_my_values(*disp, mydisp, lm);
+      std::vector<double> mydisp = Core::FE::extract_values(*disp, lm);
 
       // get element velocity
       std::shared_ptr<const Core::LinAlg::Vector<double>> vel =
           discretization.get_state("velocity");
       if (vel == nullptr) FOUR_C_THROW("Cannot get state vectors 'velocity'");
-      std::vector<double> myvel(lm.size());
-      Core::FE::extract_my_values(*vel, myvel, lm);
+      std::vector<double> myvel = Core::FE::extract_values(*vel, lm);
 
       if (act == Core::Elements::struct_calc_brownianforce)
         calc_brownian_forces_and_stiff(params, myvel, mydisp, nullptr, &elevec1);
@@ -148,7 +146,7 @@ int Discret::Elements::Rigidsphere::evaluate(Teuchos::ParameterList& params,
 
     default:
     {
-      FOUR_C_THROW("Unknown type of action for Rigidsphere %d", act);
+      FOUR_C_THROW("Unknown type of action for Rigidsphere {}", act);
       break;
     }
   }
@@ -341,12 +339,11 @@ Core::GeometricSearch::BoundingVolume Discret::Elements::Rigidsphere::get_boundi
   // Get the element displacements.
   std::vector<int> lm, lmowner, lmstride;
   this->location_vector(discret, lm, lmowner, lmstride);
-  std::vector<double> mydisp(lm.size());
-  Core::FE::extract_my_values(result_data_dofbased, mydisp, lm);
+  std::vector<double> mydisp = Core::FE::extract_values(result_data_dofbased, lm);
 
   // Add reference position.
   if (mydisp.size() != 3)
-    FOUR_C_THROW("Got unexpected number of DOFs. Expected 3, but received %d", mydisp.size());
+    FOUR_C_THROW("Got unexpected number of DOFs. Expected 3, but received {}", mydisp.size());
   Core::LinAlg::Matrix<3, 1, double> sphere_center;
   for (unsigned int i_dof = 0; i_dof < 3; i_dof++)
     sphere_center(i_dof) = mydisp[i_dof] + nodes()[0]->x()[i_dof];

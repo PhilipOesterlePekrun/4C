@@ -16,6 +16,7 @@
 #include "4C_linalg_serialdensevector.hpp"
 #include "4C_mat_newtonianfluid.hpp"
 #include "4C_red_airways_evaluation_data.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 #include "4C_utils_function_of_time.hpp"
 
@@ -44,7 +45,7 @@ Discret::Elements::RedInterAcinarDepImplInterface::impl(
     }
     default:
       FOUR_C_THROW(
-          "shape %d (%d nodes) not supported", red_acinus->shape(), red_acinus->num_node());
+          "shape {} ({} nodes) not supported", red_acinus->shape(), red_acinus->num_node());
       break;
   }
   return nullptr;
@@ -66,22 +67,19 @@ Discret::Elements::InterAcinarDepImpl<distype>::InterAcinarDepImpl()
 template <Core::FE::CellType distype>
 int Discret::Elements::InterAcinarDepImpl<distype>::evaluate(RedInterAcinarDep* ele,
     Teuchos::ParameterList& params, Core::FE::Discretization& discretization, std::vector<int>& lm,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra, std::shared_ptr<Core::Mat::Material> mat)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3, std::shared_ptr<Core::Mat::Material> mat)
 {
   // Get the vector with inter-acinar linkers
   std::shared_ptr<const Core::LinAlg::Vector<double>> ial =
       discretization.get_state("intr_ac_link");
 
   // Extract local values from the global vectors
-  std::vector<double> myial(lm.size());
-  Core::FE::extract_my_values(*ial, myial, lm);
+  std::vector<double> myial = Core::FE::extract_values(*ial, lm);
 
   // Calculate the system matrix for inter-acinar linkers
-  sysmat(myial, elemat1_epetra, elevec1_epetra);
+  sysmat(myial, elemat1, elevec1);
 
   return 0;
 }
@@ -106,7 +104,7 @@ void Discret::Elements::InterAcinarDepImpl<distype>::initial(RedInterAcinarDep* 
   // Set the generation number for the inter-acinar linker element to -2.0
   int gid = ele->id();
   double val = -2.0;
-  evaluation_data.generations->ReplaceGlobalValues(1, &val, &gid);
+  evaluation_data.generations->replace_global_values(1, &val, &gid);
 
   // In this element, each node of an inter-acinar linker element has
   // one linker. The final sum of linkers for each node is automatically
@@ -170,8 +168,7 @@ void Discret::Elements::InterAcinarDepImpl<distype>::evaluate_terminal_bc(RedInt
   if (pnp == nullptr) FOUR_C_THROW("Cannot get state vectors 'pnp'");
 
   // Extract local values from the global vectors
-  std::vector<double> mypnp(lm.size());
-  Core::FE::extract_my_values(*pnp, mypnp, lm);
+  std::vector<double> mypnp = Core::FE::extract_values(*pnp, lm);
 
   // Create objects for element arrays
   Core::LinAlg::SerialDenseVector epnp(numnode);
@@ -201,12 +198,11 @@ void Discret::Elements::InterAcinarDepImpl<distype>::evaluate_terminal_bc(RedInt
           // Get the type of prescribed bc
           Bc = (condition->parameters().get<std::string>("boundarycond"));
 
-          const auto curve =
-              condition->parameters().get<std::vector<Core::IO::Noneable<int>>>("curve");
+          const auto curve = condition->parameters().get<std::vector<std::optional<int>>>("curve");
           double curvefac = 1.0;
           const auto vals = condition->parameters().get<std::vector<double>>("VAL");
           const auto functions =
-              condition->parameters().get<std::vector<Core::IO::Noneable<int>>>("funct");
+              condition->parameters().get<std::vector<std::optional<int>>>("funct");
 
           // Read in the value of the applied BC
           // Get factor of first CURVE
@@ -220,7 +216,6 @@ void Discret::Elements::InterAcinarDepImpl<distype>::evaluate_terminal_bc(RedInt
           else
           {
             FOUR_C_THROW("no boundary condition defined!");
-            exit(1);
           }
           // Get factor of FUNCT
           double functionfac = 0.0;
@@ -246,9 +241,8 @@ void Discret::Elements::InterAcinarDepImpl<distype>::evaluate_terminal_bc(RedInt
           int local_id = discretization.node_row_map()->LID(ele->nodes()[i]->id());
           if (local_id < 0)
           {
-            FOUR_C_THROW("node (%d) doesn't exist on proc(%d)", ele->nodes()[i]->id(),
+            FOUR_C_THROW("node ({}) doesn't exist on proc({})", ele->nodes()[i]->id(),
                 Core::Communication::my_mpi_rank(discretization.get_comm()));
-            exit(1);
           }
         }
         else
@@ -267,7 +261,7 @@ void Discret::Elements::InterAcinarDepImpl<distype>::evaluate_terminal_bc(RedInt
             if (pplCond)
             {
               const auto curve =
-                  pplCond->parameters().get<std::vector<Core::IO::Noneable<int>>>("curve");
+                  pplCond->parameters().get<std::vector<std::optional<int>>>("curve");
               double curvefac = 1.0;
               const auto vals = pplCond->parameters().get<std::vector<double>>("VAL");
 
@@ -294,7 +288,7 @@ void Discret::Elements::InterAcinarDepImpl<distype>::evaluate_terminal_bc(RedInt
               {
                 FOUR_C_THROW(
                     "TLC is not used for the following type of VolumeDependentPleuralPressure BC: "
-                    "%s.\n Set TLC = 0.0",
+                    "{}.\n Set TLC = 0.0",
                     ppl_Type.c_str());
               }
               // Safety check: in case of Ogden TLC, P_PLEURAL_0, and P_PLEURAL_LIN
@@ -343,7 +337,7 @@ void Discret::Elements::InterAcinarDepImpl<distype>::evaluate_terminal_bc(RedInt
               }
               else
               {
-                FOUR_C_THROW("Unknown volume pleural pressure type: %s", ppl_Type.c_str());
+                FOUR_C_THROW("Unknown volume pleural pressure type: {}", ppl_Type);
               }
               Pp_np *= curvefac * (vals[0]);
             }
@@ -365,17 +359,15 @@ void Discret::Elements::InterAcinarDepImpl<distype>::evaluate_terminal_bc(RedInt
 
           gid = lm[i];
           val = BCin;
-          evaluation_data.bcval->ReplaceGlobalValues(1, &val, &gid);
+          evaluation_data.bcval->replace_global_values(1, &val, &gid);
 
           gid = lm[i];
           val = 1;
-          evaluation_data.dbctog->ReplaceGlobalValues(1, &val, &gid);
+          evaluation_data.dbctog->replace_global_values(1, &val, &gid);
         }
         else
         {
-          FOUR_C_THROW(
-              "Prescribed [%s] is not defined for reduced-inter-acinar linkers", Bc.c_str());
-          exit(1);
+          FOUR_C_THROW("Prescribed [{}] is not defined for reduced-inter-acinar linkers", Bc);
         }
       }
       /**
@@ -390,9 +382,8 @@ void Discret::Elements::InterAcinarDepImpl<distype>::evaluate_terminal_bc(RedInt
           int local_id = discretization.node_row_map()->LID(ele->nodes()[i]->id());
           if (local_id < 0)
           {
-            FOUR_C_THROW("node (%d) doesn't exist on proc(%d)", ele->nodes()[i],
+            FOUR_C_THROW("node ({}) doesn't exist on proc({})", ele->nodes()[i]->id(),
                 Core::Communication::my_mpi_rank(discretization.get_comm()));
-            exit(1);
           }
 
           Discret::ReducedLung::EvaluationData& evaluation_data =
@@ -404,11 +395,11 @@ void Discret::Elements::InterAcinarDepImpl<distype>::evaluate_terminal_bc(RedInt
 
           gid = lm[i];
           val = 0.0;
-          evaluation_data.bcval->ReplaceGlobalValues(1, &val, &gid);
+          evaluation_data.bcval->replace_global_values(1, &val, &gid);
 
           gid = lm[i];
           val = 1;
-          evaluation_data.dbctog->ReplaceGlobalValues(1, &val, &gid);
+          evaluation_data.dbctog->replace_global_values(1, &val, &gid);
         }
       }  // END of if there is no BC but the node still is at the terminal
     }  // END of if node is available on this processor

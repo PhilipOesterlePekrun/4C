@@ -8,6 +8,7 @@
 #include "4C_sti_resulttest.hpp"
 
 #include "4C_comm_mpi_utils.hpp"
+#include "4C_io_input_parameter_container.hpp"
 #include "4C_linear_solver_method_linalg.hpp"
 #include "4C_sti_monolithic.hpp"
 
@@ -76,7 +77,7 @@ double STI::STIResultTest::result_special(
   // catch unknown quantity strings
   else
     FOUR_C_THROW(
-        "Quantity '%s' not supported by result testing functionality for scatra-thermo "
+        "Quantity '{}' not supported by result testing functionality for scatra-thermo "
         "interaction!",
         quantity.c_str());
 

@@ -66,7 +66,7 @@ LM_SHAPEFCN             Dual
 LM_QUAD                 quad
 CROSSPOINTS             no
 --------------------------MORTAR COUPLING/PARALLEL REDISTRIBUTION
-PARALLEL_REDIST                 static
+PARALLEL_REDIST                 Static
 GHOSTING_STRATEGY               redundant_all
 --------------------------------------------------CONTACT DYNAMIC
 LINEAR_SOLVER                   2
@@ -79,8 +79,7 @@ AZOUTPUT       0
 AZSOLVE        GMRES
 AZPREC         ILU
 AZREUSE        0
-IFPACKGFILL    0
-IFPACKOVERLAP  0
+IFPACK_XML_FILE                 xml/preconditioner/ifpack.xml
 AZTOL          1.0E-9
 AZCONV         AZ_r0
 AZITER         1000
@@ -88,9 +87,9 @@ AZSUB          1000
 ---------------------------------------------------------MATERIALS
 MAT       1 MAT_fluid  DYNVISCOSITY 1.0 DENSITY 1.0 GAMMA 1.0
 ------------------------------------------------------------FUNCT1
-BELTRAMI c1 1.0
+FLUID_FUNCTION BELTRAMI c1 1.0
 ------------------------------------------------------------FUNCT2
-BELTRAMI c1 2.0
+FLUID_FUNCTION BELTRAMI c1 2.0
 ------------------------------------------------RESULT DESCRIPTION
 FLUID DIS fluid NODE 12 QUANTITY velx VALUE -3.10102130175038349e-01 TOLERANCE 1e-10
 FLUID DIS fluid NODE 12 QUANTITY vely VALUE  1.50964895946658434e-01 TOLERANCE 1e-10
@@ -130,25 +129,23 @@ FLUID DIS fluid NODE 1 QUANTITY L2errpre VALUE 1.86658776781870595e-02 TOLERANCE
 FLUID DIS fluid NODE 1 QUANTITY H1errvel VALUE 8.20424921049362349e-02 TOLERANCE 1e-9
 FLUID DIS fluid NODE 1 QUANTITY divu VALUE 2.74210917273413912e+00 TOLERANCE 1e-9
 -------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF  6
 // surface top
-E 1 - NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
+E 1 NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
 // surface front
-E 2 - NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
+E 2 NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
 // surface back
-E 3 - NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
+E 3 NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
 // surface unten
-E 4 - NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
+E 4 NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
 // surface rechts
-E 5 - NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
+E 5 NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
 // surface links
-E 6 - NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
+E 6 NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
 -------------------------DESIGN SURF MORTAR COUPLING CONDITIONS 3D
-DSURF  2
 // inside meshtying
-E 7 - InterfaceID 1 Side Slave
+E 7 InterfaceID 1 Side Slave
 // outside meshtying
-E 8 - InterfaceID 1 Side Master
+E 8 InterfaceID 1 Side Master
 -----------------------------------------------DNODE-NODE TOPOLOGY
 NODE    51 DNODE 1
 -----------------------------------------------DSURF-NODE TOPOLOGY

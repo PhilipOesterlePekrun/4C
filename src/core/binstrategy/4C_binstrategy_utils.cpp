@@ -9,6 +9,7 @@
 
 #include "4C_comm_exporter.hpp"
 #include "4C_comm_mpi_utils.hpp"
+#include "4C_fem_discretization.hpp"
 #include "4C_fem_general_element.hpp"
 #include "4C_fem_general_node.hpp"
 #include "4C_io_pstream.hpp"
@@ -22,7 +23,7 @@ namespace Core::Binstrategy::Utils
   /*-----------------------------------------------------------------------------*
    *-----------------------------------------------------------------------------*/
   void extend_discretization_ghosting(Core::FE::Discretization& discret,
-      Epetra_Map& extendedelecolmap, bool assigndegreesoffreedom, bool initelements,
+      Core::LinAlg::Map& extendedelecolmap, bool assigndegreesoffreedom, bool initelements,
       bool doboundaryconditions)
   {
     // make sure that all procs are either filled or unfilled
@@ -44,7 +45,7 @@ namespace Core::Binstrategy::Utils
     }
 
     std::vector<int> colnodes(nodes.begin(), nodes.end());
-    Epetra_Map nodecolmap(-1, (int)colnodes.size(), colnodes.data(), 0,
+    Core::LinAlg::Map nodecolmap(-1, (int)colnodes.size(), colnodes.data(), 0,
         Core::Communication::as_epetra_comm(discret.get_comm()));
 
     // now ghost the nodes
@@ -121,7 +122,7 @@ namespace Core::Binstrategy::Utils
       int from = -1;
       exporter.receive_any(from, tag, rdata, length);
       if (tag != 1234)
-        FOUR_C_THROW("Received on proc %i data with wrong tag from proc %i",
+        FOUR_C_THROW("Received on proc {} data with wrong tag from proc {}",
             Core::Communication::my_mpi_rank(discret.get_comm()), from);
 
       // ---- unpack ----
@@ -139,7 +140,7 @@ namespace Core::Binstrategy::Utils
           // safety check
           if (discret.have_global_element(element->id()) != true)
             FOUR_C_THROW(
-                "%i is getting owner of element %i without having it ghosted before, "
+                "{} is getting owner of element {} without having it ghosted before, "
                 "this is not intended.",
                 Core::Communication::my_mpi_rank(discret.get_comm()), element->id());
 
@@ -173,17 +174,17 @@ namespace Core::Binstrategy::Utils
     // ---- pack data for sending -----
     std::map<int, std::vector<char>> sdata;
     std::vector<int> targetprocs(numproc, 0);
-    std::map<int, std::vector<std::pair<int, std::vector<int>>>>::const_iterator p;
-    for (p = toranktosendbinids.begin(); p != toranktosendbinids.end(); ++p)
+
+    for (const auto& [rank, bin_list] : toranktosendbinids)
     {
-      std::vector<std::pair<int, std::vector<int>>>::const_iterator iter;
-      for (iter = p->second.begin(); iter != p->second.end(); ++iter)
+      Core::Communication::PackBuffer data;
+      for (const auto& bin : bin_list)
       {
-        Core::Communication::PackBuffer data;
-        add_to_pack(data, *iter);
-        sdata[p->first].insert(sdata[p->first].end(), data().begin(), data().end());
+        add_to_pack(data, bin);
       }
-      targetprocs[p->first] = 1;
+      auto& buffer = sdata[rank];
+      buffer.insert(buffer.end(), data().begin(), data().end());
+      targetprocs[rank] = 1;
     }
 
     // ---- send ----
@@ -216,7 +217,7 @@ namespace Core::Binstrategy::Utils
       int from = -1;
       exporter.receive_any(from, tag, rdata, length);
       if (tag != 1234)
-        FOUR_C_THROW("Received on proc %i data with wrong tag from proc %i",
+        FOUR_C_THROW("Received on proc {} data with wrong tag from proc {}",
             Core::Communication::my_mpi_rank(discret.get_comm()), from);
 
       // ---- unpack ----
@@ -248,7 +249,7 @@ namespace Core::Binstrategy::Utils
     if (disnp != nullptr)
     {
       const int gid = discret.dof(node, 0);
-      const int lid = disnp->Map().LID(gid);
+      const int lid = disnp->get_block_map().LID(gid);
       if (lid < 0)
         FOUR_C_THROW(
             "Your displacement is incomplete (need to be based on a column map"

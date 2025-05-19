@@ -60,7 +60,7 @@ MAXTIME                         5
 TIMESTEP                        0.5
 SECONDORDER                     No
 CONTIPARTINT                    No
-CONTACTNOPEN                    Yes
+CONTACT_NO_PENETRATION          Yes
 LINEAR_SOLVER                   5
 ------------------------------------------------------FLUID DYNAMIC
 PHYSICAL_TYPE                   Incompressible
@@ -74,7 +74,6 @@ RESTARTEVERY                     10
 NUMSTEP                         7
 THETA                           1
 START_THETA                     1
-GEOMETRY                        box
 -----------------------------------------------------------------FSI DYNAMIC
 MAXTIME                         5
 TIMESTEP                        0.5
@@ -198,29 +197,24 @@ PARTITION   structured
 COMPONENT 0 SYMBOLIC_FUNCTION_OF_SPACE_TIME a
 VARIABLE 0 NAME a TYPE multifunction NUMPOINTS 2 TIMES 0.0 5 DESCRIPTION t/5*0.2
 -------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF  2
 // struct_bottom
-E 1 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 1 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 // pusher_top
-E 4 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 -1.0 FUNCT 0 0 1
+E 4 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 -1.0 FUNCT 0 0 1
 -----------------------------DESIGN VOLUME POROCOUPLING CONDITION
-DVOL  1
 // poro_surface
-E 1 -
+E 1
 -------------------------DESIGN SURF MORTAR CONTACT CONDITIONS 3D
-DSURF  2
 // zp
-E 2 - InterfaceID 0 Side Selfcontact Initialization Inactive FrCoeffOrBound 0.0 AdhesionBound 0.0 Application Solidcontact DbcHandling DoNothing TwoHalfPass 1 RefConfCheckNonSmoothSelfContactSurface 0
+E 2 InterfaceID 0 Side Selfcontact Initialization Inactive FrCoeffOrBound 0.0 AdhesionBound 0.0 Application Solidcontact DbcHandling DoNothing TwoHalfPass 1 RefConfCheckNonSmoothSelfContactSurface 0
 // s_contact
-E 3 - InterfaceID 0 Side Selfcontact Initialization Inactive FrCoeffOrBound 0.0 AdhesionBound 0.0 Application Solidcontact DbcHandling DoNothing TwoHalfPass 1 RefConfCheckNonSmoothSelfContactSurface 0
+E 3 InterfaceID 0 Side Selfcontact Initialization Inactive FrCoeffOrBound 0.0 AdhesionBound 0.0 Application Solidcontact DbcHandling DoNothing TwoHalfPass 1 RefConfCheckNonSmoothSelfContactSurface 0
 ------------------------DESIGN XFEM FSI MONOLITHIC SURF CONDITIONS
-DSURF  1
 // all solid red
-E 6 - COUPLINGID 1 COUPSTRATEGY xfluid INTLAW navslip_contact SLIPCOEFFICIENT 0.1
+E 6 COUPLINGID 1 COUPSTRATEGY xfluid INTLAW navslip_contact SLIPCOEFFICIENT 0.1
 ------------------------DESIGN XFEM FPI MONOLITHIC SURF CONDITIONS
-DSURF  1
 // all poro red
-E 7 - COUPLINGID 1 BJ_COEFF 1 Variant BJ Method NIT Contact true
+E 7 COUPLINGID 1 BJ_COEFF 1 Variant BJ Method NIT Contact true
 -----------------------------------------------DSURF-NODE TOPOLOGY
 NODE    1 DSURFACE 1
 NODE    2 DSURFACE 1
@@ -357,10 +351,10 @@ NODE 36    COORD  1.0000000000000000e+00  1.9000000000000000e+00  2.100000000000
 NODE 37    COORD  1.9000000000000000e+00  1.9000000000000000e+00  1.1000000000000000e+00
 NODE 38    COORD  1.9000000000000000e+00  1.9000000000000000e+00  2.1000000000000000e+00
 ------------------------------------------------STRUCTURE ELEMENTS
-1 SOLIDH8PORO HEX8  1 2 3 4 5 6 7 8 MAT 1 KINEM nonlinear EAS none
-2 SOLIDH8PORO HEX8  2 9 10 3 6 11 12 7 MAT 1 KINEM nonlinear EAS none
-3 SOLIDH8PORO HEX8  4 3 14 13 8 7 16 15 MAT 1 KINEM nonlinear EAS none
-4 SOLIDH8PORO HEX8  3 10 17 14 7 12 18 16 MAT 1 KINEM nonlinear EAS none
+1 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8 1 2 3 4 5 6 7 8 MAT 1 KINEM nonlinear
+2 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8 2 9 10 3 6 11 12 7 MAT 1 KINEM nonlinear
+3 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8 4 3 14 13 8 7 16 15 MAT 1 KINEM nonlinear
+4 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8 3 10 17 14 7 12 18 16 MAT 1 KINEM nonlinear
 5 SOLID HEX8 21 22 23 24 25 26 27 28 MAT 5 KINEM nonlinear
 6 SOLID HEX8 22 29 30 23 26 31 32 27 MAT 5 KINEM nonlinear
 7 SOLID HEX8 24 23 34 33 28 27 36 35 MAT 5 KINEM nonlinear

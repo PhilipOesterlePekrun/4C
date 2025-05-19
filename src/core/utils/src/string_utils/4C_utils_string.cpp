@@ -7,6 +7,8 @@
 
 #include "4C_utils_string.hpp"
 
+#include <algorithm>
+
 FOUR_C_NAMESPACE_OPEN
 
 
@@ -14,27 +16,41 @@ namespace Core::Utils
 {
   std::string trim(const std::string& line)
   {
-#if (BOOST_MAJOR_VERSION == 1) && (BOOST_MINOR_VERSION >= 47)
-    return boost::algorithm::trim_all_copy(boost::algorithm::replace_all_copy(line, "\t", " "));
-#else
-    std::istringstream t;
-    std::string s;
-    std::string newline;
-    t.str(line);
-    while (t >> s)
+    // Replace all whitespace character sequences with a single space. Remove leading and trailing
+    // spaces.
+    std::string result;
+    for (auto c : line)
     {
-      newline.append(s);
-      newline.append(" ");
+      if (std::isspace(c))
+      {
+        if (!result.empty() && result.back() != ' ') result.push_back(' ');
+      }
+      else
+      {
+        result.push_back(c);
+      }
     }
-    if (newline.size() > 0) newline.resize(newline.size() - 1);
-    return newline;
-#endif
+
+    // Remove trailing space
+    if (!result.empty() && result.back() == ' ') result.pop_back();
+
+    return result;
   }
 
   std::vector<std::string> split(const std::string& input, const std::string& delimiter)
   {
-    std::vector<std::string> return_value{};
-    return boost::split(return_value, input, boost::is_any_of(delimiter));
+    // Split input string into substrings using the specified delimiter
+    std::vector<std::string> result;
+    std::string::size_type start = 0;
+    std::string::size_type end = input.find(delimiter, start);
+    while (end != std::string::npos)
+    {
+      result.push_back(input.substr(start, end - start));
+      start = end + delimiter.length();
+      end = input.find(delimiter, start);
+    }
+    result.push_back(input.substr(start, end));
+    return result;
   }
 
   std::string strip_comment(const std::string& line, const std::string& comment_marker)
@@ -50,7 +66,14 @@ namespace Core::Utils
     return newline;
   }
 
-  std::string to_lower(const std::string& line) { return boost::algorithm::to_lower_copy(line); }
+  std::string to_lower(const std::string& line)
+  {
+    std::string lower_line;
+    lower_line.reserve(line.size());
+    std::ranges::transform(
+        line, std::back_inserter(lower_line), [](unsigned char c) { return std::tolower(c); });
+    return lower_line;
+  }
 
   std::vector<std::string> split_string_list(const std::string& str, const std::string& separator)
   {

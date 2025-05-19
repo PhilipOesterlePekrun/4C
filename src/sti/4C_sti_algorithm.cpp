@@ -120,7 +120,8 @@ STI::Algorithm::Algorithm(MPI_Comm comm, const Teuchos::ParameterList& stidyn,
         for (auto& condition : conditions)
         {
           // consider conditions for slave side only
-          if (condition->parameters().get<int>("INTERFACE_SIDE") == Inpar::S2I::side_slave)
+          if (condition->parameters().get<Inpar::S2I::InterfaceSides>("INTERFACE_SIDE") ==
+              Inpar::S2I::side_slave)
           {
             // extract ID of current condition
             const int condid = condition->parameters().get<int>("ConditionID");
@@ -219,8 +220,8 @@ void STI::Algorithm::prepare_time_step()
   increment_time_and_step();
 
   // provide scatra and thermo fields with velocities
-  scatra_->scatra_field()->set_velocity_field();
-  thermo_->scatra_field()->set_velocity_field();
+  scatra_->scatra_field()->set_velocity_field_from_function();
+  thermo_->scatra_field()->set_velocity_field_from_function();
 
   // pass thermo degrees of freedom to scatra discretization for preparation of first time step
   // (calculation of initial time derivatives etc.)
@@ -299,7 +300,7 @@ void STI::Algorithm::transfer_scatra_to_thermo(
     const std::shared_ptr<const Core::LinAlg::Vector<double>> scatra) const
 {
   // pass scatra degrees of freedom to thermo discretization
-  thermo_->scatra_field()->discretization()->set_state(2, "scatra", scatra);
+  thermo_->scatra_field()->discretization()->set_state(2, "scatra", *scatra);
 
   // transfer state vector for evaluation of scatra-scatra interface mesh tying
   if (thermo_->scatra_field()->s2_i_meshtying())
@@ -316,7 +317,7 @@ void STI::Algorithm::transfer_scatra_to_thermo(
             *strategyscatra_->coupling_adapter()->master_to_slave(
                 *strategyscatra_->interface_maps()->extract_vector(*scatra, 2)),
             1, *imasterphinp);
-        thermo_->scatra_field()->discretization()->set_state(2, "imasterscatra", imasterphinp);
+        thermo_->scatra_field()->discretization()->set_state(2, "imasterscatra", *imasterphinp);
 
         break;
       }
@@ -331,7 +332,8 @@ void STI::Algorithm::transfer_scatra_to_thermo(
         for (auto& condition : conditions)
         {
           // consider conditions for slave side only
-          if (condition->parameters().get<int>("INTERFACE_SIDE") == Inpar::S2I::side_slave)
+          if (condition->parameters().get<Inpar::S2I::InterfaceSides>("INTERFACE_SIDE") ==
+              Inpar::S2I::side_slave)
           {
             // extract ID of current condition
             const int condid = condition->parameters().get<int>("ConditionID");
@@ -344,7 +346,7 @@ void STI::Algorithm::transfer_scatra_to_thermo(
             const std::shared_ptr<Core::LinAlg::Vector<double>> iscatra =
                 std::make_shared<Core::LinAlg::Vector<double>>(*thermodis.dof_row_map(1));
             Core::LinAlg::export_to(*scatra, *iscatra);
-            thermodis.set_state(1, "scatra", iscatra);
+            thermodis.set_state(1, "scatra", *iscatra);
           }
         }
 
@@ -365,7 +367,7 @@ void STI::Algorithm::transfer_thermo_to_scatra(
     const std::shared_ptr<const Core::LinAlg::Vector<double>> thermo) const
 {
   // pass thermo degrees of freedom to scatra discretization
-  scatra_->scatra_field()->discretization()->set_state(2, "thermo", thermo);
+  scatra_->scatra_field()->discretization()->set_state(2, "thermo", *thermo);
 
   // transfer state vector for evaluation of scatra-scatra interface mesh tying
   if (scatra_->scatra_field()->s2_i_meshtying() and
@@ -379,7 +381,8 @@ void STI::Algorithm::transfer_thermo_to_scatra(
     for (auto& condition : conditions)
     {
       // consider conditions for slave side only
-      if (condition->parameters().get<int>("INTERFACE_SIDE") == Inpar::S2I::side_slave)
+      if (condition->parameters().get<Inpar::S2I::InterfaceSides>("INTERFACE_SIDE") ==
+          Inpar::S2I::side_slave)
       {
         // extract ID of current condition
         const int condid = condition->parameters().get<int>("ConditionID");
@@ -392,7 +395,7 @@ void STI::Algorithm::transfer_thermo_to_scatra(
         const std::shared_ptr<Core::LinAlg::Vector<double>> ithermo =
             std::make_shared<Core::LinAlg::Vector<double>>(*scatradis.dof_row_map(1));
         Core::LinAlg::export_to(*thermo, *ithermo);
-        scatradis.set_state(1, "thermo", ithermo);
+        scatradis.set_state(1, "thermo", *ithermo);
       }
     }
   }

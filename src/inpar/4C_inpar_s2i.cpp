@@ -9,92 +9,104 @@
 
 #include "4C_fem_condition_definition.hpp"
 #include "4C_io_input_spec_builders.hpp"
-#include "4C_utils_parameter_list.hpp"
-
 FOUR_C_NAMESPACE_OPEN
 
 /*------------------------------------------------------------------------*
  | set valid parameters for scatra-scatra interface coupling   fang 01/16 |
  *------------------------------------------------------------------------*/
-void Inpar::S2I::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::S2I::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
-  using Teuchos::tuple;
+  using namespace Core::IO::InputSpecBuilders;
 
-  Teuchos::ParameterList& s2icoupling =
-      list.sublist("SCALAR TRANSPORT DYNAMIC", true)
-          .sublist(
-              "S2I COUPLING", false, "control parameters for scatra-scatra interface coupling");
+  list["SCALAR TRANSPORT DYNAMIC/S2I COUPLING"] = group("SCALAR TRANSPORT DYNAMIC/S2I COUPLING",
+      {
 
-  // type of mortar meshtying
-  setStringToIntegralParameter<CouplingType>("COUPLINGTYPE", "Undefined",
-      "type of mortar meshtying",
-      tuple<std::string>("Undefined", "MatchingNodes", "StandardMortar", "SaddlePointMortar_Petrov",
-          "SaddlePointMortar_Bubnov", "CondensedMortar_Petrov", "CondensedMortar_Bubnov",
-          "StandardNodeToSegment"),
-      tuple<CouplingType>(coupling_undefined, coupling_matching_nodes, coupling_mortar_standard,
-          coupling_mortar_saddlepoint_petrov, coupling_mortar_saddlepoint_bubnov,
-          coupling_mortar_condensed_petrov, coupling_mortar_condensed_bubnov,
-          coupling_nts_standard),
-      &s2icoupling);
+          // type of mortar meshtying
+          deprecated_selection<CouplingType>("COUPLINGTYPE",
+              {
+                  {"Undefined", coupling_undefined},
+                  {"MatchingNodes", coupling_matching_nodes},
+                  {"StandardMortar", coupling_mortar_standard},
+                  {"SaddlePointMortar_Petrov", coupling_mortar_saddlepoint_petrov},
+                  {"SaddlePointMortar_Bubnov", coupling_mortar_saddlepoint_bubnov},
+                  {"CondensedMortar_Petrov", coupling_mortar_condensed_petrov},
+                  {"CondensedMortar_Bubnov", coupling_mortar_condensed_bubnov},
+                  {"StandardNodeToSegment", coupling_nts_standard},
+              },
+              {.description = "type of mortar meshtying", .default_value = coupling_undefined}),
 
-  // flag for interface side underlying Lagrange multiplier definition
-  setStringToIntegralParameter<InterfaceSides>("LMSIDE", "slave",
-      "flag for interface side underlying Lagrange multiplier definition",
-      tuple<std::string>("slave", "master"), tuple<InterfaceSides>(side_slave, side_master),
-      &s2icoupling);
+          // flag for interface side underlying Lagrange multiplier definition
+          deprecated_selection<InterfaceSides>("LMSIDE",
+              {
+                  {"slave", side_slave},
+                  {"master", side_master},
+              },
+              {.description = "flag for interface side underlying Lagrange multiplier definition",
+                  .default_value = side_slave}),
 
-  // flag for evaluation of interface linearizations and residuals on slave side only
-  Core::Utils::bool_parameter("SLAVEONLY", "No",
-      "flag for evaluation of interface linearizations and residuals on slave side only",
-      &s2icoupling);
+          // flag for evaluation of interface linearizations and residuals on slave side only
+          parameter<bool>(
+              "SLAVEONLY", {.description = "flag for evaluation of interface linearizations and "
+                                           "residuals on slave side only",
+                               .default_value = false}),
 
-  // node-to-segment projection tolerance
-  Core::Utils::double_parameter(
-      "NTSPROJTOL", 0.0, "node-to-segment projection tolerance", &s2icoupling);
+          // node-to-segment projection tolerance
+          parameter<double>("NTSPROJTOL",
+              {.description = "node-to-segment projection tolerance", .default_value = 0.0}),
 
-  // flag for evaluation of scatra-scatra interface coupling involving interface layer growth
-  setStringToIntegralParameter<GrowthEvaluation>("INTLAYERGROWTH_EVALUATION", "none",
-      "flag for evaluation of scatra-scatra interface coupling involving interface layer growth",
-      tuple<std::string>("none", "monolithic", "semi-implicit"),
-      tuple<GrowthEvaluation>(
-          growth_evaluation_none, growth_evaluation_monolithic, growth_evaluation_semi_implicit),
-      &s2icoupling);
+          // flag for evaluation of scatra-scatra interface coupling involving interface layer
+          // growth
+          deprecated_selection<GrowthEvaluation>("INTLAYERGROWTH_EVALUATION",
+              {
+                  {"none", growth_evaluation_none},
+                  {"monolithic", growth_evaluation_monolithic},
+                  {"semi-implicit", growth_evaluation_semi_implicit},
+              },
+              {.description =
+                      "flag for evaluation of scatra-scatra interface coupling involving interface "
+                      "layer growth",
+                  .default_value = growth_evaluation_none}),
 
-  // local Newton-Raphson convergence tolerance for scatra-scatra interface coupling involving
-  // interface layer growth
-  Core::Utils::double_parameter("INTLAYERGROWTH_CONVTOL", 1.e-12,
-      "local Newton-Raphson convergence tolerance for scatra-scatra interface coupling involving "
-      "interface layer growth",
-      &s2icoupling);
+          // local Newton-Raphson convergence tolerance for scatra-scatra interface coupling
+          // involving
+          // interface layer growth
+          parameter<double>("INTLAYERGROWTH_CONVTOL",
+              {.description =
+                      "local Newton-Raphson convergence tolerance for scatra-scatra interface "
+                      "coupling involving interface layer growth",
+                  .default_value = 1.e-12}),
 
-  // maximum number of local Newton-Raphson iterations for scatra-scatra interface coupling
-  // involving interface layer growth
-  Core::Utils::int_parameter("INTLAYERGROWTH_ITEMAX", 5,
-      "maximum number of local Newton-Raphson iterations for scatra-scatra interface coupling "
-      "involving interface layer growth",
-      &s2icoupling);
+          // maximum number of local Newton-Raphson iterations for scatra-scatra interface coupling
+          // involving interface layer growth
+          parameter<int>("INTLAYERGROWTH_ITEMAX",
+              {.description = "maximum number of local Newton-Raphson iterations for scatra-scatra "
+                              "interface coupling involving interface layer growth",
+                  .default_value = 5}),
 
-  // ID of linear solver for monolithic scatra-scatra interface coupling involving interface layer
-  // growth
-  Core::Utils::int_parameter("INTLAYERGROWTH_LINEAR_SOLVER", -1,
-      "ID of linear solver for monolithic scatra-scatra interface coupling involving interface "
-      "layer growth",
-      &s2icoupling);
+          // ID of linear solver for monolithic scatra-scatra interface coupling involving interface
+          // layer
+          // growth
+          parameter<int>("INTLAYERGROWTH_LINEAR_SOLVER",
+              {.description = "ID of linear solver for monolithic scatra-scatra interface coupling "
+                              "involving interface layer growth",
+                  .default_value = -1}),
+          // modified time step size for scatra-scatra interface coupling involving interface layer
+          // growth
+          parameter<double>("INTLAYERGROWTH_TIMESTEP",
+              {.description =
+                      "modified time step size for scatra-scatra interface coupling involving "
+                      "interface layer growth",
+                  .default_value = -1.}),
 
-  // modified time step size for scatra-scatra interface coupling involving interface layer growth
-  Core::Utils::double_parameter("INTLAYERGROWTH_TIMESTEP", -1.,
-      "modified time step size for scatra-scatra interface coupling involving interface layer "
-      "growth",
-      &s2icoupling);
+          parameter<bool>("MESHTYING_CONDITIONS_INDEPENDENT_SETUP",
+              {.description = "mesh tying for different conditions should be setup independently",
+                  .default_value = false}),
 
-  Core::Utils::bool_parameter("MESHTYING_CONDITIONS_INDEPENDENT_SETUP", "No",
-      "mesh tying for different conditions should be setup independently", &s2icoupling);
-
-  Core::Utils::bool_parameter("OUTPUT_INTERFACE_FLUX", "No",
-      "evaluate integral of coupling flux on slave side for each s2i condition and write it to csv "
-      "file",
-      &s2icoupling);
+          parameter<bool>("OUTPUT_INTERFACE_FLUX",
+              {.description = "evaluate integral of coupling flux on slave side "
+                              "for each s2i condition and write it to csv file",
+                  .default_value = false})},
+      {.defaultable = true});
 }
 
 
@@ -120,12 +132,12 @@ void Inpar::S2I::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
 
     const auto make_s2imeshtying = [&condlist](Core::Conditions::ConditionDefinition& cond)
     {
-      cond.add_component(entry<int>("ConditionID"));
-      cond.add_component(selection<int>("INTERFACE_SIDE",
+      cond.add_component(parameter<int>("ConditionID"));
+      cond.add_component(deprecated_selection<Inpar::S2I::InterfaceSides>("INTERFACE_SIDE",
           {{"Undefined", Inpar::S2I::side_undefined}, {"Slave", Inpar::S2I::side_slave},
               {"Master", Inpar::S2I::side_master}},
           {.description = "interface side"}));
-      cond.add_component(entry<int>("S2I_KINETICS_ID"));
+      cond.add_component(parameter<int>("S2I_KINETICS_ID"));
 
       condlist.push_back(cond);
     };
@@ -163,21 +175,22 @@ void Inpar::S2I::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
       {
         // constant and linear permeability
         auto constlinperm = all_of({
-            selection<int>("KINETIC_MODEL",
+            deprecated_selection<Inpar::S2I::KineticModels>("KINETIC_MODEL",
                 {
                     {"ConstantPermeability", Inpar::S2I::kinetics_constperm},
                     {"LinearPermeability", Inpar::S2I::kinetics_linearperm},
                 }),
-            entry<int>("NUMSCAL"),
-            entry<std::vector<double>>("PERMEABILITIES", {.size = from_parameter<int>("NUMSCAL")}),
-            entry<bool>("IS_PSEUDO_CONTACT"),
+            parameter<int>("NUMSCAL"),
+            parameter<std::vector<double>>(
+                "PERMEABILITIES", {.size = from_parameter<int>("NUMSCAL")}),
+            parameter<bool>("IS_PSEUDO_CONTACT"),
         });
         kinetic_model_choices.emplace_back(std::move(constlinperm));
       }
 
       {
         auto butler_volmer = all_of({
-            selection<int>("KINETIC_MODEL",
+            deprecated_selection<Inpar::S2I::KineticModels>("KINETIC_MODEL",
                 {
                     {"Butler-Volmer", Inpar::S2I::kinetics_butlervolmer},
                     {"Butler-Volmer_Linearized", Inpar::S2I::kinetics_butlervolmerlinearized},
@@ -185,31 +198,33 @@ void Inpar::S2I::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
                     {"Butler-VolmerReduced_Linearized",
                         Inpar::S2I::kinetics_butlervolmerreducedlinearized},
                 }),
-            entry<int>("NUMSCAL"),
-            entry<std::vector<int>>("STOICHIOMETRIES", {.size = from_parameter<int>("NUMSCAL")}),
-            entry<int>("E-"),
-            entry<double>("K_R"),
-            entry<double>("ALPHA_A"),
-            entry<double>("ALPHA_C"),
-            entry<bool>("IS_PSEUDO_CONTACT"),
+            parameter<int>("NUMSCAL"),
+            parameter<std::vector<int>>(
+                "STOICHIOMETRIES", {.size = from_parameter<int>("NUMSCAL")}),
+            parameter<int>("E-"),
+            parameter<double>("K_R"),
+            parameter<double>("ALPHA_A"),
+            parameter<double>("ALPHA_C"),
+            parameter<bool>("IS_PSEUDO_CONTACT"),
         });
         kinetic_model_choices.emplace_back(std::move(butler_volmer));
       }
 
       {
         auto butler_volmer_peltier = all_of({
-            selection<int>("KINETIC_MODEL",
+            deprecated_selection<Inpar::S2I::KineticModels>("KINETIC_MODEL",
                 {
                     {"Butler-Volmer-Peltier", Inpar::S2I::kinetics_butlervolmerpeltier},
                 }),
-            entry<int>("NUMSCAL"),
-            entry<std::vector<int>>("STOICHIOMETRIES", {.size = from_parameter<int>("NUMSCAL")}),
-            entry<int>("E-"),
-            entry<double>("K_R"),
-            entry<double>("ALPHA_A"),
-            entry<double>("ALPHA_C"),
-            entry<bool>("IS_PSEUDO_CONTACT"),
-            entry<double>("PELTIER"),
+            parameter<int>("NUMSCAL"),
+            parameter<std::vector<int>>(
+                "STOICHIOMETRIES", {.size = from_parameter<int>("NUMSCAL")}),
+            parameter<int>("E-"),
+            parameter<double>("K_R"),
+            parameter<double>("ALPHA_A"),
+            parameter<double>("ALPHA_C"),
+            parameter<bool>("IS_PSEUDO_CONTACT"),
+            parameter<double>("PELTIER"),
         });
 
         kinetic_model_choices.emplace_back(std::move(butler_volmer_peltier));
@@ -217,19 +232,20 @@ void Inpar::S2I::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
 
       {
         auto butler_volmer_reduced_capacitance = all_of({
-            selection<int>("KINETIC_MODEL",
+            deprecated_selection<Inpar::S2I::KineticModels>("KINETIC_MODEL",
                 {
                     {"Butler-VolmerReduced_Capacitance",
                         Inpar::S2I::kinetics_butlervolmerreducedcapacitance},
                 }),
-            entry<int>("NUMSCAL"),
-            entry<std::vector<int>>("STOICHIOMETRIES", {.size = from_parameter<int>("NUMSCAL")}),
-            entry<int>("E-"),
-            entry<double>("K_R"),
-            entry<double>("CAPACITANCE"),
-            entry<double>("ALPHA_A"),
-            entry<double>("ALPHA_C"),
-            entry<bool>("IS_PSEUDO_CONTACT"),
+            parameter<int>("NUMSCAL"),
+            parameter<std::vector<int>>(
+                "STOICHIOMETRIES", {.size = from_parameter<int>("NUMSCAL")}),
+            parameter<int>("E-"),
+            parameter<double>("K_R"),
+            parameter<double>("CAPACITANCE"),
+            parameter<double>("ALPHA_A"),
+            parameter<double>("ALPHA_C"),
+            parameter<bool>("IS_PSEUDO_CONTACT"),
         });
 
         kinetic_model_choices.emplace_back(std::move(butler_volmer_reduced_capacitance));
@@ -237,41 +253,43 @@ void Inpar::S2I::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
 
       {
         auto butler_volmer_resistance = all_of({
-            selection<int>("KINETIC_MODEL",
+            deprecated_selection<Inpar::S2I::KineticModels>("KINETIC_MODEL",
                 {
                     {"Butler-Volmer_Resistance", Inpar::S2I::kinetics_butlervolmerresistance},
                 }),
-            entry<int>("NUMSCAL"),
-            entry<std::vector<int>>("STOICHIOMETRIES", {.size = from_parameter<int>("NUMSCAL")}),
-            entry<int>("E-"),
-            entry<double>("K_R"),
-            entry<double>("ALPHA_A"),
-            entry<double>("ALPHA_C"),
-            entry<bool>("IS_PSEUDO_CONTACT"),
-            entry<double>("RESISTANCE"),
-            entry<double>("CONVTOL_IMPLBUTLERVOLMER"),
-            entry<int>("ITEMAX_IMPLBUTLERVOLMER"),
+            parameter<int>("NUMSCAL"),
+            parameter<std::vector<int>>(
+                "STOICHIOMETRIES", {.size = from_parameter<int>("NUMSCAL")}),
+            parameter<int>("E-"),
+            parameter<double>("K_R"),
+            parameter<double>("ALPHA_A"),
+            parameter<double>("ALPHA_C"),
+            parameter<bool>("IS_PSEUDO_CONTACT"),
+            parameter<double>("RESISTANCE"),
+            parameter<double>("CONVTOL_IMPLBUTLERVOLMER"),
+            parameter<int>("ITEMAX_IMPLBUTLERVOLMER"),
         });
         kinetic_model_choices.emplace_back(std::move(butler_volmer_resistance));
       }
 
       {
         auto butler_volmer_reduced_with_resistance = all_of({
-            selection<int>("KINETIC_MODEL",
+            deprecated_selection<Inpar::S2I::KineticModels>("KINETIC_MODEL",
                 {
                     {"Butler-VolmerReduced_Resistance",
                         Inpar::S2I::kinetics_butlervolmerreducedresistance},
                 }),
-            entry<int>("NUMSCAL"),
-            entry<std::vector<int>>("STOICHIOMETRIES", {.size = from_parameter<int>("NUMSCAL")}),
-            entry<int>("E-"),
-            entry<double>("K_R"),
-            entry<double>("ALPHA_A"),
-            entry<double>("ALPHA_C"),
-            entry<bool>("IS_PSEUDO_CONTACT"),
-            entry<double>("RESISTANCE"),
-            entry<double>("CONVTOL_IMPLBUTLERVOLMER"),
-            entry<int>("ITEMAX_IMPLBUTLERVOLMER"),
+            parameter<int>("NUMSCAL"),
+            parameter<std::vector<int>>(
+                "STOICHIOMETRIES", {.size = from_parameter<int>("NUMSCAL")}),
+            parameter<int>("E-"),
+            parameter<double>("K_R"),
+            parameter<double>("ALPHA_A"),
+            parameter<double>("ALPHA_C"),
+            parameter<bool>("IS_PSEUDO_CONTACT"),
+            parameter<double>("RESISTANCE"),
+            parameter<double>("CONVTOL_IMPLBUTLERVOLMER"),
+            parameter<int>("ITEMAX_IMPLBUTLERVOLMER"),
         });
 
         kinetic_model_choices.emplace_back(std::move(butler_volmer_reduced_with_resistance));
@@ -279,20 +297,21 @@ void Inpar::S2I::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
 
       {
         auto butler_volmer_reduced_thermo = all_of({
-            selection<int>("KINETIC_MODEL",
+            deprecated_selection<Inpar::S2I::KineticModels>("KINETIC_MODEL",
                 {
                     {"Butler-VolmerReduced_ThermoResistance",
                         Inpar::S2I::kinetics_butlervolmerreducedthermoresistance},
                 }),
-            entry<int>("NUMSCAL"),
-            entry<std::vector<int>>("STOICHIOMETRIES", {.size = from_parameter<int>("NUMSCAL")}),
-            entry<int>("E-"),
-            entry<double>("K_R"),
-            entry<double>("ALPHA_A"),
-            entry<double>("ALPHA_C"),
-            entry<bool>("IS_PSEUDO_CONTACT"),
-            entry<double>("THERMOPERM"),
-            entry<double>("MOLAR_HEAT_CAPACITY"),
+            parameter<int>("NUMSCAL"),
+            parameter<std::vector<int>>(
+                "STOICHIOMETRIES", {.size = from_parameter<int>("NUMSCAL")}),
+            parameter<int>("E-"),
+            parameter<double>("K_R"),
+            parameter<double>("ALPHA_A"),
+            parameter<double>("ALPHA_C"),
+            parameter<bool>("IS_PSEUDO_CONTACT"),
+            parameter<double>("THERMOPERM"),
+            parameter<double>("MOLAR_HEAT_CAPACITY"),
         });
 
         kinetic_model_choices.emplace_back(std::move(butler_volmer_reduced_thermo));
@@ -300,15 +319,15 @@ void Inpar::S2I::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
 
       {
         auto constant_interface_resistance = all_of({
-            selection<int>("KINETIC_MODEL",
+            deprecated_selection<Inpar::S2I::KineticModels>("KINETIC_MODEL",
                 {
                     {"ConstantInterfaceResistance",
                         Inpar::S2I::kinetics_constantinterfaceresistance},
                 }),
-            entry<std::vector<int>>("ONOFF", {.size = 2}),
-            entry<double>("RESISTANCE"),
-            entry<int>("E-"),
-            entry<bool>("IS_PSEUDO_CONTACT"),
+            parameter<std::vector<int>>("ONOFF", {.size = 2}),
+            parameter<double>("RESISTANCE"),
+            parameter<int>("E-"),
+            parameter<bool>("IS_PSEUDO_CONTACT"),
         });
 
         kinetic_model_choices.emplace_back(std::move(constant_interface_resistance));
@@ -316,7 +335,7 @@ void Inpar::S2I::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
 
       {
         // no interface flux
-        auto noflux = selection<int>(
+        auto noflux = deprecated_selection<KineticModels>(
             "KINETIC_MODEL", {
                                  {"NoInterfaceFlux", Inpar::S2I::kinetics_nointerfaceflux},
                              });
@@ -328,14 +347,10 @@ void Inpar::S2I::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
     }
 
     auto interface_side_options = one_of({
+        deprecated_selection<InterfaceSides>(
+            "INTERFACE_SIDE", {{"Master", side_master}, {"Undefined", side_undefined}}),
         all_of({
-            selection<int>("INTERFACE_SIDE", {{"Master", side_master}}),
-        }),
-        all_of({
-            selection<int>("INTERFACE_SIDE", {{"Undefined", side_undefined}}),
-        }),
-        all_of({
-            selection<int>("INTERFACE_SIDE", {{"Slave", side_slave}}),
+            deprecated_selection<InterfaceSides>("INTERFACE_SIDE", {{"Slave", side_slave}}),
             one_of(kinetic_model_choices),
         }),
     });
@@ -343,7 +358,7 @@ void Inpar::S2I::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
     const auto make_s2ikinetics = [&condlist, &interface_side_options](
                                       Core::Conditions::ConditionDefinition& cond)
     {
-      cond.add_component(entry<int>("ConditionID"));
+      cond.add_component(parameter<int>("ConditionID"));
       cond.add_component(interface_side_options);
 
       condlist.push_back(cond);
@@ -377,32 +392,32 @@ void Inpar::S2I::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
         Core::Conditions::S2IKineticsGrowth, true, Core::Conditions::geometry_type_surface);
 
     auto butler_volmer = all_of({
-        entry<int>("NUMSCAL"),
-        entry<std::vector<int>>("STOICHIOMETRIES", {.size = from_parameter<int>("NUMSCAL")}),
-        entry<int>("E-"),
-        entry<double>("K_R"),
-        entry<double>("ALPHA_A"),
-        entry<double>("ALPHA_C"),
-        entry<double>("MOLMASS"),
-        entry<double>("DENSITY"),
-        entry<double>("CONDUCTIVITY"),
-        selection<int>("REGTYPE",
+        parameter<int>("NUMSCAL"),
+        parameter<std::vector<int>>("STOICHIOMETRIES", {.size = from_parameter<int>("NUMSCAL")}),
+        parameter<int>("E-"),
+        parameter<double>("K_R"),
+        parameter<double>("ALPHA_A"),
+        parameter<double>("ALPHA_C"),
+        parameter<double>("MOLMASS"),
+        parameter<double>("DENSITY"),
+        parameter<double>("CONDUCTIVITY"),
+        deprecated_selection<RegularizationType>("REGTYPE",
             {
                 {"none", Inpar::S2I::regularization_none},
                 {"polynomial", Inpar::S2I::regularization_polynomial},
                 {"Hein", Inpar::S2I::regularization_hein},
                 {"trigonometrical", Inpar::S2I::regularization_trigonometrical},
             }),
-        entry<double>("REGPAR"),
-        entry<double>("INITTHICKNESS"),
+        parameter<double>("REGPAR"),
+        parameter<double>("INITTHICKNESS"),
     });
 
     const auto make_s2igrowth = [&condlist, &butler_volmer](
                                     Core::Conditions::ConditionDefinition& cond)
     {
-      cond.add_component(entry<int>("ConditionID"));
-      cond.add_component(
-          selection<int>("KINETIC_MODEL", {{"Butler-Volmer", growth_kinetics_butlervolmer}}));
+      cond.add_component(parameter<int>("ConditionID"));
+      cond.add_component(deprecated_selection<GrowthKineticModels>(
+          "KINETIC_MODEL", {{"Butler-Volmer", growth_kinetics_butlervolmer}}));
       cond.add_component(butler_volmer);
 
       condlist.emplace_back(cond);
@@ -419,7 +434,7 @@ void Inpar::S2I::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
         "S2ISCLCoupling", "Scatra-scatra surface with SCL micro-macro coupling between",
         Core::Conditions::S2ISCLCoupling, true, Core::Conditions::geometry_type_surface);
 
-    s2isclcond.add_component(selection<int>("INTERFACE_SIDE",
+    s2isclcond.add_component(deprecated_selection<InterfaceSides>("INTERFACE_SIDE",
         {{"Undefined", Inpar::S2I::side_undefined}, {"Slave", Inpar::S2I::side_slave},
             {"Master", Inpar::S2I::side_master}},
         {.description = "interface side"}));

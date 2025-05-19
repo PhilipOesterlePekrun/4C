@@ -10,29 +10,30 @@
 #include "4C_inpar_mpc_rve.hpp"
 
 #include "4C_fem_condition_definition.hpp"
-#include "4C_inpar_validparameters.hpp"
 #include "4C_io_input_spec_builders.hpp"
-
 FOUR_C_NAMESPACE_OPEN
 // set the mpc specific parameters
-void Inpar::RveMpc::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::RveMpc::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
+  using namespace Core::IO::InputSpecBuilders;
+  list["MULTI POINT CONSTRAINTS"] = group("MULTI POINT CONSTRAINTS",
+      {
 
+          parameter<Inpar::RveMpc::RveReferenceDeformationDefinition>("RVE_REFERENCE_POINTS",
+              {.description = "Method of definition of the reference points of an RVE",
+                  .default_value = automatic}),
 
-  Teuchos::ParameterList& mpc = list.sublist("MULTI POINT CONSTRAINTS", false, "");
+          deprecated_selection<Inpar::RveMpc::EnforcementStrategy>("ENFORCEMENT",
+              {
+                  {"penalty_method", penalty},
+                  {"lagrange_multiplier_method", lagrangeMultiplier},
+              },
+              {.description = "Method to enforce the multi point constraint",
+                  .default_value = penalty}),
 
-  Teuchos::setStringToIntegralParameter<Inpar::RveMpc::RveReferenceDeformationDefinition>(
-      "RVE_REFERENCE_POINTS", "automatic", "Method of definition of the reference points of an RVE",
-      Teuchos::tuple<std::string>("automatic", "manual"),
-      Teuchos::tuple<Inpar::RveMpc::RveReferenceDeformationDefinition>(automatic, manual), &mpc);
-
-  Teuchos::setStringToIntegralParameter<Inpar::RveMpc::EnforcementStrategy>("ENFORCEMENT",
-      "penalty_method", "Method to enforce the multi point constraint",
-      Teuchos::tuple<std::string>("penalty_method", "lagrange_multiplier_method"),
-      Teuchos::tuple<Inpar::RveMpc::EnforcementStrategy>(penalty, lagrangeMultiplier), &mpc);
-
-  Teuchos::setDoubleParameter("PENALTY_PARAM", 1e5, "Value of the penalty parameter", &mpc);
+          parameter<double>("PENALTY_PARAM",
+              {.description = "Value of the penalty parameter", .default_value = 1e5})},
+      {.defaultable = true});
 }
 
 // set mpc specific conditions
@@ -48,7 +49,7 @@ void Inpar::RveMpc::set_valid_conditions(
       Core::Conditions::LineRvePeriodic, false, Core::Conditions::geometry_type_line);
 
   rve_lineperiodic_condition.add_component(
-      selection<std::string>("EDGE", {"x+", "x-", "y+", "y-", "undefined"},
+      deprecated_selection<std::string>("EDGE", {"x+", "x-", "y+", "y-", "undefined"},
           {.description = "edge line id", .default_value = "undefined"}));
 
   condlist.push_back(rve_lineperiodic_condition);
@@ -60,7 +61,7 @@ void Inpar::RveMpc::set_valid_conditions(
       Core::Conditions::SurfaceRvePeriodic, false, Core::Conditions::geometry_type_surface);
 
   rve_surfperiodic_condition.add_component(
-      selection<std::string>("SURF", {"x+", "x-", "y+", "y-", "z+", "z-", "undefined"},
+      deprecated_selection<std::string>("SURF", {"x+", "x-", "y+", "y-", "z+", "z-", "undefined"},
           {.description = "surface id", .default_value = "undefined"}));
 
   condlist.push_back(rve_surfperiodic_condition);
@@ -72,9 +73,9 @@ void Inpar::RveMpc::set_valid_conditions(
       "condition -  only required if RVE_REFERENCE_POINTS = automatic",
       Core::Conditions::PointRvePeriodicReference, false, Core::Conditions::geometry_type_point);
 
-  rve_cornerpoint_condition.add_component(
-      selection<std::string>("POSITION", {"N1L", "N1B", "N2", "N4", "N1", "N3", "undefined"},
-          {.description = "position of reference node", .default_value = "undefined"}));
+  rve_cornerpoint_condition.add_component(deprecated_selection<std::string>("POSITION",
+      {"N1L", "N1B", "N2", "N4", "N1", "N3", "undefined"},
+      {.description = "position of reference node", .default_value = "undefined"}));
 
   condlist.push_back(rve_cornerpoint_condition);
 
@@ -86,10 +87,10 @@ void Inpar::RveMpc::set_valid_conditions(
       "2d",
       Core::Conditions::PointLinearCoupledEquation, false, Core::Conditions::geometry_type_point);
 
-  linear_ce.add_component(entry<int>("EQUATION", {.description = "EQUATION"}));
-  linear_ce.add_component(selection<std::string>("ADD", {"dispx", "dispy", "undefined"},
+  linear_ce.add_component(parameter<int>("EQUATION", {.description = "EQUATION"}));
+  linear_ce.add_component(deprecated_selection<std::string>("ADD", {"dispx", "dispy", "undefined"},
       {.description = "degrees of freedom", .default_value = "undefined"}));
-  linear_ce.add_component(entry<double>("COEFFICIENT"));
+  linear_ce.add_component(parameter<double>("COEFFICIENT"));
 
   condlist.push_back(linear_ce);
   /*--------------------------------------------------------------------*/

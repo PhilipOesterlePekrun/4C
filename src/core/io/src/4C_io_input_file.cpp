@@ -5,15 +5,17 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
+#include "4C_config_revision.hpp"
+
 #include "4C_io_input_file.hpp"
 
 #include "4C_comm_mpi_utils.hpp"
+#include "4C_io_input_file_utils.hpp"
 #include "4C_io_input_spec.hpp"
+#include "4C_io_input_spec_builders.hpp"
 #include "4C_io_value_parser.hpp"
+#include "4C_io_yaml.hpp"
 #include "4C_utils_string.hpp"
-
-#include <ryml.hpp>
-#include <ryml_std.hpp>
 
 #include <filesystem>
 #include <fstream>
@@ -24,9 +26,37 @@ FOUR_C_NAMESPACE_OPEN
 
 namespace Core::IO
 {
+
+  //! Name of the special section that can contain arbitrary data.
+  constexpr const char* description_section_name = "TITLE";
+
   namespace
   {
     std::string to_string(const ryml::csubstr str) { return std::string(str.data(), str.size()); };
+
+    // Copy the content of the source node to the destination node. Useful to copy a node from one
+    // tree to another.
+    void deep_copy(ryml::NodeRef src, ryml::NodeRef dst)
+    {
+      dst.set_type(src.type());
+
+      if (src.has_key())
+      {
+        dst.set_key(src.key());
+      }
+      if (src.has_val())
+      {
+        dst.set_val(src.val());
+      }
+      // Recursively copy children
+      for (size_t i = 0; i < src.num_children(); ++i)
+      {
+        c4::yml::NodeRef src_child = src.child(i);
+        c4::yml::NodeRef dst_child = dst.append_child();
+        deep_copy(src_child, dst_child);
+      }
+    };
+
   }  // namespace
 
   namespace Internal
@@ -65,11 +95,6 @@ namespace Core::IO
       {
         //! Node in the tree of the associated InputFileImpl.
         ryml::NodeRef node;
-
-        //! String representation of the section in the .dat format. This is intended as a buffer
-        //! to store the content if it should be requested via `get_as_dat_style_string()`. Do not
-        //! assume this to contain a particular content.
-        std::string dat_style_string{};
       };
 
       //! Content of the section is either in the .dat format or in the yaml format.
@@ -128,7 +153,7 @@ namespace Core::IO
           fragments.reserve(node.num_children());
 
           FOUR_C_ASSERT(node.is_seq() || node.is_map(),
-              "Section '%s' is neither a sequence nor a map.", to_string(node.key()).c_str());
+              "Section '{}' is neither a sequence nor a map.", to_string(node.key()));
 
           for (auto child : node.children())
           {
@@ -212,7 +237,7 @@ namespace Core::IO
         }
         else
         {
-          FOUR_C_THROW("Unknown content index %d", content_index);
+          FOUR_C_THROW("Unknown content index {}", content_index);
         }
       }
 
@@ -231,7 +256,7 @@ namespace Core::IO
     class InputFileImpl
     {
      public:
-      InputFileImpl(MPI_Comm comm) : comm_(comm)
+      InputFileImpl(MPI_Comm comm) : comm_(comm), yaml_tree_(init_yaml_tree_with_exceptions())
       {
         // Root node is a map that stores the file paths as keys and the file content as values.
         yaml_tree_.rootref() |= ryml::MAP;
@@ -242,25 +267,69 @@ namespace Core::IO
       std::unordered_map<std::string, SectionContent> content_by_section_;
 
       /**
+       * Store the order in which the sections were read.
+       */
+      std::vector<std::string> section_order_;
+
+      /**
        * This is the merged tree of all yaml input files combined, excluding any "INCLUDES"
        * sections. The data from different files will be stored under top-level keys corresponding
        * to the file paths.
        */
       ryml::Tree yaml_tree_;
 
-      std::map<std::string, bool> knownsections_;
+      std::map<std::string, InputSpec> valid_sections_;
+      std::vector<std::string> legacy_section_names_;
+
+      /**
+       * Additional specs for legacy sections that are not fully known.
+       */
+      std::map<std::string, InputSpec> legacy_partial_specs_;
+
+      bool is_section_known(const std::string& section_name) const
+      {
+        return is_hacky_function_section(section_name) ||
+               (valid_sections_.find(section_name) != valid_sections_.end()) ||
+               std::ranges::any_of(
+                   legacy_section_names_, [&](const auto& name) { return name == section_name; }) ||
+               (section_name == description_section_name);
+      }
+
+      // The input for functions might introduce an arbitrary number of sections called
+      // FUNCT<n>, where n is a number. As long as this input is not restructured, we need this
+      // manual hack.
+      bool is_hacky_function_section(const std::string& section_name) const
+      {
+        return section_name.starts_with("FUNCT") &&
+               std::all_of(section_name.begin() + 5, section_name.end(),
+                   [](const char c) { return std::isdigit(c); });
+      }
+
+      bool is_legacy_section(const std::string& section_name) const
+      {
+        return std::ranges::any_of(
+            legacy_section_names_, [&](const auto& name) { return name == section_name; });
+      }
+
+      InputFile::FragmentIteratorRange in_section(const std::string& section_name) const
+      {
+        static const std::vector<InputFile::Fragment> empty;
+
+        if (!content_by_section_.contains(section_name))
+        {
+          return std::views::all(empty);
+        }
+
+        // Take a const reference to the section content to match the return type.
+        const auto& lines = content_by_section_.at(section_name).fragments;
+        return std::views::all(lines);
+      }
     };
 
   }  // namespace Internal
 
   namespace
   {
-    /**
-     * Sections that contain at least this number of entries are considered huge and are only
-     * available on rank 0.
-     */
-    constexpr std::size_t huge_section_threshold = 10'000;
-
     //! The different ways we want to handle sections in the input file.
     enum class SectionType
     {
@@ -282,7 +351,7 @@ namespace Core::IO
       }
       FOUR_C_ASSERT_ALWAYS(
           std::filesystem::status(included_file).type() == std::filesystem::file_type::regular,
-          "Included file '%s' is not a regular file. Does the file exist?", included_file.c_str());
+          "Included file '{}' is not a regular file. Does the file exist?", included_file.string());
       return included_file;
     }
 
@@ -309,8 +378,8 @@ namespace Core::IO
       }
     }
 
-    std::vector<std::filesystem::path> read_dat_content(const std::filesystem::path& file_path,
-        std::unordered_map<std::string, Internal::SectionContent>& content_by_section)
+    std::vector<std::filesystem::path> read_dat_content(
+        const std::filesystem::path& file_path, Internal::InputFileImpl& input_file_impl)
     {
       const auto name_of_section = [](const std::string& section_header)
       {
@@ -320,7 +389,7 @@ namespace Core::IO
       };
 
       std::ifstream file(file_path);
-      if (not file) FOUR_C_THROW("Unable to open file: %s", file_path.c_str());
+      if (not file) FOUR_C_THROW("Unable to open file: {}", file_path.string());
 
       // Tracking variables while walking through the file
       std::vector<std::filesystem::path> included_files;
@@ -379,11 +448,11 @@ namespace Core::IO
           else
           {
             current_section_type = SectionType::normal;
-            FOUR_C_ASSERT_ALWAYS(content_by_section.find(name) == content_by_section.end(),
-                "Section '%s' is defined again in file '%s'.", name.c_str(), file_path.c_str());
+            FOUR_C_ASSERT_ALWAYS(!input_file_impl.content_by_section_.contains(name),
+                "Section '{}' is defined again in file '{}'.", name, file_path.string());
 
-            content_by_section[name] = {};
-            current_section_content = &content_by_section[name];
+            input_file_impl.section_order_.emplace_back(name);
+            current_section_content = &input_file_impl.content_by_section_[name];
             current_section_content->file = file_path;
           }
         }
@@ -429,14 +498,32 @@ namespace Core::IO
       std::ifstream file(file_path);
       std::ostringstream ss;
       ss << file.rdbuf();
-      const std::string file_content = ss.str();
+      std::string file_content = ss.str();
 
-      // ... and parse it into a new node in the yaml tree.
+      // ... and parse it into a new yaml tree in-place.
+      ryml::Tree tmp_tree = init_yaml_tree_with_exceptions();
+      ryml::parse_in_place(ryml::to_substr(file_content), &tmp_tree);
+
+      auto tmp_tree_root_without_docs = tmp_tree.rootref();
+      if (tmp_tree.rootref().is_stream())
+      {
+        FOUR_C_ASSERT_ALWAYS(tmp_tree.rootref().num_children() == 1,
+            "The input file '{}' may only contain one YAML document.", file_path.string());
+        tmp_tree_root_without_docs = tmp_tree.rootref().first_child();
+      }
+      FOUR_C_ASSERT_ALWAYS(tmp_tree_root_without_docs.is_map(),
+          "The input file '{}' must contain a map as root node.", file_path.string());
+
+      std::stringstream file_content_without_docs;
+      file_content_without_docs << tmp_tree_root_without_docs;
+      const std::string file_content_without_docs_str = file_content_without_docs.str();
+
+      // Store the content of the file in the merged tree.
       ryml::NodeRef file_node = input_file_impl.yaml_tree_.rootref().append_child();
       {
         std::string file_path_str = file_path.string();
         file_node << ryml::key(file_path_str);
-        ryml::parse_in_arena(ryml::to_csubstr(file_content), file_node);
+        ryml::parse_in_arena(ryml::to_csubstr(file_content_without_docs_str), file_node);
       }
 
       // Treat the special section "INCLUDES" to find more included files. Remove the section once
@@ -444,20 +531,16 @@ namespace Core::IO
       if (file_node.has_child("INCLUDES"))
       {
         ryml::ConstNodeRef node = file_node["INCLUDES"];
-        if (node.has_val())
-        {
-          included_files.emplace_back(get_include_path(to_string(node.val()), file_path));
-        }
-        else if (node.is_seq())
+        if (node.is_seq())
         {
           for (const auto& include_node : node)
           {
             included_files.emplace_back(get_include_path(to_string(include_node.val()), file_path));
           }
         }
-        else
+        else if (!(node.has_val() && node.val_is_null()))
         {
-          FOUR_C_THROW("INCLUDES section must contain a single file or a sequence.");
+          FOUR_C_THROW("INCLUDES section must contain a sequence of files.");
         }
 
         // Now we can drop the node containing the INCLUDES from the tree.
@@ -485,47 +568,43 @@ namespace Core::IO
       }
       else
       {
-        // flatten the yaml node into a string
-        std::ostringstream ss;
-        ss << node;
-        // replace all the yaml markup characters with spaces to receive a dat-style string
-        auto& str = pimpl_->section->as_yaml().dat_style_string;
-        str = ss.str();
-        std::replace(str.begin(), str.end(), '\n', ' ');
-        std::replace(str.begin(), str.end(), ':', ' ');
-        std::replace(str.begin(), str.end(), ',', ' ');
-        std::replace(str.begin(), str.end(), '[', ' ');
-        std::replace(str.begin(), str.end(), ']', ' ');
-        str = Core::Utils::trim(str);
-
-        return std::string_view(str);
+        FOUR_C_THROW(
+            "Yaml node does not contain a string. This legacy function is only meant for strings.");
       }
     }
   }
 
 
-  std::optional<InputParameterContainer> InputFile::Fragment::match(const InputSpec& spec) const
-  {
-    FOUR_C_ASSERT(pimpl_, "Implementation error: fragment is not initialized.");
-
-    Core::IO::ValueParser parser{get_as_dat_style_string(),
-        {.base_path = std::filesystem::path(pimpl_->section->file).parent_path()}};
-    InputParameterContainer container;
-    spec.fully_parse(parser, container);
-    return container;
-  }
-
-
-  /*----------------------------------------------------------------------*/
-  /*----------------------------------------------------------------------*/
-  InputFile::InputFile(std::string filename, MPI_Comm comm)
+  InputFile::InputFile(std::map<std::string, InputSpec> valid_sections,
+      std::vector<std::string> legacy_section_names, MPI_Comm comm)
       : pimpl_(std::make_unique<Internal::InputFileImpl>(comm))
   {
-    read_generic(filename);
+    pimpl_->valid_sections_ = std::move(valid_sections);
+    pimpl_->legacy_section_names_ = std::move(legacy_section_names);
+
+    FOUR_C_ASSERT_ALWAYS(!pimpl_->is_section_known("INCLUDES"),
+        "Section 'INCLUDES' is a reserved section name with special meaning. Please choose a "
+        "different name.");
+    pimpl_->valid_sections_["INCLUDES"] =
+        InputSpecBuilders::parameter<std::optional<std::vector<std::filesystem::path>>>("INCLUDES",
+            {
+                .description = "Path to files that should be included into this file. "
+                               "The paths can be either absolute or relative to the file.",
+            });
   }
 
 
-  // Note: defaulted in implementation file to allow for use of incomplete type in PIMPL unique_ptr.
+  InputFile::InputFile(std::map<std::string, InputSpec> valid_sections,
+      std::vector<std::string> legacy_section_names,
+      std::map<std::string, InputSpec> legacy_partial_specs, MPI_Comm comm)
+      : InputFile(std::move(valid_sections), std::move(legacy_section_names), comm)
+  {
+    pimpl_->legacy_partial_specs_ = std::move(legacy_partial_specs);
+  }
+
+
+  // Note: defaulted in implementation file to allow for use of incomplete type in PIMPL
+  // unique_ptr.
   InputFile::~InputFile() = default;
 
 
@@ -543,20 +622,21 @@ namespace Core::IO
   /*----------------------------------------------------------------------*/
   bool InputFile::has_section(const std::string& section_name) const
   {
-    const bool known_somewhere = Core::Communication::all_reduce<bool>(
-        pimpl_->content_by_section_.contains(section_name),
-        [](const bool& r, const bool& in) { return r || in; }, pimpl_->comm_);
-    return known_somewhere;
+    return pimpl_->content_by_section_.contains(section_name);
   }
 
 
 
   /*----------------------------------------------------------------------*/
   /*----------------------------------------------------------------------*/
-  void InputFile::read_generic(const std::filesystem::path& top_level_file)
+  void InputFile::read(const std::filesystem::path& top_level_file)
   {
     if (Core::Communication::my_mpi_rank(pimpl_->comm_) == 0)
     {
+      // the top_level_file must exist
+      if (!std::filesystem::is_regular_file(top_level_file))
+        FOUR_C_THROW("Input file '{}' does not exist.", top_level_file.string());
+
       // Start by "including" the top-level file.
       std::list<std::filesystem::path> included_files{top_level_file};
 
@@ -576,7 +656,7 @@ namespace Core::IO
               }
               else
               {
-                return read_dat_content(*file_it, pimpl_->content_by_section_);
+                return read_dat_content(*file_it, *pimpl_);
               }
             });
 
@@ -586,7 +666,7 @@ namespace Core::IO
           if (std::ranges::find(included_files, file) != included_files.end())
           {
             FOUR_C_THROW(
-                "File '%s' was already included before.\n Cycles are not allowed.", file.c_str());
+                "File '{}' was already included before.\n Cycles are not allowed.", file.string());
           }
           else
           {
@@ -599,31 +679,28 @@ namespace Core::IO
     // Communicate the dat content
     if (Core::Communication::my_mpi_rank(pimpl_->comm_) == 0)
     {
-      // Temporarily move the sections that are not huge into a separate map.
-      std::unordered_map<std::string, Internal::SectionContent> non_huge_sections;
+      // Temporarily move the sections that we want to broadcast into a separate map.
+      std::unordered_map<std::string, Internal::SectionContent> non_legacy_sections;
 
       for (auto&& [section_name, content] : pimpl_->content_by_section_)
       {
-        if (std::holds_alternative<Internal::SectionContent::DatContent>(content.content))
+        if (std::holds_alternative<Internal::SectionContent::DatContent>(content.content) &&
+            !pimpl_->is_legacy_section(section_name))
         {
-          if (content.as_dat().lines.size() < huge_section_threshold)
-          {
-            non_huge_sections[section_name] = std::move(content);
-          }
+          non_legacy_sections[section_name] = std::move(content);
         }
       }
 
-      Core::Communication::broadcast(non_huge_sections, 0, pimpl_->comm_);
+      Core::Communication::broadcast(non_legacy_sections, 0, pimpl_->comm_);
 
-      // Move the non-huge sections back into the main map.
-      for (auto&& [section_name, content] : non_huge_sections)
+      for (auto&& [section_name, content] : non_legacy_sections)
       {
         pimpl_->content_by_section_[section_name] = std::move(content);
       }
     }
     else
     {
-      // Other ranks receive the non-huge sections.
+      // Other ranks receive the non-legacy sections.
       Core::Communication::broadcast(pimpl_->content_by_section_, 0, pimpl_->comm_);
     }
 
@@ -631,10 +708,28 @@ namespace Core::IO
     {
       if (Core::Communication::my_mpi_rank(pimpl_->comm_) == 0)
       {
-        std::stringstream ss;
-        ss << pimpl_->yaml_tree_;
-        std::string yaml_str = ss.str();
-        Core::Communication::broadcast(yaml_str, /*root*/ 0, pimpl_->comm_);
+        ryml::Tree tree_with_small_sections = init_yaml_tree_with_exceptions();
+        tree_with_small_sections.rootref() |= ryml::MAP;
+        // Go through the tree and drop the legacy sections from the tree.
+        for (auto file_node : pimpl_->yaml_tree_.rootref())
+        {
+          auto new_file_node = tree_with_small_sections.rootref().append_child();
+          new_file_node.set_type(file_node.type());
+          new_file_node.set_key(file_node.key());
+
+          for (auto section_node : file_node.children())
+          {
+            if (!pimpl_->is_legacy_section(to_string(section_node.key())))
+            {
+              // Copy the node to the new tree.
+              auto new_section_node = new_file_node.append_child();
+              deep_copy(section_node, new_section_node);
+            }
+          }
+        }
+
+        auto serialized_tree = ryml::emitrs_yaml<std::string>(tree_with_small_sections);
+        Core::Communication::broadcast(serialized_tree, /*root*/ 0, pimpl_->comm_);
       }
       else
       {
@@ -651,8 +746,9 @@ namespace Core::IO
         {
           const std::string section_name = to_string(node.key());
           FOUR_C_ASSERT_ALWAYS(!pimpl_->content_by_section_.contains(section_name),
-              "Section '%s' is defined more than once.", section_name.c_str());
+              "Section '{}' is defined more than once.", section_name);
 
+          pimpl_->section_order_.emplace_back(section_name);
           Internal::SectionContent& content = pimpl_->content_by_section_[section_name];
           content.content = Internal::SectionContent::YamlContent{.node = node};
           content.file = to_string(file_node.key());
@@ -662,80 +758,47 @@ namespace Core::IO
 
     for (auto& [name, content] : pimpl_->content_by_section_)
     {
+      if (pimpl_->is_hacky_function_section(name))
+      {
+        // Take the special spec of FUNCT<n> because it is the same for all function sections.
+        // Make a copy and replace the name. This is a pretty insane hack and should be removed when
+        // the input of the functions is restructured.
+        auto spec = pimpl_->valid_sections_.at("FUNCT<n>");
+        spec.impl().data.name = name;
+        dynamic_cast<Internal::InputSpecTypeErasedImplementation<Internal::ListSpec>&>(spec.impl())
+            .wrapped.name = name;
+        pimpl_->valid_sections_.emplace(name, std::move(spec));
+      }
+
       content.set_up_fragments();
     }
 
-    // the following section names are always regarded as valid
-    record_section_used("TITLE");
-    record_section_used("FUNCT1");
-    record_section_used("FUNCT2");
-    record_section_used("FUNCT3");
-    record_section_used("FUNCT4");
-    record_section_used("FUNCT5");
-    record_section_used("FUNCT6");
-    record_section_used("FUNCT7");
-    record_section_used("FUNCT8");
-    record_section_used("FUNCT9");
-    record_section_used("FUNCT10");
-    record_section_used("FUNCT11");
-    record_section_used("FUNCT12");
-    record_section_used("FUNCT13");
-    record_section_used("FUNCT14");
-    record_section_used("FUNCT15");
-    record_section_used("FUNCT16");
-    record_section_used("FUNCT17");
-    record_section_used("FUNCT18");
-    record_section_used("FUNCT19");
-    record_section_used("FUNCT20");
-  }
-
-  InputFile::FragmentIteratorRange InputFile::in_section(const std::string& section_name)
-  {
-    static const std::vector<Fragment> empty;
-
-    // Early return in case the section does not exist at all.
-    const bool known_somewhere = has_section(section_name);
-    if (!known_somewhere)
+    // All content has been read. Now validate. In the first iteration of this new feature,
+    // we only validate the section names, not the content.
+    if (Core::Communication::my_mpi_rank(pimpl_->comm_) == 0)
     {
-      return std::views::all(empty);
-    }
-
-    record_section_used(section_name);
-    const bool locally_known = pimpl_->content_by_section_.contains(section_name);
-    const bool known_everywhere = Core::Communication::all_reduce<bool>(
-        locally_known, [](const bool& r, const bool& in) { return r && in; }, pimpl_->comm_);
-
-    if (known_everywhere)
-    {
-      // Take a const reference to the section content to match the return type.
-      const auto& lines = pimpl_->content_by_section_.at(section_name).fragments;
-      return std::views::all(lines);
-    }
-    else
-    // Distribute the content of the section to all ranks.
-    {
-      FOUR_C_ASSERT((!locally_known && (Core::Communication::my_mpi_rank(pimpl_->comm_) > 0)) ||
-                        (locally_known && (Core::Communication::my_mpi_rank(pimpl_->comm_) == 0)),
-          "Implementation error: section should be known on rank 0 and unknown on others.");
-
-      auto& content = pimpl_->content_by_section_[section_name];
-      Core::Communication::broadcast(content, 0, pimpl_->comm_);
-      content.set_up_fragments();
-
-      const auto& lines = pimpl_->content_by_section_.at(section_name).fragments;
-      return std::views::all(lines);
+      for (const auto& [section_name, content] : pimpl_->content_by_section_)
+      {
+        if (!pimpl_->is_section_known(section_name))
+        {
+          FOUR_C_THROW("Section '{}' is not a valid section name.", section_name);
+        }
+      }
     }
   }
-
 
 
   InputFile::FragmentIteratorRange InputFile::in_section_rank_0_only(
-      const std::string& section_name)
+      const std::string& section_name) const
   {
+    FOUR_C_ASSERT_ALWAYS(pimpl_->is_legacy_section(section_name),
+        "You tried to process section '{}' on rank 0 only, but this feature is meant for special "
+        "legacy sections. Please use match_section() instead.",
+        section_name);
+
     if (Core::Communication::my_mpi_rank(pimpl_->comm_) == 0 &&
         pimpl_->content_by_section_.contains(section_name))
     {
-      record_section_used(section_name);
       const auto& lines = pimpl_->content_by_section_.at(section_name).fragments;
       return std::views::all(lines);
     }
@@ -747,49 +810,214 @@ namespace Core::IO
   }
 
 
-  /*----------------------------------------------------------------------*/
-  /*----------------------------------------------------------------------*/
-  bool InputFile::print_unknown_sections(std::ostream& out) const
+  void InputFile::match_section(
+      const std::string& section_name, FourC::Core::IO::InputParameterContainer& container) const
   {
-    using MapType = decltype(pimpl_->knownsections_);
-    const auto merged_map = Core::Communication::all_reduce<MapType>(
-        pimpl_->knownsections_,
-        [](const MapType& r, const MapType& in)
-        {
-          MapType result = r;
-          for (const auto& [key, value] : in)
-          {
-            result[key] |= value;
-          }
-          return result;
-        },
-        pimpl_->comm_);
-    const bool printout = std::any_of(
-        merged_map.begin(), merged_map.end(), [](const auto& kv) { return !kv.second; });
-
-    if (printout and (Core::Communication::my_mpi_rank(get_comm()) == 0))
+    if (!pimpl_->valid_sections_.contains(section_name))
     {
-      out << "\nERROR!"
-          << "\n--------"
-          << "\nThe following input file sections remained unused (obsolete or typo?):\n";
-      for (const auto& [section_name, known] : pimpl_->knownsections_)
+      if (section_name == description_section_name)
       {
-        if (!known) out << section_name << '\n';
+        FOUR_C_THROW(
+            "Tried to match section '{}' which is a special section that cannot be matched against "
+            "any InputSpec.",
+            section_name.c_str());
       }
-      out << '\n';
+      else if (std::ranges::find(pimpl_->legacy_section_names_, section_name) ==
+               pimpl_->legacy_section_names_.end())
+      {
+        FOUR_C_THROW(
+            "Tried to match section '{}' which is not a valid section name.", section_name);
+      }
+      else
+      {
+        FOUR_C_THROW(
+            "Tried to match section '{}' but it is a legacy string section "
+            "and cannot be matched against any InputSpec. The string lines "
+            "in this section need manual parsing.",
+            section_name.c_str());
+      }
     }
 
-    return printout;
+    const auto& spec = pimpl_->valid_sections_.at(section_name);
+    auto section_it = pimpl_->content_by_section_.find(section_name);
+    if (section_it == pimpl_->content_by_section_.end())
+    {
+      if (spec.impl().has_default_value())
+      {
+        spec.impl().set_default_value(container);
+        return;
+      }
+      else if (spec.impl().required())
+      {
+        FOUR_C_THROW("Required section '{}' not found in input file.", section_name);
+      }
+      else
+      {
+        return;
+      }
+    }
+
+    // Section must be present.
+
+    // Dat file format
+    if (pimpl_->content_by_section_.at(section_name).content.index() == 0)
+    {
+      // Dat format has too little structure and the interpretation of line breaks differs
+      // depending on the expected spec.
+      const auto* list_spec =
+          dynamic_cast<const Internal::InputSpecTypeErasedImplementation<Internal::ListSpec>*>(
+              &spec.impl());
+
+      if (list_spec)
+      {
+        std::vector<InputParameterContainer> list_entries;
+        for (const auto& line : pimpl_->in_section(section_name))
+        {
+          Core::IO::ValueParser parser{line.get_as_dat_style_string(),
+              {.user_scope_message =
+                      "While parsing list entries in section '" + section_name + "': ",
+                  .base_path =
+                      std::filesystem::path(pimpl_->content_by_section_.at(section_name).file)
+                          .parent_path()}};
+          try
+          {
+            list_spec->wrapped.spec.fully_parse(parser, list_entries.emplace_back());
+          }
+          catch (const std::exception& e)
+          {
+            FOUR_C_THROW(
+                "Error while parsing list entries in section '{}': {}", section_name, e.what());
+          }
+        }
+        container.add_list(section_name, std::move(list_entries));
+      }
+      else
+      {
+        // Create a group in the dat file format by starting with the section name.
+        std::stringstream flattened_dat;
+        flattened_dat << std::quoted(section_name) << " ";
+        for (const auto& line : pimpl_->in_section(section_name))
+        {
+          std::string line_str(line.get_as_dat_style_string());
+          // Split the line into key-value according to the dat file format. Quote keys and values
+          // so the parser can identify them.
+          auto [key, value] = read_key_value(line_str);
+          flattened_dat << std::quoted(key) << " " << std::quoted(value) << " ";
+        }
+        std::string flattened_string = flattened_dat.str();
+        Core::IO::ValueParser parser{flattened_string,
+            {.base_path = std::filesystem::path(pimpl_->content_by_section_.at(section_name).file)
+                    .parent_path(),
+                .token_delimiter = '"'}};
+        try
+        {
+          spec.fully_parse(parser, container);
+        }
+        catch (const std::exception& e)
+        {
+          FOUR_C_THROW("Error while parsing section '{}': {}", section_name, e.what());
+        }
+      }
+    }
+    else
+    {
+      // For yaml file format, we can directly parse the node.
+      spec.match(ConstYamlNodeRef(pimpl_->content_by_section_.at(section_name).as_yaml().node,
+                     pimpl_->content_by_section_.at(section_name).file),
+          container);
+    }
   }
 
 
-  void InputFile::record_section_used(const std::string& section_name)
+  void InputFile::emit_metadata(std::ostream& out) const
   {
-    pimpl_->knownsections_[section_name] = true;
+    ryml::Tree tree = init_yaml_tree_with_exceptions();
+    ryml::NodeRef root = tree.rootref();
+    root |= ryml::MAP;
+
+    {
+      auto metadata = root["metadata"];
+      metadata |= ryml::MAP;
+      metadata["commit_hash"] << VersionControl::git_hash;
+      metadata["version"] << FOUR_C_VERSION_FULL;
+      metadata["description_section_name"] = description_section_name;
+    }
+
+    {
+      auto sections = root["sections"];
+      sections |= ryml::SEQ;
+      for (const auto& [name, spec] : pimpl_->valid_sections_)
+      {
+        auto section = sections.append_child();
+        YamlNodeRef spec_emitter{section, ""};
+        spec.emit_metadata(spec_emitter);
+      }
+    }
+
+    {
+      auto legacy_string_sections = root["legacy_string_sections"];
+      legacy_string_sections |= ryml::SEQ;
+      for (const auto& name : pimpl_->legacy_section_names_)
+      {
+        legacy_string_sections.append_child() << name;
+      }
+    }
+
+    if (pimpl_->legacy_partial_specs_.size() > 0)
+    {
+      for (const auto& [name, spec] : pimpl_->legacy_partial_specs_)
+      {
+        auto legacy_partial_spec = root[ryml::to_csubstr(name)];
+        legacy_partial_spec |= ryml::MAP;
+        YamlNodeRef spec_emitter{legacy_partial_spec, ""};
+        spec.emit_metadata(spec_emitter);
+      }
+    }
+
+    out << tree;
+  }
+
+  void InputFile::write_as_yaml(std::ostream& out, const std::filesystem::path& file_name) const
+  {
+    auto tree = init_yaml_tree_with_exceptions();
+    tree.rootref() |= ryml::MAP;
+    // Iterate the sections, parse them into a container, and emit the container data.
+    InputParameterContainer container;
+
+    // Write the yaml file in the same order as the input was read.
+    for (const auto& section_name : pimpl_->section_order_)
+    {
+      container.clear();
+
+      if (pimpl_->valid_sections_.contains(section_name))
+      {
+        auto& spec = pimpl_->valid_sections_.at(section_name);
+        match_section(section_name, container);
+        YamlNodeRef section_node{
+            tree.rootref(), file_name.empty() ? std::filesystem::path{} : file_name};
+        spec.emit(section_node, container);
+      }
+      else
+      {
+        // Emit the section as a sequence of strings. This also works for the special
+        // description section.
+        auto section = tree.rootref().append_child();
+        section << ryml::key(section_name);
+        section |= ryml::SEQ;
+        for (const auto& line : pimpl_->in_section(section_name))
+        {
+          section.append_child() = ryml::csubstr(
+              line.get_as_dat_style_string().data(), line.get_as_dat_style_string().size());
+        }
+      }
+    }
+
+    out << tree;
   }
 
 
   MPI_Comm InputFile::get_comm() const { return pimpl_->comm_; }
+
 
 }  // namespace Core::IO
 

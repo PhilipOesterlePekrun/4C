@@ -15,8 +15,8 @@
 #include "4C_linear_solver_method.hpp"
 #include "4C_linear_solver_method_linalg.hpp"
 #include "4C_linear_solver_method_parameters.hpp"
-#include "4C_poromultiphase_scatra_artery_coupling_nodebased.hpp"
-#include "4C_poromultiphase_scatra_utils.hpp"
+#include "4C_porofluid_pressure_based_elast_scatra_artery_coupling_nodebased.hpp"
+#include "4C_porofluid_pressure_based_elast_scatra_utils.hpp"
 #include "4C_scatra_timint_implicit.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
@@ -106,8 +106,8 @@ void ScaTra::MeshtyingStrategyArtery::init_meshtying()
       });
 
   // init the mesh tying object, which does all the work
-  arttoscatracoupling_ = PoroMultiPhaseScaTra::Utils::create_and_init_artery_coupling_strategy(
-      artscatradis_, scatradis_, myscatraparams.sublist("ARTERY COUPLING"), couplingcondname,
+  arttoscatracoupling_ = PoroPressureBased::create_and_init_artery_coupling_strategy(artscatradis_,
+      scatradis_, myscatraparams.sublist("ARTERY COUPLING"), couplingcondname,
       "COUPLEDDOFS_ARTSCATRA", "COUPLEDDOFS_SCATRA", evaluate_on_lateral_surface);
 
   initialize_linear_solver(myscatraparams);
@@ -182,7 +182,7 @@ void ScaTra::MeshtyingStrategyArtery::initialize_linear_solver(
 /*-----------------------------------------------------------------------*
  | return global map of degrees of freedom              kremheller 04/18 |
  *-----------------------------------------------------------------------*/
-const Epetra_Map& ScaTra::MeshtyingStrategyArtery::dof_row_map() const
+const Core::LinAlg::Map& ScaTra::MeshtyingStrategyArtery::dof_row_map() const
 {
   return *arttoscatracoupling_->full_map();
 }
@@ -190,7 +190,8 @@ const Epetra_Map& ScaTra::MeshtyingStrategyArtery::dof_row_map() const
 /*-----------------------------------------------------------------------*
  | return global map of degrees of freedom              kremheller 04/18 |
  *-----------------------------------------------------------------------*/
-std::shared_ptr<const Epetra_Map> ScaTra::MeshtyingStrategyArtery::art_scatra_dof_row_map() const
+std::shared_ptr<const Core::LinAlg::Map> ScaTra::MeshtyingStrategyArtery::art_scatra_dof_row_map()
+    const
 {
   return arttoscatracoupling_->artery_dof_row_map();
 }
@@ -237,7 +238,7 @@ void ScaTra::MeshtyingStrategyArtery::solve(
   comb_systemmatrix_->complete();
 
   // solve
-  comb_increment_->PutScalar(0.0);
+  comb_increment_->put_scalar(0.0);
   solver_params.refactor = true;
   solver_params.reset = iteration == 1;
   solver->solve(comb_systemmatrix_->epetra_operator(), comb_increment_, rhs_, solver_params);
@@ -248,7 +249,7 @@ void ScaTra::MeshtyingStrategyArtery::solve(
   extract_single_field_vectors(comb_increment_, myinc, artscatrainc);
 
   // update the scatra increment, update iter is performed outside
-  increment->Update(1.0, *(myinc), 1.0);
+  increment->update(1.0, *(myinc), 1.0);
   // update the artery-scatra field
   artscatratimint_->update_iter(*artscatrainc);
 
@@ -356,7 +357,7 @@ void ScaTra::MeshtyingStrategyArtery::prepare_time_step() const
  *--------------------------------------------------------------------------*/
 void ScaTra::MeshtyingStrategyArtery::set_artery_pressure() const
 {
-  artscatradis_->set_state(2, "one_d_artery_pressure", arttimint_->pressurenp());
+  artscatradis_->set_state(2, "one_d_artery_pressure", *arttimint_->pressurenp());
   return;
 }
 

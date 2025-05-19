@@ -21,6 +21,7 @@
 #include "4C_binstrategy.hpp"
 #include "4C_coupling_adapter.hpp"
 #include "4C_coupling_adapter_mortar.hpp"
+#include "4C_fbi_input.hpp"
 #include "4C_fem_condition_selector.hpp"
 #include "4C_fem_condition_utils.hpp"
 #include "4C_fem_dofset_fixed_size.hpp"
@@ -50,13 +51,13 @@
 #include "4C_fsi_xfem_fluid.hpp"
 #include "4C_fsi_xfem_monolithic.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_fbi.hpp"
 #include "4C_inpar_fsi.hpp"
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
 #include "4C_poroelast_utils_clonestrategy.hpp"
 #include "4C_poroelast_utils_setup.hpp"
 #include "4C_rebalance_binning_based.hpp"
 #include "4C_solid_3D_ele.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_parameter_list.hpp"
 #include "4C_utils_result_test.hpp"
 #include "4C_xfem_discretization.hpp"
@@ -297,15 +298,15 @@ void fsi_immersed_drt()
 
   const Teuchos::ParameterList& fbidyn = problem->fbi_params();
 
-  Inpar::FBI::BeamToFluidPreSortStrategy presort_strategy =
-      Teuchos::getIntegralValue<Inpar::FBI::BeamToFluidPreSortStrategy>(fbidyn, "PRESORT_STRATEGY");
+  FBI::BeamToFluidPreSortStrategy presort_strategy =
+      Teuchos::getIntegralValue<FBI::BeamToFluidPreSortStrategy>(fbidyn, "PRESORT_STRATEGY");
 
   // redistribute discr. with help of binning strategy
-  if (presort_strategy == Inpar::FBI::BeamToFluidPreSortStrategy::binning)
+  if (presort_strategy == FBI::BeamToFluidPreSortStrategy::binning)
   {
-    std::vector<std::shared_ptr<Epetra_Map>> stdelecolmap;
-    std::vector<std::shared_ptr<Epetra_Map>> stdnodecolmap;
-    std::shared_ptr<Epetra_Map> rowbins =
+    std::vector<std::shared_ptr<Core::LinAlg::Map>> stdelecolmap;
+    std::vector<std::shared_ptr<Core::LinAlg::Map>> stdnodecolmap;
+    std::shared_ptr<Core::LinAlg::Map> rowbins =
         binningstrategy
             ->do_weighted_partitioning_of_bins_and_extend_ghosting_of_discret_to_one_bin_layer(
                 dis, stdelecolmap, stdnodecolmap);
@@ -330,7 +331,7 @@ void fsi_immersed_drt()
   else
     FOUR_C_THROW("unsupported partitioned FSI scheme");
 
-  if (presort_strategy == Inpar::FBI::BeamToFluidPreSortStrategy::binning)
+  if (presort_strategy == FBI::BeamToFluidPreSortStrategy::binning)
   {
     std::dynamic_pointer_cast<FSI::DirichletNeumannVel>(fsi)->set_binning(binningstrategy);
   }
@@ -340,6 +341,10 @@ void fsi_immersed_drt()
   {
     // read the restart information, set vectors and variables
     fsi->read_restart(restart);
+  }
+  else
+  {
+    fsi->post_setup();
   }
 
   fsi->timeloop(Teuchos::rcpFromRef(*fsi));
@@ -451,8 +456,8 @@ void fsi_ale_drt()
       dis.push_back(fluiddis);
       dis.push_back(aledis);
 
-      std::vector<std::shared_ptr<Epetra_Map>> stdelecolmap;
-      std::vector<std::shared_ptr<Epetra_Map>> stdnodecolmap;
+      std::vector<std::shared_ptr<Core::LinAlg::Map>> stdelecolmap;
+      std::vector<std::shared_ptr<Core::LinAlg::Map>> stdnodecolmap;
 
       // redistribute discr. with help of binning strategy
       if (Core::Communication::num_mpi_ranks(structdis->get_comm()) > 1)
@@ -475,7 +480,7 @@ void fsi_ale_drt()
 
   const Teuchos::ParameterList& fsidyn = problem->fsi_dynamic_params();
 
-  auto coupling = Teuchos::getIntegralValue<FSI_COUPLING>(fsidyn, "COUPALGO");
+  auto coupling = Teuchos::getIntegralValue<FsiCoupling>(fsidyn, "COUPALGO");
   switch (coupling)
   {
     case fsi_iter_monolithicfluidsplit:
@@ -536,7 +541,7 @@ void fsi_ale_drt()
       else
       {
         FOUR_C_THROW(
-            "Cannot find appropriate monolithic solver for coupling %d and linear strategy %d",
+            "Cannot find appropriate monolithic solver for coupling {} and linear strategy {}",
             coupling, linearsolverstrategy);
       }
 
@@ -546,6 +551,10 @@ void fsi_ale_drt()
       if (restart)
       {
         fsi->read_restart(restart);
+      }
+      else
+      {
+        fsi->post_setup();
       }
 
       // now do the coupling setup and create the combined dofmap
@@ -593,6 +602,10 @@ void fsi_ale_drt()
       if (restart)
       {
         fsi->read_restart(restart);
+      }
+      else
+      {
+        fsi->post_setup();
       }
 
       // now do the coupling setup and create the combined dofmap
@@ -644,6 +657,11 @@ void fsi_ale_drt()
       {
         // read the restart information, set vectors and variables
         fsi->read_restart(restart);
+      }
+      else
+      {
+        // call post setup tasks
+        fsi->post_setup();
       }
 
       fsi->timeloop(Teuchos::rcpFromRef(*fsi));
@@ -797,6 +815,11 @@ void xfsi_drt()
       {
         // read the restart information, set vectors and variables
         fsi->read_restart(restart);
+      }
+      else
+      {
+        // call post setup tasks
+        fsi->post_setup();
       }
 
       fsi->timeloop(Teuchos::rcpFromRef(*fsi));

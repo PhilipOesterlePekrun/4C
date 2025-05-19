@@ -13,6 +13,7 @@
 #include "4C_fem_nurbs_discretization.hpp"
 #include "4C_mat_elasthyper.hpp"
 #include "4C_mat_stvenantkirchhoff.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_exceptions.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -66,7 +67,7 @@ Discret::Elements::Ale3ImplInterface* Discret::Elements::Ale3ImplInterface::impl
       return Ale3Impl<Core::FE::CellType::nurbs27>::instance(Core::Utils::SingletonAction::create);
     }
     default:
-      FOUR_C_THROW("shape %d (%d nodes) not supported", ele->shape(), ele->num_node());
+      FOUR_C_THROW("shape {} ({} nodes) not supported", ele->shape(), ele->num_node());
       break;
   }
   return nullptr;
@@ -129,11 +130,9 @@ int Discret::Elements::Ale3::evaluate(Teuchos::ParameterList& params,
   {
     case calc_ale_laplace_material:
     {
-      std::vector<double> my_dispnp;
       std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp =
           discretization.get_state("dispnp");
-      my_dispnp.resize(lm.size());
-      Core::FE::extract_my_values(*dispnp, my_dispnp, lm);
+      std::vector<double> my_dispnp = Core::FE::extract_values(*dispnp, lm);
 
       Ale3ImplInterface::impl(this)->static_ke_laplace(
           this, discretization, elemat1, elevec1, my_dispnp, mat, false);
@@ -142,11 +141,9 @@ int Discret::Elements::Ale3::evaluate(Teuchos::ParameterList& params,
     }
     case calc_ale_laplace_spatial:
     {
-      std::vector<double> my_dispnp;
       std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp =
           discretization.get_state("dispnp");
-      my_dispnp.resize(lm.size());
-      Core::FE::extract_my_values(*dispnp, my_dispnp, lm);
+      std::vector<double> my_dispnp = Core::FE::extract_values(*dispnp, lm);
 
       Ale3ImplInterface::impl(this)->static_ke_laplace(
           this, discretization, elemat1, elevec1, my_dispnp, mat, true);
@@ -157,8 +154,7 @@ int Discret::Elements::Ale3::evaluate(Teuchos::ParameterList& params,
     {
       std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp =
           discretization.get_state("dispnp");
-      std::vector<double> my_dispnp(lm.size());
-      Core::FE::extract_my_values(*dispnp, my_dispnp, lm);
+      std::vector<double> my_dispnp = Core::FE::extract_values(*dispnp, lm);
 
       Ale3ImplInterface::impl(this)->static_ke_nonlinear(
           this, discretization, lm, elemat1, elevec1, my_dispnp, params, true);
@@ -169,8 +165,7 @@ int Discret::Elements::Ale3::evaluate(Teuchos::ParameterList& params,
     {
       std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp =
           discretization.get_state("dispnp");
-      std::vector<double> my_dispnp(lm.size());
-      Core::FE::extract_my_values(*dispnp, my_dispnp, lm);
+      std::vector<double> my_dispnp = Core::FE::extract_values(*dispnp, lm);
 
       Ale3ImplInterface::impl(this)->static_ke_nonlinear(
           this, discretization, lm, elemat1, elevec1, my_dispnp, params, false);
@@ -181,8 +176,7 @@ int Discret::Elements::Ale3::evaluate(Teuchos::ParameterList& params,
     {
       std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp =
           discretization.get_state("dispnp");
-      std::vector<double> my_dispnp(lm.size());
-      Core::FE::extract_my_values(*dispnp, my_dispnp, lm);
+      std::vector<double> my_dispnp = Core::FE::extract_values(*dispnp, lm);
 
       Ale3ImplInterface::impl(this)->static_ke_spring(this, elemat1, elevec1, my_dispnp, false);
 
@@ -192,8 +186,7 @@ int Discret::Elements::Ale3::evaluate(Teuchos::ParameterList& params,
     {
       std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp =
           discretization.get_state("dispnp");
-      std::vector<double> my_dispnp(lm.size());
-      Core::FE::extract_my_values(*dispnp, my_dispnp, lm);
+      std::vector<double> my_dispnp = Core::FE::extract_values(*dispnp, lm);
 
       Ale3ImplInterface::impl(this)->static_ke_spring(this, elemat1, elevec1, my_dispnp, true);
 
@@ -203,8 +196,7 @@ int Discret::Elements::Ale3::evaluate(Teuchos::ParameterList& params,
     {
       std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp =
           discretization.get_state("dispnp");
-      std::vector<double> my_dispnp(lm.size());
-      Core::FE::extract_my_values(*dispnp, my_dispnp, lm);
+      std::vector<double> my_dispnp = Core::FE::extract_values(*dispnp, lm);
 
       Ale3ImplInterface::impl(this)->element_node_normal(this, elevec1, my_dispnp);
 
@@ -919,12 +911,12 @@ inline void Discret::Elements::Ale3Impl<distype>::ale3_tors_spring_nurbs27(
 /*----------------------------------------------------------------------------*/
 template <Core::FE::CellType distype>
 void Discret::Elements::Ale3Impl<distype>::static_ke_spring(Ale3* ele,
-    Core::LinAlg::SerialDenseMatrix& sys_mat_epetra,
-    Core::LinAlg::SerialDenseVector& residual_epetra, const std::vector<double>& displacements,
+    Core::LinAlg::SerialDenseMatrix& element_matrix,
+    Core::LinAlg::SerialDenseVector& element_residual, const std::vector<double>& displacements,
     const bool spatialconfiguration)
 {
-  Core::LinAlg::Matrix<3 * iel, 3 * iel> sys_mat(sys_mat_epetra.values(), true);
-  Core::LinAlg::Matrix<3 * iel, 1> residual(residual_epetra.values(), true);
+  Core::LinAlg::Matrix<3 * iel, 3 * iel> sys_mat(element_matrix.values(), true);
+  Core::LinAlg::Matrix<3 * iel, 1> residual(element_residual.values(), true);
   int node_i, node_j;  // end nodes of spring
   double length;       // length of edge
   double dx, dy, dz;   // deltas in each direction
@@ -1355,13 +1347,12 @@ void Discret::Elements::Ale3Impl<distype>::static_ke_spring(Ale3* ele,
 template <Core::FE::CellType distype>
 void Discret::Elements::Ale3Impl<distype>::static_ke_nonlinear(Ale3* ele,
     Core::FE::Discretization& dis, std::vector<int>& lm,
-    Core::LinAlg::SerialDenseMatrix& sys_mat_epetra,
-    Core::LinAlg::SerialDenseVector& residual_epetra, std::vector<double>& my_dispnp,
+    Core::LinAlg::SerialDenseMatrix& element_matrix,
+    Core::LinAlg::SerialDenseVector& element_residual, std::vector<double>& my_dispnp,
     Teuchos::ParameterList& params, const bool spatialconfiguration)
 {
   const int numdof = NODDOF_ALE3 * iel;
-  // A view to sys_mat_epetra
-  Core::LinAlg::Matrix<numdof, numdof> sys_mat(sys_mat_epetra.values(), true);
+  Core::LinAlg::Matrix<numdof, numdof> sys_mat(element_matrix.values(), true);
   // update element geometry
   Core::LinAlg::Matrix<iel, NUMDIM_ALE3> xrefe;  // material coord. of element
   Core::LinAlg::Matrix<iel, NUMDIM_ALE3> xcurr;  // current  coord. of element
@@ -1385,7 +1376,7 @@ void Discret::Elements::Ale3Impl<distype>::static_ke_nonlinear(Ale3* ele,
   // --------------------------------------------------
   // Now do the nurbs specific stuff
   std::vector<Core::LinAlg::SerialDenseVector> myknots;
-  Core::LinAlg::Matrix<iel, 1> weights(iel);
+  Core::LinAlg::Matrix<iel, 1> weights;
 
   if (distype == Core::FE::CellType::nurbs8 || distype == Core::FE::CellType::nurbs27)
   {
@@ -1414,7 +1405,7 @@ void Discret::Elements::Ale3Impl<distype>::static_ke_nonlinear(Ale3* ele,
   Core::LinAlg::Matrix<3, 3> xjm;
   Core::LinAlg::Matrix<3, 3> xji;
   Core::LinAlg::Matrix<6, numdof> bop;
-  Core::LinAlg::Matrix<6, 6> D(true);
+  Core::LinAlg::Matrix<6, 6> D(Core::LinAlg::Initialization::zero);
   // gaussian points
   const Core::FE::GaussRule3D gaussrule = get_optimal_gaussrule();
   const Core::FE::IntegrationPoints3D intpoints(gaussrule);
@@ -1526,8 +1517,9 @@ void Discret::Elements::Ale3Impl<distype>::static_ke_nonlinear(Ale3* ele,
       bop(5, NODDOF_ALE3 * i + 2) = defgrd(2, 2) * N_XYZ(0, i) + defgrd(2, 0) * N_XYZ(2, i);
     }
     // call material law cccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    Core::LinAlg::Matrix<Mat::NUM_STRESS_3D, Mat::NUM_STRESS_3D> cmat_f(true);
-    Core::LinAlg::Matrix<Mat::NUM_STRESS_3D, 1> stress_f(true);
+    Core::LinAlg::Matrix<Mat::NUM_STRESS_3D, Mat::NUM_STRESS_3D> cmat_f(
+        Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<Mat::NUM_STRESS_3D, 1> stress_f(Core::LinAlg::Initialization::zero);
     Core::LinAlg::Matrix<Mat::NUM_STRESS_3D, 1> glstrain_f(glstrain.data());
     // QUICK HACK until so_disp exclusively uses Core::LinAlg::Matrix!!!!!
     Core::LinAlg::Matrix<NUMDIM_ALE3, NUMDIM_ALE3> fixed_defgrd(defgrd);
@@ -1537,7 +1529,7 @@ void Discret::Elements::Ale3Impl<distype>::static_ke_nonlinear(Ale3* ele,
     // end of call material law ccccccccccccccccccccccccccccccccccccccccccccccc
 
     // integrate internal force vector f = f + (B^T . sigma) * detJ * w(gp)
-    Core::LinAlg::Matrix<numdof, 1> residual(residual_epetra, true);
+    Core::LinAlg::Matrix<numdof, 1> residual(element_residual, true);
     residual.multiply_tn(detJ * intpoints.qwgt[iquad], bop, stress_f, 1.0);
 
     // integrate `elastic' and `initial-displacement' stiffness matrix
@@ -1577,7 +1569,7 @@ void Discret::Elements::Ale3Impl<distype>::static_ke_nonlinear(Ale3* ele,
 /*----------------------------------------------------------------------------*/
 template <Core::FE::CellType distype>
 void Discret::Elements::Ale3Impl<distype>::static_ke_laplace(Ale3* ele,
-    Core::FE::Discretization& dis, Core::LinAlg::SerialDenseMatrix& sys_mat_epetra,
+    Core::FE::Discretization& dis, Core::LinAlg::SerialDenseMatrix& element_matrix,
     Core::LinAlg::SerialDenseVector& residual, std::vector<double>& my_dispnp,
     std::shared_ptr<Core::Mat::Material> material, const bool spatialconfiguration)
 {
@@ -1586,12 +1578,11 @@ void Discret::Elements::Ale3Impl<distype>::static_ke_laplace(Ale3* ele,
   //      "using it.");
 
   const int nd = 3 * iel;
-  // A view to sys_mat_epetra
-  Core::LinAlg::Matrix<nd, nd> sys_mat(sys_mat_epetra.values(), true);
+  Core::LinAlg::Matrix<nd, nd> sys_mat(element_matrix.values(), true);
 
   //  get material using class StVenantKirchhoff
   //  if (material->material_type()!=Core::Materials::m_stvenant)
-  //    FOUR_C_THROW("stvenant material expected but got type %d", material->material_type());
+  //     FOUR_C_THROW("stvenant material expected but got type {}", material->material_type());
   //  Mat::StVenantKirchhoff* actmat = static_cast<Mat::StVenantKirchhoff*>(material.get());
 
   Core::LinAlg::Matrix<3, iel> xyze;
@@ -1620,7 +1611,7 @@ void Discret::Elements::Ale3Impl<distype>::static_ke_laplace(Ale3* ele,
   // --------------------------------------------------
   // Now do the nurbs specific stuff
   std::vector<Core::LinAlg::SerialDenseVector> myknots(3);
-  Core::LinAlg::Matrix<iel, 1> weights(iel);
+  Core::LinAlg::Matrix<iel, 1> weights;
 
   if (distype == Core::FE::CellType::nurbs8 or distype == Core::FE::CellType::nurbs27)
   {
@@ -1641,13 +1632,13 @@ void Discret::Elements::Ale3Impl<distype>::static_ke_laplace(Ale3* ele,
   }
 
   /*----------------------------------------- declaration of variables ---*/
-  Core::LinAlg::Matrix<iel, 1> funct(true);
-  Core::LinAlg::Matrix<3, iel> deriv(true);
-  Core::LinAlg::Matrix<3, 3> xjm(true);
-  Core::LinAlg::Matrix<3, 3> xji(true);
-  Core::LinAlg::Matrix<3, iel> deriv_xy(true);
-  Core::LinAlg::Matrix<iel, iel> tempmat(true);
-  Core::LinAlg::Matrix<3 * iel, 1> tempmat2(true);
+  Core::LinAlg::Matrix<iel, 1> funct(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, iel> deriv(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 3> xjm(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 3> xji(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, iel> deriv_xy(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<iel, iel> tempmat(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3 * iel, 1> tempmat2(Core::LinAlg::Initialization::zero);
 
   // gaussian points
   const Core::FE::GaussRule3D gaussrule = get_optimal_gaussrule();

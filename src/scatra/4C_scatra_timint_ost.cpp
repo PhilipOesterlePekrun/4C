@@ -12,6 +12,7 @@
 #include "4C_global_data.hpp"
 #include "4C_io.hpp"
 #include "4C_scatra_ele_action.hpp"
+#include "4C_scatra_ele_parameter_timint.hpp"
 #include "4C_scatra_timint_meshtying_strategy_base.hpp"
 #include "4C_scatra_turbulence_hit_scalar_forcing.hpp"
 #include "4C_utils_parameter_list.hpp"
@@ -56,7 +57,7 @@ void ScaTra::TimIntOneStepTheta::setup()
   // vectors and matrices
   //                 local <-> global dof numbering
   // -------------------------------------------------------------------
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   // fine-scale vector at time n+1
   if (fssgd_ != Inpar::ScaTra::fssugrdiff_no or
@@ -116,8 +117,6 @@ void ScaTra::TimIntOneStepTheta::set_element_time_parameter(bool forcedincrement
 {
   Teuchos::ParameterList eleparams;
 
-  Core::Utils::add_enum_class_to_parameter_list<ScaTra::Action>(
-      "action", ScaTra::Action::set_time_parameter, eleparams);
   eleparams.set<bool>("using generalized-alpha time integration", false);
   eleparams.set<bool>("using stationary formulation", false);
   if (!forcedincrementalsolver)
@@ -131,8 +130,8 @@ void ScaTra::TimIntOneStepTheta::set_element_time_parameter(bool forcedincrement
   eleparams.set<double>("time derivative factor", 1.0 / (theta_ * dta_));
   eleparams.set<double>("alpha_F", 1.0);
 
-  // call standard loop over elements
-  discret_->evaluate(eleparams, nullptr, nullptr, nullptr, nullptr, nullptr);
+  Discret::Elements::ScaTraEleParameterTimInt::instance(discret_->name())
+      ->set_parameters(eleparams);
 }
 
 /*--------------------------------------------------------------------------*
@@ -166,7 +165,7 @@ void ScaTra::TimIntOneStepTheta::set_old_part_of_righthandside()
   ScaTraTimIntImpl::set_old_part_of_righthandside();
 
   // hist_ = phin_ + dt*(1-Theta)*phidtn_
-  hist_->Update(1.0, *phin_, dta_ * (1.0 - theta_), *phidtn_, 0.0);
+  hist_->update(1.0, *phin_, dta_ * (1.0 - theta_), *phidtn_, 0.0);
 }
 
 /*----------------------------------------------------------------------*
@@ -177,14 +176,14 @@ void ScaTra::TimIntOneStepTheta::explicit_predictor() const
   ScaTraTimIntImpl::explicit_predictor();
 
   // predict discrete solution variables
-  phinp_->Update(dta_, *phidtn_, 1.0);
+  phinp_->update(dta_, *phidtn_, 1.0);
 }
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
 void ScaTra::TimIntOneStepTheta::add_neumann_to_residual()
 {
-  residual_->Update(theta_ * dta_, *neumann_loads_, 1.0);
+  residual_->update(theta_ * dta_, *neumann_loads_, 1.0);
 }
 
 /*----------------------------------------------------------------------*
@@ -198,7 +197,7 @@ void ScaTra::TimIntOneStepTheta::avm3_separation()
   Sep_->multiply(false, *phinp_, *fsphinp_);
 
   // set fine-scale vector
-  discret_->set_state("fsphinp", fsphinp_);
+  discret_->set_state("fsphinp", *fsphinp_);
 }
 
 /*----------------------------------------------------------------------*
@@ -234,8 +233,8 @@ void ScaTra::TimIntOneStepTheta::add_time_integration_specific_vectors(bool forc
   // call base class routine
   ScaTraTimIntImpl::add_time_integration_specific_vectors(forcedincrementalsolver);
 
-  discret_->set_state("hist", hist_);
-  discret_->set_state("phinp", phinp_);
+  discret_->set_state("hist", *hist_);
+  discret_->set_state("phinp", *phinp_);
 }
 
 /*----------------------------------------------------------------------*
@@ -248,7 +247,7 @@ void ScaTra::TimIntOneStepTheta::compute_time_derivative()
   // time derivative of phi:
   // phidt(n+1) = (phi(n+1)-phi(n)) / (theta*dt) + (1-(1/theta))*phidt(n)
   const double fact = 1.0 / (theta_ * dta_);
-  phidtnp_->Update(fact, *phinp_, -fact, *hist_, 0.0);
+  phidtnp_->update(fact, *phinp_, -fact, *hist_, 0.0);
 
   // We know the first time derivative on Dirichlet boundaries
   // so we do not need an approximation of these values!
@@ -280,11 +279,11 @@ void ScaTra::TimIntOneStepTheta::update()
   // compute_time_derivative() anymore within the current time step!!!
 
   // solution of this step becomes most recent solution of the last step
-  phin_->Update(1.0, *phinp_, 0.0);
+  phin_->update(1.0, *phinp_, 0.0);
 
   // time deriv. of this step becomes most recent time derivative of
   // last step
-  phidtn_->Update(1.0, *phidtnp_, 0.0);
+  phidtn_->update(1.0, *phidtnp_, 0.0);
 
   // call time update of forcing routine
   if (homisoturb_forcing_ != nullptr) homisoturb_forcing_->time_update_forcing();

@@ -13,6 +13,7 @@
 #include "4C_fluid_ele_interface.hpp"
 #include "4C_io_input_parameter_container.hpp"
 #include "4C_io_input_spec_builders.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_parameter_list.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -98,8 +99,8 @@ void Discret::Elements::FluidHDGWeakCompType ::setup_element_definition(
   {
     defs_hdg[key] = all_of({
         fluid_line_def,
-        entry<int>("DEG"),
-        entry<int>("SPC", {.required = false}),
+        parameter<int>("DEG"),
+        parameter<std::optional<bool>>("SPC"),
     });
   }
 }
@@ -178,7 +179,7 @@ bool Discret::Elements::FluidHDGWeakComp::read_element(const std::string& eletyp
   bool success = Fluid::read_element(eletype, distype, container);
   degree_ = container.get<int>("DEG");
 
-  completepol_ = container.get_or<int>("SPC", false);
+  completepol_ = container.get<std::optional<bool>>("SPC").value_or(false);
 
   return success;
 }
@@ -228,14 +229,8 @@ int Discret::Elements::FluidHDGWeakComp::evaluate(Teuchos::ParameterList& params
       break;
     }
 
-    case FLD::set_general_fluid_parameter:
-    case FLD::set_time_parameter:
-    case FLD::set_turbulence_parameter:
-    case FLD::set_loma_parameter:
-      break;
-
     default:
-      FOUR_C_THROW("Unknown type of action '%i' for FluidHDGWeakComp", act);
+      FOUR_C_THROW("Unknown type of action '{}' for FluidHDGWeakComp", act);
       break;
   }
 

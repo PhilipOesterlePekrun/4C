@@ -1,0 +1,39 @@
+// This file is part of 4C multiphysics licensed under the
+// GNU Lesser General Public License v3.0 or later.
+//
+// See the LICENSE.md file in the top-level for license information.
+//
+// SPDX-License-Identifier: LGPL-3.0-or-later
+
+#ifndef FOUR_C_GLOBAL_LEGACY_MODULE_VALIDCONDITIONS_HPP
+#define FOUR_C_GLOBAL_LEGACY_MODULE_VALIDCONDITIONS_HPP
+
+#include "4C_config.hpp"
+
+#include <Teuchos_Array.hpp>
+
+#include <iostream>
+#include <memory>
+#include <string>
+#include <vector>
+
+FOUR_C_NAMESPACE_OPEN
+
+namespace Core::Conditions
+{
+  class ConditionDefinition;
+}
+
+
+namespace Global
+{
+  /// construct list with all conditions and documentation
+  std::vector<Core::Conditions::ConditionDefinition> valid_conditions();
+  /// print all known condition sections without contents
+  void print_empty_condition_definitions(
+      std::ostream& stream, std::vector<Core::Conditions::ConditionDefinition>& condlist);
+}  // namespace Global
+
+FOUR_C_NAMESPACE_CLOSE
+
+#endif

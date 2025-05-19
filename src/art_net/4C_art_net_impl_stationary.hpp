@@ -11,6 +11,7 @@
 #include "4C_config.hpp"
 
 #include "4C_art_net_timint.hpp"
+#include "4C_io_discretization_visualization_writer_mesh.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -23,8 +24,6 @@ namespace Arteries
 {
   /*!
   \brief stationary formulation for arterial network problems
-
-  \author kremheller
   */
   class ArtNetImplStationary : public TimInt
   {
@@ -87,14 +86,20 @@ namespace Arteries
       FOUR_C_THROW("LoadState() not available for stationary formulation");
     }
 
+    //! collect runtime output data
+    void collect_runtime_output_data();
+
+    //! write data required for restart
+    void output_restart();
+
     // output
     void output(bool CoupledTo3D, std::shared_ptr<Teuchos::ParameterList> CouplingParams) override;
 
-    //! output of element radius
-    void output_radius();
+    //! get element radius
+    void get_radius();
 
-    //! output of element volumetric flow
-    void output_flow();
+    //! calculate element volumetric flow
+    void reconstruct_flow();
 
     //! set the initial field on the artery discretization
     void set_initial_field(const Inpar::ArtDyn::InitialField init,  //!< type of initial field
@@ -134,12 +139,13 @@ namespace Arteries
     //! iterative update of primary variable
     void update_iter(const std::shared_ptr<const Core::LinAlg::Vector<double>> inc) override
     {
-      pressurenp_->Update(1.0, *inc, 1.0);
+      pressurenp_->update(1.0, *inc, 1.0);
       return;
     }
 
 
    private:
+    std::unique_ptr<Core::IO::DiscretizationVisualizationWriterMesh> visualization_writer_{nullptr};
     //! a vector of zeros to be used to enforce zero dirichlet boundary conditions
     std::shared_ptr<Core::LinAlg::Vector<double>> zeros_;
     //! pressure at time n+1

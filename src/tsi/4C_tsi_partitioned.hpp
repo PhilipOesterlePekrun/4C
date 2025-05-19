@@ -14,8 +14,8 @@
  *----------------------------------------------------------------------*/
 #include "4C_config.hpp"
 
-#include "4C_inpar_tsi.hpp"
 #include "4C_tsi_algorithm.hpp"
+#include "4C_tsi_input.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -38,9 +38,6 @@ namespace TSI
   //!  the order in which the filters handle the Discretizations, which in turn
   //!  defines the dof number ordering of the Discretizations... Don't get
   //!  confused. Just always list structure, thermo. In that order.
-  //!
-  //!  \author u.kue
-  //!  \date 02/08
   class Partitioned : public Algorithm
   {
    public:
@@ -106,7 +103,7 @@ namespace TSI
         double ittol                   //!< iteration tolerance
     );
 
-    enum Inpar::TSI::ConvNorm normtypeinc_;  //!< convergence check for residual temperatures
+    enum ConvNorm normtypeinc_;  //!< convergence check for residual temperatures
 
     //! maximum iteration steps
     int itmax_;
@@ -141,7 +138,7 @@ namespace TSI
     //@}
 
     //! coupling algorithm
-    Inpar::TSI::SolutionSchemeOverFields coupling_;
+    SolutionSchemeOverFields coupling_;
     //! we couple based on displacements
     bool displacementcoupling_;
     //! quasi-static solution of the mechanical equation

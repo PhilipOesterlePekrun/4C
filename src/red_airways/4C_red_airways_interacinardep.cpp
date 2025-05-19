@@ -73,8 +73,8 @@ void Discret::Elements::RedInterAcinarDepType::setup_element_definition(
   using namespace Core::IO::InputSpecBuilders;
 
   defs["LINE2"] = all_of({
-      entry<std::vector<int>>("LINE2", {.size = 2}),
-      entry<int>("MAT"),
+      parameter<std::vector<int>>("LINE2", {.size = 2}),
+      parameter<int>("MAT"),
   });
 }
 
@@ -123,7 +123,7 @@ Core::FE::CellType Discret::Elements::RedInterAcinarDep::shape() const
     case 3:
       return Core::FE::CellType::line3;
     default:
-      FOUR_C_THROW("unexpected number of nodes %d", num_node());
+      FOUR_C_THROW("unexpected number of nodes {}", num_node());
       break;
   }
 }
@@ -205,8 +205,7 @@ void Discret::Elements::RedInterAcinarDep::get_params(std::string name, double& 
   it = elem_params_.find(name);
   if (it == elem_params_.end())
   {
-    FOUR_C_THROW("[%s] is not found with in the element variables", name.c_str());
-    exit(1);
+    FOUR_C_THROW("[{}] is not found with in the element variables", name);
   }
   var = elem_params_[name];
 }
@@ -223,8 +222,7 @@ void Discret::Elements::RedInterAcinarDep::get_params(std::string name, int& var
   }
   else
   {
-    FOUR_C_THROW("[%s] is not found with in the element INT variables", name.c_str());
-    exit(1);
+    FOUR_C_THROW("[{}] is not found with in the element INT variables", name);
   }
 }
 

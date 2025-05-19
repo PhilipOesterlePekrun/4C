@@ -31,7 +31,7 @@ std::shared_ptr<Cut::Position> Cut::Position::create(
   if (rdim < factory.n_prob_dim())
     FOUR_C_THROW(
         "The given point has the wrong row dimension!\n"
-        "rdim < prodbim <--> %d < %d",
+        "rdim < prodbim <--> {} < {}",
         rdim, factory.n_prob_dim());
   return factory.create_position(element, xyz.data(), floattype);
 }
@@ -50,8 +50,8 @@ std::shared_ptr<Cut::Position> Cut::Position::create(const Core::LinAlg::Matrix<
   if (rdim < probdim or cdim != num_nodes_ele)
     FOUR_C_THROW(
         "Dimension mismatch of xyze! \n"
-        "expected input: %d x %d (rows x cols)\n"
-        "received input : %d x %d (rows x cols)",
+        "expected input: {} x {} (rows x cols)\n"
+        "received input : {} x {} (rows x cols)",
         probdim, num_nodes_ele, xyze.m(), xyze.n());
 
   const double* xyze_ptr = xyze.data();
@@ -66,8 +66,8 @@ std::shared_ptr<Cut::Position> Cut::Position::create(const Core::LinAlg::Matrix<
   if (rdim_2 < probdim)
     FOUR_C_THROW(
         "Dimension mismatch of xyz! \n"
-        "expected input: %d x 1 (rows x cols)\n"
-        "received input : %d x 1 (rows x cols)",
+        "expected input: {} x 1 (rows x cols)\n"
+        "received input : {} x 1 (rows x cols)",
         probdim, rdim_2);
 
   return factory.create_position(xyze_ptr, xyz.data(), distype, floattype);
@@ -88,8 +88,8 @@ std::shared_ptr<Cut::Position> Cut::Position::create(const Core::LinAlg::SerialD
       static_cast<unsigned>(xyze.numCols()) != num_nodes_ele)
     FOUR_C_THROW(
         "Dimension mismatch of xyze! \n"
-        "expected input: %d x %d (rows x cols)\n"
-        "received input : %d x %d (rows x cols)",
+        "expected input: {} x {} (rows x cols)\n"
+        "received input : {} x {} (rows x cols)",
         probdim, num_nodes_ele, xyze.numRows(), xyze.numCols());
 
   const double* xyze_ptr = xyze.values();
@@ -104,8 +104,8 @@ std::shared_ptr<Cut::Position> Cut::Position::create(const Core::LinAlg::SerialD
   if (xyz.num_rows() < probdim)
     FOUR_C_THROW(
         "Dimension mismatch of xyz! \n"
-        "expected input: %d x 1 (rows x cols)\n"
-        "received input : %d x 1 (rows x cols)",
+        "expected input: {} x 1 (rows x cols)\n"
+        "received input : {} x 1 (rows x cols)",
         probdim, xyz.num_rows());
 
   return factory.create_position(xyze_ptr, xyz.data(), distype, floattype);
@@ -122,7 +122,7 @@ std::shared_ptr<Cut::Position> Cut::Position::create(const std::vector<Node*> no
   if (rdim < factory.n_prob_dim())
     FOUR_C_THROW(
         "The given point has the wrong row dimension!\n"
-        "rdim < prodbim <--> %d < %d",
+        "rdim < prodbim <--> {} < {}",
         rdim, factory.n_prob_dim());
   return factory.create_position(nodes, xyz.data(), distype, floattype);
 }
@@ -303,11 +303,8 @@ std::shared_ptr<Cut::Position> Cut::PositionFactory::create_position(
     case Core::FE::CellType::wedge6:
       return create_concrete_position<Core::FE::CellType::wedge6>(element, point, floattype);
     default:
-      FOUR_C_THROW("Unsupported distype = %s", Core::FE::cell_type_to_string(distype).c_str());
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("Unsupported distype = {}", Core::FE::cell_type_to_string(distype));
   }
-
-  exit(EXIT_FAILURE);
 }
 
 /*----------------------------------------------------------------------------*
@@ -342,11 +339,8 @@ std::shared_ptr<Cut::Position> Cut::PositionFactory::create_position(
     case Core::FE::CellType::wedge6:
       return create_concrete_position<Core::FE::CellType::wedge6>(element, xyz, floattype);
     default:
-      FOUR_C_THROW("Unsupported distype = %s", Core::FE::cell_type_to_string(distype).c_str());
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("Unsupported distype = {}", Core::FE::cell_type_to_string(distype));
   }
-
-  exit(EXIT_FAILURE);
 }
 
 /*----------------------------------------------------------------------------*
@@ -379,11 +373,8 @@ std::shared_ptr<Cut::Position> Cut::PositionFactory::create_position(const doubl
     case Core::FE::CellType::wedge6:
       return create_concrete_position<Core::FE::CellType::wedge6>(xyze, xyz, floattype);
     default:
-      FOUR_C_THROW("Unsupported distype = %s", Core::FE::cell_type_to_string(distype).c_str());
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("Unsupported distype = {}", Core::FE::cell_type_to_string(distype));
   }
-
-  exit(EXIT_FAILURE);
 }
 
 /*----------------------------------------------------------------------------*
@@ -427,11 +418,8 @@ std::shared_ptr<Cut::Position> Cut::PositionFactory::create_position(
     case Core::FE::CellType::wedge6:
       return create_concrete_position<Core::FE::CellType::wedge6>(nodes, xyz, floattype);
     default:
-      FOUR_C_THROW("Unsupported distype = %s", Core::FE::cell_type_to_string(distype).c_str());
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("Unsupported distype = {}", Core::FE::cell_type_to_string(distype));
   }
-
-  exit(EXIT_FAILURE);
 }
 
 /*----------------------------------------------------------------------------*
@@ -518,25 +506,25 @@ template class Cut::ComputeEmbeddedPosition<3, Core::FE::CellType::line2>;
 // Cut::ComputeEmbeddedPosition<3,Core::FE::CellType::wedge15>;
 
 template class Cut::ComputeEmbeddedPosition<3, Core::FE::CellType::tri3,
-    Core::FE::num_nodes<Core::FE::CellType::tri3>, Core::FE::dim<Core::FE::CellType::tri3>,
+    Core::FE::num_nodes(Core::FE::CellType::tri3), Core::FE::dim<Core::FE::CellType::tri3>,
     Cut::floattype_cln>;
 template class Cut::ComputeEmbeddedPosition<3, Core::FE::CellType::tri6,
-    Core::FE::num_nodes<Core::FE::CellType::tri6>, Core::FE::dim<Core::FE::CellType::tri6>,
+    Core::FE::num_nodes(Core::FE::CellType::tri6), Core::FE::dim<Core::FE::CellType::tri6>,
     Cut::floattype_cln>;
 template class Cut::ComputeEmbeddedPosition<3, Core::FE::CellType::quad4,
-    Core::FE::num_nodes<Core::FE::CellType::quad4>, Core::FE::dim<Core::FE::CellType::quad4>,
+    Core::FE::num_nodes(Core::FE::CellType::quad4), Core::FE::dim<Core::FE::CellType::quad4>,
     Cut::floattype_cln>;
 template class Cut::ComputeEmbeddedPosition<3, Core::FE::CellType::quad8,
-    Core::FE::num_nodes<Core::FE::CellType::quad8>, Core::FE::dim<Core::FE::CellType::quad8>,
+    Core::FE::num_nodes(Core::FE::CellType::quad8), Core::FE::dim<Core::FE::CellType::quad8>,
     Cut::floattype_cln>;
 template class Cut::ComputeEmbeddedPosition<3, Core::FE::CellType::quad9,
-    Core::FE::num_nodes<Core::FE::CellType::quad9>, Core::FE::dim<Core::FE::CellType::quad9>,
+    Core::FE::num_nodes(Core::FE::CellType::quad9), Core::FE::dim<Core::FE::CellType::quad9>,
     Cut::floattype_cln>;
 template class Cut::ComputeEmbeddedPosition<2, Core::FE::CellType::line2,
-    Core::FE::num_nodes<Core::FE::CellType::line2>, Core::FE::dim<Core::FE::CellType::line2>,
+    Core::FE::num_nodes(Core::FE::CellType::line2), Core::FE::dim<Core::FE::CellType::line2>,
     Cut::floattype_cln>;
 template class Cut::ComputeEmbeddedPosition<3, Core::FE::CellType::line2,
-    Core::FE::num_nodes<Core::FE::CellType::line2>, Core::FE::dim<Core::FE::CellType::line2>,
+    Core::FE::num_nodes(Core::FE::CellType::line2), Core::FE::dim<Core::FE::CellType::line2>,
     Cut::floattype_cln>;
 /* --- ComputePosition --- */
 // non-embedded cases (only)
@@ -560,54 +548,54 @@ template class Cut::ComputePosition<3, Core::FE::CellType::wedge6>;
 template class Cut::ComputePosition<3, Core::FE::CellType::wedge15>;
 
 template class Cut::ComputePosition<1, Core::FE::CellType::line2,
-    Core::FE::num_nodes<Core::FE::CellType::line2>, Core::FE::dim<Core::FE::CellType::line2>,
+    Core::FE::num_nodes(Core::FE::CellType::line2), Core::FE::dim<Core::FE::CellType::line2>,
     Cut::floattype_cln>;
 
 template class Cut::ComputePosition<2, Core::FE::CellType::tri3,
-    Core::FE::num_nodes<Core::FE::CellType::tri3>, Core::FE::dim<Core::FE::CellType::tri3>,
+    Core::FE::num_nodes(Core::FE::CellType::tri3), Core::FE::dim<Core::FE::CellType::tri3>,
     Cut::floattype_cln>;
 template class Cut::ComputePosition<2, Core::FE::CellType::tri6,
-    Core::FE::num_nodes<Core::FE::CellType::tri6>, Core::FE::dim<Core::FE::CellType::tri6>,
+    Core::FE::num_nodes(Core::FE::CellType::tri6), Core::FE::dim<Core::FE::CellType::tri6>,
     Cut::floattype_cln>;
 template class Cut::ComputePosition<2, Core::FE::CellType::quad4,
-    Core::FE::num_nodes<Core::FE::CellType::quad4>, Core::FE::dim<Core::FE::CellType::quad4>,
+    Core::FE::num_nodes(Core::FE::CellType::quad4), Core::FE::dim<Core::FE::CellType::quad4>,
     Cut::floattype_cln>;
 template class Cut::ComputePosition<2, Core::FE::CellType::quad8,
-    Core::FE::num_nodes<Core::FE::CellType::quad8>, Core::FE::dim<Core::FE::CellType::quad8>,
+    Core::FE::num_nodes(Core::FE::CellType::quad8), Core::FE::dim<Core::FE::CellType::quad8>,
     Cut::floattype_cln>;
 template class Cut::ComputePosition<2, Core::FE::CellType::quad9,
-    Core::FE::num_nodes<Core::FE::CellType::quad9>, Core::FE::dim<Core::FE::CellType::quad9>,
+    Core::FE::num_nodes(Core::FE::CellType::quad9), Core::FE::dim<Core::FE::CellType::quad9>,
     Cut::floattype_cln>;
 
 template class Cut::ComputePosition<3, Core::FE::CellType::tet4,
-    Core::FE::num_nodes<Core::FE::CellType::tet4>, Core::FE::dim<Core::FE::CellType::tet4>,
+    Core::FE::num_nodes(Core::FE::CellType::tet4), Core::FE::dim<Core::FE::CellType::tet4>,
     Cut::floattype_cln>;
 template class Cut::ComputePosition<3, Core::FE::CellType::tet10,
-    Core::FE::num_nodes<Core::FE::CellType::tet10>, Core::FE::dim<Core::FE::CellType::tet10>,
+    Core::FE::num_nodes(Core::FE::CellType::tet10), Core::FE::dim<Core::FE::CellType::tet10>,
     Cut::floattype_cln>;
 template class Cut::ComputePosition<3, Core::FE::CellType::hex8,
-    Core::FE::num_nodes<Core::FE::CellType::hex8>, Core::FE::dim<Core::FE::CellType::hex8>,
+    Core::FE::num_nodes(Core::FE::CellType::hex8), Core::FE::dim<Core::FE::CellType::hex8>,
     Cut::floattype_cln>;
 template class Cut::ComputePosition<3, Core::FE::CellType::hex16,
-    Core::FE::num_nodes<Core::FE::CellType::hex16>, Core::FE::dim<Core::FE::CellType::hex16>,
+    Core::FE::num_nodes(Core::FE::CellType::hex16), Core::FE::dim<Core::FE::CellType::hex16>,
     Cut::floattype_cln>;
 template class Cut::ComputePosition<3, Core::FE::CellType::hex18,
-    Core::FE::num_nodes<Core::FE::CellType::hex18>, Core::FE::dim<Core::FE::CellType::hex18>,
+    Core::FE::num_nodes(Core::FE::CellType::hex18), Core::FE::dim<Core::FE::CellType::hex18>,
     Cut::floattype_cln>;
 template class Cut::ComputePosition<3, Core::FE::CellType::hex20,
-    Core::FE::num_nodes<Core::FE::CellType::hex20>, Core::FE::dim<Core::FE::CellType::hex20>,
+    Core::FE::num_nodes(Core::FE::CellType::hex20), Core::FE::dim<Core::FE::CellType::hex20>,
     Cut::floattype_cln>;
 template class Cut::ComputePosition<3, Core::FE::CellType::hex27,
-    Core::FE::num_nodes<Core::FE::CellType::hex27>, Core::FE::dim<Core::FE::CellType::hex27>,
+    Core::FE::num_nodes(Core::FE::CellType::hex27), Core::FE::dim<Core::FE::CellType::hex27>,
     Cut::floattype_cln>;
 template class Cut::ComputePosition<3, Core::FE::CellType::pyramid5,
-    Core::FE::num_nodes<Core::FE::CellType::pyramid5>, Core::FE::dim<Core::FE::CellType::pyramid5>,
+    Core::FE::num_nodes(Core::FE::CellType::pyramid5), Core::FE::dim<Core::FE::CellType::pyramid5>,
     Cut::floattype_cln>;
 template class Cut::ComputePosition<3, Core::FE::CellType::wedge6,
-    Core::FE::num_nodes<Core::FE::CellType::wedge6>, Core::FE::dim<Core::FE::CellType::wedge6>,
+    Core::FE::num_nodes(Core::FE::CellType::wedge6), Core::FE::dim<Core::FE::CellType::wedge6>,
     Cut::floattype_cln>;
 template class Cut::ComputePosition<3, Core::FE::CellType::wedge15,
-    Core::FE::num_nodes<Core::FE::CellType::wedge15>, Core::FE::dim<Core::FE::CellType::wedge15>,
+    Core::FE::num_nodes(Core::FE::CellType::wedge15), Core::FE::dim<Core::FE::CellType::wedge15>,
     Cut::floattype_cln>;
 
 /* --- PositionGeneric --- */
@@ -648,77 +636,77 @@ template class Cut::PositionGeneric<3, Core::FE::CellType::wedge15>;
 
 // embedded cases
 template class Cut::PositionGeneric<3, Core::FE::CellType::tri3,
-    Core::FE::num_nodes<Core::FE::CellType::tri3>, Core::FE::dim<Core::FE::CellType::tri3>,
+    Core::FE::num_nodes(Core::FE::CellType::tri3), Core::FE::dim<Core::FE::CellType::tri3>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<3, Core::FE::CellType::tri6,
-    Core::FE::num_nodes<Core::FE::CellType::tri6>, Core::FE::dim<Core::FE::CellType::tri6>,
+    Core::FE::num_nodes(Core::FE::CellType::tri6), Core::FE::dim<Core::FE::CellType::tri6>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<3, Core::FE::CellType::quad4,
-    Core::FE::num_nodes<Core::FE::CellType::quad4>, Core::FE::dim<Core::FE::CellType::quad4>,
+    Core::FE::num_nodes(Core::FE::CellType::quad4), Core::FE::dim<Core::FE::CellType::quad4>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<3, Core::FE::CellType::quad8,
-    Core::FE::num_nodes<Core::FE::CellType::quad8>, Core::FE::dim<Core::FE::CellType::quad8>,
+    Core::FE::num_nodes(Core::FE::CellType::quad8), Core::FE::dim<Core::FE::CellType::quad8>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<3, Core::FE::CellType::quad9,
-    Core::FE::num_nodes<Core::FE::CellType::quad9>, Core::FE::dim<Core::FE::CellType::quad9>,
+    Core::FE::num_nodes(Core::FE::CellType::quad9), Core::FE::dim<Core::FE::CellType::quad9>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<2, Core::FE::CellType::line2,
-    Core::FE::num_nodes<Core::FE::CellType::line2>, Core::FE::dim<Core::FE::CellType::line2>,
+    Core::FE::num_nodes(Core::FE::CellType::line2), Core::FE::dim<Core::FE::CellType::line2>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<3, Core::FE::CellType::line2,
-    Core::FE::num_nodes<Core::FE::CellType::line2>, Core::FE::dim<Core::FE::CellType::line2>,
+    Core::FE::num_nodes(Core::FE::CellType::line2), Core::FE::dim<Core::FE::CellType::line2>,
     Cut::floattype_cln>;
 
 // non-embedded cases
 template class Cut::PositionGeneric<1, Core::FE::CellType::line2,
-    Core::FE::num_nodes<Core::FE::CellType::line2>, Core::FE::dim<Core::FE::CellType::line2>,
+    Core::FE::num_nodes(Core::FE::CellType::line2), Core::FE::dim<Core::FE::CellType::line2>,
     Cut::floattype_cln>;
 
 template class Cut::PositionGeneric<2, Core::FE::CellType::tri3,
-    Core::FE::num_nodes<Core::FE::CellType::tri3>, Core::FE::dim<Core::FE::CellType::tri3>,
+    Core::FE::num_nodes(Core::FE::CellType::tri3), Core::FE::dim<Core::FE::CellType::tri3>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<2, Core::FE::CellType::tri6,
-    Core::FE::num_nodes<Core::FE::CellType::tri6>, Core::FE::dim<Core::FE::CellType::tri6>,
+    Core::FE::num_nodes(Core::FE::CellType::tri6), Core::FE::dim<Core::FE::CellType::tri6>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<2, Core::FE::CellType::quad4,
-    Core::FE::num_nodes<Core::FE::CellType::quad4>, Core::FE::dim<Core::FE::CellType::quad4>,
+    Core::FE::num_nodes(Core::FE::CellType::quad4), Core::FE::dim<Core::FE::CellType::quad4>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<2, Core::FE::CellType::quad8,
-    Core::FE::num_nodes<Core::FE::CellType::quad8>, Core::FE::dim<Core::FE::CellType::quad8>,
+    Core::FE::num_nodes(Core::FE::CellType::quad8), Core::FE::dim<Core::FE::CellType::quad8>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<2, Core::FE::CellType::quad9,
-    Core::FE::num_nodes<Core::FE::CellType::quad9>, Core::FE::dim<Core::FE::CellType::quad9>,
+    Core::FE::num_nodes(Core::FE::CellType::quad9), Core::FE::dim<Core::FE::CellType::quad9>,
     Cut::floattype_cln>;
 
 template class Cut::PositionGeneric<3, Core::FE::CellType::tet4,
-    Core::FE::num_nodes<Core::FE::CellType::tet4>, Core::FE::dim<Core::FE::CellType::tet4>,
+    Core::FE::num_nodes(Core::FE::CellType::tet4), Core::FE::dim<Core::FE::CellType::tet4>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<3, Core::FE::CellType::tet10,
-    Core::FE::num_nodes<Core::FE::CellType::tet10>, Core::FE::dim<Core::FE::CellType::tet10>,
+    Core::FE::num_nodes(Core::FE::CellType::tet10), Core::FE::dim<Core::FE::CellType::tet10>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<3, Core::FE::CellType::hex8,
-    Core::FE::num_nodes<Core::FE::CellType::hex8>, Core::FE::dim<Core::FE::CellType::hex8>,
+    Core::FE::num_nodes(Core::FE::CellType::hex8), Core::FE::dim<Core::FE::CellType::hex8>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<3, Core::FE::CellType::hex16,
-    Core::FE::num_nodes<Core::FE::CellType::hex16>, Core::FE::dim<Core::FE::CellType::hex16>,
+    Core::FE::num_nodes(Core::FE::CellType::hex16), Core::FE::dim<Core::FE::CellType::hex16>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<3, Core::FE::CellType::hex18,
-    Core::FE::num_nodes<Core::FE::CellType::hex18>, Core::FE::dim<Core::FE::CellType::hex18>,
+    Core::FE::num_nodes(Core::FE::CellType::hex18), Core::FE::dim<Core::FE::CellType::hex18>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<3, Core::FE::CellType::hex20,
-    Core::FE::num_nodes<Core::FE::CellType::hex20>, Core::FE::dim<Core::FE::CellType::hex20>,
+    Core::FE::num_nodes(Core::FE::CellType::hex20), Core::FE::dim<Core::FE::CellType::hex20>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<3, Core::FE::CellType::hex27,
-    Core::FE::num_nodes<Core::FE::CellType::hex27>, Core::FE::dim<Core::FE::CellType::hex27>,
+    Core::FE::num_nodes(Core::FE::CellType::hex27), Core::FE::dim<Core::FE::CellType::hex27>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<3, Core::FE::CellType::pyramid5,
-    Core::FE::num_nodes<Core::FE::CellType::pyramid5>, Core::FE::dim<Core::FE::CellType::pyramid5>,
+    Core::FE::num_nodes(Core::FE::CellType::pyramid5), Core::FE::dim<Core::FE::CellType::pyramid5>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<3, Core::FE::CellType::wedge6,
-    Core::FE::num_nodes<Core::FE::CellType::wedge6>, Core::FE::dim<Core::FE::CellType::wedge6>,
+    Core::FE::num_nodes(Core::FE::CellType::wedge6), Core::FE::dim<Core::FE::CellType::wedge6>,
     Cut::floattype_cln>;
 template class Cut::PositionGeneric<3, Core::FE::CellType::wedge15,
-    Core::FE::num_nodes<Core::FE::CellType::wedge15>, Core::FE::dim<Core::FE::CellType::wedge15>,
+    Core::FE::num_nodes(Core::FE::CellType::wedge15), Core::FE::dim<Core::FE::CellType::wedge15>,
     Cut::floattype_cln>;
 
 FOUR_C_NAMESPACE_CLOSE

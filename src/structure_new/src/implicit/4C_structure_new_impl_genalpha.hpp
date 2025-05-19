@@ -155,7 +155,7 @@ namespace Solid
       //! Return name
       enum Inpar::Solid::DynamicType method_name() const override
       {
-        return Inpar::Solid::dyna_genalpha;
+        return Inpar::Solid::DynamicType::GenAlpha;
       }
 
       //! Provide number of steps, e.g. a single-step method returns 1,
@@ -260,8 +260,7 @@ namespace Solid
        *
        *  \param[in/out] f Right-hand side vector
        *
-       *  \author hiermeier
-       *  \date 03/2016 */
+       */
       void add_visco_mass_contributions(Core::LinAlg::Vector<double>& f) const override;
 
       /*! \brief Add the viscous and mass contributions to the jacobian (TR-rule)
@@ -280,8 +279,7 @@ namespace Solid
        *
        * \param[in/out] jac Jacobian matrix
        *
-       *  \author hiermeier
-       *  \date 03/2016 */
+       */
       void add_visco_mass_contributions(Core::LinAlg::SparseOperator& jac) const override;
 
       /*! \brief Update constant contributions of the current state for the new time step

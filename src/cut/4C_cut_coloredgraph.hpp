@@ -68,7 +68,7 @@ namespace Cut
     class Graph
     {
      public:
-      typedef std::map<int, plain_int_set>::const_iterator const_iterator;
+      using const_iterator = std::map<int, plain_int_set>::const_iterator;
 
       explicit Graph(int color_split) : color_split_(color_split) {}
 
@@ -140,7 +140,7 @@ namespace Cut
           return const_cast<void*>(it->second);
         }
         else
-          FOUR_C_THROW("Invalid element with id %d", Id);
+          FOUR_C_THROW("Invalid element with id {}", Id);
         return nullptr;
       }
       // Split split trace into the closed loops
@@ -218,7 +218,7 @@ namespace Cut
     class CycleList
     {
      public:
-      typedef CycleListIterator iterator;
+      using iterator = CycleListIterator;
 
       void add_points(Graph& graph, Graph& used, Graph& cycle, plain_int_set& free,
           const std::vector<std::pair<Point*, Point*>>& all_lines);

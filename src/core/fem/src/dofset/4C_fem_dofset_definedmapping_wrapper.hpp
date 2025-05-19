@@ -13,6 +13,8 @@
 #include "4C_fem_dofset_base.hpp"
 #include "4C_fem_general_node.hpp"
 
+#include <set>
+
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -20,6 +22,12 @@ namespace Core::FE
 {
   class Discretization;
 }  // namespace Core::FE
+
+namespace Core::LinAlg
+{
+  template <typename T>
+  class Vector;
+}
 
 namespace Core::DOFSets
 {
@@ -64,13 +72,11 @@ namespace Core::DOFSets
 
   \endcode
 
-  See also the example '.dat'-file 'immersed_cell_biochemo_mechano_pureProtrusion_h8' in
+  See also the example input file 'immersed_cell_biochemo_mechano_pureProtrusion_h8' in
   the 4C 'Input' folder.
 
 
-  \date 08/2016
-  \author rauch
-  \author vuong
+
   */
   class DofSetDefinedMappingWrapper : public DofSetBase
   {
@@ -105,13 +111,11 @@ namespace Core::DOFSets
           Imagine, we have given the following conditions in our .dat-file:
 
           -----DESIGN SSI COUPLING SOLIDTOSCATRA VOL CONDITIONS
-          DVOL   2
           // scatra volume matching to struct volume
           E 2 - coupling_id 1
           // struct volume matching to scatra volume
           E 1 - coupling_id 1
           ----DESIGN SSI COUPLING SOLIDTOSCATRA SURF CONDITIONS
-          DSURF   2
          // separate surface discretization matching struct volume boundary
          E 1 - coupling_id 2
          // struct volume boundary
@@ -161,10 +165,10 @@ namespace Core::DOFSets
     //! @name Access methods
 
     /// Get degree of freedom row map
-    const Epetra_Map* dof_row_map() const override { return sourcedofset_->dof_row_map(); };
+    const Core::LinAlg::Map* dof_row_map() const override { return sourcedofset_->dof_row_map(); };
 
     /// Get degree of freedom column map
-    const Epetra_Map* dof_col_map() const override { return sourcedofset_->dof_col_map(); };
+    const Core::LinAlg::Map* dof_col_map() const override { return sourcedofset_->dof_col_map(); };
 
     /// Get number of dofs for given node
     int num_dof(
@@ -299,9 +303,9 @@ namespace Core::DOFSets
 
     /// Get Max of all GID assigned in the DofSets in front of current one in the list
     /// #static_dofsets_
-    int max_gi_din_list(MPI_Comm comm) const override
+    int max_gid_in_list(MPI_Comm comm) const override
     {
-      return sourcedofset_->max_gi_din_list(comm);
+      return sourcedofset_->max_gid_in_list(comm);
     };
 
     /// are the dof maps already initialized?

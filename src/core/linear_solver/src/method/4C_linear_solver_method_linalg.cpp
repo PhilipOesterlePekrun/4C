@@ -12,15 +12,14 @@
 #include "4C_linalg_sparsematrix.hpp"
 #include "4C_linear_solver_method_direct.hpp"
 #include "4C_linear_solver_method_iterative.hpp"
-#include "4C_utils_parameter_list.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <BelosTypes.hpp>  // for Belos verbosity codes
-#include <Epetra_LinearProblem.h>
-#include <Epetra_MpiComm.h>
-#include <ml_MultiLevelPreconditioner.h>  // includes for ML parameter list validation
 #include <Teuchos_ParameterList.hpp>
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 #include <Teuchos_TimeMonitor.hpp>
+
+#include <filesystem>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -220,7 +219,7 @@ int Core::LinAlg::Solver::solve(std::shared_ptr<Epetra_Operator> matrix,
     std::shared_ptr<Core::LinAlg::Vector<double>> x,
     std::shared_ptr<Core::LinAlg::Vector<double>> b, const SolverParams& params)
 {
-  setup(matrix, x->get_ptr_of_MultiVector(), b->get_ptr_of_MultiVector(), params);
+  setup(matrix, x->get_ptr_of_multi_vector(), b->get_ptr_of_multi_vector(), params);
 
   int error_value = 0;
   {
@@ -237,11 +236,8 @@ Teuchos::ParameterList translate_four_c_to_ifpack(const Teuchos::ParameterList& 
 {
   Teuchos::ParameterList ifpacklist;
 
-  ifpacklist.set("fact: level-of-fill", inparams.get<int>("IFPACKGFILL"));
-  ifpacklist.set("partitioner: overlap", inparams.get<int>("IFPACKOVERLAP"));
-  ifpacklist.set("schwarz: combine mode",
-      inparams.get<std::string>("IFPACKCOMBINE"));    // can be "Zero", "Add", "Insert"
-  ifpacklist.set("schwarz: reordering type", "rcm");  // "rcm" or "metis" or "amd"
+  auto xmlfile = inparams.get<std::optional<std::filesystem::path>>("IFPACK_XML_FILE");
+  if (xmlfile) ifpacklist.set("IFPACK_XML_FILE", xmlfile->string());
 
   return ifpacklist;
 }
@@ -253,8 +249,8 @@ Teuchos::ParameterList translate_four_c_to_muelu(
 {
   Teuchos::ParameterList muelulist;
 
-  std::string xmlfile = inparams.get<std::string>("MUELU_XML_FILE");
-  if (xmlfile != "none") muelulist.set("MUELU_XML_FILE", xmlfile);
+  auto xmlfile = inparams.get<std::optional<std::filesystem::path>>("MUELU_XML_FILE");
+  if (xmlfile) muelulist.set("MUELU_XML_FILE", xmlfile->string());
 
   return muelulist;
 }
@@ -266,8 +262,8 @@ Teuchos::ParameterList translate_four_c_to_teko(
 {
   Teuchos::ParameterList tekolist;
 
-  std::string xmlfile = inparams.get<std::string>("TEKO_XML_FILE");
-  if (xmlfile != "none") tekolist.set("TEKO_XML_FILE", xmlfile);
+  auto xmlfile = inparams.get<std::optional<std::filesystem::path>>("TEKO_XML_FILE");
+  if (xmlfile) tekolist.set("TEKO_XML_FILE", xmlfile->string());
 
   return tekolist;
 }
@@ -285,11 +281,13 @@ Teuchos::ParameterList translate_four_c_to_belos(const Teuchos::ParameterList& i
   beloslist.set("reuse", inparams.get<int>("AZREUSE"));
   beloslist.set("ncall", 0);
 
+  beloslist.set("THROW_IF_UNCONVERGED", inparams.get<bool>("THROW_IF_UNCONVERGED"));
+
   // try to get an xml file if possible
-  std::string xmlfile = inparams.get<std::string>("SOLVER_XML_FILE");
-  if (xmlfile != "none")
+  auto xmlfile = inparams.get<std::optional<std::filesystem::path>>("SOLVER_XML_FILE");
+  if (xmlfile)
   {
-    beloslist.set("SOLVER_XML_FILE", xmlfile);
+    beloslist.set("SOLVER_XML_FILE", xmlfile->string());
   }
   else
   {
@@ -338,7 +336,7 @@ Teuchos::ParameterList translate_four_c_to_belos(const Teuchos::ParameterList& i
         break;
       default:
       {
-        FOUR_C_THROW("Flag '%s'! \nUnknown solver for Belos.",
+        FOUR_C_THROW("Flag '{}'! \nUnknown solver for Belos.",
             Teuchos::getIntegralValue<Core::LinearSolver::IterativeSolverType>(
                 inparams, "AZSOLVE"));
         break;
@@ -390,8 +388,8 @@ Teuchos::ParameterList translate_four_c_to_belos(const Teuchos::ParameterList& i
   if (azprectype == Core::LinearSolver::PreconditionerType::multigrid_nxn)
   {
     Teuchos::ParameterList& amgnxnlist = outparams.sublist("AMGnxn Parameters");
-    std::string amgnxn_xml = inparams.get<std::string>("AMGNXN_XML_FILE");
-    amgnxnlist.set<std::string>("AMGNXN_XML_FILE", amgnxn_xml);
+    auto amgnxn_xml = inparams.get<std::optional<std::filesystem::path>>("AMGNXN_XML_FILE");
+    amgnxnlist.set("AMGNXN_XML_FILE", amgnxn_xml);
     std::string amgnxn_type = inparams.get<std::string>("AMGNXN_TYPE");
     amgnxnlist.set<std::string>("AMGNXN_TYPE", amgnxn_type);
   }
@@ -415,9 +413,9 @@ Teuchos::ParameterList Core::LinAlg::Solver::translate_solver_parameters(
   switch (Teuchos::getIntegralValue<Core::LinearSolver::SolverType>(inparams, "SOLVER"))
   {
     case Core::LinearSolver::SolverType::undefined:
-      std::cout << "undefined solver! Set " << inparams.name() << "  in your dat file!"
+      std::cout << "undefined solver! Set " << inparams.name() << "  in your input file!"
                 << std::endl;
-      FOUR_C_THROW("fix your dat file");
+      FOUR_C_THROW("fix your input file");
       break;
     case Core::LinearSolver::SolverType::umfpack:
       outparams.set("solver", "umfpack");

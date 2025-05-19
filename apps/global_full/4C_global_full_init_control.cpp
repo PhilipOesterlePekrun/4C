@@ -41,7 +41,7 @@ void ntaini_ccadiscret(int argc, char** argv, std::string& inputfile_name,
       printf("Try again!\n");
     }
     MPI_Finalize();
-    exit(1);
+    exit(EXIT_FAILURE);
   }
   else if (argc <= 2)
   {
@@ -51,7 +51,7 @@ void ntaini_ccadiscret(int argc, char** argv, std::string& inputfile_name,
       printf("Try again!\n");
     }
     MPI_Finalize();
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
 
@@ -81,7 +81,7 @@ void ntaini_ccadiscret(int argc, char** argv, std::string& inputfile_name,
     {
       if (inoutargs > 4)
         FOUR_C_THROW(
-            "You specified too many arguments (%d). A maximum of four args is allowed", inoutargs);
+            "You specified too many arguments ({}). A maximum of four args is allowed", inoutargs);
 
       infilename << inout[0];
       // check whether outfilekenner includes a dash and in case separate the number at the end

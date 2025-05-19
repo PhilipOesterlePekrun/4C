@@ -9,12 +9,14 @@
 
 #include "4C_comm_mpi_utils.hpp"
 #include "4C_io_input_file.hpp"
+#include "4C_io_input_spec_builders.hpp"
 #include "4C_io_pstream.hpp"
 #include "4C_io_value_parser.hpp"
 #include "4C_particle_engine_enums.hpp"
 #include "4C_particle_engine_object.hpp"
 #include "4C_particle_engine_typedefs.hpp"
 
+#include <sys/stat.h>
 #include <Teuchos_Time.hpp>
 
 FOUR_C_NAMESPACE_OPEN
@@ -33,7 +35,6 @@ void PARTICLEENGINE::read_particles(Core::IO::InputFile& input, const std::strin
     if (!any_particles_read) Core::IO::cout << "Read and create particles\n" << Core::IO::flush;
     any_particles_read = true;
 
-    double t1 = time.totalElapsedTime(true);
     {
       PARTICLEENGINE::TypeEnum particletype;
       PARTICLEENGINE::ParticleStates particlestates;
@@ -60,30 +61,43 @@ void PARTICLEENGINE::read_particles(Core::IO::InputFile& input, const std::strin
         PARTICLEENGINE::StateEnum particlestate;
         std::vector<double> state;
 
-        std::istringstream linestream(std::string(parser.get_unparsed_remainder()));
-
-        while (linestream >> statelabel)
+        while (!parser.at_end())
         {
+          auto next = parser.peek();
           // optional particle radius
-          if (statelabel == "RAD")
+          if (next == "RAD")
           {
             particlestate = PARTICLEENGINE::Radius;
-            state.resize(1);
-            linestream >> state[0];
+            parser.consume("RAD");
+
+            if (auto val = parser.read<std::optional<double>>())
+            {
+              state.resize(1);
+              state[0] = *val;
+            }
+            else
+            {
+              continue;
+            }
           }
           // optional rigid body color
-          else if (statelabel == "RIGIDCOLOR")
+          else if (next == "RIGIDCOLOR")
           {
             particlestate = PARTICLEENGINE::RigidBodyColor;
-            state.resize(1);
-            linestream >> state[0];
+            parser.consume("RIGIDCOLOR");
+
+            if (auto val = parser.read<std::optional<double>>())
+            {
+              state.resize(1);
+              state[0] = *val;
+            }
+            else
+            {
+              continue;
+            }
           }
           else
-            FOUR_C_THROW("optional particle state with label '%s' unknown!", statelabel.c_str());
-
-          if (not linestream)
-            FOUR_C_THROW("expecting values of state '%s' if label '%s' is set!",
-                PARTICLEENGINE::enum_to_state_name(particlestate).c_str(), statelabel.c_str());
+            FOUR_C_THROW("Optional particle state with label '{}' unknown!", statelabel);
 
           // allocate memory to hold optional particle state
           if (static_cast<int>(particlestates.size()) < (particlestate + 1))
@@ -98,18 +112,24 @@ void PARTICLEENGINE::read_particles(Core::IO::InputFile& input, const std::strin
       particles.emplace_back(
           std::make_shared<PARTICLEENGINE::ParticleObject>(particletype, -1, particlestates));
     }
-
-    double t2 = time.totalElapsedTime(true);
-    if (!myrank)
-    {
-      printf("reading %10.5e secs\n", t2 - t1);
-      fflush(stdout);
-    }
   }
 
   if (any_particles_read)
     printf("in............................................. %10.5e secs\n",
         time.totalElapsedTime(true));
+}
+
+
+Core::IO::InputSpec PARTICLEENGINE::create_particle_spec()
+{
+  using namespace Core::IO::InputSpecBuilders;
+
+  return all_of({
+      deprecated_selection<std::string>("TYPE", get_particle_type_names()),
+      parameter<std::vector<double>>("POS", {.size = 3}),
+      parameter<std::optional<double>>("RAD"),
+      parameter<std::optional<double>>("RIGIDCOLOR"),
+  });
 }
 
 

@@ -48,7 +48,7 @@ namespace Solid
      * This data container holds everything, which refers directly to the
      * input/output writer and the screen output.
      *
-     * \author Michael Hiermeier */
+     * */
     class BaseDataIO
     {
      public:
@@ -197,20 +197,6 @@ namespace Solid
         return writestate_;
       };
 
-      /// Shall we write the velocities and accelerations?
-      const bool& is_write_vel_acc() const
-      {
-        check_init_setup();
-        return writevelacc_;
-      };
-
-      /// Shall we write the current element volume?
-      bool is_write_current_ele_volume() const
-      {
-        check_init_setup();
-        return writecurrentelevolume_;
-      }
-
       /// Shall we write the jacobian to MATLAB?
       bool is_write_jacobian_to_matlab() const
       {
@@ -300,13 +286,6 @@ namespace Solid
       {
         check_init_setup();
         return writeplstrain_;
-      };
-
-      /// get optional quantity output type
-      const Inpar::Solid::OptQuantityType& get_opt_quantity_output_type() const
-      {
-        check_init_setup();
-        return writeoptquantity_;
       }
       ///@}
 
@@ -372,17 +351,11 @@ namespace Solid
       /// write state on/off
       bool writestate_;
 
-      /// write velocity and acceleration on/off
-      bool writevelacc_;
-
       /// write jacobian to MATLAB
       bool writejac2matlab_;
 
       /// flag whether this output step is the first one (restarted or not)
       bool firstoutputofrun_;
-
-      /// flag element volume on/off
-      bool writecurrentelevolume_ = false;
 
       /// print infos to standard out every n steps
       int printscreen_;
@@ -417,9 +390,6 @@ namespace Solid
       /// plastic strain output type
       Inpar::Solid::StrainType writeplstrain_;
 
-      /// optional quantity type
-      Inpar::Solid::OptQuantityType writeoptquantity_;
-
       Inpar::Solid::ConditionNumber conditionnumbertype_;
 
       std::shared_ptr<Teuchos::ParameterList> p_io_every_iteration_;
@@ -447,7 +417,7 @@ namespace NOX
            *  It's called by the wrapper classes ::NOX::Solver::PrePostOperator and
            *  NOX::PrePostOperatorVector.
            *
-           *  \author Michael Hiermeier \date 03/17 */
+           *  */
           class WriteOutputEveryIteration : public NOX::Nln::Abstract::PrePostOperator
           {
            public:

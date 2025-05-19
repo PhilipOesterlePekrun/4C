@@ -7,6 +7,7 @@
 
 #include "4C_ale.hpp"
 
+#include "4C_ale_input.hpp"
 #include "4C_ale_meshsliding.hpp"
 #include "4C_ale_resulttest.hpp"
 #include "4C_ale_utils_mapextractor.hpp"
@@ -16,7 +17,6 @@
 #include "4C_fem_general_element.hpp"
 #include "4C_fem_general_node.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_ale.hpp"
 #include "4C_inpar_fsi.hpp"
 #include "4C_io.hpp"
 #include "4C_io_control.hpp"
@@ -27,6 +27,7 @@
 #include "4C_linalg_utils_sparse_algebra_assemble.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
 #include "4C_linear_solver_method_linalg.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
@@ -60,16 +61,16 @@ ALE::Ale::Ale(std::shared_ptr<Core::FE::Discretization> actdis,
       eledetjac_(nullptr),
       elequality_(nullptr),
       elequalityyesno_(params->get<bool>("ASSESSMESHQUALITY")),
-      aletype_(Teuchos::getIntegralValue<Inpar::ALE::AleDynamic>(*params, "ALE_TYPE")),
+      aletype_(Teuchos::getIntegralValue<ALE::AleDynamic>(*params, "ALE_TYPE")),
       maxiter_(params->get<int>("MAXITER")),
       tolres_(params->get<double>("TOLRES")),
       toldisp_(params->get<double>("TOLDISP")),
-      divercont_(Teuchos::getIntegralValue<Inpar::ALE::DivContAct>(*params, "DIVERCONT")),
-      msht_(Teuchos::getIntegralValue<Inpar::ALE::MeshTying>(*params, "MESHTYING")),
-      initialdisp_(Teuchos::getIntegralValue<Inpar::ALE::InitialDisp>(*params, "INITIALDISP")),
+      divercont_(Teuchos::getIntegralValue<ALE::DivContAct>(*params, "DIVERCONT")),
+      msht_(Teuchos::getIntegralValue<ALE::MeshTying>(*params, "MESHTYING")),
+      initialdisp_(Teuchos::getIntegralValue<ALE::InitialDisp>(*params, "INITIALDISP")),
       startfuncno_(params->get<int>("STARTFUNCNO"))
 {
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   dispn_ = Core::LinAlg::create_vector(*dofrowmap, true);
   dispnp_ = Core::LinAlg::create_vector(*dofrowmap, true);
@@ -94,12 +95,12 @@ ALE::Ale::Ale(std::shared_ptr<Core::FE::Discretization> actdis,
     if (cond) FOUR_C_THROW("Found a ALE Dirichlet condition. Remove ALE string!");
   }
 
-  if (msht_ == Inpar::ALE::meshsliding)
+  if (msht_ == ALE::meshsliding)
   {
     meshtying_ = std::make_shared<Meshsliding>(
         discret_, *solver_, msht_, Global::Problem::instance()->n_dim(), nullptr);
   }
-  else if (msht_ == Inpar::ALE::meshtying)
+  else if (msht_ == ALE::meshtying)
   {
     meshtying_ = std::make_shared<Meshtying>(
         discret_, *solver_, msht_, Global::Problem::instance()->n_dim(), nullptr);
@@ -124,20 +125,20 @@ ALE::Ale::Ale(std::shared_ptr<Core::FE::Discretization> actdis,
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-void ALE::Ale::set_initial_displacement(const Inpar::ALE::InitialDisp init, const int startfuncno)
+void ALE::Ale::set_initial_displacement(const ALE::InitialDisp init, const int startfuncno)
 {
   switch (init)
   {
-    case Inpar::ALE::initdisp_zero_disp:
+    case ALE::initdisp_zero_disp:
     {
-      dispn_->PutScalar(0.0);
-      dispnp_->PutScalar(0.0);
+      dispn_->put_scalar(0.0);
+      dispnp_->put_scalar(0.0);
 
       break;
     }
-    case Inpar::ALE::initdisp_disp_by_function:
+    case ALE::initdisp_disp_by_function:
     {
-      const Epetra_Map* dofrowmap = discret_->dof_row_map();
+      const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
       // loop all nodes on the processor
       for (int lnodeid = 0; lnodeid < discret_->num_my_row_nodes(); lnodeid++)
@@ -159,18 +160,18 @@ void ALE::Ale::set_initial_displacement(const Inpar::ALE::InitialDisp init, cons
                                   ->function_by_id<Core::Utils::FunctionOfSpaceTime>(startfuncno)
                                   .evaluate(lnode->x().data(), 0, d);
 
-          int err = dispn_->ReplaceMyValues(1, &initialval, &doflid);
+          int err = dispn_->replace_local_values(1, &initialval, &doflid);
           if (err != 0) FOUR_C_THROW("dof not on proc");
         }
       }
 
       // initialize also the solution vector
-      dispnp_->Update(1.0, *dispn_, 0.0);
+      dispnp_->update(1.0, *dispn_, 0.0);
 
       break;
     }
     default:
-      FOUR_C_THROW("Unknown option for initial displacement: %d", init);
+      FOUR_C_THROW("Unknown option for initial displacement: {}", init);
       break;
   }
 
@@ -180,7 +181,7 @@ void ALE::Ale::set_initial_displacement(const Inpar::ALE::InitialDisp init, cons
 /*----------------------------------------------------------------------------*/
 void ALE::Ale::create_system_matrix(std::shared_ptr<const ALE::Utils::MapExtractor> interface)
 {
-  if (msht_ != Inpar::ALE::no_meshtying)
+  if (msht_ != ALE::no_meshtying)
   {
     std::vector<int> coupleddof(Global::Problem::instance()->n_dim(), 1);
     sysmat_ = meshtying_->setup(coupleddof, dispnp_);
@@ -193,7 +194,7 @@ void ALE::Ale::create_system_matrix(std::shared_ptr<const ALE::Utils::MapExtract
   }
   else if (interface == nullptr)
   {
-    const Epetra_Map* dofrowmap = discret_->dof_row_map();
+    const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
     sysmat_ = std::make_shared<Core::LinAlg::SparseMatrix>(*dofrowmap, 81, false, true);
   }
   else
@@ -216,14 +217,14 @@ void ALE::Ale::evaluate(std::shared_ptr<const Core::LinAlg::Vector<double>> step
   // Note: What we get here is the sum of all increments in this time
   // step, not just the latest increment.
 
-  disi_->PutScalar(0.0);
+  disi_->put_scalar(0.0);
 
   if (stepinc != nullptr)
   {
-    dispnp_->Update(1.0, *stepinc, 1.0, *dispn_, 0.0);
+    dispnp_->update(1.0, *stepinc, 1.0, *dispn_, 0.0);
   }
 
-  if (msht_ != Inpar::ALE::no_meshtying)
+  if (msht_ != ALE::no_meshtying)
   {
     meshtying_->msht_split(sysmat_);
   }
@@ -232,7 +233,7 @@ void ALE::Ale::evaluate(std::shared_ptr<const Core::LinAlg::Vector<double>> step
   evaluate_element_quality();
 
   // prepare meshtying system
-  if (msht_ != Inpar::ALE::no_meshtying)
+  if (msht_ != ALE::no_meshtying)
   {
     meshtying_->prepare_meshtying_system(sysmat_, residual_, dispnp_);
     meshtying_->multifield_split(sysmat_);
@@ -271,7 +272,7 @@ void ALE::Ale::evaluate(std::shared_ptr<const Core::LinAlg::Vector<double>> step
   /* residual_ contains the most recent "mechanical" residual including DBCs.
    * We make this negative and store it in rhs_ for use in Newton-type methods.
    */
-  rhs_->Update(-1.0, *residual_, 0.0);
+  rhs_->update(-1.0, *residual_, 0.0);
 
   return;
 }
@@ -283,11 +284,11 @@ int ALE::Ale::solve()
   // We need the negative residual here as right hand side of the linear problem
   std::shared_ptr<Core::LinAlg::Vector<double>> rhs =
       std::make_shared<Core::LinAlg::Vector<double>>(*residual_);
-  rhs->Scale(-1.0);
+  rhs->scale(-1.0);
 
   // ToDo (mayr) Why can't we use rhs_ instead of local variable rhs???
   int errorcode = 0;
-  if (msht_ == Inpar::ALE::no_meshtying)
+  if (msht_ == ALE::no_meshtying)
   {
     Core::LinAlg::SolverParams solver_params;
     solver_params.refactor = true;
@@ -296,19 +297,19 @@ int ALE::Ale::solve()
   else
     errorcode = meshtying_->solve_meshtying(*solver_, sysmat_, disi_, rhs, dispnp_);
   // calc norm
-  disi_->Norm2(&normdisi_);
-  normdisi_ /= sqrt(disi_->GlobalLength());
+  disi_->norm_2(&normdisi_);
+  normdisi_ /= sqrt(disi_->global_length());
 
   return errorcode;
 }
 
 /*----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------*/
-void ALE::Ale::update_iter() { dispnp_->Update(1.0, *disi_, 1.0); }
+void ALE::Ale::update_iter() { dispnp_->update(1.0, *disi_, 1.0); }
 
 /*----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------*/
-void ALE::Ale::update() { dispn_->Update(1.0, *dispnp_, 0.0); }
+void ALE::Ale::update() { dispn_->update(1.0, *dispnp_, 0.0); }
 
 /*----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------*/
@@ -319,8 +320,8 @@ bool ALE::Ale::converged(const int iter)
   bool converged = false;
   // determine norms
   double res_norm;
-  residual_->Norm2(&res_norm);
-  res_norm /= sqrt(residual_->GlobalLength());
+  residual_->norm_2(&res_norm);
+  res_norm /= sqrt(residual_->global_length());
   if (Core::Communication::my_mpi_rank(discret_->get_comm()) == 0)
     std::cout << "ITER: " << iter << "  RES NORM: " << res_norm << " DISP NORM: " << normdisi_
               << std::endl;
@@ -339,7 +340,7 @@ void ALE::Ale::evaluate_elements()
   sysmat_->zero();
 
   // zero out residual
-  residual_->PutScalar(0.0);
+  residual_->put_scalar(0.0);
 
   // create the parameters for the discretization
   Teuchos::ParameterList eleparams;
@@ -351,7 +352,7 @@ void ALE::Ale::evaluate_elements()
   eleparams.set<std::string>("action", element_action_string(aletype_));
   eleparams.set<bool>("use spatial configuration", update_sys_mat_every_step());
 
-  discret_->set_state("dispnp", dispnp_);
+  discret_->set_state("dispnp", *dispnp_);
 
   discret_->evaluate(eleparams, sysmat_, residual_);
   discret_->clear_state();
@@ -361,37 +362,37 @@ void ALE::Ale::evaluate_elements()
 
 /*----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------*/
-std::string ALE::Ale::element_action_string(const enum Inpar::ALE::AleDynamic name)
+std::string ALE::Ale::element_action_string(const enum ALE::AleDynamic name)
 {
   switch (name)
   {
-    case Inpar::ALE::solid:
+    case ALE::solid:
       return "calc_ale_solid";
       break;
-    case Inpar::ALE::solid_linear:
+    case ALE::solid_linear:
       return "calc_ale_solid_linear";
       break;
-    case Inpar::ALE::laplace_material:
+    case ALE::laplace_material:
       return "calc_ale_laplace_material";
       break;
-    case Inpar::ALE::laplace_spatial:
+    case ALE::laplace_spatial:
       return "calc_ale_laplace_spatial";
       break;
-    case Inpar::ALE::springs_material:
+    case ALE::springs_material:
       return "calc_ale_springs_material";
       break;
-    case Inpar::ALE::springs_spatial:
+    case ALE::springs_spatial:
       return "calc_ale_springs_spatial";
       break;
     default:
-      FOUR_C_THROW("Cannot make std::string for ALE type %d", name);
+      FOUR_C_THROW("Cannot make std::string for ALE type {}", name);
       return "";
   }
 }
 
 /*----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------*/
-std::shared_ptr<const Epetra_Map> ALE::Ale::dof_row_map() const
+std::shared_ptr<const Core::LinAlg::Map> ALE::Ale::dof_row_map() const
 {
   return Core::Utils::shared_ptr_from_ref(*discret_->dof_row_map());
 }
@@ -528,7 +529,7 @@ void ALE::Ale::prepare_time_step()
   if (locsysman_ != nullptr)
   {
     discret_->clear_state();
-    discret_->set_state("dispnp", dispnp_);
+    discret_->set_state("dispnp", *dispnp_);
     locsysman_->update(time_, {}, Global::Problem::instance()->function_manager());
     discret_->clear_state();
   }
@@ -571,10 +572,10 @@ void ALE::Ale::time_step(ALE::Utils::MapExtractor::AleDBCSetType dbc_type)
   {
     switch (divercont_)
     {
-      case Inpar::ALE::divcont_stop:
-        FOUR_C_THROW("ALE newton not converged in %i iterations. Abort! ", maxiter_);
+      case ALE::divcont_stop:
+        FOUR_C_THROW("ALE newton not converged in {} iterations. Abort! ", maxiter_);
         break;
-      case Inpar::ALE::divcont_continue:
+      case ALE::divcont_continue:
         if (Core::Communication::my_mpi_rank(discret_->get_comm()) == 0)
         {
           Core::IO::cout << "ALE newton not converged in " << maxiter_ << " iterations. Continue"
@@ -631,10 +632,10 @@ void ALE::Ale::setup_dbc_map_ex(ALE::Utils::MapExtractor::AleDBCSetType dbc_type
       break;
     case ALE::Utils::MapExtractor::dbc_set_x_ff:
     {
-      std::vector<std::shared_ptr<const Epetra_Map>> condmaps;
+      std::vector<std::shared_ptr<const Core::LinAlg::Map>> condmaps;
       condmaps.push_back(xff_interface->xfluid_fluid_cond_map());
       condmaps.push_back(dbcmaps_[ALE::Utils::MapExtractor::dbc_set_std]->cond_map());
-      std::shared_ptr<Epetra_Map> condmerged =
+      std::shared_ptr<Core::LinAlg::Map> condmerged =
           Core::LinAlg::MultiMapExtractor::merge_maps(condmaps);
 
       dbcmaps_[ALE::Utils::MapExtractor::dbc_set_x_ff] =
@@ -645,10 +646,10 @@ void ALE::Ale::setup_dbc_map_ex(ALE::Utils::MapExtractor::AleDBCSetType dbc_type
     case ALE::Utils::MapExtractor::dbc_set_biofilm:
     case ALE::Utils::MapExtractor::dbc_set_part_fsi:
     {
-      std::vector<std::shared_ptr<const Epetra_Map>> condmaps;
+      std::vector<std::shared_ptr<const Core::LinAlg::Map>> condmaps;
       condmaps.push_back(interface->fsi_cond_map());
       condmaps.push_back(dbcmaps_[ALE::Utils::MapExtractor::dbc_set_std]->cond_map());
-      std::shared_ptr<Epetra_Map> condmerged =
+      std::shared_ptr<Core::LinAlg::Map> condmerged =
           Core::LinAlg::MultiMapExtractor::merge_maps(condmaps);
 
       dbcmaps_[dbc_type] =
@@ -657,11 +658,11 @@ void ALE::Ale::setup_dbc_map_ex(ALE::Utils::MapExtractor::AleDBCSetType dbc_type
     }
     case ALE::Utils::MapExtractor::dbc_set_wear:
     {
-      std::vector<std::shared_ptr<const Epetra_Map>> condmaps;
+      std::vector<std::shared_ptr<const Core::LinAlg::Map>> condmaps;
       condmaps.push_back(interface->ale_wear_cond_map());
       condmaps.push_back(dbcmaps_[ALE::Utils::MapExtractor::dbc_set_std]->cond_map());
 
-      std::shared_ptr<Epetra_Map> condmerged =
+      std::shared_ptr<Core::LinAlg::Map> condmerged =
           Core::LinAlg::MultiMapExtractor::merge_maps(condmaps);
       dbcmaps_[ALE::Utils::MapExtractor::dbc_set_wear] =
           std::make_shared<Core::LinAlg::MapExtractor>(*(discret_->dof_row_map()), condmerged);
@@ -729,7 +730,7 @@ void ALE::Ale::apply_dirichlet_bc(Teuchos::ParameterList& params,
 /*----------------------------------------------------------------------------*/
 void ALE::Ale::reset()
 {
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   dispnp_ = Core::LinAlg::create_vector(*dofrowmap, true);
   dispn_ = Core::LinAlg::create_vector(*dofrowmap, true);
@@ -741,7 +742,7 @@ void ALE::Ale::reset()
 /*----------------------------------------------------------------------------*/
 void ALE::Ale::reset_step()
 {
-  dispnp_->Update(1.0, *dispn_, 0.0);
+  dispnp_->update(1.0, *dispn_, 0.0);
 
   return;
 }
@@ -778,7 +779,7 @@ std::shared_ptr<const Core::LinAlg::SparseMatrix> ALE::Ale::get_loc_sys_trafo() 
 /*----------------------------------------------------------------------------*/
 void ALE::Ale::update_slave_dof(std::shared_ptr<Core::LinAlg::Vector<double>>& a)
 {
-  if (msht_ != Inpar::ALE::no_meshtying)
+  if (msht_ != ALE::no_meshtying)
   {
     meshtying_->update_slave_dof(a, dispnp_);
     meshtying_->recover(a);
@@ -795,7 +796,7 @@ bool ALE::Ale::evaluate_element_quality()
     Teuchos::ParameterList eleparams;
 
     discret_->clear_state();
-    discret_->set_state("dispnp", dispnp_);
+    discret_->set_state("dispnp", *dispnp_);
 
     for (int i = 0; i < discretization()->num_my_row_elements(); ++i)
     {
@@ -808,7 +809,7 @@ bool ALE::Ale::evaluate_element_quality()
 
       // initialize element vectors
       Core::Elements::LocationArray la(discretization()->num_dof_sets());
-      actele->location_vector(*discretization(), la, false);
+      actele->location_vector(*discretization(), la);
 
       // only two entries per element necessary (detJ and quality measure)
       Core::LinAlg::SerialDenseMatrix elematrix1;
@@ -820,8 +821,8 @@ bool ALE::Ale::evaluate_element_quality()
       actele->evaluate(
           eleparams, *discret_, la, elematrix1, elematrix2, elevector1, elevector2, elevector3);
 
-      eledetjac_->ReplaceMyValue(i, 0, elevector1[0]);
-      elequality_->ReplaceMyValue(i, 0, elevector1[1]);
+      eledetjac_->replace_local_value(i, 0, elevector1[0]);
+      elequality_->replace_local_value(i, 0, elevector1[1]);
 
     }  // loop elements
 
@@ -830,11 +831,11 @@ bool ALE::Ale::evaluate_element_quality()
     // check for non-valid elements
     bool validshapes = true;
     double negdetjac = 0.0;
-    eledetjac_->MinValue(&negdetjac);
+    eledetjac_->min_value(&negdetjac);
     if (negdetjac <= 0)
     {
       validshapes = false;
-      FOUR_C_THROW("Negative determinant %e in time step %i", negdetjac, step_);
+      FOUR_C_THROW("Negative determinant {} in time step {}", negdetjac, step_);
     }
 
     return validshapes;

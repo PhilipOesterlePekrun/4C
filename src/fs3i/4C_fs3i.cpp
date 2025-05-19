@@ -19,12 +19,13 @@
 #include "4C_fsi_utils.hpp"
 #include "4C_global_data.hpp"
 #include "4C_inpar_fs3i.hpp"
-#include "4C_inpar_validparameters.hpp"
 #include "4C_linalg_utils_sparse_algebra_assemble.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 #include "4C_linear_solver_method_linalg.hpp"
 #include "4C_scatra_algorithm.hpp"
 #include "4C_scatra_timint_implicit.hpp"
+
+#include <Teuchos_StandardParameterEntryValidators.hpp>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -80,14 +81,14 @@ void FS3I::FS3IBase::check_interface_dirichlet_bc()
   std::shared_ptr<Core::FE::Discretization> slavedis =
       scatravec_[1]->scatra_field()->discretization();
 
-  std::shared_ptr<const Epetra_Map> mastermap = scatracoup_->master_dof_map();
-  std::shared_ptr<const Epetra_Map> permmastermap = scatracoup_->perm_master_dof_map();
-  std::shared_ptr<const Epetra_Map> slavemap = scatracoup_->slave_dof_map();
-  std::shared_ptr<const Epetra_Map> permslavemap = scatracoup_->perm_slave_dof_map();
+  std::shared_ptr<const Core::LinAlg::Map> mastermap = scatracoup_->master_dof_map();
+  std::shared_ptr<const Core::LinAlg::Map> permmastermap = scatracoup_->perm_master_dof_map();
+  std::shared_ptr<const Core::LinAlg::Map> slavemap = scatracoup_->slave_dof_map();
+  std::shared_ptr<const Core::LinAlg::Map> permslavemap = scatracoup_->perm_slave_dof_map();
 
   const std::shared_ptr<const Core::LinAlg::MapExtractor> masterdirichmapex =
       scatravec_[0]->scatra_field()->dirich_maps();
-  const std::shared_ptr<const Epetra_Map> masterdirichmap = masterdirichmapex->cond_map();
+  const std::shared_ptr<const Core::LinAlg::Map> masterdirichmap = masterdirichmapex->cond_map();
 
   // filter out master dirichlet dofs associated with the interface
   Core::LinAlg::Vector<double> masterifdirich(*mastermap, true);
@@ -104,7 +105,7 @@ void FS3I::FS3IBase::check_interface_dirichlet_bc()
 
   const std::shared_ptr<const Core::LinAlg::MapExtractor> slavedirichmapex =
       scatravec_[1]->scatra_field()->dirich_maps();
-  const std::shared_ptr<const Epetra_Map> slavedirichmap = slavedirichmapex->cond_map();
+  const std::shared_ptr<const Core::LinAlg::Map> slavedirichmap = slavedirichmapex->cond_map();
 
   // filter out slave dirichlet dofs associated with the interface
   Core::LinAlg::Vector<double> slaveifdirich(*slavemap, true);
@@ -154,11 +155,9 @@ void FS3I::FS3IBase::check_f_s3_i_inputs()
 {
   // Check FS3I dynamic parameters
   Global::Problem* problem = Global::Problem::instance();
-  // const Teuchos::ParameterList& ioparams = problem->IOParams();
   const Teuchos::ParameterList& fs3idyn = problem->f_s3_i_dynamic_params();
   const Teuchos::ParameterList& structdynparams = problem->structural_dynamic_params();
   const Teuchos::ParameterList& scatradynparams = problem->scalar_transport_dynamic_params();
-  // const Teuchos::ParameterList& fsidyn = problem->FSIDynamicParams();
   const Teuchos::ParameterList& fluiddynparams = problem->fluid_dynamic_params();
 
   // check consistency of time-integration schemes in input file
@@ -175,7 +174,7 @@ void FS3I::FS3IBase::check_f_s3_i_inputs()
   if (fluidtimealgo == Inpar::FLUID::timeint_one_step_theta)
   {
     if (scatratimealgo != Inpar::ScaTra::timeint_one_step_theta or
-        structtimealgo != Inpar::Solid::dyna_onesteptheta)
+        structtimealgo != Inpar::Solid::DynamicType::OneStepTheta)
       FOUR_C_THROW(
           "Partitioned FS3I computations should feature consistent time-integration schemes for "
           "the subproblems; in this case, a one-step-theta scheme is intended to be used for the "
@@ -192,7 +191,7 @@ void FS3I::FS3IBase::check_f_s3_i_inputs()
   else if (fluidtimealgo == Inpar::FLUID::timeint_afgenalpha)
   {
     if (scatratimealgo != Inpar::ScaTra::timeint_gen_alpha or
-        structtimealgo != Inpar::Solid::dyna_genalpha)
+        structtimealgo != Inpar::Solid::DynamicType::GenAlpha)
       FOUR_C_THROW(
           "Partitioned FS3I computations should feature consistent time-integration schemes for "
           "the subproblems; in this case, a (alpha_f-based) generalized-alpha scheme is intended "
@@ -218,30 +217,21 @@ void FS3I::FS3IBase::check_f_s3_i_inputs()
   if (scatravec_[0]->scatra_field()->is_incremental() == false)
     FOUR_C_THROW("Incremental formulation required for partitioned FS3I computations!");
 
-
-  // is scatra calculated conservative?
   if (Teuchos::getIntegralValue<Inpar::ScaTra::ConvForm>(fs3idyn, "STRUCTSCAL_CONVFORM") ==
           Inpar::ScaTra::convform_convective and
       Teuchos::getIntegralValue<Inpar::FS3I::VolumeCoupling>(fs3idyn, "STRUCTSCAL_FIELDCOUPLING") ==
           Inpar::FS3I::coupling_match)
   {
-    // get structure discretization
-    std::shared_ptr<Core::FE::Discretization> structdis = problem->get_dis("structure");
-
-    for (int i = 0; i < structdis->num_my_col_elements(); ++i)
-    {
-      if (Adapter::get_sca_tra_impl_type(structdis->l_col_element(i)) !=
-          Inpar::ScaTra::impltype_refconcreac)
-        FOUR_C_THROW(
-            "Your scalar fields have to be calculated in conservative form, "
-            "since the velocity field in the structure is NOT divergence free!");
-    }
+    FOUR_C_THROW(
+        "Your scalar fields have to be calculated in conservative form, since the velocity field "
+        "in the structure is NOT divergence free!");
   }
+
   auto pstype = Teuchos::getIntegralValue<Inpar::Solid::PreStress>(
       Global::Problem::instance()->structural_dynamic_params(), "PRESTRESS");
   // is structure calculated dynamic when not prestressing?
   if (Teuchos::getIntegralValue<Inpar::Solid::DynamicType>(structdynparams, "DYNAMICTYPE") ==
-          Inpar::Solid::dyna_statics and
+          Inpar::Solid::DynamicType::Statics and
       pstype != Inpar::Solid::PreStress::mulf)
     FOUR_C_THROW(
         "Since we need a velocity field in the structure domain for the scalar field you need do "
@@ -293,7 +283,7 @@ void FS3I::FS3IBase::check_f_s3_i_inputs()
 
         if (scatravec_[i]->scatra_field()->num_scal() != params->at(6))
           FOUR_C_THROW(
-              "Number of scalars NUMSCAL in ScaTra coupling conditions with COUPID %i does not "
+              "Number of scalars NUMSCAL in ScaTra coupling conditions with COUPID {} does not "
               "equal the number of scalars your scalar field has!",
               myID);
 
@@ -339,46 +329,46 @@ void FS3I::FS3IBase::check_f_s3_i_inputs()
       // no the actual testing
       if (fluid_permcoeffs->at(0) != structure_permcoeffs->at(0))
         FOUR_C_THROW(
-            "Permeability coefficient PERMCOEF of ScaTra couplings with COUPID %i needs to be the "
+            "Permeability coefficient PERMCOEF of ScaTra couplings with COUPID {} needs to be the "
             "same!",
             ID);
       if (fluid_permcoeffs->at(1) != structure_permcoeffs->at(1))
         FOUR_C_THROW(
-            "Hydraulic conductivity coefficient CONDUCT of ScaTra couplings with COUPID %i needs "
+            "Hydraulic conductivity coefficient CONDUCT of ScaTra couplings with COUPID {} needs "
             "to be the same!",
             ID);
       if (fluid_permcoeffs->at(2) != structure_permcoeffs->at(2))
         FOUR_C_THROW(
-            "Filtration coefficient coefficient FILTR of ScaTra couplings with COUPID %i needs to "
+            "Filtration coefficient coefficient FILTR of ScaTra couplings with COUPID {} needs to "
             "be the same!",
             ID);
       if (fluid_permcoeffs->at(2) < 0 or fluid_permcoeffs->at(2) > 1)
         FOUR_C_THROW(
-            "The filtration coefficient FILTR of ScaTra couplings with COUPID %i must be in [0;1], "
+            "The filtration coefficient FILTR of ScaTra couplings with COUPID {} must be in [0;1], "
             "since it is the ratio of average pore size per area!",
             ID);
       if (fluid_permcoeffs->at(3) != structure_permcoeffs->at(3))
         FOUR_C_THROW(
-            "WSS onoff flag WSSON of ScaTra couplings with COUPID %i needs to be the same!", ID);
+            "WSS onoff flag WSSON of ScaTra couplings with COUPID {} needs to be the same!", ID);
       if (fluid_permcoeffs->at(4) != structure_permcoeffs->at(4))
         FOUR_C_THROW(
-            "First WSS coefficient WSSCOEFFS of ScaTra couplings with COUPID %i needs to be the "
+            "First WSS coefficient WSSCOEFFS of ScaTra couplings with COUPID {} needs to be the "
             "same!",
             ID);
       if (fluid_permcoeffs->at(5) != structure_permcoeffs->at(5))
         FOUR_C_THROW(
-            "Second WSS coefficient WSSCOEFFS of ScaTra couplings with COUPID %i needs to be the "
+            "Second WSS coefficient WSSCOEFFS of ScaTra couplings with COUPID {} needs to be the "
             "same!",
             ID);
       if (fluid_permcoeffs->at(6) != structure_permcoeffs->at(6))
         FOUR_C_THROW(
-            "Number of scalars NUMSCAL of ScaTra couplings with COUPID %i needs to be the same!",
+            "Number of scalars NUMSCAL of ScaTra couplings with COUPID {} needs to be the same!",
             ID);
 
       for (int k = 0; k < numscal; k++)
       {
         if (fluid_permcoeffs->at(7 + k) != structure_permcoeffs->at(7 + k))
-          FOUR_C_THROW("ONOFF vector of ScaTra couplings with COUPID %i needs to be the same!", ID);
+          FOUR_C_THROW("ONOFF vector of ScaTra couplings with COUPID {} needs to be the same!", ID);
 
         onoff_sum->at(k) += fluid_permcoeffs->at(7 + k);
       }
@@ -388,7 +378,7 @@ void FS3I::FS3IBase::check_f_s3_i_inputs()
     {
       if (onoff_sum->at(j) > 1)
         FOUR_C_THROW(
-            "In the ONOFF vector the %i-th scalar has been switched on multiple times. The ON is "
+            "In the ONOFF vector the {}-th scalar has been switched on multiple times. The ON is "
             "allowed only once per scalar!",
             j);
     }
@@ -465,7 +455,7 @@ void FS3I::FS3IBase::evaluate_scatra_fields()
       std::shared_ptr<Core::LinAlg::Vector<double>> coupforce = scatracoupforce_[i];
       std::shared_ptr<Core::LinAlg::SparseMatrix> coupmat = scatracoupmat_[i];
 
-      coupforce->PutScalar(0.0);
+      coupforce->put_scalar(0.0);
       coupmat->zero();
 
       scatra->surface_permeability(coupmat, coupforce);
@@ -473,7 +463,7 @@ void FS3I::FS3IBase::evaluate_scatra_fields()
       // apply Dirichlet boundary conditions to coupling matrix and vector
       std::shared_ptr<Core::LinAlg::Vector<double>> zeros = scatrazeros_[i];
       const std::shared_ptr<const Core::LinAlg::MapExtractor> dbcmapex = scatra->dirich_maps();
-      const std::shared_ptr<const Epetra_Map> dbcmap = dbcmapex->cond_map();
+      const std::shared_ptr<const Core::LinAlg::Map> dbcmap = dbcmapex->cond_map();
       coupmat->apply_dirichlet(*dbcmap, false);
       Core::LinAlg::apply_dirichlet_to_system(*coupforce, *zeros, *dbcmap);
     }
@@ -558,7 +548,7 @@ std::shared_ptr<Core::LinAlg::Vector<double>> FS3I::FS3IBase::calc_membrane_conc
 
   // nodewise calculation of mean concentration in the interface
 
-  for (int i = 0; i < temp->MyLength(); i++)
+  for (int i = 0; i < temp->local_length(); i++)
   {
     // here the unweighted average is uses. One could also use a logarithmic average...
     (*temp)[i] =
@@ -612,13 +602,13 @@ void FS3I::FS3IBase::setup_coupled_scatra_rhs()
         scatrafieldexvec_[0]->extract_vector(*coup1, 1);
     std::shared_ptr<Core::LinAlg::Vector<double>> temp =
         scatrafieldexvec_[1]->insert_vector(*scatra1_to_scatra2(*coup1_boundary), 1);
-    temp->Scale(-1.0);
+    temp->scale(-1.0);
     scatraglobalex_->add_vector(*temp, 1, *scatrarhs_);
 
     std::shared_ptr<Core::LinAlg::Vector<double>> coup2_boundary =
         scatrafieldexvec_[1]->extract_vector(*coup2, 1);
     temp = scatrafieldexvec_[0]->insert_vector(*scatra2_to_scatra1(*coup2_boundary), 1);
-    temp->Scale(-1.0);
+    temp->scale(-1.0);
     scatraglobalex_->add_vector(*temp, 0, *scatrarhs_);
   }
 }
@@ -640,7 +630,7 @@ void FS3I::FS3IBase::setup_coupled_scatra_vector(Core::LinAlg::Vector<double>& g
         scatrafieldexvec_[1]->extract_vector(vec2, 1);
     std::shared_ptr<Core::LinAlg::Vector<double>> temp =
         scatrafieldexvec_[0]->insert_vector(*scatra2_to_scatra1(*vec2_boundary), 1);
-    temp->Update(1.0, vec1, 1.0);
+    temp->update(1.0, vec1, 1.0);
 
     scatraglobalex_->insert_vector(*temp, 0, globalvec);
     scatraglobalex_->insert_vector(*vec2_other, 1, globalvec);
@@ -678,7 +668,7 @@ void FS3I::FS3IBase::setup_coupled_scatra_matrix()
             *scatra2, *(scatrafieldexvec_[1]), *(scatrafieldexvec_[1]));
     blockscatra2->complete();
 
-    scatrasystemmatrix_->assign(1, 1, Core::LinAlg::View, blockscatra2->matrix(0, 0));
+    scatrasystemmatrix_->assign(1, 1, Core::LinAlg::DataAccess::View, blockscatra2->matrix(0, 0));
 
     (*sibtransform_)(blockscatra2->full_row_map(), blockscatra2->full_col_map(),
         blockscatra2->matrix(0, 1), 1.0, Coupling::Adapter::CouplingSlaveConverter(*scatracoup_),
@@ -690,13 +680,13 @@ void FS3I::FS3IBase::setup_coupled_scatra_matrix()
         Coupling::Adapter::CouplingSlaveConverter(*scatracoup_), *scatra1, true, true);
 
     // fluid scatra
-    scatrasystemmatrix_->assign(0, 0, Core::LinAlg::View, *scatra1);
+    scatrasystemmatrix_->assign(0, 0, Core::LinAlg::DataAccess::View, *scatra1);
   }
   else
   {
     // conventional contributions
-    scatrasystemmatrix_->assign(0, 0, Core::LinAlg::View, *scatra1);
-    scatrasystemmatrix_->assign(1, 1, Core::LinAlg::View, *scatra2);
+    scatrasystemmatrix_->assign(0, 0, Core::LinAlg::DataAccess::View, *scatra1);
+    scatrasystemmatrix_->assign(1, 1, Core::LinAlg::DataAccess::View, *scatra2);
 
     // additional contributions due to interface permeability (-> coupling terms)
     // contribution of the same field
@@ -748,7 +738,7 @@ std::shared_ptr<Core::LinAlg::Vector<double>> FS3I::FS3IBase::scatra1_to_scatra2
 /*----------------------------------------------------------------------*/
 void FS3I::FS3IBase::linear_solve_scatra()
 {
-  scatraincrement_->PutScalar(0.0);
+  scatraincrement_->put_scalar(0.0);
 
   Core::LinAlg::SolverParams solver_params;
   solver_params.refactor = true;

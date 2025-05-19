@@ -14,6 +14,7 @@
 #include "4C_utils_singleton_owner.hpp"
 
 #include <fenv.h>
+#include <Kokkos_Core.hpp>
 #include <Teuchos_CommandLineProcessor.hpp>
 
 #include <map>
@@ -295,7 +296,7 @@ void test_hex8quad4selfcut92();
 
 void test_hex8quad4aligned_edges();
 
-typedef void (*testfunct)();
+using testfunct = void (*)();
 
 /**
  * \brief Run a given test and store errors if necessary.
@@ -440,8 +441,12 @@ int main(int argc, char** argv)
 {
   Core::Utils::SingletonOwnerRegistry::ScopeGuard guard;
   MPI_Init(&argc, &argv);
+  Kokkos::ScopeGuard kokkos_guard{};
 
   std::map<std::string, testfunct> functable;
+
+  Core::IO::cout.setup(
+      false, false, false, Core::IO::standard, MPI_COMM_WORLD, 0, 0, "dummyFilePrefix");
 
   // these tests were generated from the real computation
   // all of then expreience the same problem:

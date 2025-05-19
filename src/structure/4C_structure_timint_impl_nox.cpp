@@ -5,17 +5,16 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
-#include "4C_inpar_boolifyparameters.hpp"
 #include "4C_io_pstream.hpp"
 #include "4C_linalg_blocksparsematrix.hpp"
 #include "4C_structure_timint.hpp"
 #include "4C_structure_timint_impl.hpp"
 #include "4C_structure_timint_noxgroup.hpp"
 #include "4C_structure_timint_noxlinsys.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <Teuchos_RCPStdSharedPtrConversions.hpp>
 
-#include <sstream>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -47,8 +46,6 @@ void Solid::TimIntImpl::nox_setup(const Teuchos::ParameterList& noxparams)
 {
   // copy the input list
   noxparams_ = std::make_shared<Teuchos::ParameterList>(noxparams);
-  // make all Yes/No integral values to Boolean
-  Input::boolify_valid_input_parameters(*noxparams_);
 
   // Remove legacy parameters
   {
@@ -122,7 +119,7 @@ Teuchos::RCP<::NOX::StatusTest::Combo> Solid::TimIntImpl::nox_create_status_test
   }
   else
   {
-    FOUR_C_THROW("Norm %s is not available", Inpar::Solid::vector_norm_string(iternorm_).c_str());
+    FOUR_C_THROW("Norm {} is not available", iternorm_);
   }
 
   // combined residual force and displacement test
@@ -287,7 +284,7 @@ bool Solid::TimIntImpl::computeF(const Epetra_Vector& x, Epetra_Vector& RHS,
    * #x holds the current trial total displacements due to NOX: D_{n+1}^{<k+1>}
    * #disn_ holds the total displacement of last NOX iteration: D_{n+1}^{<k>}
    */
-  disi_->Update(1.0, x, -1.0, *disn_, 0.0);
+  disi_->update(1.0, x, -1.0, *disn_, 0.0);
 
   // update end-point displacements etc.
   //   brings #disn_ in sync with #x, so we are ready for next call here
@@ -361,7 +358,7 @@ int Solid::TimIntImpl::nox_solve()
 
   // create initial guess vector of predictor result
   ::NOX::Epetra::Vector noxSoln(
-      Teuchos::rcpFromRef(*disn_->get_ptr_of_Epetra_Vector()), ::NOX::Epetra::Vector::CreateView);
+      Teuchos::rcpFromRef(*disn_->get_ptr_of_epetra_vector()), ::NOX::Epetra::Vector::CreateView);
 
   // Linear system
   Teuchos::RCP<::NOX::Epetra::LinearSystem> linSys =

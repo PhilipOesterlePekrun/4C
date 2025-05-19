@@ -7,6 +7,7 @@
 
 #include "4C_linalg_sparsematrix.hpp"
 
+#include "4C_linalg_sparsematrixbase.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
 
@@ -21,11 +22,11 @@ FOUR_C_NAMESPACE_OPEN
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-Core::LinAlg::SparseMatrix::SparseMatrix(std::shared_ptr<Epetra_CrsGraph> crsgraph,
+Core::LinAlg::SparseMatrix::SparseMatrix(std::shared_ptr<Core::LinAlg::Graph> crsgraph,
     std::shared_ptr<Core::LinAlg::MultiMapExtractor> dbcmaps)
     : explicitdirichlet_(true), savegraph_(true), matrixtype_(CRS_MATRIX)
 {
-  sysmat_ = std::make_shared<Epetra_CrsMatrix>(::Copy, *crsgraph);
+  sysmat_ = std::make_shared<Epetra_CrsMatrix>(::Copy, crsgraph->get_epetra_crs_graph());
   graph_ = crsgraph;
   dbcmaps_ = dbcmaps;
 }
@@ -50,9 +51,73 @@ Core::LinAlg::SparseMatrix::SparseMatrix(const Epetra_Map& rowmap, const int npr
   else
     FOUR_C_THROW("matrix type is not correct");
 }
+Core::LinAlg::SparseMatrix::SparseMatrix(const Core::LinAlg::Map& rowmap, const int npr,
+    bool explicitdirichlet, bool savegraph, MatrixType matrixtype)
+    : graph_(nullptr),
+      dbcmaps_(nullptr),
+      explicitdirichlet_(explicitdirichlet),
+      savegraph_(savegraph),
+      matrixtype_(matrixtype)
+{
+  if (!rowmap.UniqueGIDs()) FOUR_C_THROW("Row map is not unique");
+
+  if (matrixtype_ == CRS_MATRIX)
+    sysmat_ = std::make_shared<Epetra_CrsMatrix>(::Copy, rowmap.get_epetra_map(), npr, false);
+  else if (matrixtype_ == FE_MATRIX)
+    sysmat_ = std::make_shared<Epetra_FECrsMatrix>(::Copy, rowmap.get_epetra_map(), npr, false);
+  else
+    FOUR_C_THROW("matrix type is not correct");
+}
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
+Core::LinAlg::SparseMatrix::SparseMatrix(const Core::LinAlg::Map& rowmap,
+    const Core::LinAlg::Map& colmap, const int npr, bool explicitdirichlet, bool savegraph,
+    MatrixType matrixtype)
+    : graph_(nullptr),
+      dbcmaps_(nullptr),
+      explicitdirichlet_(explicitdirichlet),
+      savegraph_(savegraph),
+      matrixtype_(matrixtype)
+{
+  if (!rowmap.UniqueGIDs()) FOUR_C_THROW("Row map is not unique");
+
+  if (matrixtype_ == CRS_MATRIX)
+    sysmat_ = std::make_shared<Epetra_CrsMatrix>(
+        ::Copy, rowmap.get_epetra_map(), colmap.get_epetra_map(), npr, false);
+  else if (matrixtype_ == FE_MATRIX)
+    sysmat_ = std::make_shared<Epetra_FECrsMatrix>(
+        ::Copy, rowmap.get_epetra_map(), colmap.get_epetra_map(), npr, false);
+  else
+    FOUR_C_THROW("matrix type is not correct");
+}
+
+/*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
+Core::LinAlg::SparseMatrix::SparseMatrix(const Core::LinAlg::Map& rowmap,
+    std::vector<int>& numentries, bool explicitdirichlet, bool savegraph, MatrixType matrixtype)
+    : graph_(nullptr),
+      dbcmaps_(nullptr),
+      explicitdirichlet_(explicitdirichlet),
+      savegraph_(savegraph),
+      matrixtype_(matrixtype)
+{
+  if (!rowmap.UniqueGIDs()) FOUR_C_THROW("Row map is not unique");
+
+  if ((int)(numentries.size()) != rowmap.NumMyElements())
+    FOUR_C_THROW("estimate for non zero entries per row does not match the size of row map");
+
+  if (matrixtype_ == CRS_MATRIX)
+    sysmat_ = std::make_shared<Epetra_CrsMatrix>(
+        ::Copy, rowmap.get_epetra_map(), numentries.data(), false);
+  else if (matrixtype_ == FE_MATRIX)
+    sysmat_ = std::make_shared<Epetra_FECrsMatrix>(
+        ::Copy, rowmap.get_epetra_map(), numentries.data(), false);
+  else
+    FOUR_C_THROW("matrix type is not correct");
+}
+
+
 Core::LinAlg::SparseMatrix::SparseMatrix(const Epetra_Map& rowmap, std::vector<int>& numentries,
     bool explicitdirichlet, bool savegraph, MatrixType matrixtype)
     : graph_(nullptr),
@@ -75,7 +140,6 @@ Core::LinAlg::SparseMatrix::SparseMatrix(const Epetra_Map& rowmap, std::vector<i
 }
 
 
-
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
 Core::LinAlg::SparseMatrix::SparseMatrix(std::shared_ptr<Epetra_CrsMatrix> matrix,
@@ -86,7 +150,7 @@ Core::LinAlg::SparseMatrix::SparseMatrix(std::shared_ptr<Epetra_CrsMatrix> matri
       savegraph_(savegraph),
       matrixtype_(matrixtype)
 {
-  if (access == Copy)
+  if (access == DataAccess::Copy)
   {
     if (matrixtype_ == CRS_MATRIX)
       sysmat_ = std::make_shared<Epetra_CrsMatrix>(*matrix);
@@ -110,7 +174,7 @@ Core::LinAlg::SparseMatrix::SparseMatrix(std::shared_ptr<Epetra_CrsMatrix> matri
 
   if (sysmat_->Filled() and savegraph_)
   {
-    graph_ = std::make_shared<Epetra_CrsGraph>(sysmat_->Graph());
+    graph_ = std::make_shared<Core::LinAlg::Graph>(sysmat_->Graph());
   }
 }
 
@@ -123,7 +187,7 @@ Core::LinAlg::SparseMatrix::SparseMatrix(const SparseMatrix& mat, DataAccess acc
       savegraph_(mat.savegraph_),
       matrixtype_(mat.matrixtype_)
 {
-  if (access == Copy)
+  if (access == DataAccess::Copy)
   {
     // We do not care for exception proved code, so this is ok.
     *this = mat;
@@ -138,7 +202,6 @@ Core::LinAlg::SparseMatrix::SparseMatrix(const SparseMatrix& mat, DataAccess acc
 }
 
 
-
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
 Core::LinAlg::SparseMatrix::SparseMatrix(const Core::LinAlg::Vector<double>& diag,
@@ -149,15 +212,17 @@ Core::LinAlg::SparseMatrix::SparseMatrix(const Core::LinAlg::Vector<double>& dia
       savegraph_(savegraph),
       matrixtype_(matrixtype)
 {
-  int length = diag.Map().NumMyElements();
-  Epetra_Map map(-1, length, diag.Map().MyGlobalElements(), diag.Map().IndexBase(),
-      Core::Communication::as_epetra_comm(diag.Comm()));
+  int length = diag.get_block_map().NumMyElements();
+  Core::LinAlg::Map map(-1, length, diag.get_block_map().MyGlobalElements(),
+      diag.get_block_map().IndexBase(), Core::Communication::as_epetra_comm(diag.get_comm()));
   if (!map.UniqueGIDs()) FOUR_C_THROW("Row map is not unique");
 
   if (matrixtype_ == CRS_MATRIX)
-    sysmat_ = std::make_shared<Epetra_CrsMatrix>(::Copy, map, map, 1, false);
+    sysmat_ = std::make_shared<Epetra_CrsMatrix>(
+        ::Copy, map.get_epetra_map(), map.get_epetra_map(), 1, false);
   else if (matrixtype_ == FE_MATRIX)
-    sysmat_ = std::make_shared<Epetra_FECrsMatrix>(::Copy, map, map, 1, false);
+    sysmat_ = std::make_shared<Epetra_FECrsMatrix>(
+        ::Copy, map.get_epetra_map(), map.get_epetra_map(), 1, false);
   else
     FOUR_C_THROW("matrix type is not correct");
 
@@ -182,7 +247,7 @@ bool Core::LinAlg::SparseMatrix::destroy(bool throw_exception)
     msg << "Epetra_CrsMatrix cannot be finally deleted: The strong counter "
            "is still larger than 1. ( use_count() = "
         << sysmat_.use_count() << " )";
-    FOUR_C_THROW(msg.str());
+    FOUR_C_THROW("{}", msg.str());
   }
   sysmat_ = nullptr;
 
@@ -190,10 +255,10 @@ bool Core::LinAlg::SparseMatrix::destroy(bool throw_exception)
   if (throw_exception and graph_.use_count() > 1)
   {
     std::stringstream msg;
-    msg << "Epetra_CrsGraph cannot be finally deleted: The strong counter is "
+    msg << "Graph cannot be finally deleted: The strong counter is "
            "still larger than 1. ( use_count() = "
         << graph_.use_count() << " )";
-    FOUR_C_THROW(msg.str());
+    FOUR_C_THROW("{}", msg.str());
   }
   graph_ = nullptr;
 
@@ -204,7 +269,7 @@ bool Core::LinAlg::SparseMatrix::destroy(bool throw_exception)
     msg << "DBCMaps cannot be finally deleted: The strong counter is still "
            "larger than 1. ( use_count() = "
         << dbcmaps_.use_count() << " )";
-    FOUR_C_THROW(msg.str());
+    FOUR_C_THROW("{}", msg.str());
   }
   dbcmaps_ = nullptr;
 
@@ -244,15 +309,17 @@ Core::LinAlg::SparseMatrix& Core::LinAlg::SparseMatrix::operator=(const SparseMa
   else
   {
     if (matrixtype_ == CRS_MATRIX)
-      sysmat_ = std::make_shared<Epetra_CrsMatrix>(::Copy, mat.row_map(), 0, false);
+      sysmat_ =
+          std::make_shared<Epetra_CrsMatrix>(::Copy, mat.row_map().get_epetra_map(), 0, false);
     else if (matrixtype_ == FE_MATRIX)
-      sysmat_ = std::make_shared<Epetra_FECrsMatrix>(::Copy, mat.row_map(), 0, false);
+      sysmat_ =
+          std::make_shared<Epetra_FECrsMatrix>(::Copy, mat.row_map().get_epetra_map(), 0, false);
     else
       FOUR_C_THROW("matrix type is not correct");
   }
 
   if (mat.graph_ != nullptr)
-    graph_ = std::make_shared<Epetra_CrsGraph>(*mat.graph_);
+    graph_ = std::make_shared<Core::LinAlg::Graph>(*mat.graph_);
   else
     graph_ = nullptr;
 
@@ -264,7 +331,7 @@ Core::LinAlg::SparseMatrix& Core::LinAlg::SparseMatrix::operator=(const SparseMa
  *----------------------------------------------------------------------*/
 void Core::LinAlg::SparseMatrix::assign(DataAccess access, const SparseMatrix& mat)
 {
-  if (access == Copy)
+  if (access == DataAccess::Copy)
   {
     // We do not care for exception proved code, so this is ok.
     *this = mat;
@@ -294,19 +361,19 @@ void Core::LinAlg::SparseMatrix::zero()
   }
   else
   {
-    const Epetra_Map domainmap = sysmat_->DomainMap();
-    const Epetra_Map rangemap = sysmat_->RangeMap();
+    const Core::LinAlg::Map domainmap = Map(sysmat_->DomainMap());
+    const Core::LinAlg::Map rangemap = Map(sysmat_->RangeMap());
     // Remove old matrix before creating a new one so we do not have old and
     // new matrix in memory at the same time!
     sysmat_ = nullptr;
     if (matrixtype_ == CRS_MATRIX)
-      sysmat_ = std::make_shared<Epetra_CrsMatrix>(::Copy, *graph_);
+      sysmat_ = std::make_shared<Epetra_CrsMatrix>(::Copy, graph_->get_epetra_crs_graph());
     else if (matrixtype_ == FE_MATRIX)
-      sysmat_ = std::make_shared<Epetra_FECrsMatrix>(::Copy, *graph_);
+      sysmat_ = std::make_shared<Epetra_FECrsMatrix>(::Copy, graph_->get_epetra_crs_graph());
     else
       FOUR_C_THROW("matrix type is not correct");
 
-    sysmat_->FillComplete(domainmap, rangemap);
+    sysmat_->FillComplete(domainmap.get_epetra_map(), rangemap.get_epetra_map());
   }
 }
 
@@ -315,17 +382,17 @@ void Core::LinAlg::SparseMatrix::zero()
  *----------------------------------------------------------------------*/
 void Core::LinAlg::SparseMatrix::reset()
 {
-  const Epetra_Map rowmap = sysmat_->RowMap();
+  const Core::LinAlg::Map rowmap = Map(sysmat_->RowMap());
   std::vector<int> numentries(rowmap.NumMyElements());
 
-  const Epetra_CrsGraph& graph = sysmat_->Graph();
+  auto graph = std::make_shared<Core::LinAlg::Graph>(sysmat_->Graph());
 
   if (filled())
   {
     for (std::size_t i = 0; i < numentries.size(); ++i)
     {
       int* indices;
-      int err = graph.ExtractMyRowView(i, numentries[i], indices);
+      int err = graph->extract_local_row_view(i, numentries[i], indices);
       if (err != 0) FOUR_C_THROW("ExtractMyRowView failed");
     }
   }
@@ -335,16 +402,18 @@ void Core::LinAlg::SparseMatrix::reset()
     // otherwise assembly would be extremely expensive!
     for (std::size_t i = 0; i < numentries.size(); ++i)
     {
-      numentries[i] = graph.NumAllocatedMyIndices(i);
+      numentries[i] = graph->num_allocated_local_indices(i);
     }
   }
   // Remove old matrix before creating a new one so we do not have old and
   // new matrix in memory at the same time!
   sysmat_ = nullptr;
   if (matrixtype_ == CRS_MATRIX)
-    sysmat_ = std::make_shared<Epetra_CrsMatrix>(::Copy, rowmap, numentries.data(), false);
+    sysmat_ = std::make_shared<Epetra_CrsMatrix>(
+        ::Copy, rowmap.get_epetra_map(), numentries.data(), false);
   else if (matrixtype_ == FE_MATRIX)
-    sysmat_ = std::make_shared<Epetra_FECrsMatrix>(::Copy, rowmap, numentries.data(), false);
+    sysmat_ = std::make_shared<Epetra_FECrsMatrix>(
+        ::Copy, rowmap.get_epetra_map(), numentries.data(), false);
   else
     FOUR_C_THROW("matrix type is not correct");
 
@@ -367,8 +436,8 @@ void Core::LinAlg::SparseMatrix::assemble(int eid, const std::vector<int>& lmstr
 
   const int myrank =
       Core::Communication::my_mpi_rank(Core::Communication::unpack_epetra_comm(sysmat_->Comm()));
-  const Epetra_Map& rowmap = sysmat_->RowMap();
-  const Epetra_Map& colmap = sysmat_->ColMap();
+  const Core::LinAlg::Map& rowmap = Map(sysmat_->RowMap());
+  const Core::LinAlg::Map& colmap = Map(sysmat_->ColMap());
 
   //-----------------------------------------------------------------------------------
   auto& A = (Core::LinAlg::SerialDenseMatrix&)Aele;
@@ -394,7 +463,7 @@ void Core::LinAlg::SparseMatrix::assemble(int eid, const std::vector<int>& lmstr
       const int cgid = lmcol[lcol];
       localcol[lcol] = colmap.LID(cgid);
 #ifdef FOUR_C_ENABLE_ASSERTIONS
-      if (localcol[lcol] < 0) FOUR_C_THROW("Sparse matrix A does not have global column %d", cgid);
+      if (localcol[lcol] < 0) FOUR_C_THROW("Sparse matrix A does not have global column {}", cgid);
 #endif
     }
 
@@ -408,12 +477,12 @@ void Core::LinAlg::SparseMatrix::assemble(int eid, const std::vector<int>& lmstr
       const int rgid = lmrow[lrow];
 
       // if we have a Dirichlet map check if this row is a Dirichlet row
-      if (dbcmaps_ != nullptr and dbcmaps_->Map(1)->MyGID(rgid)) continue;
+      if (dbcmaps_ != nullptr and dbcmaps_->map(1)->MyGID(rgid)) continue;
 
       const int rlid = rowmap.LID(rgid);
 
 #ifdef FOUR_C_ENABLE_ASSERTIONS
-      if (rlid < 0) FOUR_C_THROW("Sparse matrix A does not have global row %d", rgid);
+      if (rlid < 0) FOUR_C_THROW("Sparse matrix A does not have global row {}", rgid);
 #endif
       int length;
       double* valview;
@@ -423,7 +492,7 @@ void Core::LinAlg::SparseMatrix::assemble(int eid, const std::vector<int>& lmstr
 #endif
           sysmat_->ExtractMyRowView(rlid, length, valview, indices);
 #ifdef FOUR_C_ENABLE_ASSERTIONS
-      if (err) FOUR_C_THROW("Epetra_CrsMatrix::ExtractMyRowView returned error code %d", err);
+      if (err) FOUR_C_THROW("Epetra_CrsMatrix::ExtractMyRowView returned error code {}", err);
 #endif
       const int numnode = (int)lmstride.size();
       int dofcount = 0;
@@ -436,7 +505,7 @@ void Core::LinAlg::SparseMatrix::assemble(int eid, const std::vector<int>& lmstr
           int* loc = std::lower_bound(indices, indices + length, localcol[dofcount]);
 #ifdef FOUR_C_ENABLE_ASSERTIONS
           if (*loc != localcol[dofcount])
-            FOUR_C_THROW("Cannot find local column entry %d", localcol[dofcount]);
+            FOUR_C_THROW("Cannot find local column entry {}", localcol[dofcount]);
 #endif
           pos = loc - indices;
         }
@@ -487,8 +556,8 @@ void Core::LinAlg::SparseMatrix::assemble(int eid, const std::vector<int>& lmstr
               for (unsigned k = 0; k < lmstride.size(); ++k)
                 printf("lmstride[%d] %d\n", k, lmstride[k]);
               FOUR_C_THROW(
-                  "Epetra_CrsMatrix::SumIntoMyValues returned error code %d\nrlid %d localcol[%d] "
-                  "%d dofcount %d length %d stride %d j %d node %d numnode %d",
+                  "Epetra_CrsMatrix::SumIntoMyValues returned error code {}\nrlid {} localcol[{}] "
+                  "{} dofcount {} length {} stride {} j {} node {} numnode {}",
                   errone, rlid, dofcount, localcol[dofcount], dofcount, length, stride, j, node,
                   numnode);
             }
@@ -516,12 +585,12 @@ void Core::LinAlg::SparseMatrix::assemble(int eid, const std::vector<int>& lmstr
 
       // check whether I have that global row
       const int rgid = lmrow[lrow];
-      // #ifdef FOUR_C_ENABLE_ASSERTIONS
-      if (!rowmap.MyGID(rgid)) FOUR_C_THROW("Proc %d does not have global row %d", myrank, rgid);
+      // #ifdef   FOUR_C_ENABLE_ASSERTIONS
+      if (!rowmap.MyGID(rgid)) FOUR_C_THROW("Proc {} does not have global row {}", myrank, rgid);
       // #endif
 
       // if we have a Dirichlet map check if this row is a Dirichlet row
-      if (dbcmaps_ != nullptr and dbcmaps_->Map(1)->MyGID(rgid)) continue;
+      if (dbcmaps_ != nullptr and dbcmaps_->map(1)->MyGID(rgid)) continue;
 
       for (int lcol = 0; lcol < lcoldim; ++lcol)
       {
@@ -533,10 +602,10 @@ void Core::LinAlg::SparseMatrix::assemble(int eid, const std::vector<int>& lmstr
         {
           const int errtwo = sysmat_->InsertGlobalValues(rgid, 1, &A(lrow, lcol), &cgid);
           if (errtwo < 0)
-            FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned error code %d", errtwo);
+            FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned error code {}", errtwo);
         }
         else if (errone)
-          FOUR_C_THROW("Epetra_CrsMatrix::SumIntoGlobalValues returned error code %d", errone);
+          FOUR_C_THROW("Epetra_CrsMatrix::SumIntoGlobalValues returned error code {}", errone);
       }  // for (int lcol=0; lcol<lcoldim; ++lcol)
     }  // for (int lrow=0; lrow<lrowdim; ++lrow)
   }
@@ -557,8 +626,8 @@ void Core::LinAlg::SparseMatrix::assemble(int eid, const Core::LinAlg::SerialDen
 
   const int myrank =
       Core::Communication::my_mpi_rank(Core::Communication::unpack_epetra_comm(sysmat_->Comm()));
-  const Epetra_Map& rowmap = sysmat_->RowMap();
-  const Epetra_Map& colmap = sysmat_->ColMap();
+  const Core::LinAlg::Map& rowmap = Map(sysmat_->RowMap());
+  const Core::LinAlg::Map& colmap = Map(sysmat_->ColMap());
 
   if (sysmat_->Filled())
   {
@@ -583,7 +652,7 @@ void Core::LinAlg::SparseMatrix::assemble(int eid, const Core::LinAlg::SerialDen
       const int cgid = lmcol[lcol];
       localcol[lcol] = colmap.LID(cgid);
 #ifdef FOUR_C_ENABLE_ASSERTIONS
-      if (localcol[lcol] < 0) FOUR_C_THROW("Sparse matrix A does not have global column %d", cgid);
+      if (localcol[lcol] < 0) FOUR_C_THROW("Sparse matrix A does not have global column {}", cgid);
 #endif
     }
 
@@ -597,11 +666,11 @@ void Core::LinAlg::SparseMatrix::assemble(int eid, const Core::LinAlg::SerialDen
       const int rgid = lmrow[lrow];
 
       // if we have a Dirichlet map check if this row is a Dirichlet row
-      if (dbcmaps_ != nullptr and dbcmaps_->Map(1)->MyGID(rgid)) continue;
+      if (dbcmaps_ != nullptr and dbcmaps_->map(1)->MyGID(rgid)) continue;
 
       const int rlid = rowmap.LID(rgid);
 #ifdef FOUR_C_ENABLE_ASSERTIONS
-      if (rlid < 0) FOUR_C_THROW("Sparse matrix A does not have global row %d", rgid);
+      if (rlid < 0) FOUR_C_THROW("Sparse matrix A does not have global row {}", rgid);
 #endif
 
       for (int lcol = 0; lcol < lcoldim; ++lcol)
@@ -609,7 +678,7 @@ void Core::LinAlg::SparseMatrix::assemble(int eid, const Core::LinAlg::SerialDen
         values[lcol] = Aele(lrow, lcol);
       }
       const int errone = sysmat_->SumIntoMyValues(rlid, lcoldim, values.data(), localcol.data());
-      if (errone) FOUR_C_THROW("Epetra_CrsMatrix::SumIntoMyValues returned error code %d", errone);
+      if (errone) FOUR_C_THROW("Epetra_CrsMatrix::SumIntoMyValues returned error code {}", errone);
     }  // for (int lrow=0; lrow<ldim; ++lrow)
   }
   else
@@ -623,11 +692,11 @@ void Core::LinAlg::SparseMatrix::assemble(int eid, const Core::LinAlg::SerialDen
       // check whether I have that global row
       const int rgid = lmrow[lrow];
 #ifdef FOUR_C_ENABLE_ASSERTIONS
-      if (!rowmap.MyGID(rgid)) FOUR_C_THROW("Proc %d does not have global row %d", myrank, rgid);
+      if (!rowmap.MyGID(rgid)) FOUR_C_THROW("Proc {} does not have global row {}", myrank, rgid);
 #endif
 
       // if we have a Dirichlet map check if this row is a Dirichlet row
-      if (dbcmaps_ != nullptr and dbcmaps_->Map(1)->MyGID(rgid)) continue;
+      if (dbcmaps_ != nullptr and dbcmaps_->map(1)->MyGID(rgid)) continue;
 
       for (int lcol = 0; lcol < lcoldim; ++lcol)
       {
@@ -641,10 +710,10 @@ void Core::LinAlg::SparseMatrix::assemble(int eid, const Core::LinAlg::SerialDen
         {
           const int errtwo = sysmat_->InsertGlobalValues(rgid, 1, &val, &cgid);
           if (errtwo < 0)
-            FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned error code %d", errtwo);
+            FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned error code {}", errtwo);
         }
         else if (errone)
-          FOUR_C_THROW("Epetra_CrsMatrix::SumIntoGlobalValues returned error code %d", errone);
+          FOUR_C_THROW("Epetra_CrsMatrix::SumIntoGlobalValues returned error code {}", errone);
       }  // for (int lcol=0; lcol<lcoldim; ++lcol)
     }  // for (int lrow=0; lrow<lrowdim; ++lrow)
   }
@@ -717,7 +786,7 @@ void Core::LinAlg::SparseMatrix::fe_assemble(const Core::LinAlg::SerialDenseMatr
  *----------------------------------------------------------------------*/
 void Core::LinAlg::SparseMatrix::assemble(double val, int rgid, int cgid)
 {
-  if (dbcmaps_ != nullptr and dbcmaps_->Map(1)->MyGID(rgid))
+  if (dbcmaps_ != nullptr and dbcmaps_->map(1)->MyGID(rgid))
     FOUR_C_THROW("no assembling to Dirichlet row");
 
   // SumIntoGlobalValues works for filled matrices as well!
@@ -726,17 +795,17 @@ void Core::LinAlg::SparseMatrix::assemble(double val, int rgid, int cgid)
   {
     int errtwo = sysmat_->InsertGlobalValues(rgid, 1, &val, &cgid);
     if (errtwo < 0)
-      FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned error code %d", errtwo);
+      FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned error code {}", errtwo);
   }
   else if (errone)
-    FOUR_C_THROW("Epetra_CrsMatrix::SumIntoGlobalValues returned error code %d", errone);
+    FOUR_C_THROW("Epetra_CrsMatrix::SumIntoGlobalValues returned error code {}", errone);
 }
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
 void Core::LinAlg::SparseMatrix::set_value(double val, int rgid, int cgid)
 {
-  if (dbcmaps_ != nullptr and dbcmaps_->Map(1)->MyGID(rgid))
+  if (dbcmaps_ != nullptr and dbcmaps_->map(1)->MyGID(rgid))
     FOUR_C_THROW("no assembling to Dirichlet row");
 
   int errone = sysmat_->ReplaceGlobalValues(rgid, 1, &val, &cgid);
@@ -744,7 +813,7 @@ void Core::LinAlg::SparseMatrix::set_value(double val, int rgid, int cgid)
   {
     int errtwo = sysmat_->InsertGlobalValues(rgid, 1, &val, &cgid);
     if (errtwo > 0)
-      FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned error code %d", errtwo);
+      FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned error code {}", errtwo);
   }
 }
 
@@ -761,10 +830,10 @@ void Core::LinAlg::SparseMatrix::fe_assemble(double val, int rgid, int cgid)
     int errtwo = (std::dynamic_pointer_cast<Epetra_FECrsMatrix>(sysmat_))
                      ->InsertGlobalValues(1, &rgid, 1, &cgid, &val);
     if (errtwo < 0)
-      FOUR_C_THROW("Epetra_FECrsMatrix::InsertGlobalValues returned error code %d", errtwo);
+      FOUR_C_THROW("Epetra_FECrsMatrix::InsertGlobalValues returned error code {}", errtwo);
   }
   else if (errone < 0)
-    FOUR_C_THROW("Epetra_FECrsMatrix::SumIntoGlobalValues returned error code %d", errone);
+    FOUR_C_THROW("Epetra_FECrsMatrix::SumIntoGlobalValues returned error code {}", errone);
 }
 
 
@@ -780,18 +849,18 @@ void Core::LinAlg::SparseMatrix::complete(bool enforce_complete)
   {
     // false indicates here that fill_complete() is not called within GlobalAssemble()
     int err = (std::dynamic_pointer_cast<Epetra_FECrsMatrix>(sysmat_))->GlobalAssemble(false);
-    if (err) FOUR_C_THROW("Epetra_FECrsMatrix::GlobalAssemble() returned err=%d", err);
+    if (err) FOUR_C_THROW("Epetra_FECrsMatrix::GlobalAssemble() returned err={}", err);
   }
 
   if (sysmat_->Filled() and not enforce_complete) return;
 
   int err = sysmat_->FillComplete(true);
-  if (err) FOUR_C_THROW("Epetra_CrsMatrix::fill_complete(domain,range) returned err=%d", err);
+  if (err) FOUR_C_THROW("Epetra_CrsMatrix::fill_complete(domain,range) returned err={}", err);
 
   // keep mask for further use
   if (savegraph_ and graph_ == nullptr)
   {
-    graph_ = std::make_shared<Epetra_CrsGraph>(sysmat_->Graph());
+    graph_ = std::make_shared<Core::LinAlg::Graph>(sysmat_->Graph());
   }
 }
 
@@ -800,7 +869,7 @@ void Core::LinAlg::SparseMatrix::complete(bool enforce_complete)
  |  fill_complete a matrix  (public)                          mwgee 01/08|
  *----------------------------------------------------------------------*/
 void Core::LinAlg::SparseMatrix::complete(
-    const Epetra_Map& domainmap, const Epetra_Map& rangemap, bool enforce_complete)
+    const Core::LinAlg::Map& domainmap, const Core::LinAlg::Map& rangemap, bool enforce_complete)
 {
   TEUCHOS_FUNC_TIME_MONITOR("Core::LinAlg::SparseMatrix::Complete(domain,range)");
 
@@ -809,28 +878,44 @@ void Core::LinAlg::SparseMatrix::complete(
   {
     // false indicates here that fill_complete() is not called within GlobalAssemble()
     int err = (std::dynamic_pointer_cast<Epetra_FECrsMatrix>(sysmat_))
-                  ->GlobalAssemble(domainmap, rangemap, false);
-    if (err) FOUR_C_THROW("Epetra_FECrsMatrix::GlobalAssemble() returned err=%d", err);
+                  ->GlobalAssemble(domainmap.get_epetra_map(), rangemap.get_epetra_map(), false);
+    if (err) FOUR_C_THROW("Epetra_FECrsMatrix::GlobalAssemble() returned err={}", err);
   }
 
   if (sysmat_->Filled() and not enforce_complete) return;
 
   int err = 1;
   if (enforce_complete and sysmat_->Filled())
-    err = sysmat_->ExpertStaticFillComplete(domainmap, rangemap);
+    err = sysmat_->ExpertStaticFillComplete(domainmap.get_epetra_map(), rangemap.get_epetra_map());
   else
-    err = sysmat_->FillComplete(domainmap, rangemap, true);
+    err = sysmat_->FillComplete(domainmap.get_epetra_map(), rangemap.get_epetra_map(), true);
 
-  if (err) FOUR_C_THROW("Epetra_CrsMatrix::fill_complete(domain,range) returned err=%d", err);
+  if (err) FOUR_C_THROW("Epetra_CrsMatrix::fill_complete(domain,range) returned err={}", err);
 
   // keep mask for further use
   if (savegraph_ and graph_ == nullptr)
   {
-    graph_ = std::make_shared<Epetra_CrsGraph>(sysmat_->Graph());
+    graph_ = std::make_shared<Core::LinAlg::Graph>(sysmat_->Graph());
   }
 }
 
+void Core::LinAlg::SparseMatrix::complete(
+    const Epetra_Map& domainmap, const Epetra_Map& rangemap, bool enforce_complete)
+{
+  this->complete(Map(domainmap), Map(rangemap), enforce_complete);
+}
 
+void Core::LinAlg::SparseMatrix::complete(
+    const Map& domainmap, const Epetra_Map& rangemap, bool enforce_complete)
+{
+  this->complete(domainmap, Map(rangemap), enforce_complete);
+}
+
+void Core::LinAlg::SparseMatrix::complete(
+    const Epetra_Map& domainmap, const Map& rangemap, bool enforce_complete)
+{
+  this->complete(Map(domainmap), rangemap, enforce_complete);
+}
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
@@ -840,22 +925,25 @@ void Core::LinAlg::SparseMatrix::un_complete()
 
   if (not filled()) return;
 
-  const Epetra_CrsGraph& graph = sysmat_->Graph();
-  std::vector<int> nonzeros(graph.NumMyRows());
+  auto graph = std::make_shared<Core::LinAlg::Graph>(sysmat_->Graph());
+
+  std::vector<int> nonzeros(graph->num_local_rows());
   for (std::size_t i = 0; i < nonzeros.size(); ++i)
   {
-    nonzeros[i] = graph.NumMyIndices(i);
+    nonzeros[i] = graph->num_local_indices(i);
   }
 
-  const Epetra_Map& rowmap = sysmat_->RowMap();
-  const Epetra_Map& colmap = sysmat_->ColMap();
+  const Core::LinAlg::Map& rowmap = Map(sysmat_->RowMap());
+  const Core::LinAlg::Map& colmap = Map(sysmat_->ColMap());
   int elements = rowmap.NumMyElements();
 
   std::shared_ptr<Epetra_CrsMatrix> mat = nullptr;
   if (matrixtype_ == CRS_MATRIX)
-    mat = std::make_shared<Epetra_CrsMatrix>(::Copy, rowmap, nonzeros.data(), false);
+    mat =
+        std::make_shared<Epetra_CrsMatrix>(::Copy, rowmap.get_epetra_map(), nonzeros.data(), false);
   else if (matrixtype_ == FE_MATRIX)
-    mat = std::make_shared<Epetra_FECrsMatrix>(::Copy, rowmap, nonzeros.data(), false);
+    mat = std::make_shared<Epetra_FECrsMatrix>(
+        ::Copy, rowmap.get_epetra_map(), nonzeros.data(), false);
   else
     FOUR_C_THROW("matrix type is not correct");
 
@@ -868,7 +956,7 @@ void Core::LinAlg::SparseMatrix::un_complete()
     // if matrix is filled, global assembly was called already and all nonlocal values are
     // distributed
     int err = sysmat_->ExtractMyRowView(i, NumEntries, Values, Indices);
-    if (err) FOUR_C_THROW("ExtractMyRowView err=%d", err);
+    if (err) FOUR_C_THROW("ExtractMyRowView err={}", err);
     std::vector<int> idx(NumEntries);
     for (int c = 0; c < NumEntries; ++c)
     {
@@ -877,7 +965,7 @@ void Core::LinAlg::SparseMatrix::un_complete()
     }
     int rowgid = rowmap.GID(i);
     err = mat->InsertGlobalValues(rowgid, NumEntries, Values, idx.data());
-    if (err) FOUR_C_THROW("InsertGlobalValues err=%d", err);
+    if (err) FOUR_C_THROW("InsertGlobalValues err={}", err);
   }
   sysmat_ = mat;
   graph_ = nullptr;
@@ -906,20 +994,22 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet(
     // make the code more explicit...
     if (savegraph_ and graph_ == nullptr)
     {
-      graph_ = std::make_shared<Epetra_CrsGraph>(sysmat_->Graph());
-      if (not graph_->Filled()) FOUR_C_THROW("got unfilled graph from filled matrix");
+      graph_ = std::make_shared<Core::LinAlg::Graph>(sysmat_->Graph());
+      if (not graph_->filled()) FOUR_C_THROW("got unfilled graph from filled matrix");
     }
 
     // allocate a new matrix and copy all rows that are not dirichlet
-    const Epetra_Map& rowmap = sysmat_->RowMap();
+    const Core::LinAlg::Map& rowmap = Map(sysmat_->RowMap());
     const int nummyrows = sysmat_->NumMyRows();
     const int maxnumentries = sysmat_->MaxNumEntries();
 
     std::shared_ptr<Epetra_CrsMatrix> Anew = nullptr;
     if (matrixtype_ == CRS_MATRIX)
-      Anew = std::make_shared<Epetra_CrsMatrix>(::Copy, rowmap, maxnumentries, false);
+      Anew =
+          std::make_shared<Epetra_CrsMatrix>(::Copy, rowmap.get_epetra_map(), maxnumentries, false);
     else if (matrixtype_ == FE_MATRIX)
-      Anew = std::make_shared<Epetra_FECrsMatrix>(::Copy, rowmap, maxnumentries, false);
+      Anew = std::make_shared<Epetra_FECrsMatrix>(
+          ::Copy, rowmap.get_epetra_map(), maxnumentries, false);
     else
       FOUR_C_THROW("matrix type is not correct");
 
@@ -934,7 +1024,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet(
 #ifdef FOUR_C_ENABLE_ASSERTIONS
         int err = sysmat_->ExtractGlobalRowCopy(
             row, maxnumentries, numentries, values.data(), indices.data());
-        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ExtractGlobalRowCopy returned err=%d", err);
+        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ExtractGlobalRowCopy returned err={}", err);
 #else
         sysmat_->ExtractGlobalRowCopy(
             row, maxnumentries, numentries, values.data(), indices.data());
@@ -943,7 +1033,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet(
         // globalAssemble method was called already
 #ifdef FOUR_C_ENABLE_ASSERTIONS
         err = Anew->InsertGlobalValues(row, numentries, values.data(), indices.data());
-        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned err=%d", err);
+        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned err={}", err);
 #else
         Anew->InsertGlobalValues(row, numentries, values.data(), indices.data());
 #endif
@@ -957,7 +1047,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet(
           v = 0.0;
 #ifdef FOUR_C_ENABLE_ASSERTIONS
         int err = Anew->InsertGlobalValues(row, 1, &v, &row);
-        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned err=%d", err);
+        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned err={}", err);
 #else
         Anew->InsertGlobalValues(row, 1, &v, &row);
 #endif
@@ -978,7 +1068,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet(
         double* values;
 #ifdef FOUR_C_ENABLE_ASSERTIONS
         int err = sysmat_->ExtractCrsDataPointers(indexOffset, indices, values);
-        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ExtractCrsDataPointers returned err=%d", err);
+        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ExtractCrsDataPointers returned err={}", err);
 #else
         sysmat_->ExtractCrsDataPointers(indexOffset, indices, values);
 #endif
@@ -990,7 +1080,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet(
           double one = 1.0;
 #ifdef FOUR_C_ENABLE_ASSERTIONS
           int err = sysmat_->SumIntoMyValues(i, 1, &one, &i);
-          if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::SumIntoMyValues returned err=%d", err);
+          if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::SumIntoMyValues returned err={}", err);
 #else
           sysmat_->SumIntoMyValues(i, 1, &one, &i);
 #endif
@@ -1004,14 +1094,15 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet(
 /*----------------------------------------------------------------------*
  |  Apply dirichlet conditions  (public)                     mwgee 02/07|
  *----------------------------------------------------------------------*/
-void Core::LinAlg::SparseMatrix::apply_dirichlet(const Epetra_Map& dbctoggle, bool diagonalblock)
+void Core::LinAlg::SparseMatrix::apply_dirichlet(
+    const Core::LinAlg::Map& dbctoggle, bool diagonalblock)
 {
   if (not filled()) FOUR_C_THROW("expect filled matrix to apply dirichlet conditions");
 
   if (dbcmaps_ != nullptr)
   {
 #ifdef FOUR_C_ENABLE_ASSERTIONS
-    if (not dbctoggle.SameAs(*dbcmaps_->Map(1)))
+    if (not dbctoggle.SameAs(*dbcmaps_->map(1)))
     {
       FOUR_C_THROW("Dirichlet maps mismatch");
     }
@@ -1025,7 +1116,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet(const Epetra_Map& dbctoggle, bo
       {
         int row = dbc[i];
         int err = sysmat_->ReplaceGlobalValues(row, 1, &v, &row);
-        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ReplaceGlobalValues returned err=%d", err);
+        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ReplaceGlobalValues returned err={}", err);
       }
     }
     return;
@@ -1038,12 +1129,12 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet(const Epetra_Map& dbctoggle, bo
     // make the code more explicit...
     if (savegraph_ and graph_ == nullptr)
     {
-      graph_ = std::make_shared<Epetra_CrsGraph>(sysmat_->Graph());
-      if (not graph_->Filled()) FOUR_C_THROW("got unfilled graph from filled matrix");
+      graph_ = std::make_shared<Core::LinAlg::Graph>(sysmat_->Graph());
+      if (not graph_->filled()) FOUR_C_THROW("got unfilled graph from filled matrix");
     }
 
     // allocate a new matrix and copy all rows that are not dirichlet
-    const Epetra_Map& rowmap = sysmat_->RowMap();
+    const Core::LinAlg::Map& rowmap = Map(sysmat_->RowMap());
     const int nummyrows = sysmat_->NumMyRows();
     const int maxnumentries = sysmat_->MaxNumEntries();
 
@@ -1052,9 +1143,11 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet(const Epetra_Map& dbctoggle, bo
 
     std::shared_ptr<Epetra_CrsMatrix> Anew = nullptr;
     if (matrixtype_ == CRS_MATRIX)
-      Anew = std::make_shared<Epetra_CrsMatrix>(::Copy, rowmap, maxnumentries, false);
+      Anew =
+          std::make_shared<Epetra_CrsMatrix>(::Copy, rowmap.get_epetra_map(), maxnumentries, false);
     else if (matrixtype_ == FE_MATRIX)
-      Anew = std::make_shared<Epetra_FECrsMatrix>(::Copy, rowmap, maxnumentries, false);
+      Anew = std::make_shared<Epetra_FECrsMatrix>(
+          ::Copy, rowmap.get_epetra_map(), maxnumentries, false);
     else
       FOUR_C_THROW("matrix type is not correct");
 
@@ -1069,7 +1162,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet(const Epetra_Map& dbctoggle, bo
 #ifdef FOUR_C_ENABLE_ASSERTIONS
         int err = sysmat_->ExtractGlobalRowCopy(
             row, maxnumentries, numentries, values.data(), indices.data());
-        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ExtractGlobalRowCopy returned err=%d", err);
+        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ExtractGlobalRowCopy returned err={}", err);
 #else
         sysmat_->ExtractGlobalRowCopy(
             row, maxnumentries, numentries, values.data(), indices.data());
@@ -1078,7 +1171,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet(const Epetra_Map& dbctoggle, bo
         // globalAssemble method was called already
 #ifdef FOUR_C_ENABLE_ASSERTIONS
         err = Anew->InsertGlobalValues(row, numentries, values.data(), indices.data());
-        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned err=%d", err);
+        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned err={}", err);
 #else
         Anew->InsertGlobalValues(row, numentries, values.data(), indices.data());
 #endif
@@ -1090,15 +1183,15 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet(const Epetra_Map& dbctoggle, bo
           double v = 1.0;
 #ifdef FOUR_C_ENABLE_ASSERTIONS
           int err = Anew->InsertGlobalValues(row, 1, &v, &row);
-          if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned err=%d", err);
+          if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned err={}", err);
 #else
           Anew->InsertGlobalValues(row, 1, &v, &row);
 #endif
         }
       }
     }
-    Epetra_Map rangemap = sysmat_->RangeMap();
-    Epetra_Map domainmap = sysmat_->DomainMap();
+    Core::LinAlg::Map rangemap = Map(sysmat_->RangeMap());
+    Core::LinAlg::Map domainmap = Map(sysmat_->DomainMap());
     sysmat_ = Anew;
     complete(domainmap, rangemap);
   }
@@ -1115,7 +1208,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet(const Epetra_Map& dbctoggle, bo
         double* values;
 #ifdef FOUR_C_ENABLE_ASSERTIONS
         int err = sysmat_->ExtractCrsDataPointers(indexOffset, indices, values);
-        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ExtractCrsDataPointers returned err=%d", err);
+        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ExtractCrsDataPointers returned err={}", err);
 #else
         sysmat_->ExtractCrsDataPointers(indexOffset, indices, values);
 #endif
@@ -1127,7 +1220,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet(const Epetra_Map& dbctoggle, bo
           double one = 1.0;
 #ifdef FOUR_C_ENABLE_ASSERTIONS
           err = sysmat_->SumIntoMyValues(i, 1, &one, &i);
-          if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::SumIntoMyValues returned err=%d", err);
+          if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::SumIntoMyValues returned err={}", err);
 #else
           sysmat_->SumIntoMyValues(i, 1, &one, &i);
 #endif
@@ -1142,7 +1235,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet(const Epetra_Map& dbctoggle, bo
  |  Apply dirichlet conditions  (public)                     mwgee 02/07|
  *----------------------------------------------------------------------*/
 void Core::LinAlg::SparseMatrix::apply_dirichlet_with_trafo(const Core::LinAlg::SparseMatrix& trafo,
-    const Epetra_Map& dbctoggle, bool diagonalblock, bool complete)
+    const Core::LinAlg::Map& dbctoggle, bool diagonalblock, bool complete)
 {
   if (not filled()) FOUR_C_THROW("expect filled matrix to apply dirichlet conditions");
 
@@ -1158,13 +1251,13 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet_with_trafo(const Core::LinAlg::
     // make the code more explicit...
     if (savegraph_ and graph_ == nullptr)
     {
-      graph_ = std::make_shared<Epetra_CrsGraph>(sysmat_->Graph());
-      if (not graph_->Filled()) FOUR_C_THROW("got unfilled graph from filled matrix");
+      graph_ = std::make_shared<Core::LinAlg::Graph>(sysmat_->Graph());
+      if (not graph_->filled()) FOUR_C_THROW("got unfilled graph from filled matrix");
     }
 
     // allocate a new matrix and copy all rows that are not dirichlet
-    const Epetra_Map& rowmap = sysmat_->RowMap();
-    const Epetra_Map& colmap = sysmat_->ColMap();
+    const Core::LinAlg::Map& rowmap = Map(sysmat_->RowMap());
+    const Core::LinAlg::Map& colmap = Map(sysmat_->ColMap());
     const int nummyrows = sysmat_->NumMyRows();
     const int maxnumentries = sysmat_->MaxNumEntries();
 
@@ -1176,8 +1269,8 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet_with_trafo(const Core::LinAlg::
 
     // initialise matrix Anew with general size (rowmap x colmap)
     // in case of coupled problem (e.g. TSI) transform the rectangular off-diagonal block k_Td
-    std::shared_ptr<Epetra_CrsMatrix> Anew =
-        std::make_shared<Epetra_CrsMatrix>(::Copy, rowmap, colmap, maxnumentries, false);
+    std::shared_ptr<Epetra_CrsMatrix> Anew = std::make_shared<Epetra_CrsMatrix>(
+        ::Copy, rowmap.get_epetra_map(), colmap.get_epetra_map(), maxnumentries, false);
     std::vector<int> indices(maxnumentries, 0);
     std::vector<double> values(maxnumentries, 0.0);
     for (int i = 0; i < nummyrows; ++i)
@@ -1189,7 +1282,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet_with_trafo(const Core::LinAlg::
 #ifdef FOUR_C_ENABLE_ASSERTIONS
         int err = sysmat_->ExtractGlobalRowCopy(
             row, maxnumentries, numentries, values.data(), indices.data());
-        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ExtractGlobalRowCopy returned err=%d", err);
+        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ExtractGlobalRowCopy returned err={}", err);
 #else
         sysmat_->ExtractGlobalRowCopy(
             row, maxnumentries, numentries, values.data(), indices.data());
@@ -1197,7 +1290,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet_with_trafo(const Core::LinAlg::
 
 #ifdef FOUR_C_ENABLE_ASSERTIONS
         err = Anew->InsertGlobalValues(row, numentries, values.data(), indices.data());
-        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned err=%d", err);
+        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned err={}", err);
 #else
         Anew->InsertGlobalValues(row, numentries, values.data(), indices.data());
 #endif
@@ -1211,7 +1304,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet_with_trafo(const Core::LinAlg::
 #ifdef FOUR_C_ENABLE_ASSERTIONS
           int err = trafo.epetra_matrix()->ExtractGlobalRowCopy(
               row, trafomaxnumentries, trafonumentries, trafovalues.data(), trafoindices.data());
-          if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ExtractGlobalRowCopy returned err=%d", err);
+          if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ExtractGlobalRowCopy returned err={}", err);
 #else
           trafo.epetra_matrix()->ExtractGlobalRowCopy(
               row, trafomaxnumentries, trafonumentries, trafovalues.data(), trafoindices.data());
@@ -1230,7 +1323,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet_with_trafo(const Core::LinAlg::
         {
           int err = Anew->InsertGlobalValues(
               row, trafonumentries, trafovalues.data(), trafoindices.data());
-          if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned err=%d", err);
+          if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned err={}", err);
         }
 #else
         Anew->InsertGlobalValues(row, trafonumentries, trafovalues.data(), trafoindices.data());
@@ -1268,7 +1361,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet_with_trafo(const Core::LinAlg::
         double* values;
 #ifdef FOUR_C_ENABLE_ASSERTIONS
         int err = sysmat_->ExtractCrsDataPointers(indexOffset, indices, values);
-        if (err) FOUR_C_THROW("Epetra_CrsMatrix::ExtractCrsDataPointers returned err=%d", err);
+        if (err) FOUR_C_THROW("Epetra_CrsMatrix::ExtractCrsDataPointers returned err={}", err);
 #else
         sysmat_->ExtractCrsDataPointers(indexOffset, indices, values);
 #endif
@@ -1280,7 +1373,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet_with_trafo(const Core::LinAlg::
 #ifdef FOUR_C_ENABLE_ASSERTIONS
           err = trafo.epetra_matrix()->ExtractMyRowCopy(
               i, trafomaxnumentries, trafonumentries, trafovalues.data(), trafoindices.data());
-          if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ExtractGlobalRowCopy returned err=%d", err);
+          if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ExtractGlobalRowCopy returned err={}", err);
 #else
           trafo.epetra_matrix()->ExtractMyRowCopy(
               i, trafomaxnumentries, trafonumentries, trafovalues.data(), trafoindices.data());
@@ -1289,7 +1382,7 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet_with_trafo(const Core::LinAlg::
 #ifdef FOUR_C_ENABLE_ASSERTIONS
           err =
               sysmat_->SumIntoMyValues(i, trafonumentries, trafovalues.data(), trafoindices.data());
-          if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::SumIntoMyValues returned err=%d", err);
+          if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::SumIntoMyValues returned err={}", err);
 #else
           sysmat_->SumIntoMyValues(i, trafonumentries, trafovalues.data(), trafoindices.data());
 #endif
@@ -1309,8 +1402,8 @@ std::shared_ptr<Core::LinAlg::SparseMatrix> Core::LinAlg::SparseMatrix::extract_
   std::shared_ptr<SparseMatrix> dl = std::make_shared<SparseMatrix>(
       row_map(), max_num_entries(), explicit_dirichlet(), save_graph());
 
-  const Epetra_Map& rowmap = sysmat_->RowMap();
-  const Epetra_Map& colmap = sysmat_->ColMap();
+  const Core::LinAlg::Map& rowmap = Map(sysmat_->RowMap());
+  const Core::LinAlg::Map& colmap = Map(sysmat_->ColMap());
   const int nummyrows = sysmat_->NumMyRows();
 
   const Core::LinAlg::Vector<double>& dbct = dbctoggle;
@@ -1326,15 +1419,15 @@ std::shared_ptr<Core::LinAlg::SparseMatrix> Core::LinAlg::SparseMatrix::extract_
       int* Indices;
 
       int err = sysmat_->ExtractMyRowView(i, NumEntries, Values, Indices);
-      if (err) FOUR_C_THROW("ExtractMyRowView: err=%d", err);
+      if (err) FOUR_C_THROW("ExtractMyRowView: err={}", err);
       for (int j = 0; j < NumEntries; ++j) idx[j] = colmap.GID(Indices[j]);
 
       err = dl->sysmat_->InsertGlobalValues(rowmap.GID(i), NumEntries, Values, idx.data());
-      if (err) FOUR_C_THROW("InsertGlobalValues: err=%d", err);
+      if (err) FOUR_C_THROW("InsertGlobalValues: err={}", err);
     }
   }
 
-  dl->complete(sysmat_->DomainMap(), range_map());
+  dl->complete(Map(sysmat_->DomainMap()), range_map());
   return dl;
 }
 
@@ -1342,7 +1435,7 @@ std::shared_ptr<Core::LinAlg::SparseMatrix> Core::LinAlg::SparseMatrix::extract_
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
 std::shared_ptr<Core::LinAlg::SparseMatrix> Core::LinAlg::SparseMatrix::extract_dirichlet_rows(
-    const Epetra_Map& dbctoggle)
+    const Core::LinAlg::Map& dbctoggle)
 {
   if (not filled()) FOUR_C_THROW("expect filled matrix to extract dirichlet lines");
   if (not dbctoggle.UniqueGIDs()) FOUR_C_THROW("unique map required");
@@ -1350,8 +1443,8 @@ std::shared_ptr<Core::LinAlg::SparseMatrix> Core::LinAlg::SparseMatrix::extract_
   std::shared_ptr<SparseMatrix> dl = std::make_shared<SparseMatrix>(
       row_map(), max_num_entries(), explicit_dirichlet(), save_graph());
 
-  const Epetra_Map& rowmap = sysmat_->RowMap();
-  const Epetra_Map& colmap = sysmat_->ColMap();
+  const Core::LinAlg::Map& rowmap = Map(sysmat_->RowMap());
+  const Core::LinAlg::Map& colmap = Map(sysmat_->ColMap());
   // const int nummyrows      = sysmat_->NumMyRows();
 
   std::vector<int> idx(max_num_entries());
@@ -1370,14 +1463,14 @@ std::shared_ptr<Core::LinAlg::SparseMatrix> Core::LinAlg::SparseMatrix::extract_
     int* Indices;
 
     int err = sysmat_->ExtractMyRowView(lid, NumEntries, Values, Indices);
-    if (err) FOUR_C_THROW("ExtractMyRowView: err=%d", err);
+    if (err) FOUR_C_THROW("ExtractMyRowView: err={}", err);
     for (int j = 0; j < NumEntries; ++j) idx[j] = colmap.GID(Indices[j]);
 
     err = dl->sysmat_->InsertGlobalValues(gid, NumEntries, Values, idx.data());
-    if (err) FOUR_C_THROW("InsertGlobalValues: err=%d", err);
+    if (err) FOUR_C_THROW("InsertGlobalValues: err={}", err);
   }
 
-  dl->complete(sysmat_->DomainMap(), range_map());
+  dl->complete(Map(sysmat_->DomainMap()), range_map());
   return dl;
 }
 

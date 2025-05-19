@@ -39,6 +39,7 @@ namespace Core::LinAlg
   class BlockSparseMatrixBase;
   class MapExtractor;
   class MultiMapExtractor;
+  class Map;
 }  // namespace Core::LinAlg
 
 namespace Core::Conditions
@@ -52,11 +53,11 @@ namespace CONTACT
   class MeshtyingContactBridge;
 }
 
-namespace CONSTRAINTS
+namespace Constraints
 {
   class ConstrManager;
   class SpringDashpotManager;
-}  // namespace CONSTRAINTS
+}  // namespace Constraints
 
 namespace Utils
 {
@@ -116,8 +117,7 @@ namespace Adapter
   \warning Further cleanup is still needed.
 
   \sa Fluid, Ale
-  \author u.kue
-  \date 11/07
+
   */
   class Structure : public Field
   {
@@ -141,11 +141,16 @@ namespace Adapter
 
     \warning none
     \return void
-    \date 08/16
-    \author rauch  */
+
+    */
     virtual void setup() = 0;
 
     //@}
+
+    /*!
+     * @brief Perform all necessary tasks after setting up the object.
+     */
+    virtual void post_setup() = 0;
 
     //! @name Vector access
     //@{
@@ -184,16 +189,16 @@ namespace Adapter
     //! @name Misc
 
     /// dof map of vector of unknowns
-    std::shared_ptr<const Epetra_Map> dof_row_map() override = 0;
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map() override = 0;
 
     /// DOF map of vector of unknowns for multiple dofsets
-    virtual std::shared_ptr<const Epetra_Map> dof_row_map(unsigned nds) = 0;
+    virtual std::shared_ptr<const Core::LinAlg::Map> dof_row_map(unsigned nds) = 0;
 
     /// DOF map view of vector of unknowns
-    virtual const Epetra_Map* dof_row_map_view() = 0;
+    virtual const Core::LinAlg::Map* dof_row_map_view() = 0;
 
     /// domain map of system matrix (do we really need this?)
-    [[nodiscard]] virtual const Epetra_Map& domain_map() const = 0;
+    [[nodiscard]] virtual const Core::LinAlg::Map& domain_map() const = 0;
 
     /// direct access to system matrix
     std::shared_ptr<Core::LinAlg::SparseMatrix> system_matrix() override = 0;
@@ -231,10 +236,10 @@ namespace Adapter
     virtual bool have_spring_dashpot() = 0;
 
     /// get constraint manager defined in the structure
-    virtual std::shared_ptr<CONSTRAINTS::ConstrManager> get_constraint_manager() = 0;
+    virtual std::shared_ptr<Constraints::ConstrManager> get_constraint_manager() = 0;
 
     /// get SpringDashpot manager defined in the structure
-    virtual std::shared_ptr<CONSTRAINTS::SpringDashpotManager> get_spring_dashpot_manager() = 0;
+    virtual std::shared_ptr<Constraints::SpringDashpotManager> get_spring_dashpot_manager() = 0;
 
     /// Get type of thickness scaling for thin shell structures
     virtual Inpar::Solid::StcScale get_stc_algo() = 0;
@@ -246,14 +251,14 @@ namespace Adapter
     virtual std::shared_ptr<const Core::LinAlg::MapExtractor> get_dbc_map_extractor() = 0;
 
     /// expand dirichlet bc map
-    virtual void add_dirich_dofs(const std::shared_ptr<const Epetra_Map> maptoadd) {
+    virtual void add_dirich_dofs(const std::shared_ptr<const Core::LinAlg::Map> maptoadd) {
       /* This is only needed for the old structural time integration.
          For the new structural time integration this is already
          implemented in str_dbc.cpp and str_dbc.H ! rauch 02/17 */
     };
 
     /// contract dirichlet bc map
-    virtual void remove_dirich_dofs(const std::shared_ptr<const Epetra_Map> maptoremove) {
+    virtual void remove_dirich_dofs(const std::shared_ptr<const Core::LinAlg::Map> maptoremove) {
       /* This is only needed for the old structural time integration.
          For the new structural time integration this is already
          implemented in str_dbc.cpp and str_dbc.H ! rauch 02/17 */
@@ -295,7 +300,7 @@ namespace Adapter
     [[nodiscard]] virtual int num_step() const = 0;
 
     /// Take the time and integrate (time loop)
-    /// \date 11/08
+
     virtual int integrate() = 0;
 
     //! do something in case nonlinear solution does not converge for some reason
@@ -394,8 +399,6 @@ namespace Adapter
     Therefore, we need to reset the solution back to the initial solution of the
     time step.
 
-    \author mayr.mt
-    \date 08/2013
     */
     virtual void reset_step() = 0;
 

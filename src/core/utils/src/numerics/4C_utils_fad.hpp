@@ -54,7 +54,7 @@ namespace Core::FADUtils
   template <typename Type, unsigned int dim1, unsigned int dim2>
   Core::LinAlg::Matrix<dim1, dim2, double> cast_to_double(Core::LinAlg::Matrix<dim1, dim2, Type> a)
   {
-    Core::LinAlg::Matrix<dim1, dim2, double> b(true);
+    Core::LinAlg::Matrix<dim1, dim2, double> b(Core::LinAlg::Initialization::zero);
 
     for (unsigned int i = 0; i < dim1; i++)
     {
@@ -166,7 +166,7 @@ namespace Core::FADUtils
   Core::LinAlg::Matrix<3, 1, Type> diff_vector(
       Core::LinAlg::Matrix<3, 1, Type> a, Core::LinAlg::Matrix<3, 1, Type> b)
   {
-    Core::LinAlg::Matrix<3, 1, Type> c(true);
+    Core::LinAlg::Matrix<3, 1, Type> c(Core::LinAlg::Initialization::zero);
     for (int i = 0; i < 3; i++) c(i) = a(i) - b(i);
 
     return c;
@@ -214,10 +214,10 @@ namespace Core::FADUtils
   struct HigherOrderFadType
   {
     //! Nested type of this Fad type.
-    typedef typename HigherOrderFadType<n - 1, BaseFadType>::type nested_type;
+    using nested_type = typename HigherOrderFadType<n - 1, BaseFadType>::type;
 
     //! Fad type of this object.
-    typedef typename Sacado::mpl::apply<BaseFadType, nested_type>::type type;
+    using type = typename Sacado::mpl::apply<BaseFadType, nested_type>::type;
   };
 
   /**
@@ -226,7 +226,7 @@ namespace Core::FADUtils
   template <typename BaseFadType>
   struct HigherOrderFadType<1, BaseFadType>
   {
-    typedef BaseFadType type;
+    using type = BaseFadType;
   };
 
 
@@ -242,7 +242,7 @@ namespace Core::FADUtils
   struct HigherOrderFadValue
   {
     //! Type of nested value.
-    typedef typename FadType::value_type nested_type;
+    using nested_type = typename FadType::value_type;
 
     /**
      * \brief Set a value of this Fad type.

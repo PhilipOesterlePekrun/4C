@@ -583,7 +583,8 @@ namespace Discret::Elements::Shell
     // the displacements across the thickness
     if (zeta)
     {
-      Core::LinAlg::Matrix<Internal::num_dim, Internal::num_dim> tmp(true);
+      Core::LinAlg::Matrix<Internal::num_dim, Internal::num_dim> tmp(
+          Core::LinAlg::Initialization::zero);
       tmp.multiply_nn(zeta, shape_functions.derivatives_, a3, 0.0);
       basis_and_metrics.kovariant_.update(1.0, tmp, 1.0);
     }
@@ -894,7 +895,7 @@ namespace Discret::Elements::Shell
    * 0]^T, E_2=[0, 1, 0]^T, E_3=[0, 0, 1]^T$\f, no transformation is necessary
    *
    * @tparam distype : The discretization type known at compile time
-   * @params strains (in/out) :  Strain measures of the element (deformation gradient,
+   * @param strains (in/out) :  Strain measures of the element (deformation gradient,
    * Green-Lagrange strain tensor)
    * @param g_reference (in) : An object holding the reference basis vectors and metric
    * tensors of the shell body
@@ -931,7 +932,8 @@ namespace Discret::Elements::Shell
       const BasisVectorsAndMetrics<distype>& g_current)
   {
     //  evaluate strain tensor in curvilinear coordinate system E_ij = 0.5 (g_ij-G_ij)
-    Core::LinAlg::Matrix<Internal::num_dim, Internal::num_dim> gl_strain_tensor(true);
+    Core::LinAlg::Matrix<Internal::num_dim, Internal::num_dim> gl_strain_tensor(
+        Core::LinAlg::Initialization::zero);
     for (int i = 0; i < Internal::num_dim; ++i)
     {
       for (int j = 0; j < Internal::num_dim; ++j)
@@ -939,7 +941,8 @@ namespace Discret::Elements::Shell
             0.5 * (g_current.metric_kovariant_(i, j) - g_reference.metric_kovariant_(i, j));
     }
     // map gl strains from curvilinear system to global cartesian system
-    Core::LinAlg::Matrix<Internal::num_dim, Internal::num_dim> gl_strain_tensor_cartesian(true);
+    Core::LinAlg::Matrix<Internal::num_dim, Internal::num_dim> gl_strain_tensor_cartesian(
+        Core::LinAlg::Initialization::zero);
     Core::LinAlg::Tensor::inverse_tensor_rotation<Internal::num_dim>(
         g_reference.kontravariant_, gl_strain_tensor, gl_strain_tensor_cartesian);
     // GL strain vector glstrain for solid material E={E11,E22,E33,2*E12,2*E23,2*E31}
@@ -957,7 +960,7 @@ namespace Discret::Elements::Shell
    * \f]
    *
    * @tparam distype :  The discretization type known at compile time
-   * @params stress (in/out) : Stress quantities of the element (2. Piola-Kirchoff stress tensor
+   * @param stress (in/out) : Stress quantities of the element (2. Piola-Kirchoff stress tensor
    * and the linearization w.r.t Green-Lagrange strain)
    * @param g_reference (in) : An object holding the reference basis vectors and metric
    * tensors of the shell body
@@ -968,9 +971,11 @@ namespace Discret::Elements::Shell
   {
     // transform Piola-Kirchhoff-stresses from global cartesian coordinate system back to local
     // curvilinear coordinate system
-    Core::LinAlg::Matrix<Internal::num_dim, Internal::num_dim> stress_tensor(true);
+    Core::LinAlg::Matrix<Internal::num_dim, Internal::num_dim> stress_tensor(
+        Core::LinAlg::Initialization::zero);
     Core::LinAlg::Voigt::Stresses::vector_to_matrix(stress.pk2_, stress_tensor);
-    Core::LinAlg::Matrix<Internal::num_dim, Internal::num_dim> tmp(true);
+    Core::LinAlg::Matrix<Internal::num_dim, Internal::num_dim> tmp(
+        Core::LinAlg::Initialization::zero);
     Core::LinAlg::Tensor::tensor_rotation(g_reference.kontravariant_, stress_tensor, tmp);
 
     // re-arrange indices for shell element formulation:
@@ -984,8 +989,10 @@ namespace Discret::Elements::Shell
 
     // transform elasticity matrix from global cartesian coordinate system back to local
     // curvilinear coordinate system
-    Core::LinAlg::Matrix<Mat::NUM_STRESS_3D, Mat::NUM_STRESS_3D> Cmat(true);
-    Core::LinAlg::Matrix<Internal::num_dim, Internal::num_dim> g_metrics_trans(true);
+    Core::LinAlg::Matrix<Mat::NUM_STRESS_3D, Mat::NUM_STRESS_3D> Cmat(
+        Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<Internal::num_dim, Internal::num_dim> g_metrics_trans(
+        Core::LinAlg::Initialization::zero);
     g_metrics_trans.update_t(g_reference.kontravariant_);
     Core::LinAlg::Tensor::inverse_fourth_tensor_rotation(g_metrics_trans, stress.cmat_, Cmat);
 
@@ -1001,7 +1008,7 @@ namespace Discret::Elements::Shell
    * strains within the ANS method
    *
    * @tparam distype : The discretization type known at compile time
-   * @params xi_gp (in) : Coordinate of the integration point in the parameter space
+   * @param xi_gp (in) : Coordinate of the integration point in the parameter space
    * @return shapefunctions for ANS
    */
   template <Core::FE::CellType distype>
@@ -1064,8 +1071,8 @@ namespace Discret::Elements::Shell
    * strains within the ANS method
    *
    * @tparam distype : The discretization type known at compile time
-   * @params xi_gp (in) : Coordinate of the integration point in the parameter space
-   * @params num_ans (in) : Number of ANS collocation points
+   * @param xi_gp (in) : Coordinate of the integration point in the parameter space
+   * @param num_ans (in) : Number of ANS collocation points
    * @return shapefunctions for ANS
    */
   template <Core::FE::CellType distype>
@@ -1090,7 +1097,7 @@ namespace Discret::Elements::Shell
    * @brief Transform the Green-Lagrange strains to Euler-Almansi strains
    *
    * @tparam distype : The discretization type known at compile time
-   * @params gl (in) :  Green-Lagrange strains
+   * @param gl (in) :  Green-Lagrange strains
    * @param defgrd (in) : Deformations gradient tensor
    * @param ea (in/out) : Euler-Almansi strains
    */
@@ -1118,7 +1125,7 @@ namespace Discret::Elements::Shell
    * @brief Transform the 2. Piola-Kirchoff stresses to Cauchy stresses
    *
    * @tparam distype : The discretization type known at compile time
-   * @params pk2 (in) :  2. Piola-Kirchoff stresses
+   * @param pk2 (in) :  2. Piola-Kirchoff stresses
    * @param defgrd (in) : Deformations gradient tensor
    * @param cauchy (in/out) : Cauchy stresses
    */
@@ -1143,7 +1150,7 @@ namespace Discret::Elements::Shell
    * @brief Assembles data in voigt vector notation to matrix
    *
    * @tparam num_internal_variables : number of internal parameters
-   * @params vector (in) :  Vector in voigt notation
+   * @param vector (in) :  Vector in voigt notation
    * @param data (in/out) : Data to which the vector will be assembled
    * @param thickness_weight (in) : Weighting factor to consider thickness integration
    */
@@ -1159,8 +1166,8 @@ namespace Discret::Elements::Shell
    * @brief Assembles strain data in voigt vector notation to matrix
    *
    * @tparam distype : The discretization type known at compile time
-   * @params strains (in) :  Strain vector
-   * @params strains_type (in) :  Strain type
+   * @param strains (in) :  Strain vector
+   * @param strains_type (in) :  Strain type
    * @param data (in/out) : Data to which the vector will be assembled
    * @param row (in) : Row number
    * @param thickness_weight (in) : Weighting factor to consider thickness integration
@@ -1198,8 +1205,8 @@ namespace Discret::Elements::Shell
    * @brief Assembles stress data in voigt vector notation to matrix
    *
    * @tparam distype : The discretization type known at compile time
-   * @params stress (in) :  Stress vector
-   * @params stress_type (in) :  Stress type
+   * @param stress (in) :  Stress vector
+   * @param stress_type (in) :  Stress type
    * @param data (in/out) : Data to which the vector will be assembled
    * @param row (in) : Row number
    * @param thickness_weight (in) : Weighting factor to consider thickness integration
@@ -1246,7 +1253,7 @@ namespace Discret::Elements::Shell
    * element. Here, they are chosen such that the points lie on the middle of each edge.
    *
    * @tparam distype : discretization type
-   * @params qp (in) :  Index of collocation point
+   * @param qp (in) :  Index of collocation point
    */
   template <Core::FE::CellType distype>
   void get_coordinates_of_ans_collocation_points(
@@ -1288,9 +1295,9 @@ namespace Discret::Elements::Shell
    * evaluated at collocation points for ANS
    *
    * @tparam distype : The discretization type known at compile time
-   * @params shapefunctions_collocation (in/out) :  An object holding the shape functions and the
+   * @param shapefunctions_collocation (in/out) :  An object holding the shape functions and the
    * first derivatives w.r.t spatial coordinates
-   * @params metrics_collocation_reference (in/out) :  An object holding the reference basis vectors
+   * @param metrics_collocation_reference (in/out) :  An object holding the reference basis vectors
    * and metric tensors of the shell body
    * @param metrics_collocation_current (in/out) : An object holding the current basis vectors and
    * metric tensors of the shell body
@@ -1623,7 +1630,7 @@ namespace Discret::Elements::Shell
       evaluate_metrics(shapefunctions, a_reference, a_current, nodal_coordinates, 0.0);
 
       // make h as cross product in ref configuration to get area da on shell mid-surface
-      Core::LinAlg::Matrix<Internal::num_dim, 1> h(true);
+      Core::LinAlg::Matrix<Internal::num_dim, 1> h(Core::LinAlg::Initialization::zero);
       {
         Core::LinAlg::Matrix<Internal::num_dim, Internal::num_dim> akovrefe =
             a_reference.kovariant_;

@@ -44,13 +44,11 @@ namespace NOX
         For instructions on how to implement a PrePostOperator, see
         NOX::Nln::Abstract::PrePostOperator or one of the currently supported implementations (enum
         list).
-
-        \author Michael Hiermeier
       */
       class PrePostOperator
       {
        public:
-        typedef std::map<enum PrePostOpType, Teuchos::RCP<NOX::Nln::Abstract::PrePostOperator>> Map;
+        using Map = std::map<enum PrePostOpType, Teuchos::RCP<NOX::Nln::Abstract::PrePostOperator>>;
 
        private:
         //! Disallow default constructor.

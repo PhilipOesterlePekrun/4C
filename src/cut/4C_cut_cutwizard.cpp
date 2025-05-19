@@ -124,7 +124,7 @@ void Cut::CutWizard::set_options(
   intersection_->set_find_positions(positions);
   intersection_->set_nodal_dof_set_strategy(nodal_dofset_strategy);
 
-  // Initialize Cut Parameters based on dat file section CUT GENERAL
+  // Initialize Cut Parameters based on input file section CUT GENERAL
   intersection_->get_options().init_by_paramlist(cutparams);
 
   is_set_options_ = true;
@@ -170,7 +170,7 @@ void Cut::CutWizard::add_cutter_state(const int mc_idx,
   std::map<int, std::shared_ptr<CutterMesh>>::iterator cm = cutter_meshes_.find(mc_idx);
 
   if (cm != cutter_meshes_.end())
-    FOUR_C_THROW("cutter mesh with mesh coupling index %i already set", mc_idx);
+    FOUR_C_THROW("cutter mesh with mesh coupling index {} already set", mc_idx);
 
   cutter_meshes_[mc_idx] = std::make_shared<CutterMesh>(cutter_dis, cutter_disp_col, start_ele_gid);
 
@@ -368,11 +368,11 @@ void evaluate_position_on_nurbs9(Core::Elements::Element* element,
     const Core::LinAlg::Vector<double>& cutter_disp_col)
 {
   // Initialize the information needed for NURBS elements
-  Core::LinAlg::Matrix<9, 1, double> weights(true);
+  Core::LinAlg::Matrix<9, 1, double> weights(Core::LinAlg::Initialization::zero);
   std::vector<Core::LinAlg::SerialDenseVector> myknots(2);
   std::vector<Core::LinAlg::SerialDenseVector> mypknots(3);
 
-  const int num_nodes = Core::FE::num_nodes<Core::FE::CellType::nurbs9>;
+  const int num_nodes = Core::FE::num_nodes(Core::FE::CellType::nurbs9);
   const int nurbs_dim = Core::FE::dim<Core::FE::CellType::nurbs9>;
   const int prob_dim = 3;
 
@@ -410,7 +410,7 @@ void evaluate_position_on_nurbs9(Core::Elements::Element* element,
     lm.clear();
     mydisp.clear();
     cutterdis->dof(controlpoint, lm);
-    Core::FE::extract_my_values(cutter_disp_col, mydisp, lm);
+    mydisp = Core::FE::extract_values(cutter_disp_col, lm);
 
     // Obtain the displacements on control points
     for (int i_dim = 0; i_dim < prob_dim; ++i_dim)
@@ -469,7 +469,7 @@ void evaluate_position_on_lagrange_element(Core::Elements::Element* element,
     {
       if (lm.size() == 3)  // case for BELE3 boundary elements
       {
-        Core::FE::extract_my_values(*cutter_disp_col, mydisp, lm);
+        mydisp = Core::FE::extract_values(*cutter_disp_col, lm);
       }
       else if (lm.size() == 4)  // case for BELE3_4 boundary elements
       {
@@ -479,10 +479,10 @@ void evaluate_position_on_lagrange_element(Core::Elements::Element* element,
         lm_red.clear();
         for (int k = 0; k < 3; k++) lm_red.push_back(lm[k]);
 
-        Core::FE::extract_my_values(*cutter_disp_col, mydisp, lm_red);
+        mydisp = Core::FE::extract_values(*cutter_disp_col, lm_red);
       }
       else
-        FOUR_C_THROW("wrong number of dofs for node %i", lm.size());
+        FOUR_C_THROW("wrong number of dofs for node {}", lm.size());
 
       Core::LinAlg::Matrix<3, 1> disp(mydisp.data(), true);
 
@@ -689,14 +689,14 @@ Core::LinAlg::SerialDenseMatrix Cut::CutWizard::get_current_element_position(
       FOUR_C_ASSERT(global_dof_indices_, "global_dof_indices callback not set.");
       global_dof_indices_(node, lm);
 
-      FOUR_C_ASSERT(lm.size() == 4, "Wrong number of dofs for node %i", lm.size());
+      FOUR_C_ASSERT(lm.size() == 4, "Wrong number of dofs for node {}", lm.size());
 
       // copy the first three entries for the displacement, the fourth entry an all others
       std::vector<int> lm_red;  // reduced local map
       lm_red.clear();
       for (int k = 0; k < 3; k++) lm_red.push_back(lm[k]);
 
-      Core::FE::extract_my_values(back_mesh_->back_disp_col(), mydisp, lm_red);
+      mydisp = Core::FE::extract_values(back_mesh_->back_disp_col(), lm_red);
 
       if (mydisp.size() != 3) FOUR_C_THROW("we need 3 displacements here");
 
@@ -1051,7 +1051,7 @@ void Cut::CutWizard::update_boundary_cell_coords(
       {
         if (lm.size() == 3)  // case for BELE3 boundary elements
         {
-          Core::FE::extract_my_values(*cutter_disp_col, mydisp, lm);
+          mydisp = Core::FE::extract_values(*cutter_disp_col, lm);
         }
         else if (lm.size() == 4)  // case for BELE3_4 boundary elements
         {
@@ -1061,10 +1061,10 @@ void Cut::CutWizard::update_boundary_cell_coords(
           lm_red.clear();
           for (int k = 0; k < 3; k++) lm_red.push_back(lm[k]);
 
-          Core::FE::extract_my_values(*cutter_disp_col, mydisp, lm_red);
+          mydisp = Core::FE::extract_values(*cutter_disp_col, lm_red);
         }
         else
-          FOUR_C_THROW("wrong number of dofs for node %i", lm.size());
+          FOUR_C_THROW("wrong number of dofs for node {}", lm.size());
 
         if (mydisp.size() != 3) FOUR_C_THROW("we need 3 displacements here");
 
@@ -1106,7 +1106,7 @@ void Cut::CutWizard::update_boundary_cell_coords(
             Core::LinAlg::Matrix<4, 1> funct;
             Core::FE::shape_function_2d(funct, xsi(0, 0), xsi(1, 0), sh->shape());
 
-            Core::LinAlg::Matrix<3, 1> newpos(true);
+            Core::LinAlg::Matrix<3, 1> newpos(Core::LinAlg::Initialization::zero);
             newpos.multiply(XYZE, funct);
             bc->reset_pos(bcpoint, newpos);
           }

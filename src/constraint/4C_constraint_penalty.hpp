@@ -14,13 +14,11 @@
 #include "4C_linalg_vector.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
 
-#include <Epetra_Operator.h>
-
 #include <memory>
 
 FOUR_C_NAMESPACE_OPEN
 
-namespace CONSTRAINTS
+namespace Constraints
 {
   /*!
   \brief Basic constraint class, dealing with constraint and monitor boundary conditions.
@@ -85,9 +83,9 @@ namespace CONSTRAINTS
     std::shared_ptr<Epetra_Export>
         errorexport_;  ///< exporter for redundant and non-overlapping maps
     std::shared_ptr<Epetra_Import>
-        errorimport_;                          ///< importer for redundant and non-overlapping maps
-    std::shared_ptr<Epetra_Map> rederrormap_;  ///< redundant map of errors
-    std::shared_ptr<Epetra_Map> errormap_;     ///< non-overlapping map of errors
+        errorimport_;  ///< importer for redundant and non-overlapping maps
+    std::shared_ptr<Core::LinAlg::Map> rederrormap_;           ///< redundant map of errors
+    std::shared_ptr<Core::LinAlg::Map> errormap_;              ///< non-overlapping map of errors
     std::shared_ptr<Core::LinAlg::Vector<double>> initerror_;  ///< initial value of bc
     std::shared_ptr<Core::LinAlg::Vector<double>> acterror_;   ///< current value of bc
     std::shared_ptr<Core::LinAlg::Vector<double>>
@@ -130,7 +128,7 @@ namespace CONSTRAINTS
                                                     ///< by aasembly of element contributions
     );
   };  // class
-}  // namespace CONSTRAINTS
+}  // namespace Constraints
 
 FOUR_C_NAMESPACE_CLOSE
 

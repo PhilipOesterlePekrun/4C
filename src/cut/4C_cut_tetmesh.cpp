@@ -496,7 +496,7 @@ void Cut::TetMesh::call_q_hull(
     {
       std::stringstream str;
       str << "did not free " << totlong << " bytes of long memory (" << curlong << " pieces)";
-      FOUR_C_THROW(str.str());
+      FOUR_C_THROW("{}", str.str());
     }
 
     if (tets.size() > 0)
@@ -730,7 +730,7 @@ void Cut::TetMesh::fix_broken_tets()
     // compute norm (area) of plane
     // double norm012 = nplane012.norm2();
 
-    Core::LinAlg::Matrix<4, 1> temp(true);
+    Core::LinAlg::Matrix<4, 1> temp(Core::LinAlg::Initialization::zero);
     temp(0, 0) = p0.norm2();  // Distance of points to origin
     temp(1, 0) = p1.norm2();
     temp(2, 0) = p2.norm2();

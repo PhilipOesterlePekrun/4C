@@ -5,6 +5,7 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
+#include "4C_contact_input.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_element.hpp"
 #include "4C_fem_general_elements_jacobian.hpp"
@@ -12,7 +13,6 @@
 #include "4C_fem_general_utils_fem_shapefunctions.hpp"
 #include "4C_fem_nurbs_discretization.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_inpar_structure.hpp"
 #include "4C_linalg_serialdensematrix.hpp"
 #include "4C_linalg_serialdensevector.hpp"
@@ -82,10 +82,8 @@ int Discret::Elements::Wall1::evaluate(Teuchos::ParameterList& params,
       act = Core::Elements::struct_calc_reset_istep;
     else if (action == "calc_struct_energy")
       act = Core::Elements::struct_calc_energy;
-    else if (action == "calc_struct_mass_volume")
-      act = Core::Elements::struct_calc_mass_volume;
     else
-      FOUR_C_THROW("Unknown type of action %s for Wall1", action.c_str());
+      FOUR_C_THROW("Unknown type of action {} for Wall1", action);
   }
   // get the material law
   std::shared_ptr<const Core::Mat::Material> actmat = material();
@@ -104,7 +102,6 @@ int Discret::Elements::Wall1::evaluate(Teuchos::ParameterList& params,
       case Core::Elements::struct_calc_nlnstiff:
       case Core::Elements::struct_calc_internalforce:
       case Core::Elements::struct_calc_stress:
-      case Core::Elements::struct_calc_mass_volume:
       {
         auto* nurbsdis = dynamic_cast<Core::FE::Nurbs::NurbsDiscretization*>(&(discretization));
 
@@ -157,10 +154,8 @@ int Discret::Elements::Wall1::evaluate(Teuchos::ParameterList& params,
           discretization.get_state("residual displacement");
       if (disp == nullptr || res == nullptr)
         FOUR_C_THROW("Cannot get state vectors 'displacement' and/or residual");
-      std::vector<double> mydisp(lm.size());
-      Core::FE::extract_my_values(*disp, mydisp, lm);
-      std::vector<double> myres(lm.size());
-      Core::FE::extract_my_values(*res, myres, lm);
+      std::vector<double> mydisp = Core::FE::extract_values(*disp, lm);
+      std::vector<double> myres = Core::FE::extract_values(*res, lm);
 
       // special case: geometrically linear
       if (kintype_ == Inpar::Solid::KinemType::linear)
@@ -189,10 +184,8 @@ int Discret::Elements::Wall1::evaluate(Teuchos::ParameterList& params,
           discretization.get_state("residual displacement");
       if (disp == nullptr || res == nullptr)
         FOUR_C_THROW("Cannot get state vectors 'displacement' and/or residual");
-      std::vector<double> mydisp(lm.size());
-      Core::FE::extract_my_values(*disp, mydisp, lm);
-      std::vector<double> myres(lm.size());
-      Core::FE::extract_my_values(*res, myres, lm);
+      std::vector<double> mydisp = Core::FE::extract_values(*disp, lm);
+      std::vector<double> myres = Core::FE::extract_values(*res, lm);
 
       // special case: geometrically linear
       if (kintype_ == Inpar::Solid::KinemType::linear)
@@ -218,10 +211,8 @@ int Discret::Elements::Wall1::evaluate(Teuchos::ParameterList& params,
           discretization.get_state("residual displacement");
       if (disp == nullptr || res == nullptr)
         FOUR_C_THROW("Cannot get state vectors 'displacement' and/or residual");
-      std::vector<double> mydisp(lm.size());
-      Core::FE::extract_my_values(*disp, mydisp, lm);
-      std::vector<double> myres(lm.size());
-      Core::FE::extract_my_values(*res, myres, lm);
+      std::vector<double> mydisp = Core::FE::extract_values(*disp, lm);
+      std::vector<double> myres = Core::FE::extract_values(*res, lm);
       // create a dummy element matrix (initialised to zero)
       // This matrix is not utterly useless. It is used to apply EAS-stuff in a linearised manner
       // onto the internal force vector.
@@ -255,10 +246,8 @@ int Discret::Elements::Wall1::evaluate(Teuchos::ParameterList& params,
             "Cannot get state vectors \"displacement\" "
             "and/or \"residual displacement\"");
       }
-      std::vector<double> mydisp(lm.size());
-      Core::FE::extract_my_values(*disp, mydisp, lm);
-      std::vector<double> myres(lm.size());
-      Core::FE::extract_my_values(*res, myres, lm);
+      std::vector<double> mydisp = Core::FE::extract_values(*disp, lm);
+      std::vector<double> myres = Core::FE::extract_values(*res, lm);
       w1_recover(lm, mydisp, myres);
       /* ToDo Probably we have to recover the history information of some special
        * materials as well.                                 hiermeier 04/2016  */
@@ -324,10 +313,8 @@ int Discret::Elements::Wall1::evaluate(Teuchos::ParameterList& params,
       if (disp == nullptr) FOUR_C_THROW("Cannot get state vectors 'displacement'");
       if (stressdata == nullptr) FOUR_C_THROW("Cannot get stress 'data'");
       if (straindata == nullptr) FOUR_C_THROW("Cannot get strain 'data'");
-      std::vector<double> mydisp(lm.size());
-      Core::FE::extract_my_values(*disp, mydisp, lm);
-      std::vector<double> myres(lm.size());
-      Core::FE::extract_my_values(*res, myres, lm);
+      std::vector<double> mydisp = Core::FE::extract_values(*disp, lm);
+      std::vector<double> myres = Core::FE::extract_values(*res, lm);
       const Core::FE::IntegrationPoints2D intpoints(gaussrule_);
       Core::LinAlg::SerialDenseMatrix stress(intpoints.nquad, Wall1::numstr_);
       Core::LinAlg::SerialDenseMatrix strain(intpoints.nquad, Wall1::numstr_);
@@ -365,177 +352,10 @@ int Discret::Elements::Wall1::evaluate(Teuchos::ParameterList& params,
       std::shared_ptr<const Core::LinAlg::Vector<double>> disp =
           discretization.get_state("displacement");
       if (disp == nullptr) FOUR_C_THROW("Cannot get state vectors");
-      std::vector<double> mydisp(lm.size());
-      Core::FE::extract_my_values(*disp, mydisp, lm);
+      std::vector<double> mydisp = Core::FE::extract_values(*disp, lm);
 
       // determine energies
       energy(params, lm, mydisp, &elevec1, actmat);
-      break;
-    }
-    //==================================================================================
-    case Core::Elements::struct_calc_mass_volume:
-    {
-      // check length of elevec1
-      if (elevec1.length() < 6) FOUR_C_THROW("The given result vector is too short.");
-
-      // declaration of variables
-      double volume_ref = 0.0;
-      double volume_mat = 0.0;
-      double volume_cur = 0.0;
-      double mass_ref = 0.0;
-      double mass_mat = 0.0;
-      double mass_cur = 0.0;
-      double density = actmat->density();
-
-      // some definitions
-      const int numnode = num_node();
-      const int numdf = 2;
-
-      Core::LinAlg::SerialDenseMatrix xjm;
-      xjm.shape(2, 2);
-      double det = 0.0;
-      double detcur = 0.0;
-      double detFmat = 0.0;  // F[0]*F[1]-F[2]*F[3];
-
-      // shape functions, derivatives and integration rule
-      Core::LinAlg::SerialDenseVector funct(numnode);
-      Core::LinAlg::SerialDenseMatrix deriv;
-      deriv.shape(2, numnode);
-      const Core::FE::IntegrationPoints2D intpoints(gaussrule_);
-
-      // get displacements and extract values of this element
-      std::shared_ptr<const Core::LinAlg::Vector<double>> disp =
-          discretization.get_state("displacement");
-      if (disp == nullptr) FOUR_C_THROW("Cannot get state displacement vector");
-      std::vector<double> mydisp(lm.size());
-      Core::FE::extract_my_values(*disp, mydisp, lm);
-
-      // reference and current geometry (nodal positions)
-      Core::LinAlg::SerialDenseMatrix xrefe(2, numnode);
-      Core::LinAlg::SerialDenseMatrix xcure(2, numnode);
-      Core::LinAlg::SerialDenseMatrix xmat(2, numnode);
-      Core::LinAlg::SerialDenseVector strain;
-      strain.size(4);
-      Core::LinAlg::SerialDenseMatrix boplin;
-      boplin.shape(4, 2 * numnode);
-      Core::LinAlg::SerialDenseVector F;
-      F.size(4);
-
-      for (int k = 0; k < numnode; ++k)
-      {
-        xrefe(0, k) = nodes()[k]->x()[0];
-        xrefe(1, k) = nodes()[k]->x()[1];
-        xcure(0, k) = xrefe(0, k) + mydisp[k * numdf + 0];
-        xcure(1, k) = xrefe(1, k) + mydisp[k * numdf + 1];
-      }
-
-      /*------------------------- get node weights for nurbs elements */
-      const Core::FE::CellType distype = shape();
-      Core::LinAlg::SerialDenseVector weights(numnode);
-      if (distype == Core::FE::CellType::nurbs4 || distype == Core::FE::CellType::nurbs9)
-      {
-        for (int inode = 0; inode < numnode; ++inode)
-        {
-          auto* cp = dynamic_cast<Core::FE::Nurbs::ControlPoint*>(nodes()[inode]);
-          weights(inode) = cp->w();
-        }
-      }
-
-      //----------------------------------------------------------------
-      // loop over all Gauss points
-      //----------------------------------------------------------------
-      for (int ip = 0; ip < intpoints.nquad; ++ip)
-      {
-        const double e1 = intpoints.qxg[ip][0];
-        const double e2 = intpoints.qxg[ip][1];
-        const double wgt = intpoints.qwgt[ip];
-
-        // get values of shape functions and derivatives in the gausspoint
-        if (distype != Core::FE::CellType::nurbs4 && distype != Core::FE::CellType::nurbs9)
-        {
-          // shape functions and their derivatives for polynomials
-          Core::FE::shape_function_2d(funct, e1, e2, distype);
-          Core::FE::shape_function_2d_deriv1(deriv, e1, e2, distype);
-        }
-        else
-        {
-          // nurbs version
-          Core::LinAlg::SerialDenseVector gp(2);
-          gp(0) = e1;
-          gp(1) = e2;
-
-          Core::FE::Nurbs::nurbs_get_2d_funct_deriv(funct, deriv, gp, myknots, weights, distype);
-        }
-
-        // REF ------------------------
-        /*--------------------------------------- compute jacobian Matrix */
-        w1_jacobianmatrix(xrefe, deriv, xjm, &det, numnode);
-
-        /*------------------------------------ integration factor  -------*/
-        double fac = wgt * det * thickness_;
-        volume_ref += fac;
-        fac = wgt * det * thickness_ * density;
-        mass_ref += fac;
-
-        // MAT ------------------------
-        {
-          w1_boplin(boplin, deriv, xjm, det, numnode);
-          w1_defgrad(F, strain, xrefe, xcure, boplin, numnode);
-          detFmat = F[0] * F[1] - F[2] * F[3];
-
-          // CUR ------------------------
-          /*--------------------------------------- compute jacobian Matrix */
-          w1_jacobianmatrix(xcure, deriv, xjm, &detcur, numnode);
-
-          /*------------------------------------ integration factor  -------*/
-          fac = wgt * detcur * thickness_;
-          volume_cur += fac;
-          fac = wgt * detcur * thickness_ * density * 1 / detFmat;
-          mass_cur += fac;
-        }
-      }
-      //----------------------------------------------------------------
-
-      // return results
-      {
-        volume_mat = volume_ref;
-        mass_mat = mass_ref;
-      }
-
-      elevec1[0] = volume_ref;
-      elevec1[1] = volume_mat;
-      elevec1[2] = volume_cur;
-      elevec1[3] = mass_ref;
-      elevec1[4] = mass_mat;
-      elevec1[5] = mass_cur;
-      break;
-    }
-    //==================================================================================
-    case Core::Elements::analyse_jacobian_determinant:
-    {
-      // get displacements and extract values of this element
-      std::shared_ptr<const Core::LinAlg::Vector<double>> disp =
-          discretization.get_state("displacement");
-      if (disp == nullptr) FOUR_C_THROW("Cannot get state displacement vector");
-      std::vector<double> mydisp(lm.size());
-      Core::FE::extract_my_values(*disp, mydisp, lm);
-
-      std::vector<double> mydispmat(lm.size(), 0.0);
-      // reference and current geometry (nodal positions)
-      Core::LinAlg::Matrix<2, 4> xcurr;  // current  coord. of element
-
-      for (int k = 0; k < 4; ++k)
-      {
-        xcurr(0, k) = nodes()[k]->x()[0] + mydisp[k * 2 + 0];
-        xcurr(1, k) = nodes()[k]->x()[1] + mydisp[k * 2 + 1];
-      }
-
-      const double min_detj =
-          Core::Elements::get_minimal_jac_determinant_at_nodes<Core::FE::CellType::quad4>(xcurr);
-
-      if (min_detj < 0.0)
-        error_handling(min_detj, params, __LINE__, Solid::Elements::ele_error_determinant_analysis);
-
       break;
     }
     //==================================================================================
@@ -564,8 +384,7 @@ int Discret::Elements::Wall1::evaluate(Teuchos::ParameterList& params,
     //==================================================================================
     default:
     {
-      FOUR_C_THROW(
-          "Unknown type of action for Wall1 element: %s", action_type_to_string(act).c_str());
+      FOUR_C_THROW("Unknown type of action for Wall1 element: {}", action_type_to_string(act));
       break;
     }
   }
@@ -585,7 +404,7 @@ int Discret::Elements::Wall1::evaluate_neumann(Teuchos::ParameterList& params,
   // get values and switches from the condition
   const auto onoff = condition.parameters().get<std::vector<int>>("ONOFF");
   const auto val = condition.parameters().get<std::vector<double>>("VAL");
-  const auto funct = condition.parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+  const auto funct = condition.parameters().get<std::vector<std::optional<int>>>("FUNCT");
 
   // check total time
   double time = -1.0;
@@ -1391,7 +1210,7 @@ void Discret::Elements::Wall1::w1_jacobianmatrix(const Core::LinAlg::SerialDense
   /*------------------------------------------ determinant of jacobian ---*/
   *det = xjm[0][0] * xjm[1][1] - xjm[1][0] * xjm[0][1];
 
-  if (*det < 0.0) FOUR_C_THROW("NEGATIVE JACOBIAN DETERMINANT %8.5f in ELEMENT %d\n", *det, id());
+  if (*det < 0.0) FOUR_C_THROW("NEGATIVE JACOBIAN DETERMINANT {:8.5f} in ELEMENT {}\n", *det, id());
   /*----------------------------------------------------------------------*/
 }  // Discret::Elements::Wall1::w1_jacobianmatrix
 

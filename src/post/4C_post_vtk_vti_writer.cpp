@@ -143,8 +143,8 @@ void PostVtiWriter::write_dof_result_step(std::ofstream& file,
 
   // Here is the only thing we need to do for parallel computations: We need read access to all dofs
   // on the row elements, so need to get the DofColMap to have this access
-  const Epetra_Map* colmap = dis->dof_col_map(0);
-  const Epetra_BlockMap& vecmap = data->Map();
+  const Core::LinAlg::Map* colmap = dis->dof_col_map(0);
+  const Epetra_BlockMap& vecmap = data->get_block_map();
 
   // TODO: wic, once the vtu pressure writer is fixed, apply the same solution here.
   const int offset = (fillzeros) ? 0 : vecmap.MinAllGID() - dis->dof_row_map(0)->MinAllGID();
@@ -189,14 +189,14 @@ void PostVtiWriter::write_dof_result_step(std::ofstream& file,
 
       for (int d = 0; d < numdf; ++d)
       {
-        const int lid = ghostedData->Map().LID(nodedofs[d + from] + offset);
+        const int lid = ghostedData->get_block_map().LID(nodedofs[d + from] + offset);
         if (lid > -1)
         {
           solution[inpos + d] = (*ghostedData)[lid];
         }
         else
         {
-          if (!fillzeros) FOUR_C_THROW("received illegal dof local id: %d", lid);
+          if (!fillzeros) FOUR_C_THROW("received illegal dof local id: {}", lid);
         }
       }
       for (int d = numdf; d < ncomponents; ++d) solution[inpos + d] = 0.0;
@@ -238,7 +238,7 @@ void PostVtiWriter::write_nodal_result_step(std::ofstream& file,
 
   // Here is the only thing we need to do for parallel computations: We need read access to all dofs
   // on the row elements, so need to get the NodeColMap to have this access
-  const Epetra_Map* colmap = dis->node_col_map();
+  const Core::LinAlg::Map* colmap = dis->node_col_map();
   const Epetra_BlockMap& vecmap = data->Map();
 
   FOUR_C_ASSERT(
@@ -282,7 +282,7 @@ void PostVtiWriter::write_nodal_result_step(std::ofstream& file,
         }
         else
         {
-          FOUR_C_THROW("received illegal node local id: %d", lid);
+          FOUR_C_THROW("received illegal node local id: {}", lid);
         }
       }
       for (int d = numdf; d < ncomponents; ++d) solution[inpos + d] = 0.;
@@ -332,7 +332,7 @@ void PostVtiWriter::write_element_result_step(std::ofstream& file,
 
   const int numcol = data->NumVectors();
   if (numdf + from > numcol)
-    FOUR_C_THROW("violated column range of Core::LinAlg::MultiVector<double>: %d", numcol);
+    FOUR_C_THROW("violated column range of Core::LinAlg::MultiVector<double>: {}", numcol);
 
   std::shared_ptr<Core::LinAlg::MultiVector<double>> importedData;
   if (dis->element_col_map()->SameAs(data->Map()))
@@ -394,7 +394,7 @@ void PostVtiWriter::writer_prep_timestep()
 
   const std::shared_ptr<Core::FE::Discretization> dis = field_->discretization();
   // collect all possible values of the x-, y- and z-coordinate
-  typedef std::set<double, LessTol<double>> set_tol;
+  using set_tol = std::set<double, LessTol<double>>;
   set_tol collected_coords[3];
   for (int n = 0; n < dis->num_my_col_nodes(); ++n)
   {
@@ -425,8 +425,8 @@ void PostVtiWriter::writer_prep_timestep()
         ++it, ++k)
       if (*it - lorigin[i] - k * spacing_[i] > TOL_N || *it - lorigin[i] - k * spacing_[i] < -TOL_N)
         FOUR_C_THROW(
-            "The mesh is not a uniform rectangular grid: grid coordinate[%d]: %lf, "
-            "node coordinate[%d]: %lf, difference: %e",
+            "The mesh is not a uniform rectangular grid: grid coordinate[{}]: {}, "
+            "node coordinate[{}]: {}, difference: {}",
             i, lorigin[i] + k * spacing_[i], i, *it, *it - lorigin[i] - k * spacing_[i]);
   }
 

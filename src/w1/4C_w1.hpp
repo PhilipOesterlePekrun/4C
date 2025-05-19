@@ -24,7 +24,8 @@
 #include "4C_linalg_serialdensematrix.hpp"
 #include "4C_linalg_serialdensevector.hpp"
 #include "4C_linalg_vector.hpp"
-#include "4C_so3_base.hpp"
+#include "4C_mat_so3_material.hpp"
+#include "4C_structure_new_elements_paramsinterface.hpp"
 
 #include <memory>
 
@@ -105,7 +106,7 @@ namespace Discret
      * - [4] WA Wall and B Bornemann, Nichtlineare Finite-Element-Methods,
      *   Vorlesungsskript, Lehrstuhl fuer Numerische Mechanik, SS 2007.
      */
-    class Wall1 : public SoBase
+    class Wall1 : public Core::Elements::Element
     {
      public:
       /// @name Friends
@@ -197,7 +198,7 @@ namespace Discret
       /*!
       \brief Does this element use EAS?
       */
-      bool have_eas() const override { return (eastype_ != eas_vague); };
+      [[nodiscard]] bool have_eas() const { return (eastype_ != eas_vague); };
 
       /// Get number of degrees of freedom of a certain node
       /// (implements pure virtual Core::Elements::Element)
@@ -280,6 +281,40 @@ namespace Discret
 
       //@}
 
+      /*!
+      \brief Return the material of this element
+
+      Note: The input parameter nummat is not the material number from input file
+            as in set_material(int matnum), but the number of the material within
+            the vector of materials the element holds
+
+      \param nummat (in): number of requested material
+      */
+      std::shared_ptr<Mat::So3Material> solid_material(int nummat = 0) const;
+
+      /** \brief get access to the interface
+       *
+       */
+      inline Core::Elements::ParamsInterface& params_interface()
+      {
+        if (not is_params_interface()) FOUR_C_THROW("The interface ptr is not set!");
+        return *interface_ptr_;
+      }
+
+      [[nodiscard]] inline bool is_params_interface() const override
+      {
+        return (interface_ptr_ != nullptr);
+      }
+
+      std::shared_ptr<Core::Elements::ParamsInterface> params_interface_ptr() override;
+
+      void set_params_interface_ptr(const Teuchos::ParameterList& p) override;
+
+      FourC::Solid::Elements::ParamsInterface& str_params_interface();
+
+      // get the kinematic type from the element
+      [[nodiscard]] Inpar::Solid::KinemType kinematic_type() const { return kintype_; }
+
      protected:
       /// type of 2D dimension reduction
       enum DimensionalReduction
@@ -324,6 +359,17 @@ namespace Discret
       /// EAS type
       enum EasType eastype_;
 
+      /** \brief interface ptr
+       *
+       *  data exchange between the element and the time integrator. */
+      std::shared_ptr<Core::Elements::ParamsInterface> interface_ptr_ = nullptr;
+
+      //! Flag of the status of the material post setup routine
+      bool material_post_setup_ = false;
+
+      //! kinematic type
+      Inpar::Solid::KinemType kintype_ = Inpar::Solid::KinemType::vague;
+
       struct EASData
       {
         Core::LinAlg::SerialDenseMatrix alpha{};
@@ -345,13 +391,11 @@ namespace Discret
       //@{
       /** recover elementwise stored stuff
        *
-       * \author hiermeier
-       * \date 05/16 */
+       */
       void w1_recover(const std::vector<int>& lm, const std::vector<double>& disp,
           const std::vector<double>& residual);
 
       /// evaluate the element forces and stiffness and mass
-      /// \author mgit \date 03/07
       void w1_nlnstiffmass(const std::vector<int>& lm,  ///< location vector
           const std::vector<double>& disp,              ///< element displacements
           const std::vector<double>& residual,          ///< residual displacements
@@ -387,7 +431,6 @@ namespace Discret
 
       /// Jacobian matrix for mapping from parameter space in physical material space
       /// at point parameter space
-      /// \author mgit \date 04/07
       void w1_jacobianmatrix(const Core::LinAlg::SerialDenseMatrix&
                                  xrefe,  ///< reference/material co-ordinates of element nodes
           const Core::LinAlg::SerialDenseMatrix&
@@ -398,7 +441,6 @@ namespace Discret
       );
 
       /// Linear B-operator in reference configuration at point parameter space
-      /// \author mgit \date 04/07
       void w1_boplin(Core::LinAlg::SerialDenseMatrix& boplin,  ///< the B-operator
           Core::LinAlg::SerialDenseMatrix&
               deriv,  ///< derivatives of shape functions at parameter point
@@ -409,7 +451,6 @@ namespace Discret
 
       /// (Material) Deformation gradient \f$F\f$ and Green-Lagrange strains \f$E\f$
       /// at parameter point
-      /// \author mgit \date 04/07
       void w1_defgrad(Core::LinAlg::SerialDenseVector& F,  ///< deformation gradient
           Core::LinAlg::SerialDenseVector&
               strain,  ///< GL strain \f$E^T=[E_{11} \; E_{22} \; E_{12}]\f$
@@ -422,7 +463,6 @@ namespace Discret
       );
 
       /// Non-linear B-operator in reference configuration
-      /// \author mgit \date 04/07
       void w1_boplin_cure(Core::LinAlg::SerialDenseMatrix& b_cure,  ///< non-linear B-operator
           const Core::LinAlg::SerialDenseMatrix& boplin,            ///< linear B-operator
           const Core::LinAlg::SerialDenseVector& F,  ///< deformation gradient as Voigt-vector
@@ -431,7 +471,6 @@ namespace Discret
       );
 
       /// Geometric stiffness constribution (total Lagrange)
-      /// \author mgit \date 05/07
       void w1_kg(Core::LinAlg::SerialDenseMatrix& estif,  ///< (in/out) element stiffness matrix
           const Core::LinAlg::SerialDenseMatrix& boplin,  ///< linear B-operator
           const Core::LinAlg::SerialDenseMatrix& stress,  ///< PK2 stress vector
@@ -441,7 +480,6 @@ namespace Discret
       );
 
       /// elastic and initial displacement stiffness contribution (total Lagrange)
-      /// \author mgit \date 05/07
       void w1_keu(Core::LinAlg::SerialDenseMatrix& estif,  ///< (in/out) element stiffness matrix
           const Core::LinAlg::SerialDenseMatrix& b_cure,   ///< non-linear B-operator
           const Core::LinAlg::SerialDenseMatrix& C,        ///< elasticity matrix
@@ -451,7 +489,6 @@ namespace Discret
       );
 
       /// Evaluate internal element forces for large def (total Lagr)
-      /// \author mgit \date 05/07
       void w1_fint(const Core::LinAlg::SerialDenseMatrix& stress,  ///< PK2 stress vector
           const Core::LinAlg::SerialDenseMatrix& b_cure,           ///< non-linear B-op
           Core::LinAlg::SerialDenseVector& intforce,               ///< internal force vector
@@ -502,7 +539,6 @@ namespace Discret
       /// Get the enhanced deformation gradient and
       /// also the operators G,W0 and Z
       /// at point in parameter space
-      /// \author mgit \date 01/08
       void w1_call_defgrad_enh(
           Core::LinAlg::SerialDenseMatrix& F_enh,       ///< enhanced deformation gradient vector
           const Core::LinAlg::SerialDenseMatrix xjm0,   ///< Jacobian at origin
@@ -520,7 +556,6 @@ namespace Discret
       );
 
       /// Total deformation gradient and (enhanced) Green-Lagrange strain
-      /// \author mgit \date 01/08
       void w1_call_defgrad_tot(
           const Core::LinAlg::SerialDenseMatrix& F_enh,  ///< enhanced def.grad.
           Core::LinAlg::SerialDenseMatrix& F_tot,        ///< total def.grad.
@@ -529,14 +564,12 @@ namespace Discret
       );
 
       /// first Piola-Kirchhoff stress vector
-      /// \author mgit \author 02/08
       void w1_stress_eas(const Core::LinAlg::SerialDenseMatrix& stress,  ///< PK2 stress vector
           const Core::LinAlg::SerialDenseMatrix& F_tot,                  ///< total def.grad.
           Core::LinAlg::SerialDenseMatrix& p_stress                      ///< PK1 stress vector
       );
 
       /// calculate stiffness matrix kdd \f$\partial f_{int}/\partial d\f$
-      /// \author mgit \date 03/08
       void w1_kdd(const Core::LinAlg::SerialDenseMatrix& boplin,  ///< linear B-op
           const Core::LinAlg::SerialDenseMatrix& W0,              ///< W-operator at origin
           const Core::LinAlg::SerialDenseMatrix& F,               ///< total def.grad.
@@ -548,7 +581,6 @@ namespace Discret
       );
 
       /// calculate tangential matrix kda \f$\partial f_{int}/\partial \alpha\f$
-      /// \author mgit \date 03/08
       void w1_kda(const Core::LinAlg::SerialDenseMatrix& FCF,  ///< a product
           const Core::LinAlg::SerialDenseMatrix& W0,           ///< W-operator at origin
           const Core::LinAlg::SerialDenseMatrix& boplin,       ///< linear B-op
@@ -561,7 +593,6 @@ namespace Discret
       );
 
       /// calculate tangential matrix kaa \f$\partial s/\partial \alpha\f$
-      /// \author mgit \date 03/08
       void w1_kaa(
           const Core::LinAlg::SerialDenseMatrix& FCF,     ///< a product \f$F^T \dot C \dot F\f$
           const Core::LinAlg::SerialDenseMatrix& stress,  ///< PK2 stress
@@ -607,7 +638,6 @@ namespace Discret
       //@{
 
       /// Constitutive matrix \f$C\f$ and stresses
-      /// \author mgit \date 05/07
       void w1_call_matgeononl(
           const Core::LinAlg::SerialDenseVector& strain,        ///< Green-Lagrange strain vector
           Core::LinAlg::SerialDenseMatrix& stress,              ///< stress matrix
@@ -621,7 +651,6 @@ namespace Discret
       /// Stress and constitutive matrix mapper from 3d to 2d
       /// due to dimensional reduction #wtype_
       ///
-      /// \author bborn \date 06/09
       void material_response3d_plane(Core::LinAlg::SerialDenseMatrix& stress,  ///< stress matrix
           Core::LinAlg::SerialDenseMatrix& C,             ///< elasticity matrix
           const Core::LinAlg::SerialDenseVector& strain,  ///< Green-Lagrange strain vector
@@ -631,7 +660,6 @@ namespace Discret
 
       /// Generic 3D stress response
       ///
-      /// \author bborn \date 06/09
       void material_response3d(
           Core::LinAlg::Matrix<6, 1>* stress,          ///< 3D 2nd Piola-Kirchhoff stress vector
           Core::LinAlg::Matrix<6, 6>* cmat,            ///< 3D elasticity matrix
@@ -671,6 +699,24 @@ namespace Discret
       /// set number of gauss points to element shape default
       Core::FE::GaussRule2D get_gaussrule(int* ngp  ///< number of Gauss points
       );
+
+      /*!
+       * \brief This method executes the material_post_setup if not already executed.
+       *
+       * This method should be placed in the Evaluate call. It will internally check, whether the
+       * material post_setup() routine was already called in if not, it invokes this call directly.
+       *
+       * @param params Container for additional information
+       */
+      void ensure_material_post_setup(Teuchos::ParameterList& params);
+
+      /*!
+       * \brief This method calls the post_setup routine of all materials.
+       *
+       * It can be used to pass information from the element to the materials after everything
+       * is set up. For a simple element, the ParameterList is passed unchanged to the materials.
+       */
+      virtual void material_post_setup(Teuchos::ParameterList& params);
     };  // class Wall1
 
 

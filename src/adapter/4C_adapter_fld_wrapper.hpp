@@ -105,8 +105,11 @@ namespace Adapter
       FOUR_C_THROW("not implemented");
       return nullptr;
     };
-    std::shared_ptr<const Epetra_Map> dof_row_map() override { return fluid_->dof_row_map(); }
-    std::shared_ptr<const Epetra_Map> dof_row_map(unsigned nds) override
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map() override
+    {
+      return fluid_->dof_row_map();
+    }
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map(unsigned nds) override
     {
       return fluid_->dof_row_map(nds);
     };
@@ -154,11 +157,11 @@ namespace Adapter
     {
       return fluid_->add_contribution_to_external_loads(contributing_vector);
     };
-    void add_dirich_cond(const std::shared_ptr<const Epetra_Map> maptoadd) override
+    void add_dirich_cond(const std::shared_ptr<const Core::LinAlg::Map> maptoadd) override
     {
       return fluid_->add_dirich_cond(maptoadd);
     };
-    void remove_dirich_cond(const std::shared_ptr<const Epetra_Map> maptoremove) override
+    void remove_dirich_cond(const std::shared_ptr<const Core::LinAlg::Map> maptoremove) override
     {
       return fluid_->remove_dirich_cond(maptoremove);
     };
@@ -281,13 +284,11 @@ namespace Adapter
      *  scheme. Result is stored in \p locerrvelnp_ and is used later to estimate
      *  the local discretization error of the marching time integration scheme.
      *
-     *  \author mayr.mt \date 12/2013
      */
     void time_step_auxiliary() override {};
 
     /*! Indicate norms of temporal discretization error
      *
-     *  \author mayr.mt \date 12/2013
      */
     void indicate_error_norms(
         double& err,       ///< L2-norm of temporal discretization error based on all DOFs
@@ -324,7 +325,7 @@ namespace Adapter
       FOUR_C_THROW("not implemented!");
       return 0.0;
     }
-    void redistribute(const std::shared_ptr<Epetra_CrsGraph> nodegraph) override
+    void redistribute(const std::shared_ptr<Core::LinAlg::Graph> nodegraph) override
     {
       FOUR_C_THROW("not implemented!");
       return;
@@ -341,19 +342,20 @@ namespace Adapter
       return fluid_->linear_solver();
     }
     void calc_intermediate_solution() override { return fluid_->calc_intermediate_solution(); }
-    std::shared_ptr<const Epetra_Map> inner_velocity_row_map() override
+    std::shared_ptr<const Core::LinAlg::Map> inner_velocity_row_map() override
     {
       return fluid_->inner_velocity_row_map();
     }
-    std::shared_ptr<const Epetra_Map> velocity_row_map() override
+    std::shared_ptr<const Core::LinAlg::Map> velocity_row_map() override
     {
       return fluid_->velocity_row_map();
     }
-    std::shared_ptr<const Epetra_Map> pressure_row_map() override
+    std::shared_ptr<const Core::LinAlg::Map> pressure_row_map() override
     {
       return fluid_->pressure_row_map();
     }
-    void set_mesh_map(std::shared_ptr<const Epetra_Map> mm, const int nds_master = 0) override
+    void set_mesh_map(
+        std::shared_ptr<const Core::LinAlg::Map> mm, const int nds_master = 0) override
     {
       FOUR_C_THROW("Not implemented in the base class, may be overridden by a subclass.");
     }

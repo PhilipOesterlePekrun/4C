@@ -13,9 +13,8 @@
 #include "4C_fem_dofset_base.hpp"
 #include "4C_fem_general_element.hpp"
 #include "4C_fem_general_node.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_utils_exceptions.hpp"
-
-#include <Epetra_Map.h>
 
 #include <list>
 #include <memory>
@@ -91,8 +90,6 @@ variables (all std::shared_ptrs) know how to copy themselves. So the
 default versions will do just fine. (Far better than buggy hand
 written versions.) And due to the two possible states there is no
 reason to deep copy any of the local map and vector variables.
-
-\author u.kue
 */
 
 namespace Core::DOFSets
@@ -268,10 +265,10 @@ namespace Core::DOFSets
     bool initialized() const override;
 
     /// Get degree of freedom row map
-    const Epetra_Map* dof_row_map() const override;
+    const Core::LinAlg::Map* dof_row_map() const override;
 
     /// Get degree of freedom column map
-    const Epetra_Map* dof_col_map() const override;
+    const Core::LinAlg::Map* dof_col_map() const override;
 
     //! Print this class
     void print(std::ostream& os) const override;
@@ -363,10 +360,10 @@ namespace Core::DOFSets
     unsigned dspos_;
 
     /// unique row map of degrees of freedom (node, face, and element dofs))
-    std::shared_ptr<Epetra_Map> dofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> dofrowmap_;
 
     /// unique column map of degrees of freedom (node, face, and element dofs)
-    std::shared_ptr<Epetra_Map> dofcolmap_;
+    std::shared_ptr<Core::LinAlg::Map> dofcolmap_;
 
     /// number of dofs for each node
     std::shared_ptr<Core::LinAlg::Vector<int>> numdfcolnodes_;
@@ -404,18 +401,16 @@ namespace Core::DOFSets
     should store not only the first dof for each node, but all(!) dofs for
     each node. The #idxcolnodes_ vector is then replaced by the
     two following data containers:
-       #dofscolnodes_ (Epetra_Map) and #shiftcolnodes_ (Core::LinAlg::Vector<int>)
+       #dofscolnodes_ (Core::LinAlg::Map) and #shiftcolnodes_ (Core::LinAlg::Vector<int>)
 
     Nevertheless, for the time being, the old version with #idxcolnodes_ stays
     around, since the new version is only implemented for the standard DofSet
     class declared here (but not for special TransparentDofSets, Proxy, etc.).
-
-    \author popp \date 02/2016
     */
     bool pccdofhandling_;
 
     /// column map of all dofs for each node (possibly non-unique)
-    std::shared_ptr<Epetra_Map> dofscolnodes_;
+    std::shared_ptr<Core::LinAlg::Map> dofscolnodes_;
 
     /// shift value for access to column map of all dofs for each node
     std::shared_ptr<Core::LinAlg::Vector<int>> shiftcolnodes_;

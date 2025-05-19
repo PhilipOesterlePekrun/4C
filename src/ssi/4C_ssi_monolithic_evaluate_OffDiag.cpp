@@ -29,7 +29,7 @@ FOUR_C_NAMESPACE_OPEN
  *----------------------------------------------------------------------*/
 SSI::ScatraStructureOffDiagCoupling::ScatraStructureOffDiagCoupling(
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> block_map_structure,
-    std::shared_ptr<const Epetra_Map> full_map_structure,
+    std::shared_ptr<const Core::LinAlg::Map> full_map_structure,
     std::shared_ptr<const SSI::Utils::SSIMeshTying> ssi_structure_meshtying,
     std::shared_ptr<const ScaTra::MeshtyingStrategyS2I> meshtying_strategy_s2i,
     std::shared_ptr<ScaTra::ScaTraTimIntImpl> scatra,
@@ -47,7 +47,7 @@ SSI::ScatraStructureOffDiagCoupling::ScatraStructureOffDiagCoupling(
  *----------------------------------------------------------------------*/
 SSI::ScatraManifoldStructureOffDiagCoupling::ScatraManifoldStructureOffDiagCoupling(
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> block_map_structure,
-    std::shared_ptr<const Epetra_Map> full_map_structure,
+    std::shared_ptr<const Core::LinAlg::Map> full_map_structure,
     std::shared_ptr<const SSI::Utils::SSIMeshTying> ssi_structure_meshtying,
     std::shared_ptr<const ScaTra::MeshtyingStrategyS2I> meshtying_strategy_s2i,
     std::shared_ptr<ScaTra::ScaTraTimIntImpl> scatra,
@@ -79,7 +79,7 @@ void SSI::ScatraStructureOffDiagCoupling::evaluate_off_diag_block_scatra_structu
   // create strategy for assembly of scatra-structure matrix block
   Core::FE::AssembleStrategy strategyscatrastructure(
       0,  // row assembly based on number of dofset associated with scalar transport dofs on
-      // scalar transport discretization
+          // scalar transport discretization
       1,  // column assembly based on number of dofset associated with structural dofs on scalar
       // transport discretization
       scatrastructureblock,  // scatra-structure matrix block
@@ -117,7 +117,7 @@ void SSI::ScatraManifoldStructureOffDiagCoupling::
   // create strategy for assembly of scatra-structure matrix block
   Core::FE::AssembleStrategy strategyscatrastructure(
       0,  // row assembly based on number of dofset associated with scalar transport dofs on
-      // scalar transport discretization
+          // scalar transport discretization
       1,  // column assembly based on number of dofset associated with structural dofs on scalar
       // transport discretization
       scatramanifoldstructureblock,  // scatra-structure matrix block
@@ -204,12 +204,12 @@ void SSI::ScatraStructureOffDiagCoupling::evaluate_off_diag_block_structure_scat
   structure_->discretization()->clear_state();
 
   // set the current displacement state vector
-  structure_->discretization()->set_state("displacement", structure_->dispnp());
+  structure_->discretization()->set_state("displacement", *structure_->dispnp());
 
   // create strategy for assembly of structure-scatra matrix block
   Core::FE::AssembleStrategy strategystructurescatra(
       0,  // row assembly based on number of dofset associated with structure dofs on structural
-      // discretization
+          // discretization
       1,  // column assembly based on number of dofset associated with scalar transport dofs on
       // structural discretization
       structurescatradomain,  // structure-scatra matrix block
@@ -378,7 +378,7 @@ void SSI::ScatraStructureOffDiagCoupling::
   // create strategy for assembly of auxiliary system matrix
   Core::FE::AssembleStrategy strategyscatras2istructure(
       0,  // row assembly based on number of dofset associated with scalar transport dofs on
-      // scalar transport discretization
+          // scalar transport discretization
       1,  // column assembly based on number of dofset associated with structural dofs on
       // structural discretization
       scatra_slave_flux_structure_slave_dofs_on_scatra_slave_matrix,
@@ -390,7 +390,7 @@ void SSI::ScatraStructureOffDiagCoupling::
   for (auto kinetics_slave_cond :
       meshtying_strategy_s2i_->kinetics_conditions_meshtying_slave_side())
   {
-    if (kinetics_slave_cond.second->parameters().get<int>("KINETIC_MODEL") ==
+    if (kinetics_slave_cond.second->parameters().get<Inpar::S2I::KineticModels>("KINETIC_MODEL") ==
         static_cast<int>(Inpar::S2I::kinetics_butlervolmerreducedcapacitance))
     {
       // collect condition specific data and store to scatra boundary parameter class
@@ -529,7 +529,7 @@ void SSI::ScatraStructureOffDiagCoupling::
                   iblock, 0);
 
           auto scatra_block_mapi =
-              Core::LinAlg::intersect_map(*scatra_field()->block_maps()->Map(iblock),
+              Core::LinAlg::intersect_map(*scatra_field()->block_maps()->map(iblock),
                   *meshtying_strategy_s2i_->coupling_adapter()->slave_dof_map());
 
           Coupling::Adapter::MatrixLogicalSplitAndTransform()(
@@ -625,7 +625,7 @@ void SSI::ScatraStructureOffDiagCoupling::
   for (auto kinetics_slave_cond :
       meshtying_strategy_s2i_->kinetics_conditions_meshtying_slave_side())
   {
-    if (kinetics_slave_cond.second->parameters().get<int>("KINETIC_MODEL") !=
+    if (kinetics_slave_cond.second->parameters().get<Inpar::S2I::KineticModels>("KINETIC_MODEL") !=
         static_cast<int>(Inpar::S2I::kinetics_nointerfaceflux))
     {
       // collect condition specific data and store to scatra boundary parameter class
@@ -669,7 +669,7 @@ void SSI::ScatraStructureOffDiagCoupling::
           auto slave_iblock = slavematrix_block->matrix(iblock, 0);
 
           auto scatra_slave_block_mapi =
-              Core::LinAlg::intersect_map(*scatra_field()->block_maps()->Map(iblock),
+              Core::LinAlg::intersect_map(*scatra_field()->block_maps()->map(iblock),
                   *meshtying_strategy_s2i_->coupling_adapter()->slave_dof_map());
 
           Coupling::Adapter::MatrixLogicalSplitAndTransform()(evaluate_iblock,
@@ -725,8 +725,8 @@ void SSI::ScatraStructureOffDiagCoupling::
  *----------------------------------------------------------------------*/
 SSI::ScatraStructureOffDiagCouplingSSTI::ScatraStructureOffDiagCouplingSSTI(
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> block_map_structure,
-    std::shared_ptr<const Epetra_Map> full_map_scatra,
-    std::shared_ptr<const Epetra_Map> full_map_structure,
+    std::shared_ptr<const Core::LinAlg::Map> full_map_scatra,
+    std::shared_ptr<const Core::LinAlg::Map> full_map_structure,
     std::shared_ptr<const SSI::Utils::SSIMeshTying> ssi_structure_meshtying,
     std::shared_ptr<const ScaTra::MeshtyingStrategyS2I> meshtying_strategy_s2i,
     std::shared_ptr<ScaTra::ScaTraTimIntImpl> scatra,

@@ -64,17 +64,13 @@ namespace Core::FE
 
       \param knots : The Knotvector class
 
-      \author gammi
-
       */
-      virtual void set_knot_vector(std::shared_ptr<Core::FE::Nurbs::Knotvector> knots);
+      void set_knot_vector(std::shared_ptr<Core::FE::Nurbs::Knotvector> knots);
 
       /*!
       \brief get a pointer to the knotvector from the discretization
 
       \return knots : The Knotvector class
-
-      \author gammi
 
       */
       std::shared_ptr<Core::FE::Nurbs::Knotvector> get_knot_vector();
@@ -88,10 +84,8 @@ namespace Core::FE
 
       \return  : The number of knots in each direction
 
-      \author gammi
-
       */
-      virtual std::vector<int> return_n_x_m_x_l(const int npatch)
+      std::vector<int> return_n_x_m_x_l(const int npatch)
       {
         return (knots_->return_n_x_m_x_l(npatch));
       }
@@ -104,23 +98,16 @@ namespace Core::FE
 
       \return  : The degree in each direction
 
-      \author gammi
-
       */
-      virtual std::vector<int> return_degree(const int npatch)
-      {
-        return (knots_->return_degree(npatch));
-      }
+      std::vector<int> return_degree(const int npatch) { return (knots_->return_degree(npatch)); }
 
       /*!
       \brief return the offsets
 
       \return  : The element offsets of all patches
 
-      \author gammi
-
       */
-      virtual std::vector<int> return_offsets() { return (knots_->return_offsets()); }
+      std::vector<int> return_offsets() { return (knots_->return_offsets()); }
 
       /*!
       \brief return number of elements in each direction
@@ -130,10 +117,8 @@ namespace Core::FE
 
       \return  : The number of elements in each direction
 
-      \author gammi
-
       */
-      virtual std::vector<int> return_nele_x_mele_x_lele(const int npatch)
+      std::vector<int> return_nele_x_mele_x_lele(const int npatch)
       {
         return (knots_->return_nele_x_mele_x_lele(npatch));
       }
@@ -197,7 +182,7 @@ namespace Core::FE
       template <Core::FE::CellType distype>
       void fill_matrix_and_rhs_for_ls_dirichlet_boundary(Core::Elements::Element& ele,
           const std::vector<Core::LinAlg::SerialDenseVector>* knots, const std::vector<int>& lm,
-          const std::vector<Core::IO::Noneable<int>>& funct, const std::vector<double>& val,
+          const std::vector<std::optional<int>>& funct, const std::vector<double>& val,
           const unsigned deg, const double time, Core::LinAlg::SerialDenseMatrix& elemass,
           std::vector<Core::LinAlg::SerialDenseVector>& elerhs,
           const Core::Utils::FunctionManager& function_manager) const;
@@ -219,7 +204,7 @@ namespace Core::FE
       template <Core::FE::CellType distype>
       void fill_matrix_and_rhs_for_ls_dirichlet_domain(Core::Elements::Element& ele,
           const std::vector<Core::LinAlg::SerialDenseVector>* knots, const std::vector<int>& lm,
-          const std::vector<Core::IO::Noneable<int>>& funct, const std::vector<double>& val,
+          const std::vector<std::optional<int>>& funct, const std::vector<double>& val,
           const unsigned deg, const double time, Core::LinAlg::SerialDenseMatrix& elemass,
           std::vector<Core::LinAlg::SerialDenseVector>& elerhs,
           const Core::Utils::FunctionManager& function_manager) const;

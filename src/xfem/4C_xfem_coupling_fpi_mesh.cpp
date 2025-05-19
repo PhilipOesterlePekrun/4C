@@ -13,7 +13,6 @@
 #include "4C_fluid_ele_parameter_xfem.hpp"
 #include "4C_io.hpp"
 #include "4C_io_control.hpp"
-#include "4C_io_gmsh.hpp"
 #include "4C_io_pstream.hpp"
 #include "4C_linalg_utils_densematrix_communication.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
@@ -81,8 +80,8 @@ void XFEM::MeshCouplingFPI::init_state_vectors()
 {
   XFEM::MeshCoupling::init_state_vectors();
 
-  const Epetra_Map* cutterdofrowmap = cutter_dis_->dof_row_map();
-  const Epetra_Map* cutterdofcolmap = cutter_dis_->dof_col_map();
+  const Core::LinAlg::Map* cutterdofrowmap = cutter_dis_->dof_row_map();
+  const Core::LinAlg::Map* cutterdofcolmap = cutter_dis_->dof_col_map();
 
   itrueresidual_ = Core::LinAlg::create_vector(*cutterdofrowmap, true);
   iforcecol_ = Core::LinAlg::create_vector(*cutterdofcolmap, true);
@@ -129,14 +128,14 @@ void XFEM::MeshCouplingFPI::complete_state_vectors()
   // finalize itrueresidual vector
 
   // need to export the interface forces
-  Core::LinAlg::Vector<double> iforce_tmp(itrueresidual_->Map(), true);
-  Epetra_Export exporter_iforce(iforcecol_->Map(), iforce_tmp.Map());
-  int err1 = iforce_tmp.Export(*iforcecol_, exporter_iforce, Add);
-  if (err1) FOUR_C_THROW("Export using exporter returned err=%d", err1);
+  Core::LinAlg::Vector<double> iforce_tmp(itrueresidual_->get_block_map(), true);
+  Epetra_Export exporter_iforce(iforcecol_->get_block_map(), iforce_tmp.get_block_map());
+  int err1 = iforce_tmp.export_to(*iforcecol_, exporter_iforce, Add);
+  if (err1) FOUR_C_THROW("Export using exporter returned err={}", err1);
 
   // scale the interface trueresidual with -1.0 to get the forces acting on structural side (no
   // residual-scaling!)
-  itrueresidual_->Update(-1.0, iforce_tmp, 0.0);
+  itrueresidual_->update(-1.0, iforce_tmp, 0.0);
 }
 
 /*--------------------------------------------------------------------------*
@@ -456,15 +455,6 @@ void XFEM::MeshCouplingFPI::update_configuration_map_gp_contact(
   XFEM::Utils::get_navier_slip_stabilization_parameters(
       visc_stab_tang, dynvisc, sliplength, stabnit, stabadj);
 
-#ifdef WRITE_GMSH
-  if (coupled_field_ == MeshCouplingFPI::ps_ps)
-  {
-    xf_c_comm_->Gmsh_Write(x, *fulltraction, 1);
-    xf_c_comm_->Gmsh_Write(x, (double)pure_fsi, 3);
-    xf_c_comm_->Gmsh_Write(x, sliplength, 6);
-  }
-#endif
-
   // Overall there are 9 coupling blocks to evaluate for fpi:
   // 1 - ps_ps --> ff,fps,psf,psps
   // 2 - ps_pf --> fpf,pspf
@@ -532,12 +522,8 @@ void XFEM::MeshCouplingFPI::update_configuration_map_gp_contact(
       double ffac = 1;
       if (gap < (1 + get_fpi_pcontact_fullfraction()) * get_fpi_pcontact_exchange_dist() &&
           get_fpi_pcontact_exchange_dist() > 1e-16)
-        ffac = gap / (get_fpi_pcontact_exchange_dist())-get_fpi_pcontact_fullfraction();
+        ffac = gap / (get_fpi_pcontact_exchange_dist()) - get_fpi_pcontact_fullfraction();
       if (ffac < 0) ffac = 0;
-
-#ifdef WRITE_GMSH
-      xf_c_comm_->Gmsh_Write(x, ffac, 10);
-#endif
 
       configuration_map_[Inpar::XFEM::X_Con_n_Row].second = ffac;
 
@@ -556,7 +542,7 @@ void XFEM::MeshCouplingFPI::update_configuration_map_gp_contact(
       double ffac = 1;
       if (gap < (1 + get_fpi_pcontact_fullfraction()) * get_fpi_pcontact_exchange_dist() &&
           get_fpi_pcontact_exchange_dist() > 1e-16)
-        ffac = gap / (get_fpi_pcontact_exchange_dist())-get_fpi_pcontact_fullfraction();
+        ffac = gap / (get_fpi_pcontact_exchange_dist()) - get_fpi_pcontact_fullfraction();
       if (ffac < 0) ffac = 0;
 
       // Configuration of Penalty Terms
@@ -576,8 +562,8 @@ void XFEM::MeshCouplingFPI::update_configuration_map_gp_contact(
  *--------------------------------------------------------------------------*/
 void XFEM::MeshCouplingFPI::zero_state_vectors_fpi()
 {
-  itrueresidual_->PutScalar(0.0);
-  iforcecol_->PutScalar(0.0);
+  itrueresidual_->put_scalar(0.0);
+  iforcecol_->put_scalar(0.0);
 }
 
 // -------------------------------------------------------------------
@@ -608,89 +594,18 @@ void XFEM::MeshCouplingFPI::read_restart(const int step)
   boundaryreader.read_vector(idispnp_, "idispnp_res");
   boundaryreader.read_vector(idispnpi_, "idispnpi_res");
 
-  if (not(cutter_dis_->dof_row_map())->SameAs(ivelnp_->Map()))
+  if (not(cutter_dis_->dof_row_map())->SameAs(ivelnp_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
-  if (not(cutter_dis_->dof_row_map())->SameAs(iveln_->Map()))
+  if (not(cutter_dis_->dof_row_map())->SameAs(iveln_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
-  if (not(cutter_dis_->dof_row_map())->SameAs(idispnp_->Map()))
+  if (not(cutter_dis_->dof_row_map())->SameAs(idispnp_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
-  if (not(cutter_dis_->dof_row_map())->SameAs(idispn_->Map()))
+  if (not(cutter_dis_->dof_row_map())->SameAs(idispn_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
-  if (not(cutter_dis_->dof_row_map())->SameAs(idispnpi_->Map()))
+  if (not(cutter_dis_->dof_row_map())->SameAs(idispnpi_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
 }
 
-/*--------------------------------------------------------------------------*
- *--------------------------------------------------------------------------*/
-void XFEM::MeshCouplingFPI::gmsh_output(const std::string& filename_base, const int step,
-    const int gmsh_step_diff, const bool gmsh_debug_out_screen)
-{
-  std::ostringstream filename_base_fsi;
-  filename_base_fsi << filename_base << "_force";
-
-  // compute the current boundary position
-  std::map<int, Core::LinAlg::Matrix<3, 1>> currinterfacepositions;
-  XFEM::Utils::extract_node_vectors(*cutter_dis_, currinterfacepositions, idispnp_);
-
-
-  const std::string filename = Core::IO::Gmsh::get_new_file_name_and_delete_old_files(
-      filename_base_fsi.str(), cutter_dis_->writer()->output()->file_name(), step, gmsh_step_diff,
-      gmsh_debug_out_screen, myrank_);
-
-  std::ofstream gmshfilecontent(filename.c_str());
-
-  {
-    // add 'View' to Gmsh postprocessing file
-    gmshfilecontent << "View \" "
-                    << "iforce \" {" << std::endl;
-    // draw vector field 'force' for every node
-    Core::IO::Gmsh::surface_vector_field_dof_based_to_gmsh(
-        *cutter_dis_, itrueresidual_, currinterfacepositions, gmshfilecontent, 3, 3);
-    gmshfilecontent << "};" << std::endl;
-  }
-
-  {
-    // add 'View' to Gmsh postprocessing file
-    gmshfilecontent << "View \" "
-                    << "idispnp \" {" << std::endl;
-    // draw vector field 'idispnp' for every node
-    Core::IO::Gmsh::surface_vector_field_dof_based_to_gmsh(
-        *cutter_dis_, idispnp_, currinterfacepositions, gmshfilecontent, 3, 3);
-    gmshfilecontent << "};" << std::endl;
-  }
-
-  {
-    // add 'View' to Gmsh postprocessing file
-    gmshfilecontent << "View \" "
-                    << "ivelnp \" {" << std::endl;
-    // draw vector field 'ivelnp' for every node
-    Core::IO::Gmsh::surface_vector_field_dof_based_to_gmsh(
-        *cutter_dis_, ivelnp_, currinterfacepositions, gmshfilecontent, 3, 3);
-    gmshfilecontent << "};" << std::endl;
-  }
-
-  gmshfilecontent.close();
-}
-
-/*--------------------------------------------------------------------------*
- *--------------------------------------------------------------------------*/
-void XFEM::MeshCouplingFPI::gmsh_output_discretization(std::ostream& gmshfilecontent)
-{
-  // print surface discretization
-  XFEM::MeshCoupling::gmsh_output_discretization(gmshfilecontent);
-
-  // compute the current solid and boundary position
-  std::map<int, Core::LinAlg::Matrix<3, 1>> currsolidpositions;
-
-  // write dis with zero solid displacements here!
-  std::shared_ptr<Core::LinAlg::Vector<double>> solid_dispnp =
-      Core::LinAlg::create_vector(*cond_dis_->dof_row_map(), true);
-
-  XFEM::Utils::extract_node_vectors(*cond_dis_, currsolidpositions, solid_dispnp);
-
-  XFEM::Utils::print_discretization_to_stream(cond_dis_, cond_dis_->name(), true, false, true,
-      false, false, false, gmshfilecontent, &currsolidpositions);
-}
 
 void XFEM::MeshCouplingFPI::output(const int step, const double time, const bool write_restart_data)
 {
@@ -765,7 +680,7 @@ void XFEM::MeshCouplingFPI::set_condition_specific_parameters()
       Core::Elements::Element* fluid_ele = bg_dis_->l_row_element(ele);
       if (fluid_ele->shape() == Core::FE::CellType::hex8)
       {
-        Core::LinAlg::Matrix<3, 8> xyze(true);
+        Core::LinAlg::Matrix<3, 8> xyze(Core::LinAlg::Initialization::zero);
         Core::Geo::fill_initial_position_array(fluid_ele, xyze);
         double vol = XFEM::Utils::eval_element_volume<Core::FE::CellType::hex8>(xyze);
         hmax = std::max(hmax, XFEM::Utils::compute_vol_eq_diameter(vol));
@@ -839,8 +754,8 @@ void XFEM::MeshCouplingFPI::lift_drag(const int step, const double time) const
   {
     // compute force components
     const int nsd = 3;
-    const Epetra_Map* dofcolmap = cutter_dis_->dof_col_map();
-    Core::LinAlg::Matrix<3, 1> c(true);
+    const Core::LinAlg::Map* dofcolmap = cutter_dis_->dof_col_map();
+    Core::LinAlg::Matrix<3, 1> c(Core::LinAlg::Initialization::zero);
     for (int inode = 0; inode < cutter_dis_->num_my_col_nodes(); ++inode)
     {
       const Core::Nodes::Node* node = cutter_dis_->l_col_node(inode);
@@ -898,9 +813,9 @@ double XFEM::MeshCouplingFPI::calctr_permeability(
   if (coupl_ele->num_material() > 1)
     poromat = std::dynamic_pointer_cast<Mat::FluidPoro>(coupl_ele->material(1));
   else
-    FOUR_C_THROW("no second material defined for element %i", ele->id());
+    FOUR_C_THROW("no second material defined for element {}", ele->id());
 
-  static Core::LinAlg::Matrix<3, 3> reactiontensor(true);
+  static Core::LinAlg::Matrix<3, 3> reactiontensor(Core::LinAlg::Initialization::zero);
   poromat->compute_reaction_tensor(reactiontensor, J, porosity);
 
   return sqrt((1. / reactiontensor(0, 0) + 1. / reactiontensor(1, 1) + 1. / reactiontensor(2, 2)) /
@@ -933,7 +848,7 @@ double XFEM::MeshCouplingFPI::calc_porosity(
       FOUR_C_THROW("invalid structure material for poroelasticity");
   }
   else
-    FOUR_C_THROW("no second material defined for element %i", ele->id());
+    FOUR_C_THROW("no second material defined for element {}", ele->id());
 
   Teuchos::ParameterList params;  // empty parameter list;
   double porosity;
@@ -966,12 +881,12 @@ double XFEM::MeshCouplingFPI::compute_jacobianand_pressure(
 
     // get coordinates of gauss point w.r.t. local parent coordinate system
     Core::LinAlg::SerialDenseMatrix pqxg(1, SLAVE_NUMDOF);
-    Core::LinAlg::Matrix<SLAVE_NUMDOF, SLAVE_NUMDOF> derivtrafo(true);
+    Core::LinAlg::Matrix<SLAVE_NUMDOF, SLAVE_NUMDOF> derivtrafo(Core::LinAlg::Initialization::zero);
 
     Core::FE::boundary_gp_to_parent_gp<SLAVE_NUMDOF>(
         pqxg, derivtrafo, intpoints, coupl_ele->shape(), fele->shape(), fele->face_parent_number());
 
-    Core::LinAlg::Matrix<SLAVE_NUMDOF, 1> pxsi(true);
+    Core::LinAlg::Matrix<SLAVE_NUMDOF, 1> pxsi(Core::LinAlg::Initialization::zero);
 
     // coordinates of the current integration point in parent coordinate system
     for (unsigned int idim = 0; idim < SLAVE_NUMDOF; idim++)
@@ -980,13 +895,13 @@ double XFEM::MeshCouplingFPI::compute_jacobianand_pressure(
     }
     if (coupl_ele->shape() == Core::FE::CellType::hex8)
     {
-      const size_t PARENT_NEN = Core::FE::num_nodes<Core::FE::CellType::hex8>;
+      const size_t PARENT_NEN = Core::FE::num_nodes(Core::FE::CellType::hex8);
       Core::LinAlg::Matrix<PARENT_NEN, 1> pfunc_loc(
-          true);  // derivatives of parent element shape functions in parent element coordinate
-                  // system
+          Core::LinAlg::Initialization::zero);  // derivatives of parent element shape functions
+                                                // in parent element coordinate system
       Core::LinAlg::Matrix<SLAVE_NUMDOF, PARENT_NEN> pderiv_loc(
-          true);  // derivatives of parent element shape functions in parent element coordinate
-                  // system
+          Core::LinAlg::Initialization::zero);  // derivatives of parent element shape functions
+                                                // in parent element coordinate system
 
       // evaluate derivatives of parent element shape functions at current integration point in
       // parent coordinate system
@@ -1010,9 +925,9 @@ double XFEM::MeshCouplingFPI::compute_jacobianand_pressure(
       Core::LinAlg::Matrix<SLAVE_NUMDOF, SLAVE_NUMDOF> Jmat;
 
       Core::LinAlg::Matrix<SLAVE_NUMDOF, PARENT_NEN> xrefe(
-          true);  // material coord. of parent element
+          Core::LinAlg::Initialization::zero);  // material coord. of parent element
       Core::LinAlg::Matrix<SLAVE_NUMDOF, PARENT_NEN> xcurr(
-          true);  // current  coord. of parent element
+          Core::LinAlg::Initialization::zero);  // current  coord. of parent element
 
       // update element geometry of parent element
       {
@@ -1021,8 +936,8 @@ double XFEM::MeshCouplingFPI::compute_jacobianand_pressure(
         {
           for (unsigned int idof = 0; idof < SLAVE_NUMDOF; ++idof)
           {
-            int lid =
-                fulldispnp_->Map().LID(get_cond_dis()->dof(0, coupl_ele->nodes()[inode], idof));
+            int lid = fulldispnp_->get_block_map().LID(
+                get_cond_dis()->dof(0, coupl_ele->nodes()[inode], idof));
 
             const auto& x = nodes[inode]->x();
             xrefe(idof, inode) = x[idof];
@@ -1032,7 +947,7 @@ double XFEM::MeshCouplingFPI::compute_jacobianand_pressure(
             else
               FOUR_C_THROW("Local ID for dispnp not found (lid = -1)!");
           }
-          int lidp = fullpres_->Map().LID(lm_struct_x_lm_pres_.operator[](
+          int lidp = fullpres_->get_block_map().LID(lm_struct_x_lm_pres_.operator[](
               get_cond_dis()->dof(0, coupl_ele->nodes()[inode], 2)));
 
           if (lidp != -1)
@@ -1051,13 +966,13 @@ double XFEM::MeshCouplingFPI::compute_jacobianand_pressure(
     }
     else
       FOUR_C_THROW(
-          "t_det_deformation_gradient for type %s not yet implemented, just add your element type!",
+          "t_det_deformation_gradient for type {} not yet implemented, just add your element type!",
           (Core::FE::cell_type_to_string(coupl_ele->shape())).c_str());
     return -1.0;
   }
   else
     FOUR_C_THROW(
-        "t_det_deformation_gradient for type %s not yet implemented, just add your element type!",
+        "t_det_deformation_gradient for type {} not yet implemented, just add your element type!",
         (Core::FE::cell_type_to_string(fele->shape())).c_str());
   return -1.0;
 }

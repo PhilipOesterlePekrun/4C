@@ -13,6 +13,7 @@
 #include "4C_fem_discretization.hpp"
 #include "4C_mat_cnst_1d_art.hpp"
 #include "4C_scatra_ele_calc.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -34,7 +35,7 @@ namespace Discret
 
      private:
      public:
-      typedef ScaTraEleCalc<distype, probdim> my;
+      using my = ScaTraEleCalc<distype, probdim>;
       using my::nen_;
       using my::nsd_;
       using my::nsd_ele_;
@@ -135,7 +136,7 @@ namespace Discret
     template <int nsd, int nen>
     class ScaTraEleInternalVariableManagerArtery : public ScaTraEleInternalVariableManager<nsd, nen>
     {
-      typedef ScaTraEleInternalVariableManager<nsd, nen> my;
+      using my = ScaTraEleInternalVariableManager<nsd, nen>;
 
      public:
       ScaTraEleInternalVariableManagerArtery(int numscal)
@@ -160,11 +161,11 @@ namespace Discret
           const Core::LinAlg::Matrix<nen, 1>& earterypressure)
       {
         // call base class (scatra) with dummy variable econvelnp
-        const Core::LinAlg::Matrix<nsd, nen> econvelnp(true);
-        const Core::LinAlg::Matrix<nsd, nen> eforcevelocity(true);
+        const Core::LinAlg::Matrix<nsd, nen> econvelnp(Core::LinAlg::Initialization::zero);
+        const Core::LinAlg::Matrix<nsd, nen> eforcevelocity(Core::LinAlg::Initialization::zero);
         my::set_internal_variables(funct, derxy, ephinp, ephin, econvelnp, ehist, eforcevelocity);
 
-        static Core::LinAlg::Matrix<nsd, 1> pressuregrad(true);
+        static Core::LinAlg::Matrix<nsd, 1> pressuregrad(Core::LinAlg::Initialization::zero);
         pressuregrad.multiply(derxy, earterypressure);
 
         for (int k = 0; k < my::numscal_; ++k)
@@ -186,7 +187,7 @@ namespace Discret
         if (ele->num_material() < 2) FOUR_C_THROW("no second material available");
         // check for artery material
         if (ele->material(1)->material_type() != Core::Materials::MaterialType::m_cnst_art)
-          FOUR_C_THROW("Secondary material is not of type m_cnst_art, but %d",
+          FOUR_C_THROW("Secondary material is not of type m_cnst_art, but {}",
               ele->material(1)->material_type());
 
         // here we rely that the Artery material has been added as second material

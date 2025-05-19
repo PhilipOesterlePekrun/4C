@@ -48,8 +48,6 @@ namespace Discret
      corresponding to these boundaries need to be listed in the FluidPoroBoundary::LocationVector()
      method. Otherwise one might get an FOUR_C_THROW or even no error at all and very strange
      results instead.
-
-     \author vuong 10/14
      */
 
     template <Core::FE::CellType distype>
@@ -203,9 +201,9 @@ namespace Discret
                                   where a constraint is to be applied will be marked with 1.0
                                   in this vector otherwise 0.0
       */
-      void no_penetration_i_ds(Discret::Elements::FluidBoundary* ele,
-          Teuchos::ParameterList& params, Core::FE::Discretization& discretization,
-          Core::LinAlg::SerialDenseVector& elevec1, std::vector<int>& lm);
+      void no_penetration_ids(Discret::Elements::FluidBoundary* ele, Teuchos::ParameterList& params,
+          Core::FE::Discretization& discretization, Core::LinAlg::SerialDenseVector& elevec1,
+          std::vector<int>& lm);
 
       /*!
       \brief compute flow rate over boundary for porous media problems
@@ -380,8 +378,6 @@ namespace Discret
       This class is implements the poro boundary condition for poro P1 elements, i.e. with
      additional nodal porosity degree of freedom. Therefore the only difference should be the way
      the porosity is evaluated.
-
-     \author vuong 10/14
      */
     template <Core::FE::CellType distype>
     class FluidEleBoundaryCalcPoroP1 : public FluidEleBoundaryCalcPoro<distype>

@@ -22,7 +22,7 @@ namespace
   {
     auto* params = Global::Problem::instance()->materials()->parameter_by_id(mat_id);
     if (params->type() != Core::Materials::m_stvenant)
-      FOUR_C_THROW("Material %d is not a St.Venant-Kirchhoff structure material", mat_id);
+      FOUR_C_THROW("Material {} is not a St.Venant-Kirchhoff structure material", mat_id);
     auto* fparams = dynamic_cast<Mat::PAR::StVenantKirchhoff*>(params);
     if (!fparams) FOUR_C_THROW("Material does not cast to St.Venant-Kirchhoff structure material");
     return *fparams;
@@ -37,10 +37,11 @@ namespace
 
     const auto& function_lin_def = parameters.front();
 
-    if (function_lin_def.get_or("WEAKLYCOMPRESSIBLE_ETIENNE_FSI_STRUCTURE", false))
+    if (function_lin_def.has_group("WEAKLYCOMPRESSIBLE_ETIENNE_FSI_STRUCTURE"))
     {
       // read data
-      int mat_id_struct = function_lin_def.get_or<int>("MAT_STRUCT", -1);
+      int mat_id_struct =
+          function_lin_def.group("WEAKLYCOMPRESSIBLE_ETIENNE_FSI_STRUCTURE").get<int>("MAT_STRUCT");
 
       if (mat_id_struct <= 0)
         FOUR_C_THROW(
@@ -51,10 +52,11 @@ namespace
 
       return std::make_shared<Solid::WeaklyCompressibleEtienneFSIStructureFunction>(fparams);
     }
-    else if (function_lin_def.get_or("WEAKLYCOMPRESSIBLE_ETIENNE_FSI_STRUCTURE_FORCE", false))
+    else if (function_lin_def.has_group("WEAKLYCOMPRESSIBLE_ETIENNE_FSI_STRUCTURE_FORCE"))
     {
       // read data
-      int mat_id_struct = function_lin_def.get_or<int>("MAT_STRUCT", -1);
+      int mat_id_struct = function_lin_def.group("WEAKLYCOMPRESSIBLE_ETIENNE_FSI_STRUCTURE_FORCE")
+                              .get<int>("MAT_STRUCT");
 
       if (mat_id_struct <= 0)
       {
@@ -82,12 +84,15 @@ void Solid::add_valid_structure_functions(Core::Utils::FunctionManager& function
 {
   using namespace Core::IO::InputSpecBuilders;
 
-  auto spec = all_of({
-      one_of({
-          tag("WEAKLYCOMPRESSIBLE_ETIENNE_FSI_STRUCTURE"),
-          tag("WEAKLYCOMPRESSIBLE_ETIENNE_FSI_STRUCTURE_FORCE"),
-      }),
-      entry<int>("MAT_STRUCT"),
+  auto spec = one_of({
+      group("WEAKLYCOMPRESSIBLE_ETIENNE_FSI_STRUCTURE",
+          {
+              parameter<int>("MAT_STRUCT"),
+          }),
+      group("WEAKLYCOMPRESSIBLE_ETIENNE_FSI_STRUCTURE_FORCE",
+          {
+              parameter<int>("MAT_STRUCT"),
+          }),
   });
 
   function_manager.add_function_definition(std::move(spec), create_structure_function);
@@ -213,17 +218,17 @@ double Solid::WeaklyCompressibleEtienneFSIStructureForceFunction::evaluate(
   Core::LinAlg::Matrix<2, 1> f_u_ex;
 
   // evaluate variables
-  f_u_ex(0) = (2. * (std::pow(M_PI, 2.))*cos(2. * M_PI * t) * cos(2. * M_PI * x) * (y - 1.) *
+  f_u_ex(0) = (2. * (std::pow(M_PI, 2.)) * cos(2. * M_PI * t) * cos(2. * M_PI * x) * (y - 1.) *
                   (E - r - E * v + r * v + 2. * r * (std::pow(v, 2.)))) /
               (3. * (2. * (std::pow(v, 2.)) + v - 1.));
-  f_u_ex(1) = ((std::pow(M_PI, 2.))*r * sin(2. * M_PI * x) * sin(2. * M_PI * (t + 1. / 4.)) *
+  f_u_ex(1) = ((std::pow(M_PI, 2.)) * r * sin(2. * M_PI * x) * sin(2. * M_PI * (t + 1. / 4.)) *
                   (cos(2. * M_PI * x) - 1.)) /
                   5. -
               (E * ((M_PI * sin(2. * M_PI * x) * sin(2. * M_PI * (t + 1. / 4.))) / 3. +
-                       (3. * (std::pow(M_PI, 2.))*cos(2. * M_PI * x) * sin(2. * M_PI * x) *
+                       (3. * (std::pow(M_PI, 2.)) * cos(2. * M_PI * x) * sin(2. * M_PI * x) *
                            sin(2. * M_PI * (t + 1. / 4.))) /
                            5. +
-                       ((std::pow(M_PI, 2.))*sin(2. * M_PI * x) * sin(2. * M_PI * (t + 1. / 4.)) *
+                       ((std::pow(M_PI, 2.)) * sin(2. * M_PI * x) * sin(2. * M_PI * (t + 1. / 4.)) *
                            (cos(2. * M_PI * x) - 1.)) /
                            5.)) /
                   (2. * v + 2.) +

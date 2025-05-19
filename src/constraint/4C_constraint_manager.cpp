@@ -28,7 +28,7 @@ FOUR_C_NAMESPACE_OPEN
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-CONSTRAINTS::ConstrManager::ConstrManager()
+Constraints::ConstrManager::ConstrManager()
     : offset_id_(-1),
       max_constr_id_(0),
       num_constr_id_(-1),
@@ -41,14 +41,13 @@ CONSTRAINTS::ConstrManager::ConstrManager()
       uzawaparam_(0.0),
       issetup_(false),
       isinit_(false)
-
 {
 }
 
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstrManager::init(
+void Constraints::ConstrManager::init(
     std::shared_ptr<Core::FE::Discretization> discr, const Teuchos::ParameterList& params)
 {
   set_is_setup(false);
@@ -100,7 +99,7 @@ void CONSTRAINTS::ConstrManager::init(
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstrManager::setup(
+void Constraints::ConstrManager::setup(
     std::shared_ptr<const Core::LinAlg::Vector<double>> disp, Teuchos::ParameterList params)
 {
   check_is_init();
@@ -114,17 +113,18 @@ void CONSTRAINTS::ConstrManager::setup(
     Teuchos::ParameterList p;
     uzawaparam_ = params.get<double>("uzawa parameter", 1);
     double time = params.get<double>("total time", 0.0);
-    const Epetra_Map* dofrowmap = actdisc_->dof_row_map();
+    const Core::LinAlg::Map* dofrowmap = actdisc_->dof_row_map();
     // initialize constrMatrix
     constr_matrix_ =
         std::make_shared<Core::LinAlg::SparseMatrix>(*dofrowmap, num_constr_id_, false, true);
-    // build Epetra_Map used as domainmap for constrMatrix and rowmap for result vectors
-    constrmap_ = std::make_shared<Epetra_Map>(*(constrdofset_->dof_row_map()));
+    // build Core::LinAlg::Map used as domainmap for constrMatrix and rowmap for result vectors
+    constrmap_ = std::make_shared<Core::LinAlg::Map>(*(constrdofset_->dof_row_map()));
     // build an all reduced version of the constraintmap, since sometimes all processors
     // have to know all values of the constraints and Lagrange multipliers
     redconstrmap_ = Core::LinAlg::allreduce_e_map(*constrmap_);
     // importer
-    conimpo_ = std::make_shared<Epetra_Export>(*redconstrmap_, *constrmap_);
+    conimpo_ = std::make_shared<Epetra_Export>(
+        redconstrmap_->get_epetra_map(), constrmap_->get_epetra_map());
     // sum up initial values
     refbasevalues_ = std::make_shared<Core::LinAlg::Vector<double>>(*constrmap_);
     std::shared_ptr<Core::LinAlg::Vector<double>> refbaseredundant =
@@ -133,7 +133,7 @@ void CONSTRAINTS::ConstrManager::setup(
     // We will always use the third systemvector for this purpose
     p.set("OffsetID", offset_id_);
     p.set("total time", time);
-    actdisc_->set_state("displacement", disp);
+    actdisc_->set_state("displacement", *disp);
     volconstr3d_->initialize(p, *refbaseredundant);
     areaconstr3d_->initialize(p, *refbaseredundant);
     areaconstr2d_->initialize(p, *refbaseredundant);
@@ -150,7 +150,7 @@ void CONSTRAINTS::ConstrManager::setup(
     mpcnormcomp3dpen_->initialize(p);
 
     // Export redundant vector into distributed one
-    refbasevalues_->Export(*refbaseredundant, *conimpo_, Add);
+    refbasevalues_->export_to(*refbaseredundant, *conimpo_, Add);
 
     // Initialize Lagrange Multipliers, reference values and errors
     actdisc_->clear_state();
@@ -163,7 +163,7 @@ void CONSTRAINTS::ConstrManager::setup(
   }
   //----------------------------------------------------------------------------
   //---------------------------------------------------------Monitor Conditions!
-  actdisc_->set_state("displacement", disp);
+  actdisc_->set_state("displacement", *disp);
   min_monitor_id_ = 10000;
   int maxMonitorID = 0;
   volmonitor3d_ =
@@ -188,10 +188,11 @@ void CONSTRAINTS::ConstrManager::setup(
       nummyele = num_monitor_id_;
     }
     // initialize maps and importer
-    monitormap_ = std::make_shared<Epetra_Map>(
+    monitormap_ = std::make_shared<Core::LinAlg::Map>(
         num_monitor_id_, nummyele, 0, Core::Communication::as_epetra_comm(actdisc_->get_comm()));
     redmonmap_ = Core::LinAlg::allreduce_e_map(*monitormap_);
-    monimpo_ = std::make_shared<Epetra_Export>(*redmonmap_, *monitormap_);
+    monimpo_ = std::make_shared<Epetra_Export>(
+        redmonmap_->get_epetra_map(), monitormap_->get_epetra_map());
     monitorvalues_ = std::make_shared<Core::LinAlg::Vector<double>>(*monitormap_);
     initialmonvalues_ = std::make_shared<Core::LinAlg::Vector<double>>(*monitormap_);
 
@@ -202,7 +203,7 @@ void CONSTRAINTS::ConstrManager::setup(
     areamonitor2d_->evaluate(p1, initialmonredundant);
 
     // Export redundant vector into distributed one
-    initialmonvalues_->Export(initialmonredundant, *monimpo_, Add);
+    initialmonvalues_->export_to(initialmonredundant, *monimpo_, Add);
     monitortypes_ = std::make_shared<Core::LinAlg::Vector<double>>(*redmonmap_);
     build_moni_type();
   }
@@ -213,7 +214,7 @@ void CONSTRAINTS::ConstrManager::setup(
 
 /*----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstrManager::evaluate_force_stiff(const double time,
+void Constraints::ConstrManager::evaluate_force_stiff(const double time,
     std::shared_ptr<const Core::LinAlg::Vector<double>> displast,
     std::shared_ptr<const Core::LinAlg::Vector<double>> disp,
     std::shared_ptr<Core::LinAlg::Vector<double>> fint,
@@ -228,7 +229,7 @@ void CONSTRAINTS::ConstrManager::evaluate_force_stiff(const double time,
   // create the parameters for the discretization
   Teuchos::ParameterList p;
   std::vector<Core::Conditions::Condition*> constrcond(0);
-  const Epetra_Map* dofrowmap = actdisc_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = actdisc_->dof_row_map();
   constr_matrix_->reset();  //=Teuchos::rcp(new
                             // Core::LinAlg::SparseMatrix(*dofrowmap,numConstrID_,false,true));
 
@@ -242,7 +243,7 @@ void CONSTRAINTS::ConstrManager::evaluate_force_stiff(const double time,
   p.set("scaleConstrMat", scConMat);
   p.set("vector curve factors", fact_);
   // Convert Core::LinAlg::Vector<double> containing lagrange multipliers to an completely
-  // redundant Epetra_vector since every element with the constraint condition needs them
+  // redundant vector since every element with the constraint condition needs them
   std::shared_ptr<Core::LinAlg::Vector<double>> lagrMultVecDense =
       std::make_shared<Core::LinAlg::Vector<double>>(*redconstrmap_);
   Core::LinAlg::export_to(*lagr_mult_vec_, *lagrMultVecDense);
@@ -258,7 +259,7 @@ void CONSTRAINTS::ConstrManager::evaluate_force_stiff(const double time,
       std::make_shared<Core::LinAlg::Vector<double>>(*redconstrmap_);
 
   actdisc_->clear_state();
-  actdisc_->set_state("displacement", disp);
+  actdisc_->set_state("displacement", *disp);
   volconstr3d_->evaluate(p, stiff, constr_matrix_, fint, refbaseredundant, actredundant);
   areaconstr3d_->evaluate(p, stiff, constr_matrix_, fint, refbaseredundant, actredundant);
   areaconstr2d_->evaluate(p, stiff, constr_matrix_, fint, refbaseredundant, actredundant);
@@ -274,19 +275,19 @@ void CONSTRAINTS::ConstrManager::evaluate_force_stiff(const double time,
   mpconline2d_->set_constr_state("displacement", *disp);
   mpconline2d_->evaluate(p, stiff, constr_matrix_, fint, refbaseredundant, actredundant);
   // Export redundant vectors into distributed ones
-  actvalues_->PutScalar(0.0);
-  actvalues_->Export(*actredundant, *conimpo_, Add);
+  actvalues_->put_scalar(0.0);
+  actvalues_->export_to(*actredundant, *conimpo_, Add);
   Core::LinAlg::Vector<double> addrefbase(*constrmap_);
-  addrefbase.Export(*refbaseredundant, *conimpo_, Add);
-  refbasevalues_->Update(1.0, addrefbase, 1.0);
-  fact_->PutScalar(0.0);
-  fact_->Export(*factredundant, *conimpo_, AbsMax);
+  addrefbase.export_to(*refbaseredundant, *conimpo_, Add);
+  refbasevalues_->update(1.0, addrefbase, 1.0);
+  fact_->put_scalar(0.0);
+  fact_->export_to(*factredundant, *conimpo_, AbsMax);
   // ----------------------------------------------------
   // -----------include possible further constraints here
   // ----------------------------------------------------
   // Compute current reference volumes as elemetwise product of timecurvefactor and initialvalues
-  referencevalues_->Multiply(1.0, *fact_, *refbasevalues_, 0.0);
-  constrainterr_->Update(scConMat, *referencevalues_, -1.0 * scConMat, *actvalues_, 0.0);
+  referencevalues_->multiply(1.0, *fact_, *refbasevalues_, 0.0);
+  constrainterr_->update(scConMat, *referencevalues_, -1.0 * scConMat, *actvalues_, 0.0);
   actdisc_->clear_state();
   // finalize the constraint matrix
   std::string label(constr_matrix_->Label());
@@ -298,7 +299,7 @@ void CONSTRAINTS::ConstrManager::evaluate_force_stiff(const double time,
 
 /*----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstrManager::compute_error(
+void Constraints::ConstrManager::compute_error(
     double time, std::shared_ptr<Core::LinAlg::Vector<double>> disp)
 {
   check_is_init();
@@ -307,7 +308,7 @@ void CONSTRAINTS::ConstrManager::compute_error(
   std::vector<Core::Conditions::Condition*> constrcond(0);
   Teuchos::ParameterList p;
   p.set("total time", time);
-  actdisc_->set_state("displacement", disp);
+  actdisc_->set_state("displacement", *disp);
 
   std::shared_ptr<Core::LinAlg::Vector<double>> actredundant =
       std::make_shared<Core::LinAlg::Vector<double>>(*redconstrmap_);
@@ -326,21 +327,21 @@ void CONSTRAINTS::ConstrManager::compute_error(
   mpcnormcomp3d_->evaluate(p, nullptr, nullptr, nullptr, nullptr, actredundant);
 
   // Export redundant vectors into distributed ones
-  actvalues_->PutScalar(0.0);
-  actvalues_->Export(*actredundant, *conimpo_, Add);
+  actvalues_->put_scalar(0.0);
+  actvalues_->export_to(*actredundant, *conimpo_, Add);
 
-  constrainterr_->Update(1.0, *referencevalues_, -1.0, *actvalues_, 0.0);
+  constrainterr_->update(1.0, *referencevalues_, -1.0, *actvalues_, 0.0);
 }
 
 
 /*----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstrManager::read_restart(
+void Constraints::ConstrManager::read_restart(
     Core::IO::DiscretizationReader& reader, const double& time)
 {
   //  double uzawatemp = reader.ReadDouble("uzawaparameter");
   //  consolv_->SetUzawaParameter(uzawatemp);
-  std::shared_ptr<Epetra_Map> constrmap = get_constraint_map();
+  std::shared_ptr<Core::LinAlg::Map> constrmap = get_constraint_map();
   std::shared_ptr<Core::LinAlg::Vector<double>> tempvec =
       Core::LinAlg::create_vector(*constrmap, true);
   reader.read_vector(tempvec, "lagrmultiplier");
@@ -351,7 +352,7 @@ void CONSTRAINTS::ConstrManager::read_restart(
 
 /*----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstrManager::set_ref_base_values(
+void Constraints::ConstrManager::set_ref_base_values(
     Core::LinAlg::Vector<double>& newrefval, const double& time)
 {
   volconstr3d_->initialize(time);
@@ -361,14 +362,14 @@ void CONSTRAINTS::ConstrManager::set_ref_base_values(
   mpcnormcomp3d_->initialize(time);
   mpconline2d_->initialize(time);
 
-  refbasevalues_->Update(1.0, newrefval, 0.0);
+  refbasevalues_->update(1.0, newrefval, 0.0);
 }
 
 /*----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstrManager::update_lagr_mult(double factor)
+void Constraints::ConstrManager::update_lagr_mult(double factor)
 {
-  lagr_mult_vec_->Update(factor, *constrainterr_, 1.0);
+  lagr_mult_vec_->update(factor, *constrainterr_, 1.0);
   if (volconstr3d_->have_constraint())
   {
     std::vector<int> volconID = volconstr3d_->get_active_cond_id();
@@ -383,29 +384,29 @@ void CONSTRAINTS::ConstrManager::update_lagr_mult(double factor)
   }
 }
 
-void CONSTRAINTS::ConstrManager::update() { lagr_mult_vec_old_->Update(1.0, *lagr_mult_vec_, 0.0); }
+void Constraints::ConstrManager::update() { lagr_mult_vec_old_->update(1.0, *lagr_mult_vec_, 0.0); }
 
 /*----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstrManager::update_lagr_mult(Core::LinAlg::Vector<double>& vect)
+void Constraints::ConstrManager::update_lagr_mult(Core::LinAlg::Vector<double>& vect)
 {
-  lagr_mult_vec_->Update(1.0, vect, 1.0);
+  lagr_mult_vec_->update(1.0, vect, 1.0);
 }
 
-void CONSTRAINTS::ConstrManager::update_tot_lagr_mult(Core::LinAlg::Vector<double>& vect)
+void Constraints::ConstrManager::update_tot_lagr_mult(Core::LinAlg::Vector<double>& vect)
 {
-  lagr_mult_vec_->Update(1.0, vect, 1.0, *lagr_mult_vec_old_, 0.0);
+  lagr_mult_vec_->update(1.0, vect, 1.0, *lagr_mult_vec_old_, 0.0);
 }
 
 /*-----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstrManager::compute_monitor_values(
+void Constraints::ConstrManager::compute_monitor_values(
     std::shared_ptr<Core::LinAlg::Vector<double>> disp)
 {
   std::vector<Core::Conditions::Condition*> monitcond(0);
-  monitorvalues_->PutScalar(0.0);
+  monitorvalues_->put_scalar(0.0);
   Teuchos::ParameterList p;
-  actdisc_->set_state("displacement", disp);
+  actdisc_->set_state("displacement", *disp);
 
   Core::LinAlg::Vector<double> actmonredundant(*redmonmap_);
   p.set("OffsetID", min_monitor_id_);
@@ -414,31 +415,31 @@ void CONSTRAINTS::ConstrManager::compute_monitor_values(
   areamonitor3d_->evaluate(p, actmonredundant);
   areamonitor2d_->evaluate(p, actmonredundant);
 
-  Epetra_Import monimpo(*monitormap_, *redmonmap_);
-  monitorvalues_->Export(actmonredundant, *monimpo_, Add);
+  Epetra_Import monimpo(monitormap_->get_epetra_map(), redmonmap_->get_epetra_map());
+  monitorvalues_->export_to(actmonredundant, *monimpo_, Add);
 }
 
 /*-----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstrManager::compute_monitor_values(
+void Constraints::ConstrManager::compute_monitor_values(
     std::shared_ptr<const Core::LinAlg::Vector<double>> disp)
 {
   std::vector<Core::Conditions::Condition*> monitcond(0);
-  monitorvalues_->PutScalar(0.0);
+  monitorvalues_->put_scalar(0.0);
   Teuchos::ParameterList p;
-  if (not actdisc_->dof_row_map()->SameAs(disp->Map()))
+  if (not actdisc_->dof_row_map()->SameAs(disp->get_block_map()))
   {
     // build merged dof row map
-    std::shared_ptr<Epetra_Map> largemap =
+    std::shared_ptr<Core::LinAlg::Map> largemap =
         Core::LinAlg::merge_map(*actdisc_->dof_row_map(), *constrmap_, false);
 
     Core::LinAlg::MapExtractor conmerger;
     conmerger.setup(
         *largemap, Core::Utils::shared_ptr_from_ref(*actdisc_->dof_row_map()), constrmap_);
-    actdisc_->set_state("displacement", conmerger.extract_cond_vector(*disp));
+    actdisc_->set_state("displacement", *conmerger.extract_cond_vector(*disp));
   }
   else
-    actdisc_->set_state("displacement", disp);
+    actdisc_->set_state("displacement", *disp);
 
   Core::LinAlg::Vector<double> actmonredundant(*redmonmap_);
   p.set("OffsetID", min_monitor_id_);
@@ -447,13 +448,13 @@ void CONSTRAINTS::ConstrManager::compute_monitor_values(
   areamonitor3d_->evaluate(p, actmonredundant);
   areamonitor2d_->evaluate(p, actmonredundant);
 
-  Epetra_Import monimpo(*monitormap_, *redmonmap_);
-  monitorvalues_->Export(actmonredundant, *monimpo_, Add);
+  Epetra_Import monimpo(monitormap_->get_epetra_map(), redmonmap_->get_epetra_map());
+  monitorvalues_->export_to(actmonredundant, *monimpo_, Add);
 }
 
 /*----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstrManager::print_monitor_values() const
+void Constraints::ConstrManager::print_monitor_values() const
 {
   if (num_monitor_id_ == 1)
     printf("Monitor value:\n");
@@ -475,7 +476,7 @@ void CONSTRAINTS::ConstrManager::print_monitor_values() const
   }
 }
 
-void CONSTRAINTS::ConstrManager::build_moni_type()
+void Constraints::ConstrManager::build_moni_type()
 {
   Teuchos::ParameterList p1;
   // build distributed and redundant dummy monitor vector
@@ -486,36 +487,36 @@ void CONSTRAINTS::ConstrManager::build_moni_type()
   // do the volumes
   volmonitor3d_->evaluate(p1, dummymonredundant);
   // Export redundant vector into distributed one
-  dummymondist.Export(dummymonredundant, *monimpo_, Add);
+  dummymondist.export_to(dummymonredundant, *monimpo_, Add);
   // Now export back
   Core::LinAlg::export_to(dummymondist, dummymonredundant);
-  for (int i = 0; i < dummymonredundant.MyLength(); i++)
+  for (int i = 0; i < dummymonredundant.local_length(); i++)
   {
     if ((dummymonredundant)[i] != 0.0) (*monitortypes_)[i] = 1.0;
   }
 
   // do the area in 3D
-  dummymonredundant.PutScalar(0.0);
-  dummymondist.PutScalar(0.0);
+  dummymonredundant.put_scalar(0.0);
+  dummymondist.put_scalar(0.0);
   areamonitor3d_->evaluate(p1, dummymonredundant);
   // Export redundant vector into distributed one
-  dummymondist.Export(dummymonredundant, *monimpo_, Add);
+  dummymondist.export_to(dummymonredundant, *monimpo_, Add);
   // Now export back
   Core::LinAlg::export_to(dummymondist, dummymonredundant);
-  for (int i = 0; i < dummymonredundant.MyLength(); i++)
+  for (int i = 0; i < dummymonredundant.local_length(); i++)
   {
     if ((dummymonredundant)[i] != 0.0) (*monitortypes_)[i] = 2.0;
   }
 
   // do the area in 2D
-  dummymonredundant.PutScalar(0.0);
-  dummymondist.PutScalar(0.0);
+  dummymonredundant.put_scalar(0.0);
+  dummymondist.put_scalar(0.0);
   areamonitor2d_->evaluate(p1, dummymonredundant);
   // Export redundant vector into distributed one
-  dummymondist.Export(dummymonredundant, *monimpo_, Add);
+  dummymondist.export_to(dummymonredundant, *monimpo_, Add);
   // Now export back
   Core::LinAlg::export_to(dummymondist, dummymonredundant);
-  for (int i = 0; i < dummymonredundant.MyLength(); i++)
+  for (int i = 0; i < dummymonredundant.local_length(); i++)
   {
     if ((dummymonredundant)[i] != 0.0) (*monitortypes_)[i] = 3.0;
   }
@@ -523,7 +524,7 @@ void CONSTRAINTS::ConstrManager::build_moni_type()
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstrManager::use_block_matrix(
+void Constraints::ConstrManager::use_block_matrix(
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> domainmaps,
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> rangemaps)
 {

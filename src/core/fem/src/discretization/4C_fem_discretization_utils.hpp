@@ -60,45 +60,8 @@ namespace Core::FE
     void evaluate(Core::FE::Discretization& discret, Teuchos::ParameterList& eparams,
         const std::shared_ptr<Core::LinAlg::SparseOperator>& systemmatrix,
         const std::shared_ptr<Core::LinAlg::Vector<double>>& systemvector,
-        const Epetra_Map* col_ele_map = nullptr);
+        const Core::LinAlg::Map* col_ele_map = nullptr);
 
-    /** \brief Evaluate the elements of the given discretization and fill the
-     *         system matrices and vectors
-     *
-     *  This evaluate routine supports the evaluation of a subset of all column
-     *  elements inside the given discretization. If the \c col_ele_map pointer
-     *  is not set or set to \c nullptr, this routine generates almost no overhead
-     *  and is equivalent to the more familiar implementation in Core::FE::Discretization.
-     *
-     *  \param discret      (in)  : discretization containing the considered elements
-     *  \param eparams      (in)  : element parameter list
-     *  \param systemmatrix (out) : system-matrix vector which is supposed to be filled
-     *  \param systemvector (out) : system-vector vector which is supposed to be filled
-     *  \param col_ele_map  (in)  : column element map, which can be a subset of the
-     *                              discretization column map ( optional )
-     */
-    void evaluate(Core::FE::Discretization& discret, Teuchos::ParameterList& eparams,
-        std::vector<std::shared_ptr<Core::LinAlg::SparseOperator>>& systemmatrices,
-        std::vector<std::shared_ptr<Core::LinAlg::Vector<double>>>& systemvector,
-        const Epetra_Map* col_ele_map = nullptr);
-
-    /** \brief Evaluate the elements of the given discretization and fill the
-     *         system matrices and vectors
-     *
-     *  This evaluate routine supports the evaluation of a subset of all column
-     *  elements inside the given discretization. If the \c col_ele_map pointer
-     *  is not set or set to \c nullptr, this routine generates almost no overhead
-     *  and is equivalent to the more familiar implementation in Core::FE::Discretization.
-     *
-     *  \param discret      (in)  : discretization containing the considered elements
-     *  \param eparams      (in)  : element parameter list
-     *  \param strategy     (out) : assemble strategy containing all the system vectors
-     *                              and matrices
-     *  \param col_ele_map  (in)  : column element map, which can be a subset of the
-     *                              discretization column map ( optional )
-     */
-    void evaluate(Core::FE::Discretization& discret, Teuchos::ParameterList& eparams,
-        Core::FE::AssembleStrategy& strategy, const Epetra_Map* col_ele_map = nullptr);
 
     /** \brief Evaluate Dirichlet boundary conditions
      *
@@ -201,12 +164,12 @@ namespace Core::FE
          */
         DbcInfo(const Core::LinAlg::Vector<int>& toggle_input)
             : toggle(toggle_input),
-              hierarchy(Core::LinAlg::Vector<int>(toggle_input.Map())),
-              condition(Core::LinAlg::Vector<int>(toggle_input.Map())),
-              values(Core::LinAlg::Vector<double>(toggle_input.Map(), true))
+              hierarchy(Core::LinAlg::Vector<int>(toggle_input.get_block_map())),
+              condition(Core::LinAlg::Vector<int>(toggle_input.get_block_map())),
+              values(Core::LinAlg::Vector<double>(toggle_input.get_block_map(), true))
         {
-          hierarchy.PutValue(std::numeric_limits<int>::max());
-          condition.PutValue(-1);
+          hierarchy.put_value(std::numeric_limits<int>::max());
+          condition.put_value(-1);
         }
 
         /*!
@@ -219,17 +182,12 @@ namespace Core::FE
               condition(Core::LinAlg::Vector<int>(toggle_map)),
               values(Core::LinAlg::Vector<double>(toggle_map, true))
         {
-          hierarchy.PutValue(std::numeric_limits<int>::max());
-          condition.PutValue(-1);
+          hierarchy.put_value(std::numeric_limits<int>::max());
+          condition.put_value(-1);
         }
       };
 
-      /** \brief constructor
-       *
-       *  Intentionally left blank! */
-      Dbc() {};
-
-      /// destructor
+      /// Virtual destructor.
       virtual ~Dbc() = default;
 
       /** \brief Extract parameters and setup some temporal variables, before the actual
@@ -351,7 +309,6 @@ namespace Core::FE
        *
        *  The corresponding condition, e.g.:
        *  ---------DESIGN LINE DIRICH CONDITIONS
-       *  DSURF  1
        *  // example_line
        *  E 1 - NUMDOF 6 ONOFF 0 1 1 VAL 0.0 1.0 1.0 FUNCT 1 0 0
        *
@@ -409,7 +366,6 @@ namespace Core::FE
        *
        *  The corresponding condition, e.g.:
        *  ---------DESIGN LINE DIRICH CONDITIONS
-       *  DSURF  1
        *  // example_line
        *  E 1 - NUMDOF 6 ONOFF 0 1 1 VAL 0.0 1.0 1.0 FUNCT 1 0 0
        *
@@ -421,12 +377,6 @@ namespace Core::FE
        *  priority. The corresponding entries in the systemvectors remain
        *  untouched.
        *
-       *  \version rauch 06/2016
-       *  Shifted and rearranged parts of the former implementation to
-       *  read_dirichlet_condition(...). This fixes inconsistency in hierarchy
-       *  handling. Now, the Dirichlet conditions are first read by
-       *  read_dirichlet_condition(...). Then, they are applied by
-       *  do_dirichlet_condition(...).
        */
       virtual void do_dirichlet_condition(const Teuchos::ParameterList& params,
           const Core::FE::Discretization& discret, const Core::Conditions::Condition& cond,

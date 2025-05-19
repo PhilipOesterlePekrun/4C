@@ -14,8 +14,6 @@
 
 #include "4C_utils_parameter_list.fwd.hpp"
 
-#include <Epetra_MpiComm.h>
-
 #include <memory>
 
 FOUR_C_NAMESPACE_OPEN
@@ -47,7 +45,6 @@ namespace Solid
   /*====================================================================*/
   //! Create marching time integrator convenience routine
   //!
-  //! \author bborn \date 07/08
   std::shared_ptr<Solid::TimInt> tim_int_create(
       const Teuchos::ParameterList& timeparams,                //!< time parameters
       const Teuchos::ParameterList& ioflags,                   //!< input-output-flags
@@ -62,7 +59,6 @@ namespace Solid
   /*====================================================================*/
   //! Create \b implicit marching time integrator convenience routine
   //!
-  //! \author bborn \date 07/08
   std::shared_ptr<Solid::TimIntImpl> tim_int_impl_create(
       const Teuchos::ParameterList& timeparams,                //!< time parameters
       const Teuchos::ParameterList& ioflags,                   //!< input-output-flags
@@ -77,7 +73,6 @@ namespace Solid
   /*====================================================================*/
   //! Create \b explicit marching time integrator convenience routine
   //!
-  //! \author bborn \date 07/08
   std::shared_ptr<Solid::TimIntExpl> tim_int_expl_create(
       const Teuchos::ParameterList& timeparams,                //!< time parameters
       const Teuchos::ParameterList& ioflags,                   //!< input-output-flags

@@ -79,7 +79,7 @@ namespace FLD
       }
       default:
       {
-        FOUR_C_THROW("Set problem size! %i", discret_->num_global_elements());
+        FOUR_C_THROW("Set problem size! {}", discret_->num_global_elements());
         break;
       }
     }
@@ -480,7 +480,7 @@ namespace FLD
       Core::Nodes::Node* node = discret_->l_row_node(inode);
 
       // get coordinates
-      Core::LinAlg::Matrix<3, 1> xyz(true);
+      Core::LinAlg::Matrix<3, 1> xyz(Core::LinAlg::Initialization::zero);
       for (int idim = 0; idim < 3; idim++) xyz(idim, 0) = node->x()[idim];
 
       //    std::cout << "coords " << xyz << std::endl;
@@ -516,18 +516,18 @@ namespace FLD
       // get local dof id corresponding to the global id
       int lid = discret_->dof_row_map()->LID(dofs[0]);
       // set value
-      int err = velnp_->ReplaceMyValues(1, &((u1)[pos]), &lid);
+      int err = velnp_->replace_local_values(1, &((u1)[pos]), &lid);
       // analogous for remaining directions
       lid = discret_->dof_row_map()->LID(dofs[1]);
-      err = velnp_->ReplaceMyValues(1, &((u2)[pos]), &lid);
+      err = velnp_->replace_local_values(1, &((u2)[pos]), &lid);
       lid = discret_->dof_row_map()->LID(dofs[2]);
-      err = velnp_->ReplaceMyValues(1, &((u3)[pos]), &lid);
+      err = velnp_->replace_local_values(1, &((u3)[pos]), &lid);
       if (err > 0) FOUR_C_THROW("Could not set initial field!");
     }
 
     // initialize veln_ as well
-    veln_->Update(1.0, *velnp_, 0.0);
-    velnm_->Update(1.0, *velnp_, 0.0);
+    veln_->update(1.0, *velnp_, 0.0);
+    velnm_->update(1.0, *velnp_, 0.0);
 
     return;
 #else
@@ -1160,12 +1160,12 @@ namespace FLD
     Core::LinAlg::SerialDenseMatrix dummyMat;
     Core::LinAlg::SerialDenseVector dummyVec;
     // this is a dummy, should be zero is written in the first components of interpolVec
-    intvelnp_->PutScalar(0.0);
+    intvelnp_->put_scalar(0.0);
     // set dummy
-    discret_->set_state(1, "intvelnp", intvelnp_);
+    discret_->set_state(1, "intvelnp", *intvelnp_);
 
     // for 2nd evaluate
-    const Epetra_Map* intdofrowmap = discret_->dof_row_map(1);
+    const Core::LinAlg::Map* intdofrowmap = discret_->dof_row_map(1);
     Core::LinAlg::SerialDenseVector elevec1, elevec3;
     Core::LinAlg::SerialDenseMatrix elemat1, elemat2;
     Teuchos::ParameterList initParams;
@@ -1188,7 +1188,7 @@ namespace FLD
       for (int i = 0; i < 5 * 5 * 5; ++i)
       {
         // get coordinates
-        Core::LinAlg::Matrix<3, 1> xyz(true);
+        Core::LinAlg::Matrix<3, 1> xyz(Core::LinAlg::Initialization::zero);
         for (int d = 0; d < 3; ++d) xyz(d) = interpolVec(i * 6 + d + 3);
         // determine position
         std::vector<int> loc(3);
@@ -1223,7 +1223,7 @@ namespace FLD
       }
 
       // 2nd evaluate
-      ele->location_vector(*discret_, la, false);
+      ele->location_vector(*discret_, la);
       if (elevec1.numRows() != discret_->num_dof(1, ele)) elevec1.size(discret_->num_dof(1, ele));
       if (static_cast<std::size_t>(elevec3.numRows()) != la[0].lm_.size())
         elevec3.size(la[0].lm_.size());
@@ -1238,7 +1238,7 @@ namespace FLD
             localDofs.size() == static_cast<std::size_t>(elevec1.numRows()), "Internal error");
         for (unsigned int i = 0; i < localDofs.size(); ++i)
           localDofs[i] = intdofrowmap->LID(localDofs[i]);
-        intvelnp_->ReplaceMyValues(localDofs.size(), elevec1.values(), localDofs.data());
+        intvelnp_->replace_local_values(localDofs.size(), elevec1.values(), localDofs.data());
       }
 
       // now fill the ele vector into the discretization
@@ -1265,10 +1265,10 @@ namespace FLD
               << std::endl;
 
     // initialize veln_ as well
-    intveln_->Update(1.0, *intvelnp_, 0.0);
-    intvelnm_->Update(1.0, *intvelnp_, 0.0);
-    veln_->Update(1.0, *velnp_, 0.0);
-    velnm_->Update(1.0, *velnp_, 0.0);
+    intveln_->update(1.0, *intvelnp_, 0.0);
+    intvelnm_->update(1.0, *intvelnp_, 0.0);
+    veln_->update(1.0, *velnp_, 0.0);
+    velnm_->update(1.0, *velnp_, 0.0);
     discret_->clear_state(true);
     return;
 #else

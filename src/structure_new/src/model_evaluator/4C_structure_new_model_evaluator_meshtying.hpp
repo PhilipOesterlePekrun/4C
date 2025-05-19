@@ -132,7 +132,7 @@ namespace Solid
       void reset_step_state() override {};
 
       //! [derived]
-      std::shared_ptr<const Epetra_Map> get_block_dof_row_map_ptr() const override;
+      std::shared_ptr<const Core::LinAlg::Map> get_block_dof_row_map_ptr() const override;
 
       //! [derived]
       std::shared_ptr<const Core::LinAlg::Vector<double>> get_current_solution_ptr() const override;
@@ -172,7 +172,7 @@ namespace Solid
        *                                   during the assembly
        *  \param[in] apply_dbc             Apply Dirichlet boundary conditions
        *
-       *  \author hiermeier \date 08/17 */
+       *  */
       std::shared_ptr<Core::LinAlg::Vector<double>> assemble_force_of_models(
           const std::vector<Inpar::Solid::ModelType>* without_these_models = nullptr,
           const bool apply_dbc = false) const;

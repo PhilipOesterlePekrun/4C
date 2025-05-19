@@ -129,10 +129,11 @@ void Solid::ModelEvaluator::Meshtying::setup()
               std::make_shared<Core::LinAlg::Vector<double>>(
                   *(strategy_ptr_->non_redist_slave_row_dofs()), true);
 
-          Epetra_Export exporter(Xslavemod->Map(), *strategy_ptr_->non_redist_slave_row_dofs());
+          Epetra_Export exporter(Xslavemod->get_block_map(),
+              strategy_ptr_->non_redist_slave_row_dofs()->get_epetra_map());
 
-          int err = original_vec->Export(*Xslavemod, exporter, Insert);
-          if (err) FOUR_C_THROW("Import failed with err=%d", err);
+          int err = original_vec->export_to(*Xslavemod, exporter, Insert);
+          if (err) FOUR_C_THROW("Import failed with err={}", err);
 
           Xslavemod_noredist = original_vec;
         }
@@ -148,8 +149,9 @@ void Solid::ModelEvaluator::Meshtying::setup()
             int dof = gdiscret->dof(node, d);
             if (strategy_ptr_->non_redist_slave_row_dofs()->LID(dof) != -1)
             {
-              mesh_relocation_->operator[](mesh_relocation_->Map().LID(dof)) =
-                  node->x()[d] - Xslavemod_noredist->operator[](Xslavemod_noredist->Map().LID(dof));
+              mesh_relocation_->operator[](mesh_relocation_->get_block_map().LID(dof)) =
+                  node->x()[d] -
+                  Xslavemod_noredist->operator[](Xslavemod_noredist->get_block_map().LID(dof));
             }
           }
         }
@@ -244,7 +246,7 @@ bool Solid::ModelEvaluator::Meshtying::assemble_jacobian(
   // ---------------------------------------------------------------------
   // saddle-point system of equations or no contact contributions
   // ---------------------------------------------------------------------
-  else if (strategy().system_type() == Inpar::CONTACT::system_saddlepoint)
+  else if (strategy().system_type() == CONTACT::SystemType::saddlepoint)
   {
     // --- Kdd - block ---------------------------------------------------
     block_ptr = strategy().get_matrix_block_ptr(CONTACT::MatBlockType::displ_displ);
@@ -316,18 +318,17 @@ const CONTACT::MtAbstractStrategy& Solid::ModelEvaluator::Meshtying::strategy() 
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-std::shared_ptr<const Epetra_Map> Solid::ModelEvaluator::Meshtying::get_block_dof_row_map_ptr()
-    const
+std::shared_ptr<const Core::LinAlg::Map>
+Solid::ModelEvaluator::Meshtying::get_block_dof_row_map_ptr() const
 {
   check_init_setup();
   if (strategy().lm_dof_row_map_ptr() == nullptr)
     return global_state().dof_row_map();
   else
   {
-    auto systype =
-        Teuchos::getIntegralValue<Inpar::CONTACT::SystemType>(strategy().params(), "SYSTEM");
+    auto systype = Teuchos::getIntegralValue<CONTACT::SystemType>(strategy().params(), "SYSTEM");
 
-    if (systype == Inpar::CONTACT::system_saddlepoint)
+    if (systype == CONTACT::SystemType::saddlepoint)
       return strategy().lm_dof_row_map_ptr();
     else
       return global_state().dof_row_map();
@@ -408,12 +409,12 @@ void Solid::ModelEvaluator::Meshtying::apply_mesh_initialization(
   if (Xslavemod == nullptr) return;
 
   // create fully overlapping slave node map
-  std::shared_ptr<const Epetra_Map> slavemap = strategy_ptr_->slave_row_nodes_ptr();
-  std::shared_ptr<Epetra_Map> allreduceslavemap = Core::LinAlg::allreduce_e_map(*slavemap);
+  std::shared_ptr<const Core::LinAlg::Map> slavemap = strategy_ptr_->slave_row_nodes_ptr();
+  std::shared_ptr<Core::LinAlg::Map> allreduceslavemap = Core::LinAlg::allreduce_e_map(*slavemap);
 
   // export modified node positions to column map of problem discretization
-  const Epetra_Map* dof_colmap = discret_ptr()->dof_col_map();
-  const Epetra_Map* node_colmap = discret_ptr()->node_col_map();
+  const Core::LinAlg::Map* dof_colmap = discret_ptr()->dof_col_map();
+  const Core::LinAlg::Map* node_colmap = discret_ptr()->node_col_map();
   std::shared_ptr<Core::LinAlg::Vector<double>> Xslavemodcol =
       Core::LinAlg::create_vector(*dof_colmap, false);
   Core::LinAlg::export_to(*Xslavemod, *Xslavemodcol);
@@ -440,11 +441,11 @@ void Solid::ModelEvaluator::Meshtying::apply_mesh_initialization(
     // create new position vector
     for (int i = 0; i < numdim; ++i)
     {
-      const int lid = gvector.Map().LID(nodedofs[i]);
+      const int lid = gvector.get_block_map().LID(nodedofs[i]);
 
       if (lid < 0)
-        FOUR_C_THROW("ERROR: Proc %d: Cannot find gid=%d in Core::LinAlg::Vector<double>",
-            Core::Communication::my_mpi_rank(gvector.Comm()), nodedofs[i]);
+        FOUR_C_THROW("ERROR: Proc {}: Cannot find gid={} in Core::LinAlg::Vector<double>",
+            Core::Communication::my_mpi_rank(gvector.get_comm()), nodedofs[i]);
 
       nvector[i] += gvector[lid];
     }

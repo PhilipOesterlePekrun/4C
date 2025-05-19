@@ -13,10 +13,9 @@
 #include "4C_mat_par_bundle.hpp"
 #include "4C_mat_structporo.hpp"
 #include "4C_poroelast_utils.hpp"
-#include "4C_so3_poro.hpp"
-#include "4C_so3_poro_p1_eletypes.hpp"
 #include "4C_solid_poro_3D_ele_pressure_based.hpp"
 #include "4C_solid_poro_3D_ele_pressure_velocity_based.hpp"
+#include "4C_solid_poro_3D_ele_pressure_velocity_based_p1.hpp"
 #include "4C_w1_poro.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -41,7 +40,7 @@ void PoroElast::Utils::PoroelastCloneStrategy::check_material_type(const int mat
   Core::Materials::MaterialType mtype =
       Global::Problem::instance()->materials()->parameter_by_id(matid)->type();
   if ((mtype != Core::Materials::m_fluidporo))
-    FOUR_C_THROW("Material with ID %d is not admissible for fluid poroelasticity elements", matid);
+    FOUR_C_THROW("Material with ID {} is not admissible for fluid poroelasticity elements", matid);
 }
 
 void PoroElast::Utils::PoroelastCloneStrategy::set_element_data(
@@ -63,15 +62,21 @@ void PoroElast::Utils::PoroelastCloneStrategy::set_element_data(
             std::static_pointer_cast<Mat::StructPoro>(oldele->material())->init_porosity());
     fluid->set_dis_type(oldele->shape());  // set distype as well!
     fluid->set_is_ale(true);
-    auto* solid_poro_pressure_velocity_based =
-        dynamic_cast<Discret::Elements::SolidPoroPressureVelocityBased*>(oldele);
-    auto* so_base = dynamic_cast<Discret::Elements::SoBase*>(oldele);
-    if (solid_poro_pressure_velocity_based)
+
+    if (auto* solid_poro_pressure_velocity_based =
+            dynamic_cast<Discret::Elements::SolidPoroPressureVelocityBased*>(oldele);
+        solid_poro_pressure_velocity_based)
     {
       fluid->set_kinematic_type(solid_poro_pressure_velocity_based->kinematic_type());
     }
-    else if (so_base)
-      fluid->set_kinematic_type(so_base->kinematic_type());
+    else if (auto* solid_poro_pressure_velocity_based_p1 =
+                 dynamic_cast<Discret::Elements::SolidPoroPressureVelocityBasedP1*>(oldele);
+        solid_poro_pressure_velocity_based_p1)
+    {
+      fluid->set_kinematic_type(solid_poro_pressure_velocity_based_p1->kinematic_type());
+    }
+    else if (auto* wall_ele = dynamic_cast<Discret::Elements::Wall1*>(oldele); wall_ele)
+      fluid->set_kinematic_type(wall_ele->kinematic_type());
     else
       FOUR_C_THROW(
           " dynamic cast from Core::Elements::Element* to Discret::Elements::So_base* or "
@@ -82,8 +87,7 @@ void PoroElast::Utils::PoroelastCloneStrategy::set_element_data(
   }
   else
   {
-    FOUR_C_THROW(
-        "unsupported element type '%s'", Core::Utils::get_dynamic_type_name(*newele).c_str());
+    FOUR_C_THROW("unsupported element type '{}'", Core::Utils::get_dynamic_type_name(*newele));
   }
 }
 
@@ -93,35 +97,8 @@ void PoroElast::Utils::PoroelastCloneStrategy::set_anisotropic_permeability_dire
   std::shared_ptr<Discret::Elements::FluidPoro> fluid =
       std::dynamic_pointer_cast<Discret::Elements::FluidPoro>(newele);
 
-  if (const auto* const so_tet4_poro_ele = dynamic_cast<
-          Discret::Elements::So3Poro<Discret::Elements::SoTet4, Core::FE::CellType::tet4>*>(oldele))
-  {
-    fluid->set_anisotropic_permeability_directions(
-        so_tet4_poro_ele->get_anisotropic_permeability_directions());
-  }
-  else if (const auto* const so_tet10_poro_ele = dynamic_cast<
-               Discret::Elements::So3Poro<Discret::Elements::SoTet10, Core::FE::CellType::tet10>*>(
-               oldele))
-  {
-    fluid->set_anisotropic_permeability_directions(
-        so_tet10_poro_ele->get_anisotropic_permeability_directions());
-  }
-  else if (const auto* const so_hex8_poro_ele = dynamic_cast<
-               Discret::Elements::So3Poro<Discret::Elements::SoHex8, Core::FE::CellType::hex8>*>(
-               oldele))
-  {
-    fluid->set_anisotropic_permeability_directions(
-        so_hex8_poro_ele->get_anisotropic_permeability_directions());
-  }
-  else if (const auto* const so_hex27_poro_ele = dynamic_cast<
-               Discret::Elements::So3Poro<Discret::Elements::SoHex27, Core::FE::CellType::hex27>*>(
-               oldele))
-  {
-    fluid->set_anisotropic_permeability_directions(
-        so_hex27_poro_ele->get_anisotropic_permeability_directions());
-  }
-  else if (const auto* const wall1_quad4_poro_ele =
-               dynamic_cast<Discret::Elements::Wall1Poro<Core::FE::CellType::quad4>*>(oldele))
+  if (const auto* const wall1_quad4_poro_ele =
+          dynamic_cast<Discret::Elements::Wall1Poro<Core::FE::CellType::quad4>*>(oldele))
   {
     fluid->set_anisotropic_permeability_directions(
         wall1_quad4_poro_ele->get_anisotropic_permeability_directions());
@@ -154,22 +131,9 @@ void PoroElast::Utils::PoroelastCloneStrategy::set_anisotropic_permeability_noda
   std::shared_ptr<Discret::Elements::FluidPoro> fluid =
       std::dynamic_pointer_cast<Discret::Elements::FluidPoro>(newele);
 
-  if (const auto* const so_tet4_poro_ele = dynamic_cast<
-          Discret::Elements::So3Poro<Discret::Elements::SoTet4, Core::FE::CellType::tet4>*>(oldele))
-  {
-    fluid->set_anisotropic_permeability_nodal_coeffs(
-        so_tet4_poro_ele->get_anisotropic_permeability_nodal_coeffs());
-  }
-  else if (const auto* const so_hex8_poro_ele = dynamic_cast<
-               Discret::Elements::So3Poro<Discret::Elements::SoHex8, Core::FE::CellType::hex8>*>(
-               oldele))
-  {
-    fluid->set_anisotropic_permeability_nodal_coeffs(
-        so_hex8_poro_ele->get_anisotropic_permeability_nodal_coeffs());
-  }
-  else if (const auto* const wall1_hex8_poro_ele =
-               dynamic_cast<const Discret::Elements::Wall1Poro<Core::FE::CellType::quad4>* const>(
-                   oldele))
+  if (const auto* const wall1_hex8_poro_ele =
+          dynamic_cast<const Discret::Elements::Wall1Poro<Core::FE::CellType::quad4>* const>(
+              oldele))
   {
     fluid->set_anisotropic_permeability_nodal_coeffs(
         wall1_hex8_poro_ele->get_anisotropic_permeability_nodal_coeffs());

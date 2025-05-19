@@ -15,13 +15,13 @@
 #include "4C_global_legacy_module.hpp"
 #include "4C_io_input_file.hpp"
 #include "4C_linalg_utils_densematrix_multiply.hpp"
-#include "4C_pre_exodus_reader.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void EXODUS::validate_input_file(const MPI_Comm comm, const std::string datfile)
+void EXODUS::validate_input_file(const MPI_Comm comm, const std::string outfile)
 {
   using namespace FourC;
 
@@ -29,85 +29,76 @@ void EXODUS::validate_input_file(const MPI_Comm comm, const std::string datfile)
   Global::Problem* problem = Global::Problem::instance();
 
   // create a InputFile
-  Core::IO::InputFile reader(datfile, comm);
+  Core::IO::InputFile input_file = Global::set_up_input_file(comm);
+  input_file.read(outfile);
 
   // read and validate dynamic and solver sections
   std::cout << "...Read parameters" << std::endl;
-  Global::read_parameter(*problem, reader);
+  Global::read_parameter(*problem, input_file);
 
   // read and validate all material definitions
   std::cout << "...Read materials" << std::endl;
-  Global::read_materials(*problem, reader);
+  Global::read_materials(*problem, input_file);
 
   // do NOT allocate the different fields (discretizations) here,
   // since RAM might be a problem for huge problems!
   // But, we have to perform at least the problem-specific setup since
   // some reading procedures depend on the number of fields (e.g., ReadKnots())
   std::cout << "...Read field setup" << std::endl;
-  Global::read_fields(*problem, reader, false);  // option false is important here!
+  auto mesh =
+      Global::read_discretization(*problem, input_file, false);  // option false is important here!
 
   std::cout << "...";
   {
     Core::Utils::FunctionManager function_manager;
     global_legacy_module_callbacks().AttachFunctionDefinitions(function_manager);
-    function_manager.read_input(reader);
+    function_manager.read_input(input_file);
   }
 
-  Global::read_result(*problem, reader);
-  Global::read_conditions(*problem, reader);
+  Global::read_result(*problem, input_file);
+  Global::read_conditions(*problem, input_file, *mesh);
 
   // input of materials of cloned fields (if needed)
-  Global::read_cloning_material_map(*problem, reader);
+  Global::read_cloning_material_map(*problem, input_file);
 
   // read all knot information for isogeometric analysis
   // and add it to the (derived) nurbs discretization
-  Global::read_knots(*problem, reader);
-
-  // inform user about unused/obsolete section names being found
-  // and force him/her to correct the input file accordingly
-  const bool all_ok = !reader.print_unknown_sections(std::cout);
+  Global::read_knots(*problem, input_file);
 
   // we wait till all procs are here. Otherwise a hang up might occur where
   // one proc ended with FOUR_C_THROW but other procs were not finished and waited...
   // we also want to have the printing above being finished.
   Core::Communication::barrier(comm);
-  FOUR_C_ASSERT_ALWAYS(all_ok,
-      "Unknown sections detected. Correct this! Find hints on these unknown sections above.");
-
   // the input file seems to be valid
-  std::cout << "...OK" << std::endl << std::endl;
-
-  return;
+  std::cout << "...OK\n\n";
 }
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void EXODUS::validate_mesh_element_jacobians(Mesh& mymesh)
+void EXODUS::validate_mesh_element_jacobians(Core::IO::Exodus::Mesh& mymesh)
 {
   if (mymesh.get_num_dim() != 3) FOUR_C_THROW("Element Validation only for 3 Dimensions");
 
-  std::map<int, std::shared_ptr<ElementBlock>> myebs = mymesh.get_element_blocks();
-  std::map<int, std::shared_ptr<ElementBlock>>::iterator i_eb;
 
-  for (i_eb = myebs.begin(); i_eb != myebs.end(); ++i_eb)
+  for (const auto& [eb_id, eb] : mymesh.get_element_blocks())
   {
-    std::shared_ptr<ElementBlock> eb = i_eb->second;
-    const Core::FE::CellType distype = pre_shape_to_drt(eb->get_shape());
+    const Core::FE::CellType distype = eb.get_shape();
     // check and rewind if necessary
-    validate_element_jacobian(mymesh, distype, *eb);
+    validate_element_jacobian(mymesh, distype, eb);
     // full check at all gausspoints
-    int invalid_dets = validate_element_jacobian_fullgp(mymesh, distype, *eb);
+    int invalid_dets = validate_element_jacobian_fullgp(mymesh, distype, eb);
+    using EnumTools::operator<<;
     if (invalid_dets > 0)
       std::cout << invalid_dets << " negative Jacobian determinants in EB of shape "
-                << shape_to_string(eb->get_shape()) << std::endl;
+                << eb.get_shape() << std::endl;
   }
   return;
 }
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void EXODUS::validate_element_jacobian(
-    Mesh& mymesh, const Core::FE::CellType distype, ElementBlock& eb)
+void EXODUS::validate_element_jacobian(Core::IO::Exodus::Mesh& mymesh,
+    const Core::FE::CellType distype, const Core::IO::Exodus::ElementBlock& eb)
 {
   using namespace FourC;
 
@@ -155,29 +146,17 @@ void EXODUS::validate_element_jacobian(
   Core::LinAlg::SerialDenseMatrix deriv(NSD, iel);
 
   // go through all elements
-  std::shared_ptr<std::map<int, std::vector<int>>> eleconn = eb.get_ele_conn();
-  std::map<int, std::vector<int>>::iterator i_ele;
+  const std::map<int, std::vector<int>>& eleconn = eb.get_ele_conn();
   int numrewindedeles = 0;
-  for (i_ele = eleconn->begin(); i_ele != eleconn->end(); ++i_ele)
+  for (auto i_ele = eleconn.begin(); i_ele != eleconn.end(); ++i_ele)
   {
-    int rewcount = 0;
     for (int igp = 0; igp < intpoints.nquad; ++igp)
     {
       Core::FE::shape_function_3d_deriv1(
           deriv, intpoints.qxg[igp][0], intpoints.qxg[igp][1], intpoints.qxg[igp][2], distype);
       if (!positive_ele(i_ele->first, i_ele->second, mymesh, deriv))
       {
-        // rewind the element nodes
-        if (rewcount == 0)
-        {
-          i_ele->second = rewind_ele(i_ele->second, distype);
-          numrewindedeles++;
-        }
-        // double check
-        if (!positive_ele(i_ele->first, i_ele->second, mymesh, deriv))
-          FOUR_C_THROW(
-              "No proper rewinding for element id %d at gauss point %d", i_ele->first, igp);
-        rewcount++;
+        FOUR_C_THROW("Negative Jacobian for element id {} at gauss point {}", i_ele->first, igp);
       }
     }
   }
@@ -190,8 +169,8 @@ void EXODUS::validate_element_jacobian(
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-int EXODUS::validate_element_jacobian_fullgp(
-    Mesh& mymesh, const Core::FE::CellType distype, ElementBlock& eb)
+int EXODUS::validate_element_jacobian_fullgp(Core::IO::Exodus::Mesh& mymesh,
+    const Core::FE::CellType distype, const Core::IO::Exodus::ElementBlock& eb)
 {
   using namespace FourC;
 
@@ -242,9 +221,9 @@ int EXODUS::validate_element_jacobian_fullgp(
 
   // go through all elements
   int invalids = 0;
-  std::shared_ptr<std::map<int, std::vector<int>>> eleconn = eb.get_ele_conn();
+  const std::map<int, std::vector<int>>& eleconn = eb.get_ele_conn();
   std::map<int, std::vector<int>>::iterator i_ele;
-  for (i_ele = eleconn->begin(); i_ele != eleconn->end(); ++i_ele)
+  for (auto i_ele = eleconn.begin(); i_ele != eleconn.end(); ++i_ele)
   {
     for (int igp = 0; igp < intpoints.nquad; ++igp)
     {
@@ -262,8 +241,8 @@ int EXODUS::validate_element_jacobian_fullgp(
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-bool EXODUS::positive_ele(const int& eleid, const std::vector<int>& nodes, const Mesh& mymesh,
-    const Core::LinAlg::SerialDenseMatrix& deriv)
+bool EXODUS::positive_ele(const int& eleid, const std::vector<int>& nodes,
+    const Core::IO::Exodus::Mesh& mymesh, const Core::LinAlg::SerialDenseMatrix& deriv)
 {
   using namespace FourC;
 
@@ -287,7 +266,7 @@ bool EXODUS::positive_ele(const int& eleid, const std::vector<int>& nodes, const
     const double det = jac.determinant();
 
     if (abs(det) < 1E-16)
-      FOUR_C_THROW("ZERO JACOBIAN DETERMINANT FOR ELEMENT %d: DET = %f", eleid, det);
+      FOUR_C_THROW("ZERO JACOBIAN DETERMINANT FOR ELEMENT {}: DET = {}", eleid, det);
 
     if (det < 0.0)
     {

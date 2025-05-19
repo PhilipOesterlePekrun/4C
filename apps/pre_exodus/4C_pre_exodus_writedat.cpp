@@ -9,8 +9,11 @@
 
 #include "4C_fem_condition_definition.hpp"
 #include "4C_fem_general_cell_type_traits.hpp"
-#include "4C_inpar_validconditions.hpp"
-#include "4C_pre_exodus_reader.hpp"
+#include "4C_global_data_read.hpp"
+#include "4C_global_legacy_module_validconditions.hpp"
+#include "4C_io_exodus.hpp"
+#include "4C_io_input_file_utils.hpp"
+#include "4C_io_yaml.hpp"
 
 #include <fstream>
 
@@ -18,34 +21,74 @@ FOUR_C_NAMESPACE_OPEN
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-int EXODUS::write_dat_file(const std::string& datfile, const EXODUS::Mesh& mymesh,
+int EXODUS::write_dat_file(const std::string& outfile, const Core::IO::Exodus::Mesh& mymesh,
     const std::string& headfile, const std::vector<EXODUS::ElemDef>& eledefs,
     const std::vector<EXODUS::CondDef>& condefs)
 {
-  // open datfile
-  std::ofstream dat(datfile.c_str());
-  if (!dat) FOUR_C_THROW("failed to open file: %s", datfile.c_str());
+  // open outfile
+  std::ofstream dat(outfile.c_str());
+  if (!dat) FOUR_C_THROW("failed to open file: {}", outfile);
 
-  // write dat-file intro
-  EXODUS::write_dat_intro(headfile, mymesh, dat);
+  {
+    // Write out the mesh information in the old dat style.
+    std::ofstream dat_fragment(outfile + ".fragment");
 
-  // write "header"
-  EXODUS::write_dat_head(headfile, dat);
+    // write conditions
+    EXODUS::write_dat_conditions(condefs, mymesh, dat_fragment);
 
-  // write conditions
-  EXODUS::write_dat_conditions(condefs, mymesh, dat);
+    // write design-topology
+    EXODUS::write_dat_design_topology(condefs, mymesh, dat_fragment);
 
-  // write design-topology
-  EXODUS::write_dat_design_topology(condefs, mymesh, dat);
+    // write nodal coordinates
+    EXODUS::write_dat_nodes(mymesh, dat_fragment);
 
-  // write nodal coordinates
-  EXODUS::write_dat_nodes(mymesh, dat);
+    // write elements
+    EXODUS::write_dat_eles(eledefs, mymesh, dat_fragment);
+  }
 
-  // write elements
-  EXODUS::write_dat_eles(eledefs, mymesh, dat);
+  auto input_file = Global::set_up_input_file(MPI_COMM_SELF);
+  input_file.read(outfile + ".fragment");
+  // Remove the temporary file
+  std::filesystem::remove(outfile + ".fragment");
 
-  // close datfile
-  if (dat.is_open()) dat.close();
+  std::stringstream temporary_yaml;
+  input_file.write_as_yaml(temporary_yaml, outfile);
+  std::string yaml_string = temporary_yaml.str();
+
+  std::ifstream file(headfile);
+  std::ostringstream ss;
+  ss << file.rdbuf();
+  std::string file_content = ss.str();
+
+  // Collect all the data in a single yaml tree.
+  ryml::Tree tree = Core::IO::init_yaml_tree_with_exceptions();
+  // Parse the header file.
+  try
+  {
+    ryml::parse_in_place(ryml::to_substr(file_content), &tree);
+  }
+  catch (const Core::IO::YamlException& e)
+  {
+    FOUR_C_THROW("The header file seems to not be valid yaml.\nDetails:\n\n{}", e.what());
+  }
+
+  // Write the problem dimension
+  {
+    // Remove the section "PROBLEM SIZE" from the content that was read from the header file.
+    if (tree.rootref().has_child("PROBLEM SIZE"))
+    {
+      tree.rootref().remove_child("PROBLEM SIZE");
+    }
+    tree.rootref()["PROBLEM SIZE"] |= ryml::MAP;
+    tree.rootref()["PROBLEM SIZE"]["DIM"] << mymesh.get_four_c_dim();
+  }
+
+  // Parse the generated mesh info.
+  ryml::parse_in_place(ryml::to_substr(yaml_string), &tree);
+
+  // Write the merged tree.
+  std::ofstream out(outfile);
+  out << tree;
 
   return 0;
 }
@@ -53,88 +96,12 @@ int EXODUS::write_dat_file(const std::string& datfile, const EXODUS::Mesh& mymes
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void EXODUS::write_dat_intro(
-    const std::string& headfile, const EXODUS::Mesh& mymesh, std::ostream& dat)
-{
-  dat << "==================================================================\n"
-         "                   General Data File 4C\n"
-         "==================================================================\n"
-         "-------------------------------------------------------------TITLE\n"
-         "created by pre_exodus\n"
-         "------------------------------------------------------PROBLEM SIZE\n";
-  // print number of elements and nodes just as an comment instead of
-  // a valid parameter (prevents possible misuse of these parameters in 4C)
-  dat << "//ELEMENTS    " << mymesh.get_num_ele() << std::endl;
-  dat << "//NODES       " << mymesh.get_num_nodes() << std::endl;
-  // parameter for the number of spatial dimensions
-  dat << "DIM           " << mymesh.get_four_c_dim() << std::endl;
-}
-
-
-/*----------------------------------------------------------------------*/
-/*----------------------------------------------------------------------*/
-void EXODUS::write_dat_head(const std::string& headfile, std::ostream& dat)
-{
-  std::stringstream head;
-  const char* headfilechar = headfile.c_str();
-  std::ifstream header(headfilechar, std::ifstream::in);
-  if (not header.good())
-  {
-    std::cout << std::endl << "Unable to open file: " << headfilechar << std::endl;
-    FOUR_C_THROW("Unable to open head-file");
-  }
-  while (header.good()) head << (char)header.get();
-  // while (!header.eof()) head << (char) header.get();
-  header.close();
-  std::string headstring = head.str();
-
-  // delete sections which has been written by WriteDatIntro already
-  remove_dat_section("PROBLEM SIZE", headstring);
-
-  // delete very first line with comment "//"
-  if (headstring.find("//") == 0)
-    headstring.erase(
-        headstring.find("//"), headstring.find('\n') + 1);  //-headstd::string.find("//"));
-
-  size_t comment = headstring.find("\n//");
-  while (comment != std::string::npos)
-  {
-    headstring.erase(comment + 1, headstring.find('\n', comment + 1) - comment);
-    comment = headstring.find("\n//", comment);
-  }
-
-  // remove eof character
-  headstring.erase(headstring.end() - 1);
-
-  // now put everything to the input file
-  dat << headstring << std::endl;
-}
-
-/*----------------------------------------------------------------------*/
-/*----------------------------------------------------------------------*/
-void EXODUS::remove_dat_section(const std::string& secname, std::string& headstring)
-{
-  const size_t secpos = headstring.find(secname);
-  if (secpos != std::string::npos)
-  {
-    // where does this section line actually start?
-    const size_t endoflastline = headstring.substr(0, secpos).rfind('\n');
-    // want to keep the newline character of line before
-    const size_t sectionbegin = endoflastline + 1;
-    // now we remove the whole section
-    const size_t sectionend = headstring.find("---", secpos);
-    headstring.erase(sectionbegin, sectionend - sectionbegin);
-  }
-}
-
-/*----------------------------------------------------------------------*/
-/*----------------------------------------------------------------------*/
-void EXODUS::write_dat_conditions(
-    const std::vector<EXODUS::CondDef>& condefs, const EXODUS::Mesh& mymesh, std::ostream& dat)
+void EXODUS::write_dat_conditions(const std::vector<EXODUS::CondDef>& condefs,
+    const Core::IO::Exodus::Mesh& mymesh, std::ostream& dat)
 {
   using namespace FourC;
 
-  std::vector<Core::Conditions::ConditionDefinition> condlist = Input::valid_conditions();
+  std::vector<Core::Conditions::ConditionDefinition> condlist = Global::valid_conditions();
 
   // count how often we have one specific condition
   std::map<std::string, std::vector<int>> count_cond;
@@ -146,67 +113,17 @@ void EXODUS::write_dat_conditions(
   // loop all valid conditions that 4C knows
   for (auto& condition : condlist)
   {
-    size_t linelength = 66;
-    std::string sectionname = condition.section_name();
+    const std::string& sectionname = condition.section_name();
 
     // ignore conditions occurring zero times
     count = count_cond.find(sectionname);
     if (count == count_cond.end()) continue;
 
-    // only write conditions provided by user
-    std::string dash(linelength - sectionname.size(), '-');
-    dat << dash << sectionname << std::endl;
-    std::string geo;
-    switch (condition.geometry_type())
-    {
-      case Core::Conditions::geometry_type_point:
-        geo = "DPOINT ";
-        break;
-      case Core::Conditions::geometry_type_line:
-        geo = "DLINE  ";
-        break;
-      case Core::Conditions::geometry_type_surface:
-        geo = "DSURF  ";
-        break;
-      case Core::Conditions::geometry_type_volume:
-        geo = "DVOL   ";
-        break;
-      default:
-        FOUR_C_THROW("geometry type unspecified");
-    }
+    Core::IO::print_section_header(dat, sectionname);
 
-    dat << geo << (count->second).size() << std::endl;
     for (i_c = (count->second).begin(); i_c != (count->second).end(); ++i_c)
     {
       EXODUS::CondDef actcon = condefs[*i_c];
-      std::string name;
-      std::string pname;
-      if (actcon.me == EXODUS::bcns)
-      {
-        name = (mymesh.get_node_set(actcon.id).get_name());
-        pname = (mymesh.get_node_set(actcon.id).get_prop_name());
-      }
-      else if (actcon.me == EXODUS::bceb)
-      {
-        name = (mymesh.get_element_block(actcon.id)->get_name());
-      }
-      else if (actcon.me == EXODUS::bcss)
-      {
-        name = (mymesh.get_side_set(actcon.id).get_name());
-      }
-      else
-        FOUR_C_THROW("Unidentified Actcon");
-      if ((name != ""))
-      {
-        dat << "// " << name;
-        if (pname != "none")
-        {
-          dat << " " << pname;
-        }
-        dat << std::endl;
-      }
-      else if (pname != "none")
-        dat << "// " << pname << std::endl;
 
       // write the condition
       if (actcon.desc == "" and actcon.sec == "DESIGN SURF LOCSYS CONDITIONS" and
@@ -214,13 +131,13 @@ void EXODUS::write_dat_conditions(
       {
         // special case for locsys conditions: calculate normal
         std::vector<double> normal_tangent = EXODUS::calc_normal_surf_locsys(actcon.id, mymesh);
-        dat << "E " << actcon.e_id << " - ";
+        dat << "E " << actcon.e_id << " ";
         for (double normtang : normal_tangent)
           dat << std::setprecision(10) << std::fixed << normtang << " ";
         dat << std::endl;
       }
       else
-        dat << "E " << actcon.e_id << " - " << actcon.desc << std::endl;
+        dat << "E " << actcon.e_id << " " << actcon.desc << std::endl;
     }
     // remove sectionname from map, since writing is done
     count_cond.erase(sectionname);
@@ -238,10 +155,11 @@ void EXODUS::write_dat_conditions(
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-std::vector<double> EXODUS::calc_normal_surf_locsys(const int ns_id, const EXODUS::Mesh& m)
+std::vector<double> EXODUS::calc_normal_surf_locsys(
+    const int ns_id, const Core::IO::Exodus::Mesh& m)
 {
   std::vector<double> normaltangent;
-  EXODUS::NodeSet ns = m.get_node_set(ns_id);
+  Core::IO::Exodus::NodeSet ns = m.get_node_set(ns_id);
 
   std::set<int> nodes_from_nodeset = ns.get_node_set();
   std::set<int>::iterator it;
@@ -255,7 +173,8 @@ std::vector<double> EXODUS::calc_normal_surf_locsys(const int ns_id, const EXODU
 
   std::set<int>::iterator thirdnode;
 
-  const auto compute_normal = [](int head1, int origin, int head2, const EXODUS::Mesh& basemesh)
+  const auto compute_normal =
+      [](int head1, int origin, int head2, const Core::IO::Exodus::Mesh& basemesh)
   {
     std::vector<double> normal(3);
     std::vector<double> h1 = basemesh.get_node(head1);
@@ -292,8 +211,7 @@ std::vector<double> EXODUS::calc_normal_surf_locsys(const int ns_id, const EXODU
   }
   if (normaltangent.size() == 1)
   {
-    FOUR_C_THROW(
-        "Warning! No normal defined for SurfLocsys within nodeset '%s'!", (ns.get_name()).c_str());
+    FOUR_C_THROW("Warning! No normal defined for SurfLocsys within nodeset '{}'!", (ns.get_name()));
   }
 
   // find tangent by Gram-Schmidt
@@ -326,8 +244,8 @@ std::vector<double> EXODUS::calc_normal_surf_locsys(const int ns_id, const EXODU
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void EXODUS::write_dat_design_topology(
-    const std::vector<EXODUS::CondDef>& condefs, const EXODUS::Mesh& mymesh, std::ostream& dat)
+void EXODUS::write_dat_design_topology(const std::vector<EXODUS::CondDef>& condefs,
+    const Core::IO::Exodus::Mesh& mymesh, std::ostream& dat)
 {
   using namespace FourC;
 
@@ -407,19 +325,20 @@ void EXODUS::write_dat_design_topology(
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-std::set<int> EXODUS::get_ns_from_bc_entity(const EXODUS::CondDef& e, const EXODUS::Mesh& m)
+std::set<int> EXODUS::get_ns_from_bc_entity(
+    const EXODUS::CondDef& e, const Core::IO::Exodus::Mesh& m)
 {
   if (e.me == EXODUS::bcns)
   {
-    EXODUS::NodeSet ns = m.get_node_set(e.id);
+    Core::IO::Exodus::NodeSet ns = m.get_node_set(e.id);
     return ns.get_node_set();
   }
   else if (e.me == EXODUS::bceb)
   {
     std::set<int> allnodes;
-    std::shared_ptr<EXODUS::ElementBlock> eb = m.get_element_block(e.id);
-    std::shared_ptr<const std::map<int, std::vector<int>>> eles = eb->get_ele_conn();
-    for (const auto& ele : *eles)
+    const auto& eb = m.get_element_block(e.id);
+    const std::map<int, std::vector<int>>& eles = eb.get_ele_conn();
+    for (const auto& ele : eles)
     {
       const std::vector<int> nodes = ele.second;
       for (auto node : nodes) allnodes.insert(node);
@@ -429,31 +348,27 @@ std::set<int> EXODUS::get_ns_from_bc_entity(const EXODUS::CondDef& e, const EXOD
   else if (e.me == EXODUS::bcss)
   {
     std::set<int> allnodes;
-    EXODUS::SideSet ss = m.get_side_set(e.id);
-    const std::map<int, std::vector<int>> eles = ss.get_side_set();
-    for (const auto& ele : eles)
+    Core::IO::Exodus::SideSet ss = m.get_side_set(e.id);
+    const std::map<int, std::vector<int>>& eles = ss.get_side_set();
+    for (const auto& nodes : eles | std::views::values)
     {
-      const std::vector<int> nodes = ele.second;
       for (auto node : nodes) allnodes.insert(node);
     }
     return allnodes;
   }
   else
     FOUR_C_THROW("Cannot identify mesh_entity");
-  std::set<int> n;
-  return n;
 }
 
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void EXODUS::write_dat_nodes(const EXODUS::Mesh& mymesh, std::ostream& dat)
+void EXODUS::write_dat_nodes(const Core::IO::Exodus::Mesh& mymesh, std::ostream& dat)
 {
   dat << "-------------------------------------------------------NODE COORDS" << std::endl;
   dat.precision(16);
-  std::shared_ptr<std::map<int, std::vector<double>>> nodes = mymesh.get_nodes();
 
-  for (const auto& node : *nodes)
+  for (const auto& node : mymesh.get_nodes())
   {
     std::vector<double> coords = node.second;
     dat << "NODE " << std::setw(9) << node.first << " COORD";
@@ -466,7 +381,7 @@ void EXODUS::write_dat_nodes(const EXODUS::Mesh& mymesh, std::ostream& dat)
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
 void EXODUS::write_dat_eles(
-    const std::vector<ElemDef>& eledefs, const EXODUS::Mesh& mymesh, std::ostream& dat)
+    const std::vector<ElemDef>& eledefs, const Core::IO::Exodus::Mesh& mymesh, std::ostream& dat)
 {
   // sort elements w.r.t. structure, fluid, ale, scalar transport, thermo, etc.
   std::vector<EXODUS::ElemDef> structure_elements;
@@ -478,7 +393,6 @@ void EXODUS::write_dat_eles(
   std::vector<EXODUS::ElemDef> thermo_elements;
   std::vector<EXODUS::ElemDef> cell_elements;
   std::vector<EXODUS::ElemDef> cellscatra_elements;
-  std::vector<EXODUS::ElemDef> elemag_elements;
   std::vector<EXODUS::ElemDef> artery_elements;
 
   for (const auto& element_definition : eledefs)
@@ -497,12 +411,6 @@ void EXODUS::write_dat_eles(
       transport2_elements.push_back(element_definition);
     else if (element_definition.sec == "THERMO")
       thermo_elements.push_back(element_definition);
-    else if (element_definition.sec == "CELL")
-      cell_elements.push_back(element_definition);
-    else if (element_definition.sec == "CELLSCATRA")
-      cellscatra_elements.push_back(element_definition);
-    else if (element_definition.sec == "ELECTROMAGNETIC")
-      elemag_elements.push_back(element_definition);
     else if (element_definition.sec == "ARTERY")
       artery_elements.push_back(element_definition);
     else if (element_definition.sec == "")
@@ -536,8 +444,8 @@ void EXODUS::write_dat_eles(
 
     for (const auto& ele : ele_vector)
     {
-      std::shared_ptr<EXODUS::ElementBlock> eb = mymesh.get_element_block(ele.id);
-      EXODUS::dat_eles(*eb, ele, startele, dat, ele.id);
+      const auto& eb = mymesh.get_element_block(ele.id);
+      EXODUS::dat_eles(eb, ele, startele, dat, ele.id);
     }
   };
 
@@ -563,15 +471,6 @@ void EXODUS::write_dat_eles(
   // print thermo elements
   if (!thermo_elements.empty()) printElementSection(thermo_elements, "THERMO ELEMENTS");
 
-  // print cell elements
-  if (!cell_elements.empty()) printElementSection(cell_elements, "CELL ELEMENTS");
-
-  // print cellscatra elements
-  if (!cellscatra_elements.empty()) printElementSection(cellscatra_elements, "CELLSCATRA ELEMENTS");
-
-  // print electromagnetic elements
-  if (!elemag_elements.empty()) printElementSection(elemag_elements, "ELECTROMAGNETIC ELEMENTS");
-
   // print artery elements
   if (!artery_elements.empty()) printElementSection(artery_elements, "ARTERY ELEMENTS");
 }
@@ -579,24 +478,24 @@ void EXODUS::write_dat_eles(
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void EXODUS::dat_eles(const EXODUS::ElementBlock& eb, const EXODUS::ElemDef& acte, int& startele,
-    std::ostream& datfile, const int eb_id)
+void EXODUS::dat_eles(const Core::IO::Exodus::ElementBlock& eb, const EXODUS::ElemDef& acte,
+    int& startele, std::ostream& outfile, const int eb_id)
 {
-  auto eles = eb.get_ele_conn();
-  for (const auto& ele : *eles)
+  const auto& eles = eb.get_ele_conn();
+  for (const auto& ele : eles)
   {
     std::stringstream dat;  // first build up the std::string for actual element line
     const std::vector<int> nodes = ele.second;
     dat << "   " << startele;
     dat << " " << acte.ename;  // e.g. "SOLID"
-    dat << " " << Core::FE::cell_type_to_string(pre_shape_to_drt(eb.get_shape()));
+    dat << " " << Core::FE::cell_type_to_string(eb.get_shape());
     dat << "  ";
     for (auto node : nodes) dat << node << " ";
     dat << "   " << acte.desc;  // e.g. "MAT 1"
     dat << std::endl;           // finish this element line
 
     startele++;
-    datfile << dat.str();  // only one access to the outfile (saves system time)
+    outfile << dat.str();  // only one access to the outfile (saves system time)
   }
 }
 

@@ -11,13 +11,12 @@
 #include "4C_config.hpp"
 
 #include "4C_comm_parobjectfactory.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_serialdensematrix.hpp"
 #include "4C_linalg_serialdensevector.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_mat_so3_material.hpp"
 #include "4C_material_parameter_base.hpp"
-
-#include <Epetra_Map.h>
 
 #include <memory>
 
@@ -53,14 +52,14 @@ namespace Mat
       double get_parameter(int parametername, const int EleId)
       {
         // check if we have an element based value via size
-        if (matparams_[parametername]->GlobalLength() == 1)
+        if (matparams_[parametername]->global_length() == 1)
         {
           // we have a global value hence we directly return the first entry
           return (*matparams_[parametername])[0];
         }
         // If someone calls this functions without a valid EleID and we have element based values
         // throw error
-        else if (EleId < 0 && matparams_[parametername]->GlobalLength() > 1)
+        else if (EleId < 0 && matparams_[parametername]->global_length() > 1)
         {
           FOUR_C_THROW("Global mat parameter requested but we have elementwise mat params");
           return 0.0;
@@ -69,7 +68,8 @@ namespace Mat
         else
         {
           // calculate LID here, instead of before each call
-          return (*matparams_[parametername])[matparams_[parametername]->Map().LID(EleId)];
+          return (
+              *matparams_[parametername])[matparams_[parametername]->get_block_map().LID(EleId)];
         }
       }
 

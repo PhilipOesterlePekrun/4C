@@ -9,7 +9,7 @@
 
 #include "4C_comm_utils_factory.hpp"
 #include "4C_io_input_spec_builders.hpp"
-#include "4C_so3_nullspace.hpp"
+#include "4C_solid_3D_ele_nullspace.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -60,7 +60,7 @@ void Discret::Elements::Nurbs::Wall1NurbsType::nodal_block_information(
 Core::LinAlg::SerialDenseMatrix Discret::Elements::Nurbs::Wall1NurbsType::compute_null_space(
     Core::Nodes::Node& node, const double* x0, const int numdof, const int dimnsp)
 {
-  return compute_solid_2d_null_space(node, x0);
+  return compute_solid_null_space<2>(node.x(), x0);
 }
 
 void Discret::Elements::Nurbs::Wall1NurbsType::setup_element_definition(
@@ -71,23 +71,23 @@ void Discret::Elements::Nurbs::Wall1NurbsType::setup_element_definition(
   using namespace Core::IO::InputSpecBuilders;
 
   defs["NURBS4"] = all_of({
-      entry<std::vector<int>>("NURBS4", {.size = 4}),
-      entry<int>("MAT"),
-      entry<std::string>("KINEM"),
-      entry<std::string>("EAS"),
-      entry<double>("THICK"),
-      entry<std::string>("STRESS_STRAIN"),
-      entry<std::vector<int>>("GP", {.size = 2}),
+      parameter<std::vector<int>>("NURBS4", {.size = 4}),
+      parameter<int>("MAT"),
+      parameter<std::string>("KINEM"),
+      parameter<std::string>("EAS"),
+      parameter<double>("THICK"),
+      parameter<std::string>("STRESS_STRAIN"),
+      parameter<std::vector<int>>("GP", {.size = 2}),
   });
 
   defs["NURBS9"] = all_of({
-      entry<std::vector<int>>("NURBS9", {.size = 9}),
-      entry<int>("MAT"),
-      entry<std::string>("KINEM"),
-      entry<std::string>("EAS"),
-      entry<double>("THICK"),
-      entry<std::string>("STRESS_STRAIN"),
-      entry<std::vector<int>>("GP", {.size = 2}),
+      parameter<std::vector<int>>("NURBS9", {.size = 9}),
+      parameter<int>("MAT"),
+      parameter<std::string>("KINEM"),
+      parameter<std::string>("EAS"),
+      parameter<double>("THICK"),
+      parameter<std::string>("STRESS_STRAIN"),
+      parameter<std::vector<int>>("GP", {.size = 2}),
   });
 }
 
@@ -148,7 +148,7 @@ Core::FE::CellType Discret::Elements::Nurbs::Wall1Nurbs::shape() const
     case 9:
       return Core::FE::CellType::nurbs9;
     default:
-      FOUR_C_THROW("unexpected number of nodes %d", num_node());
+      FOUR_C_THROW("unexpected number of nodes {}", num_node());
   }
 }
 

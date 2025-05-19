@@ -8,6 +8,7 @@
 #include "4C_membrane_scatra.hpp"
 
 #include "4C_comm_pack_helpers.hpp"
+#include "4C_io_input_parameter_container.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -121,8 +122,6 @@ bool Discret::Elements::MembraneScatra<distype>::read_element(const std::string&
     impltype_ = Inpar::ScaTra::impltype_chemoreac;
   else if (impltype == "Loma")
     impltype_ = Inpar::ScaTra::impltype_loma;
-  else if (impltype == "RefConcReac")
-    impltype_ = Inpar::ScaTra::impltype_refconcreac;
   else if (impltype == "Std")
     impltype_ = Inpar::ScaTra::impltype_std;
   else

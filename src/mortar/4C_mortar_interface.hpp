@@ -13,12 +13,12 @@
 #include "4C_comm_exporter.hpp"
 #include "4C_inpar_mortar.hpp"
 #include "4C_io_control.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_mortar_paramsinterface.hpp"
 #include "4C_utils_exceptions.hpp"
 #include "4C_utils_pairedvector.hpp"
 
-#include <Epetra_Map.h>
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 
 #include <memory>
@@ -60,7 +60,7 @@ namespace Mortar
 
   /*! \brief State type for the set state routine
    *
-   * \author hiermeier */
+   * */
   enum StateType
   {
     state_old_displacement,     //!< old displacement state
@@ -78,7 +78,7 @@ namespace Mortar
 
   /*! \brief Map state type enum to std::string
    *
-   *  \author hiermeier */
+   *  */
   static inline std::string state_type_to_string(const enum StateType& type)
   {
     switch (type)
@@ -110,7 +110,7 @@ namespace Mortar
 
   /*! \brief Map std::string to state type enum
    *
-   *  \author hiermeier */
+   *  */
   static inline enum Mortar::StateType string_to_state_type(const std::string& name)
   {
     Mortar::StateType type = state_vague;
@@ -135,7 +135,7 @@ namespace Mortar
     else if (name == "thermo_lm")
       type = state_thermo_lagrange_multiplier;
     else
-      FOUR_C_THROW("Unknown state type name. (name = %s)", name.c_str());
+      FOUR_C_THROW("Unknown state type name. (name = {})", name);
 
     return type;
   }
@@ -148,7 +148,7 @@ namespace Mortar
    *  of the actual interface class itself, makes it possible to share the interface
    *  data between different interface objects w/o the need of copying them.
    *
-   *  \author hiermeier \date 03/17 */
+   *  */
   class InterfaceDataContainer
   {
    public:
@@ -207,134 +207,194 @@ namespace Mortar
       extendghosting_ = extendghosting;
     }
 
-    inline std::shared_ptr<Epetra_Map>& old_node_col_map() { return oldnodecolmap_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& old_node_col_map() { return oldnodecolmap_; }
 
-    inline std::shared_ptr<const Epetra_Map> old_node_col_map() const { return oldnodecolmap_; }
+    inline std::shared_ptr<const Core::LinAlg::Map> old_node_col_map() const
+    {
+      return oldnodecolmap_;
+    }
 
-    inline std::shared_ptr<Epetra_Map>& old_ele_col_map() { return oldelecolmap_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& old_ele_col_map() { return oldelecolmap_; }
 
-    inline std::shared_ptr<const Epetra_Map> old_ele_col_map() const { return oldelecolmap_; }
+    inline std::shared_ptr<const Core::LinAlg::Map> old_ele_col_map() const
+    {
+      return oldelecolmap_;
+    }
 
-    inline std::shared_ptr<Epetra_Map>& s_node_row_map() { return snoderowmap_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& s_node_row_map() { return snoderowmap_; }
 
-    inline std::shared_ptr<const Epetra_Map> slave_node_row_map() const { return snoderowmap_; }
+    inline std::shared_ptr<const Core::LinAlg::Map> slave_node_row_map() const
+    {
+      return snoderowmap_;
+    }
 
-    inline std::shared_ptr<Epetra_Map>& slave_node_col_map() { return snodecolmap_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& slave_node_col_map() { return snodecolmap_; }
 
-    inline std::shared_ptr<const Epetra_Map> slave_node_col_map() const { return snodecolmap_; }
+    inline std::shared_ptr<const Core::LinAlg::Map> slave_node_col_map() const
+    {
+      return snodecolmap_;
+    }
 
-    inline std::shared_ptr<Epetra_Map>& master_node_row_map() { return mnoderowmap_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& master_node_row_map() { return mnoderowmap_; }
 
-    inline std::shared_ptr<const Epetra_Map> master_node_row_map() const { return mnoderowmap_; }
+    inline std::shared_ptr<const Core::LinAlg::Map> master_node_row_map() const
+    {
+      return mnoderowmap_;
+    }
 
-    inline std::shared_ptr<Epetra_Map>& non_redist_slave_node_row_map() { return psnoderowmap_; }
-
-    inline std::shared_ptr<const Epetra_Map> non_redist_slave_node_row_map() const
+    inline std::shared_ptr<Core::LinAlg::Map>& non_redist_slave_node_row_map()
     {
       return psnoderowmap_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& non_redist_master_node_row_map() { return pmnoderowmap_; }
+    inline std::shared_ptr<const Core::LinAlg::Map> non_redist_slave_node_row_map() const
+    {
+      return psnoderowmap_;
+    }
 
-    inline std::shared_ptr<const Epetra_Map> non_redist_master_node_row_map() const
+    inline std::shared_ptr<Core::LinAlg::Map>& non_redist_master_node_row_map()
     {
       return pmnoderowmap_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& master_node_col_map() { return mnodecolmap_; }
+    inline std::shared_ptr<const Core::LinAlg::Map> non_redist_master_node_row_map() const
+    {
+      return pmnoderowmap_;
+    }
 
-    inline std::shared_ptr<const Epetra_Map> master_node_col_map() const { return mnodecolmap_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& master_node_col_map() { return mnodecolmap_; }
 
-    inline std::shared_ptr<Epetra_Map>& slave_node_row_map_bound() { return snoderowmapbound_; }
+    inline std::shared_ptr<const Core::LinAlg::Map> master_node_col_map() const
+    {
+      return mnodecolmap_;
+    }
 
-    inline std::shared_ptr<const Epetra_Map> slave_node_row_map_bound() const
+    inline std::shared_ptr<Core::LinAlg::Map>& slave_node_row_map_bound()
     {
       return snoderowmapbound_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& slave_node_col_map_bound() { return snodecolmapbound_; }
+    inline std::shared_ptr<const Core::LinAlg::Map> slave_node_row_map_bound() const
+    {
+      return snoderowmapbound_;
+    }
 
-    inline std::shared_ptr<const Epetra_Map> slave_node_col_map_bound() const
+    inline std::shared_ptr<Core::LinAlg::Map>& slave_node_col_map_bound()
     {
       return snodecolmapbound_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& master_node_row_map_no_bound()
+    inline std::shared_ptr<const Core::LinAlg::Map> slave_node_col_map_bound() const
+    {
+      return snodecolmapbound_;
+    }
+
+    inline std::shared_ptr<Core::LinAlg::Map>& master_node_row_map_no_bound()
     {
       return mnoderowmapnobound_;
     }
 
-    inline std::shared_ptr<const Epetra_Map> master_node_row_map_no_bound() const
+    inline std::shared_ptr<const Core::LinAlg::Map> master_node_row_map_no_bound() const
     {
       return mnoderowmapnobound_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& master_node_col_map_no_bound()
+    inline std::shared_ptr<Core::LinAlg::Map>& master_node_col_map_no_bound()
     {
       return mnodecolmapnobound_;
     }
 
-    inline std::shared_ptr<const Epetra_Map> master_node_col_map_no_bound() const
+    inline std::shared_ptr<const Core::LinAlg::Map> master_node_col_map_no_bound() const
     {
       return mnodecolmapnobound_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& slave_element_row_map() { return selerowmap_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& slave_element_row_map() { return selerowmap_; }
 
-    inline std::shared_ptr<const Epetra_Map> slave_element_row_map() const { return selerowmap_; }
-
-    inline std::shared_ptr<Epetra_Map>& slave_element_col_map() { return selecolmap_; }
-
-    inline std::shared_ptr<const Epetra_Map> slave_element_col_map() const { return selecolmap_; }
-
-    inline std::shared_ptr<Epetra_Map>& master_element_row_map() { return melerowmap_; }
-
-    inline std::shared_ptr<const Epetra_Map> master_element_row_map() const { return melerowmap_; }
-
-    inline std::shared_ptr<Epetra_Map>& master_element_col_map() { return melecolmap_; }
-
-    inline std::shared_ptr<const Epetra_Map> master_element_col_map() const { return melecolmap_; }
-
-    inline std::shared_ptr<Epetra_Map>& slave_dof_row_map() { return sdofrowmap_; }
-
-    inline std::shared_ptr<const Epetra_Map> slave_dof_row_map() const { return sdofrowmap_; }
-
-    inline std::shared_ptr<Epetra_Map>& slave_dof_col_map() { return sdofcolmap_; }
-
-    inline std::shared_ptr<const Epetra_Map> slave_dof_col_map() const { return sdofcolmap_; }
-
-    inline std::shared_ptr<Epetra_Map>& master_dof_row_map() { return mdofrowmap_; }
-
-    inline std::shared_ptr<const Epetra_Map> master_dof_row_map() const { return mdofrowmap_; }
-
-    inline std::shared_ptr<Epetra_Map>& master_dof_col_map() { return mdofcolmap_; }
-
-    inline std::shared_ptr<const Epetra_Map> master_dof_col_map() const { return mdofcolmap_; }
-
-    inline std::shared_ptr<Epetra_Map>& non_redist_slave_dof_row_map() { return psdofrowmap_; }
-
-    inline std::shared_ptr<Epetra_Map>& non_redist_master_dof_row_map() { return pmdofrowmap_; }
-
-    inline std::shared_ptr<const Epetra_Map> non_redist_master_dof_row_map() const
+    inline std::shared_ptr<const Core::LinAlg::Map> slave_element_row_map() const
     {
-      return pmdofrowmap_;
+      return selerowmap_;
     }
 
-    inline std::shared_ptr<const Epetra_Map> non_redist_slave_dof_row_map() const
+    inline std::shared_ptr<Core::LinAlg::Map>& slave_element_col_map() { return selecolmap_; }
+
+    inline std::shared_ptr<const Core::LinAlg::Map> slave_element_col_map() const
+    {
+      return selecolmap_;
+    }
+
+    inline std::shared_ptr<Core::LinAlg::Map>& master_element_row_map() { return melerowmap_; }
+
+    inline std::shared_ptr<const Core::LinAlg::Map> master_element_row_map() const
+    {
+      return melerowmap_;
+    }
+
+    inline std::shared_ptr<Core::LinAlg::Map>& master_element_col_map() { return melecolmap_; }
+
+    inline std::shared_ptr<const Core::LinAlg::Map> master_element_col_map() const
+    {
+      return melecolmap_;
+    }
+
+    inline std::shared_ptr<Core::LinAlg::Map>& slave_dof_row_map() { return sdofrowmap_; }
+
+    inline std::shared_ptr<const Core::LinAlg::Map> slave_dof_row_map() const
+    {
+      return sdofrowmap_;
+    }
+
+    inline std::shared_ptr<Core::LinAlg::Map>& slave_dof_col_map() { return sdofcolmap_; }
+
+    inline std::shared_ptr<const Core::LinAlg::Map> slave_dof_col_map() const
+    {
+      return sdofcolmap_;
+    }
+
+    inline std::shared_ptr<Core::LinAlg::Map>& master_dof_row_map() { return mdofrowmap_; }
+
+    inline std::shared_ptr<const Core::LinAlg::Map> master_dof_row_map() const
+    {
+      return mdofrowmap_;
+    }
+
+    inline std::shared_ptr<Core::LinAlg::Map>& master_dof_col_map() { return mdofcolmap_; }
+
+    inline std::shared_ptr<const Core::LinAlg::Map> master_dof_col_map() const
+    {
+      return mdofcolmap_;
+    }
+
+    inline std::shared_ptr<Core::LinAlg::Map>& non_redist_slave_dof_row_map()
     {
       return psdofrowmap_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& non_redist_lm_dof_row_map() { return plmdofmap_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& non_redist_master_dof_row_map()
+    {
+      return pmdofrowmap_;
+    }
 
-    inline std::shared_ptr<const Epetra_Map> non_redist_lm_dof_row_map() const
+    inline std::shared_ptr<const Core::LinAlg::Map> non_redist_master_dof_row_map() const
+    {
+      return pmdofrowmap_;
+    }
+
+    inline std::shared_ptr<const Core::LinAlg::Map> non_redist_slave_dof_row_map() const
+    {
+      return psdofrowmap_;
+    }
+
+    inline std::shared_ptr<Core::LinAlg::Map>& non_redist_lm_dof_row_map() { return plmdofmap_; }
+
+    inline std::shared_ptr<const Core::LinAlg::Map> non_redist_lm_dof_row_map() const
     {
       return plmdofmap_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& lm_dof_row_map() { return lmdofmap_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& lm_dof_row_map() { return lmdofmap_; }
 
-    inline std::shared_ptr<const Epetra_Map> lm_dof_row_map() const { return lmdofmap_; }
+    inline std::shared_ptr<const Core::LinAlg::Map> lm_dof_row_map() const { return lmdofmap_; }
 
     inline int& max_dof_global() { return maxdofglobal_; }
 
@@ -457,76 +517,76 @@ namespace Mortar
     //! @{
 
     //! column map of all interface nodes (overlap=1)
-    std::shared_ptr<Epetra_Map> oldnodecolmap_;
+    std::shared_ptr<Core::LinAlg::Map> oldnodecolmap_;
 
     //! column map of all interface elements (overlap=1)
-    std::shared_ptr<Epetra_Map> oldelecolmap_;
+    std::shared_ptr<Core::LinAlg::Map> oldelecolmap_;
 
     //! row map of all slave nodes
-    std::shared_ptr<Epetra_Map> snoderowmap_;
+    std::shared_ptr<Core::LinAlg::Map> snoderowmap_;
 
     //! column map of all slave nodes
-    std::shared_ptr<Epetra_Map> snodecolmap_;
+    std::shared_ptr<Core::LinAlg::Map> snodecolmap_;
 
     //! row map of all master nodes
-    std::shared_ptr<Epetra_Map> mnoderowmap_;
+    std::shared_ptr<Core::LinAlg::Map> mnoderowmap_;
 
     //! column map of all master nodes
-    std::shared_ptr<Epetra_Map> mnodecolmap_;
+    std::shared_ptr<Core::LinAlg::Map> mnodecolmap_;
 
     //! row map of slave nodes (+ boundary nodes)
-    std::shared_ptr<Epetra_Map> snoderowmapbound_;
+    std::shared_ptr<Core::LinAlg::Map> snoderowmapbound_;
 
     //! col map of slave nodes (+ boundary nodes)
-    std::shared_ptr<Epetra_Map> snodecolmapbound_;
+    std::shared_ptr<Core::LinAlg::Map> snodecolmapbound_;
 
     //! row map of master nodes (- boundary nodes)
-    std::shared_ptr<Epetra_Map> mnoderowmapnobound_;
+    std::shared_ptr<Core::LinAlg::Map> mnoderowmapnobound_;
 
     //! col map of master nodes (- boundary nodes)
-    std::shared_ptr<Epetra_Map> mnodecolmapnobound_;
+    std::shared_ptr<Core::LinAlg::Map> mnodecolmapnobound_;
 
     //! row map of all slave elements
-    std::shared_ptr<Epetra_Map> selerowmap_;
+    std::shared_ptr<Core::LinAlg::Map> selerowmap_;
 
     //! column map of all slave elements
-    std::shared_ptr<Epetra_Map> selecolmap_;
+    std::shared_ptr<Core::LinAlg::Map> selecolmap_;
 
     //! row map of all master elements
-    std::shared_ptr<Epetra_Map> melerowmap_;
+    std::shared_ptr<Core::LinAlg::Map> melerowmap_;
 
     //! column map of all master elements
-    std::shared_ptr<Epetra_Map> melecolmap_;
+    std::shared_ptr<Core::LinAlg::Map> melecolmap_;
 
     //! row map of all slave dofs
-    std::shared_ptr<Epetra_Map> sdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> sdofrowmap_;
 
     //! column map of all slave dofs
-    std::shared_ptr<Epetra_Map> sdofcolmap_;
+    std::shared_ptr<Core::LinAlg::Map> sdofcolmap_;
 
     //! row map of all master dofs
-    std::shared_ptr<Epetra_Map> mdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> mdofrowmap_;
 
     //! column map of all master dofs
-    std::shared_ptr<Epetra_Map> mdofcolmap_;
+    std::shared_ptr<Core::LinAlg::Map> mdofcolmap_;
 
     //! row map of all slave dofs before any redistribution took place
-    std::shared_ptr<Epetra_Map> psdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> psdofrowmap_;
 
     //! row map of all master dofs before any redistribution took place
-    std::shared_ptr<Epetra_Map> pmdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> pmdofrowmap_;
 
     //! row map of all Lagrange multiplier dofs before any redistribution took place
-    std::shared_ptr<Epetra_Map> plmdofmap_;
+    std::shared_ptr<Core::LinAlg::Map> plmdofmap_;
 
     //! row map of all slave nodes before any redistribution took place
-    std::shared_ptr<Epetra_Map> psnoderowmap_;
+    std::shared_ptr<Core::LinAlg::Map> psnoderowmap_;
 
     //! row map of all master nodes before any redistribution took place
-    std::shared_ptr<Epetra_Map> pmnoderowmap_;
+    std::shared_ptr<Core::LinAlg::Map> pmnoderowmap_;
 
     //! row map of all Lagrange multiplier dofs
-    std::shared_ptr<Epetra_Map> lmdofmap_;
+    std::shared_ptr<Core::LinAlg::Map> lmdofmap_;
 
     //! @}
 
@@ -604,7 +664,7 @@ namespace Mortar
      *  \param spatialDim (in) : spatial dimension of the problem
      *  \param imortar (in) : global contact/mesh-tying parameter-list
      *
-     *  \author hiermeier \date 03/17 */
+     *  */
     static std::shared_ptr<Interface> create(const int id, MPI_Comm comm, const int spatialDim,
         const Teuchos::ParameterList& imortar,
         std::shared_ptr<Core::IO::OutputControl> output_control,
@@ -718,37 +778,34 @@ namespace Mortar
     /*!
     \brief Get column map of all interface nodes (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> old_col_nodes() const
+    std::shared_ptr<const Core::LinAlg::Map> old_col_nodes() const
     {
       if (filled())
         return oldnodecolmap_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
     \brief Get column map of all interface elements (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> old_col_elements() const
+    std::shared_ptr<const Core::LinAlg::Map> old_col_elements() const
     {
       if (filled())
         return oldelecolmap_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
     \brief Get row map of slave nodes (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> slave_row_nodes() const
+    std::shared_ptr<const Core::LinAlg::Map> slave_row_nodes() const
     {
       if (filled())
         return snoderowmap_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
@@ -756,7 +813,7 @@ namespace Mortar
 
     \note This is the slave row map before any parallel redistribution took place.
     */
-    std::shared_ptr<const Epetra_Map> non_redist_slave_row_nodes() const
+    std::shared_ptr<const Core::LinAlg::Map> non_redist_slave_row_nodes() const
     {
       if (not filled()) FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
 
@@ -766,13 +823,12 @@ namespace Mortar
     /*!
     \brief Get row map of master nodes (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> master_row_nodes() const
+    std::shared_ptr<const Core::LinAlg::Map> master_row_nodes() const
     {
       if (filled())
         return mnoderowmap_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
@@ -780,7 +836,7 @@ namespace Mortar
 
     \note This is the master row map before any parallel redistribution took place.
     */
-    std::shared_ptr<const Epetra_Map> non_redist_master_row_nodes() const
+    std::shared_ptr<const Core::LinAlg::Map> non_redist_master_row_nodes() const
     {
       if (not filled()) FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
 
@@ -790,145 +846,133 @@ namespace Mortar
     /*!
     \brief Get column map of slave nodes (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> slave_col_nodes() const
+    std::shared_ptr<const Core::LinAlg::Map> slave_col_nodes() const
     {
       if (filled())
         return snodecolmap_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
     \brief Get column map of master nodes (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> master_col_nodes() const
+    std::shared_ptr<const Core::LinAlg::Map> master_col_nodes() const
     {
       if (filled())
         return mnodecolmap_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
     \brief Get row map of slave nodes + boundary nodes (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> slave_row_nodes_bound() const
+    std::shared_ptr<const Core::LinAlg::Map> slave_row_nodes_bound() const
     {
       if (filled())
         return snoderowmapbound_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
     \brief Get column map of slave nodes + boundary nodes (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> slave_col_nodes_bound() const
+    std::shared_ptr<const Core::LinAlg::Map> slave_col_nodes_bound() const
     {
       if (filled())
         return snodecolmapbound_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
     \brief Get row map of master nodes - boundary nodes (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> master_row_nodes_no_bound() const
+    std::shared_ptr<const Core::LinAlg::Map> master_row_nodes_no_bound() const
     {
       if (filled())
         return mnoderowmapnobound_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
     \brief Get column map of master nodes - boundary nodes (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> master_col_nodes_no_bound() const
+    std::shared_ptr<const Core::LinAlg::Map> master_col_nodes_no_bound() const
     {
       if (filled())
         return mnodecolmapnobound_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
     \brief Get row map of slave elements (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> slave_row_elements() const
+    std::shared_ptr<const Core::LinAlg::Map> slave_row_elements() const
     {
       if (filled())
         return selerowmap_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
     \brief Get row map of master elements (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> master_row_elements() const
+    std::shared_ptr<const Core::LinAlg::Map> master_row_elements() const
     {
       if (filled())
         return melerowmap_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
     \brief Get column map of slave elements (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> slave_col_elements() const
+    std::shared_ptr<const Core::LinAlg::Map> slave_col_elements() const
     {
       if (filled())
         return selecolmap_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
     \brief Get column map of master elements (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> master_col_elements() const
+    std::shared_ptr<const Core::LinAlg::Map> master_col_elements() const
     {
       if (filled())
         return melecolmap_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
     \brief Get row map of slave dofs (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> slave_row_dofs() const
+    std::shared_ptr<const Core::LinAlg::Map> slave_row_dofs() const
     {
       if (filled())
         return sdofrowmap_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
     \brief Get column map of slave dofs (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> slave_col_dofs() const
+    std::shared_ptr<const Core::LinAlg::Map> slave_col_dofs() const
     {
       if (filled())
         return sdofcolmap_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
@@ -936,7 +980,7 @@ namespace Mortar
 
     \note This is the slave dof map before any parallel redistribution took place.
     */
-    std::shared_ptr<const Epetra_Map> non_redist_slave_row_dofs() const
+    std::shared_ptr<const Core::LinAlg::Map> non_redist_slave_row_dofs() const
     {
       if (not filled()) FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
 
@@ -946,25 +990,23 @@ namespace Mortar
     /*!
     \brief Get row map of master dofs (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> master_row_dofs() const
+    std::shared_ptr<const Core::LinAlg::Map> master_row_dofs() const
     {
       if (filled())
         return mdofrowmap_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
     \brief Get column map of master dofs (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> master_col_dofs() const
+    std::shared_ptr<const Core::LinAlg::Map> master_col_dofs() const
     {
       if (filled())
         return mdofcolmap_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
@@ -972,7 +1014,7 @@ namespace Mortar
 
     \note This is the master dof map before any parallel redistribution took place.
     */
-    std::shared_ptr<const Epetra_Map> non_redist_master_row_dofs() const
+    std::shared_ptr<const Core::LinAlg::Map> non_redist_master_row_dofs() const
     {
       if (not filled()) FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
 
@@ -982,13 +1024,12 @@ namespace Mortar
     /*!
     \brief Get map of Lagrange multiplier dofs (Filled()==true is prerequisite)
     */
-    std::shared_ptr<const Epetra_Map> lag_mult_dofs() const
+    std::shared_ptr<const Core::LinAlg::Map> lag_mult_dofs() const
     {
       if (filled())
         return lmdofmap_;
       else
         FOUR_C_THROW("Mortar::Interface::fill_complete was not called");
-      exit(EXIT_FAILURE);  // calm down the compiler
     }
 
     /*!
@@ -1137,13 +1178,12 @@ namespace Mortar
     {
       lmdofmap_ = update_lag_mult_sets(offset_if, redistributed, *sdofrowmap_);
     };
-    std::shared_ptr<Epetra_Map> update_lag_mult_sets(
-        int offset_if, const bool& redistributed, const Epetra_Map& ref_map) const;
+    std::shared_ptr<Core::LinAlg::Map> update_lag_mult_sets(
+        int offset_if, const bool& redistributed, const Core::LinAlg::Map& ref_map) const;
 
     /*! \brief Store the unredistributed local slave and lagrange multiplier maps
      *
-     *  \author hiermeier
-     *  \date 07/2016 */
+     */
     void store_unredistributed_maps();
 
     /*! \brief Redistribute the lagrange multiplier sets in a deterministic way
@@ -1152,9 +1192,8 @@ namespace Mortar
      *  Please note, that this function becomes unnecessary as soon as we use
      *  dofsets for the Lagrange and displacement dofs!
      *
-     *  \author hiermeier
-     *  \date 07/2016 */
-    std::shared_ptr<Epetra_Map> redistribute_lag_mult_sets() const;
+     */
+    std::shared_ptr<Core::LinAlg::Map> redistribute_lag_mult_sets() const;
 
     /*!
     \brief Initialize / reset mortar interface
@@ -1350,12 +1389,6 @@ namespace Mortar
     //! @name Visualization and Debugging methods
 
     /*!
-    \brief Visualize mortar stuff with gmsh (may be overloaded)
-    */
-    virtual void visualize_gmsh(
-        const int step, const int iter, const std::string& file_name_only_prefix) const;
-
-    /*!
     \brief Print shape function type (enum)
     */
     void print_shape_fcn() const { std::cout << shapefcn_ << std::endl; };
@@ -1427,9 +1460,9 @@ namespace Mortar
     \param[in] parts Number of desired subdomains after redistribution
     \param[in] imbalance Max. relative imbalance of subdomain size
     */
-    void redistribute_master_side(std::shared_ptr<Epetra_Map>& rownodes,
-        std::shared_ptr<Epetra_Map>& colnodes, Epetra_Map& roweles, MPI_Comm comm, const int parts,
-        const double imbalance) const;
+    void redistribute_master_side(std::shared_ptr<Core::LinAlg::Map>& rownodes,
+        std::shared_ptr<Core::LinAlg::Map>& colnodes, Core::LinAlg::Map& roweles, MPI_Comm comm,
+        const int parts, const double imbalance) const;
 
     /*!
     \brief Setup the binning strategy for geometrically motivated extended ghosting
@@ -1454,8 +1487,7 @@ namespace Mortar
      *  \param mele        (in): pointer to the current master element
      *  \param mparams_ptr (in): mortar parameter interface pointer
      *
-     *  \author hiermeier
-     *  \date 11/16 */
+     */
     virtual void pre_mortar_coupling(const Mortar::Element* sele,
         const std::vector<Mortar::Element*> mele,
         const std::shared_ptr<Mortar::ParamsInterface>& mparams_ptr) const {
@@ -1468,8 +1500,7 @@ namespace Mortar
      *  \param mele        (in): pointer to the current master element
      *  \param mparams_ptr (in): mortar parameter interface pointer
      *
-     *  \author hiermeier
-     *  \date 11/16 */
+     */
     virtual void post_mortar_coupling(const Mortar::Element* sele,
         const std::vector<Mortar::Element*> mele,
         const std::shared_ptr<Mortar::ParamsInterface>& mparams_ptr) const {
@@ -1480,8 +1511,8 @@ namespace Mortar
     \brief Evaluate segment-to-segment coupling (mortar...)
 
     */
-    virtual void evaluate_sts(
-        const Epetra_Map& selecolmap, const std::shared_ptr<Mortar::ParamsInterface>& mparams_ptr);
+    virtual void evaluate_sts(const Core::LinAlg::Map& selecolmap,
+        const std::shared_ptr<Mortar::ParamsInterface>& mparams_ptr);
 
     /*!
     \brief Evaluate node-to-segment coupling
@@ -1533,7 +1564,8 @@ namespace Mortar
     Thus, it can be interpreted as switch between constraints discretizations
 
     */
-    virtual void evaluate_coupling(const Epetra_Map& selecolmap, const Epetra_Map* snoderowmap,
+    virtual void evaluate_coupling(const Core::LinAlg::Map& selecolmap,
+        const Core::LinAlg::Map* snoderowmap,
         const std::shared_ptr<Mortar::ParamsInterface>& mparams_ptr);
 
     /*!
@@ -1680,7 +1712,7 @@ namespace Mortar
 
     \pre A valid node column map of interface discretization exists.
 
-    \sa update_master_slave_element_maps(const Epetra_Map&, const Epetra_Map&)
+    \sa update_master_slave_element_maps(const Core::LinAlg::Map&, const Core::LinAlg::Map&)
     */
     void update_master_slave_element_maps();
 
@@ -1697,7 +1729,7 @@ namespace Mortar
     because we sometimes pass a column map to the row map argument.
     */
     void update_master_slave_element_maps(
-        const Epetra_Map& elementRowMap, const Epetra_Map& elementColumnMap);
+        const Core::LinAlg::Map& elementRowMap, const Core::LinAlg::Map& elementColumnMap);
 
     /*!
     \brief Update master and slave interface maps for nodes based on current maps in the interface
@@ -1705,7 +1737,7 @@ namespace Mortar
 
     \pre A valid node column map of interface discretization exists.
 
-    \sa update_master_slave_node_maps(const Epetra_Map&, const Epetra_Map&)
+    \sa update_master_slave_node_maps(const Core::LinAlg::Map&, const Core::LinAlg::Map&)
     */
     void update_master_slave_node_maps();
 
@@ -1722,7 +1754,7 @@ namespace Mortar
     we sometimes pass a column map to the row map argument.
     */
     void update_master_slave_node_maps(
-        const Epetra_Map& nodeRowMap, const Epetra_Map& nodeColumnMap);
+        const Core::LinAlg::Map& nodeRowMap, const Core::LinAlg::Map& nodeColumnMap);
 
    protected:
     /*!
@@ -1811,42 +1843,43 @@ namespace Mortar
     Inpar::Mortar::ShapeFcn& shapefcn_;  ///< ref. to employed type of shape function set
     bool& quadslave_;                    ///< ref. to flag indicating quadratic 2d/3d slave elements
 
-    std::shared_ptr<Epetra_Map>&
+    std::shared_ptr<Core::LinAlg::Map>&
         oldnodecolmap_;  ///< ref. to column map of all interface nodes (overlap=1)
-    std::shared_ptr<Epetra_Map>&
+    std::shared_ptr<Core::LinAlg::Map>&
         oldelecolmap_;  ///< ref. to column map of all interface elements (overlap=1)
 
-    std::shared_ptr<Epetra_Map>& snoderowmap_;  ///< ref. to row map of all slave nodes
-    std::shared_ptr<Epetra_Map>& snodecolmap_;  ///< ref. to column map of all slave nodes
-    std::shared_ptr<Epetra_Map>& mnoderowmap_;  ///< ref. to row map of all master nodes
-    std::shared_ptr<Epetra_Map>& mnodecolmap_;  ///< ref. to column map of all master nodes
+    std::shared_ptr<Core::LinAlg::Map>& snoderowmap_;  ///< ref. to row map of all slave nodes
+    std::shared_ptr<Core::LinAlg::Map>& snodecolmap_;  ///< ref. to column map of all slave nodes
+    std::shared_ptr<Core::LinAlg::Map>& mnoderowmap_;  ///< ref. to row map of all master nodes
+    std::shared_ptr<Core::LinAlg::Map>& mnodecolmap_;  ///< ref. to column map of all master nodes
 
-    std::shared_ptr<Epetra_Map>&
+    std::shared_ptr<Core::LinAlg::Map>&
         snoderowmapbound_;  ///< ref. to row map of slave nodes (+ boundary nodes)
-    std::shared_ptr<Epetra_Map>&
+    std::shared_ptr<Core::LinAlg::Map>&
         snodecolmapbound_;  ///< ref. to col map of slave nodes (+ boundary nodes)
-    std::shared_ptr<Epetra_Map>&
+    std::shared_ptr<Core::LinAlg::Map>&
         mnoderowmapnobound_;  ///< ref. to row map of master nodes (- boundary nodes)
-    std::shared_ptr<Epetra_Map>&
+    std::shared_ptr<Core::LinAlg::Map>&
         mnodecolmapnobound_;  ///< ref. to col map of master nodes (- boundary nodes)
 
-    std::shared_ptr<Epetra_Map>& selerowmap_;  ///< ref. to row map of all slave elements
-    std::shared_ptr<Epetra_Map>& selecolmap_;  ///< ref. to column map of all slave elements
-    std::shared_ptr<Epetra_Map>& melerowmap_;  ///< ref. to row map of all master elements
-    std::shared_ptr<Epetra_Map>& melecolmap_;  ///< ref. to column map of all master elements
+    std::shared_ptr<Core::LinAlg::Map>& selerowmap_;  ///< ref. to row map of all slave elements
+    std::shared_ptr<Core::LinAlg::Map>& selecolmap_;  ///< ref. to column map of all slave elements
+    std::shared_ptr<Core::LinAlg::Map>& melerowmap_;  ///< ref. to row map of all master elements
+    std::shared_ptr<Core::LinAlg::Map>& melecolmap_;  ///< ref. to column map of all master elements
 
-    std::shared_ptr<Epetra_Map>& sdofrowmap_;  ///< ref. to row map of all slave dofs
-    std::shared_ptr<Epetra_Map>& sdofcolmap_;  ///< ref. to column map of all slave dofs
-    std::shared_ptr<Epetra_Map>& mdofrowmap_;  ///< ref. to row map of all master dofs
-    std::shared_ptr<Epetra_Map>& mdofcolmap_;  ///< ref. to column map of all master dofs
+    std::shared_ptr<Core::LinAlg::Map>& sdofrowmap_;  ///< ref. to row map of all slave dofs
+    std::shared_ptr<Core::LinAlg::Map>& sdofcolmap_;  ///< ref. to column map of all slave dofs
+    std::shared_ptr<Core::LinAlg::Map>& mdofrowmap_;  ///< ref. to row map of all master dofs
+    std::shared_ptr<Core::LinAlg::Map>& mdofcolmap_;  ///< ref. to column map of all master dofs
 
-    std::shared_ptr<Epetra_Map>&
+    std::shared_ptr<Core::LinAlg::Map>&
         psdofrowmap_;  ///< ref. to row map of all slave dofs before any redistribution took place
-    std::shared_ptr<Epetra_Map>&
+    std::shared_ptr<Core::LinAlg::Map>&
         plmdofmap_;  ///< ref. to row map of all lm dofs before any redistribution took place
 
-    std::shared_ptr<Epetra_Map>& lmdofmap_;  ///< ref. to row map of all Lagrange multiplier dofs
-    int& maxdofglobal_;                      ///< ref. to maximum dof ID in global discretization
+    std::shared_ptr<Core::LinAlg::Map>&
+        lmdofmap_;       ///< ref. to row map of all Lagrange multiplier dofs
+    int& maxdofglobal_;  ///< ref. to maximum dof ID in global discretization
 
     Inpar::Mortar::SearchAlgorithm& searchalgo_;       ///< ref. to type of search algorithm
     std::shared_ptr<Mortar::BinaryTree>& binarytree_;  ///< ref. to binary searchtree

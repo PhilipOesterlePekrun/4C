@@ -59,19 +59,19 @@ XFEM::XfpCouplingManager::XfpCouplingManager(std::shared_ptr<XFEM::ConditionMana
       *poro_->fluid_structure_coupling().perm_master_dof_map());
 
   // safety check
-  if (!mcfpi_ps_ps_->i_dispnp()->Map().SameAs(*get_map_extractor(0)->Map(1)))
+  if (!mcfpi_ps_ps_->i_dispnp()->get_map().SameAs(*get_map_extractor(0)->map(1)))
     FOUR_C_THROW("XFPCoupling_Manager: Maps of Condition and Mesh Coupling do not fit (psps)!");
-  if (!mcfpi_ps_pf_->i_dispnp()->Map().SameAs(*get_map_extractor(0)->Map(1)))
+  if (!mcfpi_ps_pf_->i_dispnp()->get_map().SameAs(*get_map_extractor(0)->map(1)))
     FOUR_C_THROW("XFPCoupling_Manager: Maps of Condition and Mesh Coupling do not fit (pspf)!");
-  if (!mcfpi_pf_ps_->i_dispnp()->Map().SameAs(*get_map_extractor(0)->Map(1)))
+  if (!mcfpi_pf_ps_->i_dispnp()->get_map().SameAs(*get_map_extractor(0)->map(1)))
     FOUR_C_THROW("XFPCoupling_Manager: Maps of Condition and Mesh Coupling do not fit (pfps)!");
-  if (!mcfpi_pf_pf_->i_dispnp()->Map().SameAs(*get_map_extractor(0)->Map(1)))
+  if (!mcfpi_pf_pf_->i_dispnp()->get_map().SameAs(*get_map_extractor(0)->map(1)))
     FOUR_C_THROW("XFPCoupling_Manager: Maps of Condition and Mesh Coupling do not fit (pfpf)!");
 
   // storage of the resulting Robin-type structural forces from the old timestep
   // Recovering of Lagrange multiplier happens on fluid field
-  lambda_ps_ = std::make_shared<Core::LinAlg::Vector<double>>(*get_map_extractor(0)->Map(1), true);
-  lambda_pf_ = std::make_shared<Core::LinAlg::Vector<double>>(*get_map_extractor(0)->Map(1), true);
+  lambda_ps_ = std::make_shared<Core::LinAlg::Vector<double>>(*get_map_extractor(0)->map(1), true);
+  lambda_pf_ = std::make_shared<Core::LinAlg::Vector<double>>(*get_map_extractor(0)->map(1), true);
 }
 
 void XFEM::XfpCouplingManager::init_coupling_states()
@@ -95,12 +95,12 @@ void XFEM::XfpCouplingManager::set_coupling_states()
       CouplingCommManager::full_to_partial);
 
   // As interfaces embedded into the background mesh are fully ghosted, we don't know which
-  std::shared_ptr<Epetra_Map> sfulldofmap =
+  std::shared_ptr<Core::LinAlg::Map> sfulldofmap =
       Core::LinAlg::allreduce_e_map(*poro_->structure_field()->discretization()->dof_row_map());
   std::shared_ptr<Core::LinAlg::Vector<double>> dispnp_col =
       std::make_shared<Core::LinAlg::Vector<double>>(*sfulldofmap, true);
   Core::LinAlg::export_to(*poro_->structure_field()->dispnp(), *dispnp_col);
-  std::shared_ptr<Epetra_Map> ffulldofmap =
+  std::shared_ptr<Core::LinAlg::Map> ffulldofmap =
       Core::LinAlg::allreduce_e_map(*poro_->fluid_field()->discretization()->dof_row_map());
   std::shared_ptr<Core::LinAlg::Vector<double>> velnp_col =
       std::make_shared<Core::LinAlg::Vector<double>>(*ffulldofmap, true);
@@ -151,31 +151,31 @@ void XFEM::XfpCouplingManager::add_coupling_matrix(
         xfluid_->c_ss_matrix(cond_name_ps_pf_)->row_map(), 81, false);
     insert_matrix(-1, 0, *xfluid_->c_ss_matrix(cond_name_ps_pf_), 1, C_ps_pf,
         CouplingCommManager::col, 1, true, false);
-    C_ps_pf.complete(*get_map_extractor(1)->Map(1), *get_map_extractor(0)->Map(1));
+    C_ps_pf.complete(*get_map_extractor(1)->map(1), *get_map_extractor(0)->map(1));
     Core::LinAlg::SparseMatrix C_f_pf(xfluid_->c_xs_matrix(cond_name_ps_pf_)->row_map(), 81, false);
     insert_matrix(-1, 0, *xfluid_->c_xs_matrix(cond_name_ps_pf_), 1, C_f_pf,
         CouplingCommManager::col, 1, true, false);
-    C_f_pf.complete(*get_map_extractor(1)->Map(1), C_fs_block.range_map());
+    C_f_pf.complete(*get_map_extractor(1)->map(1), C_fs_block.range_map());
     C_fs_block.add(C_f_pf, false, scaling, 1.0);
     C_ss_block.add(C_ps_pf, false, scaling, 1.0);
 
     // 3// Add Blocks pf-f(7), pf-ps(8)
-    Core::LinAlg::SparseMatrix C_pf_ps(*get_map_extractor(1)->Map(1), 81, false);
-    Core::LinAlg::SparseMatrix C_pf_f(*get_map_extractor(1)->Map(1), 81, false);
+    Core::LinAlg::SparseMatrix C_pf_ps(*get_map_extractor(1)->map(1), 81, false);
+    Core::LinAlg::SparseMatrix C_pf_f(*get_map_extractor(1)->map(1), 81, false);
     insert_matrix(-1, 0, *xfluid_->c_ss_matrix(cond_name_pf_ps_), 1, C_pf_ps,
         CouplingCommManager::row, 1, true, false);
-    C_pf_ps.complete(*get_map_extractor(0)->Map(1), *get_map_extractor(1)->Map(1));
+    C_pf_ps.complete(*get_map_extractor(0)->map(1), *get_map_extractor(1)->map(1));
     insert_matrix(-1, 0, *xfluid_->c_sx_matrix(cond_name_pf_ps_), 1, C_pf_f,
         CouplingCommManager::row, 1, true, false);
-    C_pf_f.complete(*xfluid_->dof_row_map(), *get_map_extractor(1)->Map(1));
+    C_pf_f.complete(*xfluid_->dof_row_map(), *get_map_extractor(1)->map(1));
     C_ss_block.add(C_pf_ps, false, scaling * scaling_disp_vel * dt, 1.0);
     C_sf_block.add(C_pf_f, false, scaling * dt, 1.0);
 
     // 4// Add Block pf-pf(9)
-    Core::LinAlg::SparseMatrix C_pf_pf(*get_map_extractor(1)->Map(1), 81, false);
+    Core::LinAlg::SparseMatrix C_pf_pf(*get_map_extractor(1)->map(1), 81, false);
     insert_matrix(-1, 0, *xfluid_->c_ss_matrix(cond_name_pf_pf_), 1, C_pf_pf,
         CouplingCommManager::row_and_col);
-    C_pf_pf.complete(*get_map_extractor(1)->Map(1), *get_map_extractor(1)->Map(1));
+    C_pf_pf.complete(*get_map_extractor(1)->map(1), *get_map_extractor(1)->map(1));
     C_ss_block.add(C_pf_pf, false, scaling * dt, 1.0);
   }
   else if (idx_.size() == 3)
@@ -214,7 +214,7 @@ void XFEM::XfpCouplingManager::add_coupling_matrix(
   }
   else
     FOUR_C_THROW(
-        "XFPCoupling_Manager::AddCouplingMatrix: Not implemented for number of blocks = %d",
+        "XFPCoupling_Manager::AddCouplingMatrix: Not implemented for number of blocks = {}",
         idx_.size());
 }
 
@@ -238,7 +238,7 @@ void XFEM::XfpCouplingManager::add_coupling_rhs(std::shared_ptr<Core::LinAlg::Ve
         xfluid_->rhs_s_vec(cond_name_pf_pf_);
 
     std::shared_ptr<Core::LinAlg::Vector<double>> prhs =
-        std::make_shared<Core::LinAlg::Vector<double>>(*me.Map(idx_[0]), true);
+        std::make_shared<Core::LinAlg::Vector<double>>(*me.map(idx_[0]), true);
 
     insert_vector(0, rhs_C_ps_ps, 0, prhs, CouplingCommManager::partial_to_global, true, scaling);
     insert_vector(0, rhs_C_ps_pf, 0, prhs, CouplingCommManager::partial_to_global, true, scaling);
@@ -286,9 +286,9 @@ void XFEM::XfpCouplingManager::add_coupling_rhs(std::shared_ptr<Core::LinAlg::Ve
         xfluid_->rhs_s_vec(cond_name_pf_pf_);
 
     std::shared_ptr<Core::LinAlg::Vector<double>> srhs =
-        std::make_shared<Core::LinAlg::Vector<double>>(*me.Map(idx_[0]), true);
+        std::make_shared<Core::LinAlg::Vector<double>>(*me.map(idx_[0]), true);
     std::shared_ptr<Core::LinAlg::Vector<double>> pfrhs =
-        std::make_shared<Core::LinAlg::Vector<double>>(*me.Map(idx_[2]), true);
+        std::make_shared<Core::LinAlg::Vector<double>>(*me.map(idx_[2]), true);
 
     insert_vector(0, rhs_C_ps_ps, 0, srhs, CouplingCommManager::partial_to_full, true, scaling);
     insert_vector(0, rhs_C_ps_pf, 0, srhs, CouplingCommManager::partial_to_full, true, scaling);
@@ -326,7 +326,7 @@ void XFEM::XfpCouplingManager::add_coupling_rhs(std::shared_ptr<Core::LinAlg::Ve
     me.add_vector(*pfrhs, idx_[2], *rhs);
   }
   else
-    FOUR_C_THROW("XFPCoupling_Manager::AddCouplingRHS: Not implemented for number of blocks = %d",
+    FOUR_C_THROW("XFPCoupling_Manager::AddCouplingRHS: Not implemented for number of blocks = {}",
         idx_.size());
 }
 
@@ -342,12 +342,12 @@ void XFEM::XfpCouplingManager::update(double scaling)
   // scaling for the structural residual is done when it is added to the global residual vector
   // get the coupling rhs from the xfluid, this vector is based on the boundary dis which is part of
   // the structure dis
-  lambda_ps_->Update(scaling, *xfluid_->rhs_s_vec(cond_name_ps_ps_), 0.0);
-  lambda_ps_->Update(scaling, *xfluid_->rhs_s_vec(cond_name_ps_pf_), 1.0);
+  lambda_ps_->update(scaling, *xfluid_->rhs_s_vec(cond_name_ps_ps_), 0.0);
+  lambda_ps_->update(scaling, *xfluid_->rhs_s_vec(cond_name_ps_pf_), 1.0);
 
   const double dt = poro_->fluid_field()->dt();
-  lambda_pf_->Update(scaling * dt, *xfluid_->rhs_s_vec(cond_name_pf_ps_), 0.0);
-  lambda_pf_->Update(scaling * dt, *xfluid_->rhs_s_vec(cond_name_pf_pf_), 1.0);
+  lambda_pf_->update(scaling * dt, *xfluid_->rhs_s_vec(cond_name_pf_ps_), 0.0);
+  lambda_pf_->update(scaling * dt, *xfluid_->rhs_s_vec(cond_name_pf_pf_), 1.0);
   return;
 }
 

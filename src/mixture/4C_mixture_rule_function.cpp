@@ -13,8 +13,6 @@
 #include "4C_mixture_constituent.hpp"
 #include "4C_utils_exceptions.hpp"
 
-#include <Epetra_ConfigDefs.h>
-
 #include <algorithm>
 #include <iosfwd>
 #include <memory>
@@ -35,9 +33,8 @@ namespace
       const auto* function =
           &Global::Problem::instance()->function_by_id<Core::Utils::FunctionOfSpaceTime>(id);
 
-      const std::string errorMessage =
-          "pointer to mass fraction function with id " + std::to_string(id) + " is nullptr!";
-      FOUR_C_ASSERT(function != nullptr, errorMessage.c_str());
+      FOUR_C_ASSERT(
+          function != nullptr, "pointer to mass fraction function with id {} is nullptr!", id);
 
       functions.emplace_back(function);
     }

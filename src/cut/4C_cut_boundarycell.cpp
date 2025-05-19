@@ -59,7 +59,7 @@ void Cut::BoundaryCell::transform_local_coords(Element* elem1,
   // TEUCHOS_FUNC_TIME_MONITOR( "Cut::BoundaryCell::transform_local_coords" );
 
 
-  const int numnodes = Core::FE::num_nodes<celldistype>;
+  const int numnodes = Core::FE::num_nodes(celldistype);
   Core::LinAlg::Matrix<3, numnodes> xyzeGlo(this->xyz_, true), xyze;
 
   for (int i = 0; i < numnodes; i++)
@@ -109,7 +109,7 @@ double Cut::Line2BoundaryCell::area() { return Core::Geo::element_area(shape(), 
  *----------------------------------------------------------------------------*/
 double Cut::Tri3BoundaryCell::area()
 {
-  const int numnodes = Core::FE::num_nodes<Core::FE::CellType::tri3>;
+  const int numnodes = Core::FE::num_nodes(Core::FE::CellType::tri3);
 
   const std::vector<Point*> points = this->points();
 
@@ -195,10 +195,10 @@ void Cut::Tri3BoundaryCell::dump_gmsh_normal(std::ofstream& file)
   file.precision(16);
 
   file << "VP(";
-  Core::LinAlg::Matrix<3, 1> midpoint_triag(true);
+  Core::LinAlg::Matrix<3, 1> midpoint_triag(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; ++i)
   {
-    Core::LinAlg::Matrix<3, 1> cur(true);
+    Core::LinAlg::Matrix<3, 1> cur(Core::LinAlg::Initialization::zero);
     cur(0, 0) = xyz_(0, i);
     cur(1, 0) = xyz_(1, i);
     cur(2, 0) = xyz_(2, i);
@@ -227,10 +227,10 @@ void Cut::Quad4BoundaryCell::dump_gmsh_normal(std::ofstream& file)
   file.precision(16);
 
   file << "VP(";
-  Core::LinAlg::Matrix<3, 1> midpoint_quad(true);
+  Core::LinAlg::Matrix<3, 1> midpoint_quad(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 4; ++i)
   {
-    Core::LinAlg::Matrix<3, 1> cur(true);
+    Core::LinAlg::Matrix<3, 1> cur(Core::LinAlg::Initialization::zero);
     cur(0, 0) = xyz_(0, i);
     cur(1, 0) = xyz_(1, i);
     cur(2, 0) = xyz_(2, i);
@@ -258,10 +258,10 @@ void Cut::Line2BoundaryCell::dump_gmsh_normal(std::ofstream& file)
 {
   file.precision(16);
 
-  const unsigned num_nodes = Core::FE::num_nodes<Core::FE::CellType::line2>;
+  const unsigned num_nodes = Core::FE::num_nodes(Core::FE::CellType::line2);
 
   file << "VP(";
-  Core::LinAlg::Matrix<3, 1> midpoint(true);
+  Core::LinAlg::Matrix<3, 1> midpoint(Core::LinAlg::Initialization::zero);
   for (unsigned i = 0; i < num_nodes; ++i)
   {
     Core::LinAlg::Matrix<3, 1> xyz(&xyz_(0, i), true);
@@ -436,7 +436,7 @@ void Cut::Point1BoundaryCell::element_center(Core::LinAlg::Matrix<3, 1>& midpoin
  *----------------------------------------------------------------------------*/
 void Cut::Line2BoundaryCell::element_center(Core::LinAlg::Matrix<3, 1>& midpoint)
 {
-  Core::LinAlg::Matrix<3, 1> center_rst(true);
+  Core::LinAlg::Matrix<3, 1> center_rst(Core::LinAlg::Initialization::zero);
   my_element_center<Core::FE::CellType::line2>(center_rst, midpoint);
 }
 
@@ -467,15 +467,14 @@ void Cut::Quad4BoundaryCell::element_center(Core::LinAlg::Matrix<3, 1>& midpoint
 Core::LinAlg::Matrix<3, 1> Cut::Point1BoundaryCell::get_normal_vector()
 {
   FOUR_C_THROW("There is no normal for Point1 boundarycell");
-  exit(EXIT_FAILURE);
 }
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
 Core::LinAlg::Matrix<3, 1> Cut::Line2BoundaryCell::get_normal_vector()
 {
-  Core::LinAlg::Matrix<3, 1> normal_v(true);
-  Core::LinAlg::Matrix<2, 1> xsi(true);
+  Core::LinAlg::Matrix<3, 1> normal_v(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<2, 1> xsi(Core::LinAlg::Initialization::zero);
 
   normal(xsi, normal_v);
 
@@ -487,7 +486,6 @@ Core::LinAlg::Matrix<3, 1> Cut::Line2BoundaryCell::get_normal_vector()
 Core::LinAlg::Matrix<3, 1> Cut::Tri3BoundaryCell::get_normal_vector()
 {
   FOUR_C_THROW("Call Transform function to get normal for Tri3 boundarycell");
-  exit(EXIT_FAILURE);
 }
 
 /*----------------------------------------------------------------------------*
@@ -495,7 +493,6 @@ Core::LinAlg::Matrix<3, 1> Cut::Tri3BoundaryCell::get_normal_vector()
 Core::LinAlg::Matrix<3, 1> Cut::Quad4BoundaryCell::get_normal_vector()
 {
   FOUR_C_THROW("Call Transform function to get normal for Quad4 boundarycell");
-  exit(EXIT_FAILURE);
 }
 
 /*----------------------------------------------------------------------------*
@@ -532,7 +529,7 @@ std::vector<std::vector<double>> Cut::BoundaryCell::coordinates_v()
  *----------------------------------------------------------------------------*/
 bool Cut::Tri3BoundaryCell::is_valid_boundary_cell()
 {
-  const int numnodes = Core::FE::num_nodes<Core::FE::CellType::tri3>;
+  const int numnodes = Core::FE::num_nodes(Core::FE::CellType::tri3);
 
   const std::vector<Point*> points = this->points();
 
@@ -550,7 +547,7 @@ bool Cut::Tri3BoundaryCell::is_valid_boundary_cell()
   v12.update(1, p1, -1, p2, 0);
 
   // Get distance to origin
-  Core::LinAlg::Matrix<numnodes, 1> temp(true);
+  Core::LinAlg::Matrix<numnodes, 1> temp(Core::LinAlg::Initialization::zero);
   temp(0, 0) = p0.norm2();  // Distance of points to origin
   temp(1, 0) = p1.norm2();
   temp(2, 0) = p2.norm2();

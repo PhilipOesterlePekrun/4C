@@ -32,7 +32,7 @@ namespace Core::Geo
   static inline void element_to_current_coordinates_t(
       const M& xyze, const V& xsi, Core::LinAlg::Matrix<prob_dim, 1>& x)
   {
-    const int numNodes = Core::FE::num_nodes<distype>;
+    const int numNodes = Core::FE::num_nodes(distype);
     static Core::LinAlg::Matrix<numNodes, 1> funct;
 
     Core::FE::shape_function<distype>(xsi, funct);
@@ -223,7 +223,7 @@ namespace Core::Geo
         b_tet(3) = 1.0;
 
         double det = Core::LinAlg::gauss_elimination<true, 4>(A_tet, b_tet, x_tet);
-        if (fabs(det) < 1E-14) FOUR_C_THROW("determinant is near zero %d", det);
+        if (fabs(det) < 1E-14) FOUR_C_THROW("determinant is near zero {}", det);
 
         bool inside = true;
         for (int i = 0; i < 4; ++i)
@@ -273,7 +273,7 @@ namespace Core::Geo
         b_tet(3) = 1.0;
 
         det = Core::LinAlg::gauss_elimination<true, 4>(A_tet, b_tet, x_tet);
-        if (fabs(det) < 1E-14) FOUR_C_THROW("determinant is near zero %d", det);
+        if (fabs(det) < 1E-14) FOUR_C_THROW("determinant is near zero {}", det);
 
         inside = true;
         for (int i = 0; i < 4; ++i)
@@ -323,7 +323,7 @@ namespace Core::Geo
         b_tet(3) = 1.0;
 
         det = Core::LinAlg::gauss_elimination<true, 4>(A_tet, b_tet, x_tet);
-        if (fabs(det) < 1E-14) FOUR_C_THROW("determinant is near zero %d", det);
+        if (fabs(det) < 1E-14) FOUR_C_THROW("determinant is near zero {}", det);
 
         inside = true;
         for (int i = 0; i < 4; ++i)
@@ -373,7 +373,7 @@ namespace Core::Geo
         b_tet(3) = 1.0;
 
         det = Core::LinAlg::gauss_elimination<true, 4>(A_tet, b_tet, x_tet);
-        if (fabs(det) < 1E-14) FOUR_C_THROW("determinant is near zero %d", det);
+        if (fabs(det) < 1E-14) FOUR_C_THROW("determinant is near zero {}", det);
 
         inside = true;
         for (int i = 0; i < 4; ++i)
@@ -423,7 +423,7 @@ namespace Core::Geo
         b_tet(3) = 1.0;
 
         det = Core::LinAlg::gauss_elimination<true, 4>(A_tet, b_tet, x_tet);
-        if (fabs(det) < 1E-14) FOUR_C_THROW("determinant is near zero %d", det);
+        if (fabs(det) < 1E-14) FOUR_C_THROW("determinant is near zero {}", det);
 
         inside = true;
         for (int i = 0; i < 4; ++i)
@@ -582,7 +582,7 @@ namespace Core::Geo
       const M2& xyze                          ///< nodal position array (3,numNodes)
   )
   {
-    const int numNodes = Core::FE::num_nodes<distype>;
+    const int numNodes = Core::FE::num_nodes(distype);
     static Core::LinAlg::Matrix<dim, numNodes> deriv1;
     Core::FE::shape_function_deriv1<distype>(xsi, deriv1);
 
@@ -606,7 +606,7 @@ namespace Core::Geo
       const M1& xyze  ///< nodal coordinates of an element with shape DISTYPE
   )
   {
-    const int numNodes = Core::FE::num_nodes<distype>;
+    const int numNodes = Core::FE::num_nodes(distype);
     static Core::LinAlg::Matrix<numNodes, 1> funct;
     funct.clear();
     Core::FE::shape_function<distype>(xsi, funct);
@@ -651,7 +651,7 @@ namespace Core::Geo
     const size_t dim = Core::FE::dim<distype>;
 
     // number of nodes of element
-    const size_t nen = Core::FE::num_nodes<distype>;
+    const size_t nen = Core::FE::num_nodes(distype);
     bool nodeWithinElement = true;
     const int maxiter = 20;  // 40;
     double residual = 1.0;
@@ -718,7 +718,7 @@ namespace Core::Geo
 
       if (fabs(det) < Core::Geo::TOL14)
       {
-        FOUR_C_THROW("determinant is near zero %d", det);
+        FOUR_C_THROW("determinant is near zero {}", det);
       }
 
       xsi += dx;
@@ -814,7 +814,7 @@ namespace Core::Geo
   static inline void update_jacobian_for_map3_to2(Core::LinAlg::Matrix<3, 2>& Jacobi,
       const Core::LinAlg::Matrix<2, 1>& xsi, const M& xyze_surfaceElement)
   {
-    const int numNodes = Core::FE::num_nodes<distype>;
+    const int numNodes = Core::FE::num_nodes(distype);
 
     static Core::LinAlg::Matrix<2, numNodes> deriv1;
     Core::FE::shape_function_2d_deriv1(deriv1, xsi(0), xsi(1), distype);
@@ -841,7 +841,7 @@ namespace Core::Geo
       const Core::LinAlg::Matrix<2, 1>& xsi, const Core::LinAlg::Matrix<3, 1>& x,
       const M& xyze_surfaceElement)
   {
-    const int numNodes = Core::FE::num_nodes<distype>;
+    const int numNodes = Core::FE::num_nodes(distype);
     static Core::LinAlg::Matrix<numNodes, 1> funct;
     Core::FE::shape_function_2d(funct, xsi(0), xsi(1), distype);
 
@@ -868,7 +868,7 @@ namespace Core::Geo
       const Core::LinAlg::Matrix<3, 2>& Jacobi, const Core::LinAlg::Matrix<3, 1>& F,
       const Core::LinAlg::Matrix<2, 1>& xsi, const M& xyze_surfaceElement)
   {
-    const int numNodes = Core::FE::num_nodes<distype>;
+    const int numNodes = Core::FE::num_nodes(distype);
     static Core::LinAlg::Matrix<3, numNodes> deriv2;
     Core::FE::shape_function_2d_deriv2(deriv2, xsi(0), xsi(1), distype);
 
@@ -997,7 +997,7 @@ namespace Core::Geo
   static void current_to_line_element_coordinates_t(const M& xyze_lineElement,
       const Core::LinAlg::Matrix<3, 1>& physCoord, Core::LinAlg::Matrix<1, 1>& eleCoord)
   {
-    const int numNodes = Core::FE::num_nodes<distype>;
+    const int numNodes = Core::FE::num_nodes(distype);
 
     const int maxiter = 20;
     int iter = 0;
@@ -1099,29 +1099,29 @@ namespace Core::Geo
   */
   template <Core::FE::CellType distype>
   static bool compute_local_coordinates(
-      Core::LinAlg::Matrix<Core::FE::dim<distype>, Core::FE::num_nodes<distype>>& xyze,
+      Core::LinAlg::Matrix<Core::FE::dim<distype>, Core::FE::num_nodes(distype)>& xyze,
       Core::LinAlg::Matrix<Core::FE::dim<distype>, 1>& x,
       Core::LinAlg::Matrix<Core::FE::dim<distype>, 1>& xsi)
   {
     bool inelement = true;
 
     const int numDim = Core::FE::dim<distype>;
-    const int numNodes = Core::FE::num_nodes<distype>;
+    const int numNodes = Core::FE::num_nodes(distype);
 
     const int maxiter = 20;
     double residual = 1.0;
 
-    Core::LinAlg::Matrix<numDim, numDim> A(true);
-    Core::LinAlg::Matrix<numDim, numDim> A_inv(true);
+    Core::LinAlg::Matrix<numDim, numDim> A(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<numDim, numDim> A_inv(Core::LinAlg::Initialization::zero);
 
-    Core::LinAlg::Matrix<numDim, 1> b(true);
-    Core::LinAlg::Matrix<numDim, 1> dx(true);
+    Core::LinAlg::Matrix<numDim, 1> b(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<numDim, 1> dx(Core::LinAlg::Initialization::zero);
 
     // initialize != 0
     dx(0) = 1.0;
 
-    Core::LinAlg::Matrix<numNodes, 1> funct(true);
-    Core::LinAlg::Matrix<numDim, numNodes> deriv1(true);
+    Core::LinAlg::Matrix<numNodes, 1> funct(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<numDim, numNodes> deriv1(Core::LinAlg::Initialization::zero);
 
     // initial guess
     starting_value_current_to_element_coords<distype>(xsi);
@@ -1146,7 +1146,7 @@ namespace Core::Geo
 
       if (fabs(det) < Core::Geo::TOL14)
       {
-        FOUR_C_THROW("determinant is near zero %d", det);
+        FOUR_C_THROW("determinant is near zero {}", det);
       }
 
       // update rhs b= -(x(xi)-x_point)

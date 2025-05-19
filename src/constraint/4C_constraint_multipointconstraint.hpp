@@ -16,7 +16,7 @@ FOUR_C_NAMESPACE_OPEN
 
 
 
-namespace CONSTRAINTS
+namespace Constraints
 {
   /*!
   \brief This pure virtual class is the common interface for multi point constraints.
@@ -133,14 +133,14 @@ namespace CONSTRAINTS
 
 
     //    /// find col node map so that we can evaluate the constraint elements
-    //    std::shared_ptr<Epetra_Map> ComputeNodeColMap(
+    //    std::shared_ptr<Core::LinAlg::Map> ComputeNodeColMap(
     //             const std::shared_ptr<Core::FE::Discretization> sourcedis,  ///< standard
     //             discretization we want to redistribute const
     //             std::shared_ptr<Core::FE::Discretization> constraintdis
     //             ///< constraint discretization prescribing ghosting ) const;
 
   };  // class
-}  // namespace CONSTRAINTS
+}  // namespace Constraints
 FOUR_C_NAMESPACE_CLOSE
 
 #endif

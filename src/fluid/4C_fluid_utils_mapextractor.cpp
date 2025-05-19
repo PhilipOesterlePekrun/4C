@@ -21,48 +21,45 @@ void FLD::Utils::MapExtractor::setup(
     const Core::FE::Discretization& dis, bool withpressure, bool overlapping, const int nds_master)
 {
   const int ndim = Global::Problem::instance()->n_dim();
-  Core::Conditions::MultiConditionSelector mcs;
-  mcs.set_overlapping(overlapping);  // defines if maps can overlap
-  mcs.add_selector(std::make_shared<Core::Conditions::NDimConditionSelector>(
-      dis, "FSICoupling", 0, ndim + withpressure));
-  mcs.add_selector(std::make_shared<Core::Conditions::NDimConditionSelector>(
-      dis, "FREESURFCoupling", 0, ndim + withpressure));
-  mcs.add_selector(std::make_shared<Core::Conditions::NDimConditionSelector>(
-      dis, "StructAleCoupling", 0, ndim + withpressure));
-  mcs.add_selector(std::make_shared<Core::Conditions::NDimConditionSelector>(
-      dis, "Mortar", 0, ndim + withpressure));
-  mcs.add_selector(std::make_shared<Core::Conditions::NDimConditionSelector>(
-      dis, "ALEUPDATECoupling", 0, ndim + withpressure));
-  mcs.setup_extractor(dis, *dis.dof_row_map(nds_master), *this);
+  Core::Conditions::setup_extractor(dis, *dis.dof_row_map(nds_master), *this,
+      {
+          Core::Conditions::Selector("FSICoupling", 0, ndim + withpressure),
+          Core::Conditions::Selector("FREESURFCoupling", 0, ndim + withpressure),
+          Core::Conditions::Selector("StructAleCoupling", 0, ndim + withpressure),
+          Core::Conditions::Selector("Mortar", 0, ndim + withpressure),
+          Core::Conditions::Selector("ALEUPDATECoupling", 0, ndim + withpressure),
+      },
+      overlapping);
 }
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void FLD::Utils::MapExtractor::setup(std::shared_ptr<const Epetra_Map>& additionalothermap,
+void FLD::Utils::MapExtractor::setup(std::shared_ptr<const Core::LinAlg::Map>& additionalothermap,
     const FLD::Utils::MapExtractor& extractor)
 {
   // build the new othermap
-  std::vector<std::shared_ptr<const Epetra_Map>> othermaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> othermaps;
   othermaps.push_back(additionalothermap);
   othermaps.push_back(extractor.other_map());
 
   if (Core::LinAlg::MultiMapExtractor::intersect_maps(othermaps)->NumGlobalElements() > 0)
     FOUR_C_THROW("Failed to add dofmap of foreign discretization to other_map. Detected overlap.");
 
-  std::shared_ptr<const Epetra_Map> mergedothermap =
+  std::shared_ptr<const Core::LinAlg::Map> mergedothermap =
       Core::LinAlg::MultiMapExtractor::merge_maps(othermaps);
 
   // the vector of maps for the new map extractor consists of othermap at position 0
   // followed by the maps of conditioned DOF
-  std::vector<std::shared_ptr<const Epetra_Map>> maps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> maps;
   // append the merged other map at first position
   maps.push_back(mergedothermap);
 
   // append the condition maps subsequently
-  for (int i = 1; i < extractor.num_maps(); ++i) maps.push_back(extractor.Map(i));
+  for (int i = 1; i < extractor.num_maps(); ++i) maps.push_back(extractor.map(i));
 
   // merge
-  std::shared_ptr<const Epetra_Map> fullmap = Core::LinAlg::MultiMapExtractor::merge_maps(maps);
+  std::shared_ptr<const Core::LinAlg::Map> fullmap =
+      Core::LinAlg::MultiMapExtractor::merge_maps(maps);
 
   Core::LinAlg::MultiMapExtractor::setup(*fullmap, maps);
 }
@@ -96,21 +93,16 @@ std::shared_ptr<std::set<int>> FLD::Utils::MapExtractor::conditioned_element_map
 void FLD::Utils::VolumetricFlowMapExtractor::setup(const Core::FE::Discretization& dis)
 {
   const int ndim = Global::Problem::instance()->n_dim();
-  Core::Conditions::MultiConditionSelector mcs;
-  mcs.set_overlapping(true);  // defines if maps can overlap
-  mcs.add_selector(std::make_shared<Core::Conditions::NDimConditionSelector>(
-      dis, "VolumetricSurfaceFlowCond", 0, ndim));
-  mcs.setup_extractor(dis, *dis.dof_row_map(), *this);
+  Core::Conditions::setup_extractor(
+      dis, *this, {Core::Conditions::Selector("VolumetricSurfaceFlowCond", 0, ndim)}, true);
 }
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
 void FLD::Utils::KSPMapExtractor::setup(const Core::FE::Discretization& dis)
 {
-  Core::Conditions::MultiConditionSelector mcs;
-  mcs.add_selector(
-      std::make_shared<Core::Conditions::ConditionSelector>(dis, "KrylovSpaceProjection"));
-  mcs.setup_extractor(dis, *dis.dof_row_map(), *this);
+  Core::Conditions::setup_extractor(
+      dis, *this, {Core::Conditions::Selector("KrylovSpaceProjection")});
 }
 
 
@@ -138,49 +130,50 @@ void FLD::Utils::VelPressExtractor::setup(const Core::FE::Discretization& dis)
 void FLD::Utils::FsiMapExtractor::setup(const Core::FE::Discretization& dis)
 {
   const int ndim = Global::Problem::instance()->n_dim();
-  Core::Conditions::MultiConditionSelector mcs;
-  mcs.add_selector(
-      std::make_shared<Core::Conditions::NDimConditionSelector>(dis, "FSICoupling", 0, ndim));
-  mcs.setup_extractor(dis, *dis.dof_row_map(), *this);
+  Core::Conditions::setup_extractor(
+      dis, *this, {Core::Conditions::Selector("FSICoupling", 0, ndim)});
 }
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void FLD::Utils::FsiMapExtractor::setup(std::shared_ptr<const Epetra_Map>& additionalothermap,
+void FLD::Utils::FsiMapExtractor::setup(
+    std::shared_ptr<const Core::LinAlg::Map>& additionalothermap,
     const FLD::Utils::FsiMapExtractor& extractor)
 {
   // build the new othermap
-  std::vector<std::shared_ptr<const Epetra_Map>> othermaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> othermaps;
   othermaps.push_back(additionalothermap);
   othermaps.push_back(extractor.other_map());
 
   if (Core::LinAlg::MultiMapExtractor::intersect_maps(othermaps)->NumGlobalElements() > 0)
     FOUR_C_THROW("Failed to add dofmap of foreign discretization to other_map. Detected overlap.");
 
-  std::shared_ptr<const Epetra_Map> mergedothermap =
+  std::shared_ptr<const Core::LinAlg::Map> mergedothermap =
       Core::LinAlg::MultiMapExtractor::merge_maps(othermaps);
 
   // the vector of maps for the new map extractor consists of othermap at position 0
   // followed by the maps of conditioned DOF
-  std::vector<std::shared_ptr<const Epetra_Map>> maps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> maps;
   // append the merged other map at first position
   maps.push_back(mergedothermap);
 
   // append the condition maps subsequently
-  for (int i = 1; i < extractor.num_maps(); ++i) maps.push_back(extractor.Map(i));
+  for (int i = 1; i < extractor.num_maps(); ++i) maps.push_back(extractor.map(i));
 
   // merge
-  std::shared_ptr<const Epetra_Map> fullmap = Core::LinAlg::MultiMapExtractor::merge_maps(maps);
+  std::shared_ptr<const Core::LinAlg::Map> fullmap =
+      Core::LinAlg::MultiMapExtractor::merge_maps(maps);
 
   Core::LinAlg::MultiMapExtractor::setup(*fullmap, maps);
 }
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void FLD::Utils::XFluidFluidMapExtractor::setup(const Epetra_Map& fullmap,
-    std::shared_ptr<const Epetra_Map> fluidmap, std::shared_ptr<const Epetra_Map> xfluidmap)
+void FLD::Utils::XFluidFluidMapExtractor::setup(const Core::LinAlg::Map& fullmap,
+    std::shared_ptr<const Core::LinAlg::Map> fluidmap,
+    std::shared_ptr<const Core::LinAlg::Map> xfluidmap)
 {
-  std::vector<std::shared_ptr<const Epetra_Map>> maps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> maps;
   maps.push_back(fluidmap);
   maps.push_back(xfluidmap);
   MultiMapExtractor::setup(fullmap, maps);

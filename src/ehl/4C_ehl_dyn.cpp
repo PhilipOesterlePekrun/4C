@@ -92,7 +92,7 @@ void ehl_dyn()
   EHL::Utils::change_time_parameter(comm, ehlparams, lubricationdyn, sdyn);
 
   const auto coupling =
-      Teuchos::getIntegralValue<Inpar::EHL::SolutionSchemeOverFields>(ehlparams, "COUPALGO");
+      Teuchos::getIntegralValue<EHL::SolutionSchemeOverFields>(ehlparams, "COUPALGO");
 
   // 3.- Creation of Lubrication + Structure problem. (discretization called inside)
   std::shared_ptr<EHL::Base> ehl = nullptr;
@@ -100,11 +100,11 @@ void ehl_dyn()
   // 3.1 choose algorithm depending on solution type
   switch (coupling)
   {
-    case Inpar::EHL::ehl_IterStagg:
+    case EHL::ehl_IterStagg:
       ehl = std::make_shared<EHL::Partitioned>(
           comm, ehlparams, lubricationdyn, sdyn, "structure", "lubrication");
       break;
-    case Inpar::EHL::ehl_Monolithic:
+    case EHL::ehl_Monolithic:
       ehl = std::make_shared<EHL::Monolithic>(
           comm, ehlparams, lubricationdyn, sdyn, "structure", "lubrication");
       break;
@@ -115,7 +115,15 @@ void ehl_dyn()
 
   // 3.2- Read restart if needed. (discretization called inside)
   const int restart = problem->restart();
-  if (restart) ehl->read_restart(restart);
+  if (restart)
+  {
+    ehl->read_restart(restart);
+  }
+  else
+  {
+    // run post_setup
+    ehl->post_setup();
+  }
 
   // 4.- Run of the actual problem.
 

@@ -13,7 +13,6 @@
 #include "4C_fluid_utils_mapextractor.hpp"
 #include "4C_global_data.hpp"
 #include "4C_inpar_fsi.hpp"
-#include "4C_inpar_validparameters.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 
@@ -104,7 +103,7 @@ std::shared_ptr<Core::LinAlg::Vector<double>> Adapter::FluidAleXFEM::relaxation_
   std::cout << "WARNING: RelaxationSolve for XFEM useful?" << std::endl;
 
   // the displacement -> velocity conversion at the interface
-  idisp->Scale(1. / dt);
+  idisp->scale(1. / dt);
 
   return fluid_field()->relaxation_solve(idisp);
 }

@@ -8,6 +8,7 @@
 #include "4C_fluid_timint_stat.hpp"
 
 #include "4C_fluid_ele_action.hpp"
+#include "4C_fluid_ele_parameter_timint.hpp"
 #include "4C_fluid_turbulence_boxfilter.hpp"
 #include "4C_fluid_turbulence_dyn_smag.hpp"
 #include "4C_fluid_turbulence_dyn_vreman.hpp"
@@ -73,7 +74,7 @@ void FLD::TimIntStationary::set_old_part_of_righthandside()
                    (con: hist_ = 0.0)
   */
 
-  hist_->PutScalar(0.0);
+  hist_->put_scalar(0.0);
 
   return;
 }
@@ -155,11 +156,7 @@ void FLD::TimIntStationary::solve_stationary_problem()
 /*----------------------------------------------------------------------*
 | set integration-scheme-specific state                        bk 12/13 |
 *-----------------------------------------------------------------------*/
-void FLD::TimIntStationary::set_state_tim_int()
-{
-  discret_->set_state("velaf", velnp_);
-  return;
-}
+void FLD::TimIntStationary::set_state_tim_int() { discret_->set_state("velaf", *velnp_); }
 
 /*----------------------------------------------------------------------*
 | calculate acceleration                                       bk 12/13 |
@@ -171,7 +168,7 @@ void FLD::TimIntStationary::calculate_acceleration(
     const std::shared_ptr<const Core::LinAlg::Vector<double>> accn,
     const std::shared_ptr<Core::LinAlg::Vector<double>> accnp)
 {
-  accnp->PutScalar(0.0);
+  accnp->put_scalar(0.0);
 
   return;
 }
@@ -212,7 +209,6 @@ void FLD::TimIntStationary::set_element_time_parameter()
 {
   Teuchos::ParameterList eleparams;
 
-  eleparams.set<FLD::Action>("action", FLD::set_time_parameter);
   eleparams.set<Inpar::FLUID::PhysicalType>("Physical Type", physicaltype_);
 
   // set time integration scheme
@@ -226,9 +222,7 @@ void FLD::TimIntStationary::set_element_time_parameter()
   // set scheme-specific element parameters and vector values
   eleparams.set("total time", time_);
 
-  // call standard loop over elements
-  discret_->evaluate(eleparams, nullptr, nullptr, nullptr, nullptr, nullptr);
-  return;
+  Discret::Elements::FluidEleParameterTimInt::instance()->set_element_time_parameter(eleparams);
 }
 
 /*----------------------------------------------------------------------*

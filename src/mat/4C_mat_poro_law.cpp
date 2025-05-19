@@ -10,6 +10,7 @@
 #include "4C_comm_pack_helpers.hpp"
 #include "4C_mat_par_bundle.hpp"
 #include "4C_mat_poro_density_law.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -167,7 +168,7 @@ void Mat::PAR::PoroLawConstant::compute_porosity(const double& refporosity, cons
     const double& J, const int& gp, double& porosity, double* dphi_dp, double* dphi_dJ,
     double* dphi_dJdp, double* dphi_dJJ, double* dphi_dpp, double* dphi_dphiref)
 {
-  // porosity is constant -> derivates are zero
+  // porosity is constant -> derivatives are zero
   porosity = refporosity;
   if (dphi_dp) *dphi_dp = 0.0;
   if (dphi_dJ) *dphi_dJ = 0.0;

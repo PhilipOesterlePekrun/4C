@@ -11,6 +11,8 @@
 #include "4C_config.hpp"
 
 #include "4C_global_data.hpp"
+#include "4C_io_input_file.hpp"
+#include "4C_io_meshreader.hpp"
 
 #include <filesystem>
 
@@ -18,8 +20,15 @@ FOUR_C_NAMESPACE_OPEN
 
 namespace Global
 {
-  /// setup the discretizations
-  void read_fields(
+  /**
+   * This legacy function prepares an InputFile object with all globally known sections. This object
+   * can be used to read a file, convert file formats or emit the known sections as metadata.
+   */
+  [[nodiscard]] Core::IO::InputFile set_up_input_file(MPI_Comm comm);
+
+  /// Read the discretization. This mainly means the mesh. The MeshReader is returned to the caller
+  /// in case it needs to be used for further processing.
+  std::unique_ptr<Core::IO::MeshReader> read_discretization(
       Global::Problem& problem, Core::IO::InputFile& input, const bool read_mesh = true);
 
   void read_micro_fields(Global::Problem& problem, const std::filesystem::path& input_path);
@@ -40,7 +49,8 @@ namespace Global
   void read_cloning_material_map(Global::Problem& problem, Core::IO::InputFile& input);
 
   /// input of conditions
-  void read_conditions(Global::Problem& problem, Core::IO::InputFile& input);
+  void read_conditions(Global::Problem& problem, Core::IO::InputFile& input,
+      const Core::IO::MeshReader& mesh_reader);
 
   /// input of result tests
   void read_result(Global::Problem& problem, Core::IO::InputFile& input);

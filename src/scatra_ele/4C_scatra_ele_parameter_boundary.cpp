@@ -7,6 +7,7 @@
 
 #include "4C_scatra_ele_parameter_boundary.hpp"
 
+#include "4C_utils_enum.hpp"
 #include "4C_utils_exceptions.hpp"
 #include "4C_utils_singleton_owner.hpp"
 
@@ -138,7 +139,7 @@ void Discret::Elements::ScaTraEleParameterBoundary::set_parameters(
 
         default:
         {
-          FOUR_C_THROW("Not implemented for this kinetic model: %i", kineticmodel_);
+          FOUR_C_THROW("Not implemented for this kinetic model: {}", kineticmodel_);
         }
       }
 
@@ -168,7 +169,7 @@ void Discret::Elements::ScaTraEleParameterBoundary::set_parameters(
 
         default:
         {
-          FOUR_C_THROW("Not implemented for this kinetic model: %i", kineticmodel_);
+          FOUR_C_THROW("Not implemented for this kinetic model: {}", kineticmodel_);
         }
       }
       break;
@@ -176,7 +177,7 @@ void Discret::Elements::ScaTraEleParameterBoundary::set_parameters(
 
     default:
     {
-      FOUR_C_THROW("Not implemented for this condition type: %i", conditiontype_);
+      FOUR_C_THROW("Not implemented for this condition type: {}", conditiontype_);
     }
   }
 }
@@ -288,8 +289,7 @@ void Discret::Elements::ScaTraEleParameterBoundary::set_regularization(
   regularizationparameter_ = parameters.get<double>("REGPAR", -1.0);
   if (regularizationparameter_ < 0.0)
     FOUR_C_THROW("Regularization parameter for lithium stripping must not be negative!");
-  regularizationtype_ = static_cast<Inpar::S2I::RegularizationType>(
-      parameters.get<int>("REGTYPE", std::numeric_limits<int>::infinity()));
+  regularizationtype_ = parameters.get<Inpar::S2I::RegularizationType>("REGTYPE");
 }
 
 /*----------------------------------------------------------------------*

@@ -7,9 +7,8 @@
 
 #include "4C_inpar_IO_runtime_output_fluid.hpp"
 
-#include "4C_utils_parameter_list.hpp"
+#include "4C_io_input_spec_builders.hpp"
 
-#include <Teuchos_ParameterList.hpp>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -21,53 +20,49 @@ namespace Inpar
     {
       /*----------------------------------------------------------------------*
        *----------------------------------------------------------------------*/
-      void set_valid_parameters(Teuchos::ParameterList& list)
+      void set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
       {
-        using Teuchos::setStringToIntegralParameter;
-        using Teuchos::tuple;
+        using namespace Core::IO::InputSpecBuilders;
 
-        // related sublist
-        Teuchos::ParameterList& sublist_IO = list.sublist("IO", false, "");
-        Teuchos::ParameterList& sublist_IO_output =
-            sublist_IO.sublist("RUNTIME VTK OUTPUT", false, "");
-        Teuchos::ParameterList& sublist_IO_output_fluid =
-            sublist_IO_output.sublist("FLUID", false, "");
+        list["IO/RUNTIME VTK OUTPUT/FLUID"] = group("IO/RUNTIME VTK OUTPUT/FLUID",
+            {
+                // whether to write output for fluid
+                parameter<bool>(
+                    "OUTPUT_FLUID", {.description = "write fluid output", .default_value = false}),
 
-        // whether to write output for fluid
-        Core::Utils::bool_parameter(
-            "OUTPUT_FLUID", "No", "write fluid output", &sublist_IO_output_fluid);
+                // whether to write velocity state
+                parameter<bool>(
+                    "VELOCITY", {.description = "write velocity output", .default_value = false}),
 
-        // whether to write velocity state
-        Core::Utils::bool_parameter(
-            "VELOCITY", "No", "write velocity output", &sublist_IO_output_fluid);
+                // whether to write pressure state
+                parameter<bool>(
+                    "PRESSURE", {.description = "write pressure output", .default_value = false}),
 
-        // whether to write pressure state
-        Core::Utils::bool_parameter(
-            "PRESSURE", "No", "write pressure output", &sublist_IO_output_fluid);
+                // whether to write acceleration state
+                parameter<bool>("ACCELERATION",
+                    {.description = "write acceleration output", .default_value = false}),
 
-        // whether to write acceleration state
-        Core::Utils::bool_parameter(
-            "ACCELERATION", "No", "write acceleration output", &sublist_IO_output_fluid);
+                // whether to write displacement state
+                parameter<bool>("DISPLACEMENT",
+                    {.description = "write displacement output", .default_value = false}),
 
-        // whether to write displacement state
-        Core::Utils::bool_parameter(
-            "DISPLACEMENT", "No", "write displacement output", &sublist_IO_output_fluid);
+                // whether to write displacement state
+                parameter<bool>("GRIDVELOCITY",
+                    {.description = "write grid velocity output", .default_value = false}),
 
-        // whether to write displacement state
-        Core::Utils::bool_parameter(
-            "GRIDVELOCITY", "No", "write grid velocity output", &sublist_IO_output_fluid);
+                // whether to write element owner
+                parameter<bool>("ELEMENT_OWNER",
+                    {.description = "write element owner", .default_value = false}),
 
-        // whether to write element owner
-        Core::Utils::bool_parameter(
-            "ELEMENT_OWNER", "No", "write element owner", &sublist_IO_output_fluid);
+                // whether to write element GIDs
+                parameter<bool>("ELEMENT_GID",
+                    {.description = "write 4C internal element GIDs", .default_value = false}),
 
-        // whether to write element GIDs
-        Core::Utils::bool_parameter(
-            "ELEMENT_GID", "No", "write 4C internal element GIDs", &sublist_IO_output_fluid);
-
-        // whether to write node GIDs
-        Core::Utils::bool_parameter(
-            "NODE_GID", "No", "write 4C internal node GIDs", &sublist_IO_output_fluid);
+                // whether to write node GIDs
+                parameter<bool>("NODE_GID",
+                    {.description = "write 4C internal node GIDs", .default_value = false}),
+            },
+            {.defaultable = true});
       }
     }  // namespace FLUID
   }  // namespace IORuntimeOutput

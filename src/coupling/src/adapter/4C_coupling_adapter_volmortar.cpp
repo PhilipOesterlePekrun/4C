@@ -221,7 +221,7 @@ Coupling::Adapter::MortarVolCoupl::apply_vector_mapping12(
   std::shared_ptr<Core::LinAlg::Vector<double>> mapvec =
       Core::LinAlg::create_vector(p12_->row_map(), true);
   int err = p12_->multiply(false, vec, *mapvec);
-  if (err != 0) FOUR_C_THROW("ERROR: Matrix multiply returned error code %i", err);
+  if (err != 0) FOUR_C_THROW("ERROR: Matrix multiply returned error code {}", err);
 
   return mapvec;
 }
@@ -240,7 +240,7 @@ Coupling::Adapter::MortarVolCoupl::apply_vector_mapping21(
   std::shared_ptr<Core::LinAlg::Vector<double>> mapvec =
       Core::LinAlg::create_vector(p21_->row_map(), true);
   int err = p21_->multiply(false, vec, *mapvec);
-  if (err != 0) FOUR_C_THROW("ERROR: Matrix multiply returned error code %i", err);
+  if (err != 0) FOUR_C_THROW("ERROR: Matrix multiply returned error code {}", err);
 
   return mapvec;
 }
@@ -297,9 +297,11 @@ void Coupling::Adapter::MortarVolCoupl::master_to_slave(
     const Core::LinAlg::MultiVector<double>& mv, Core::LinAlg::MultiVector<double>& sv) const
 {
 #ifdef FOUR_C_ENABLE_ASSERTIONS
-  FOUR_C_ASSERT(mv.Map().PointSameAs(p21_->domain_map()), "master dof map vector expected");
-  FOUR_C_ASSERT(sv.Map().PointSameAs(p21_->row_map()), "slave dof map vector expected");
-  FOUR_C_ASSERT(sv.NumVectors() == mv.NumVectors(), "column number mismatch %d!=%d",
+  FOUR_C_ASSERT(
+      mv.Map().PointSameAs(p21_->domain_map().get_epetra_map()), "master dof map vector expected");
+  FOUR_C_ASSERT(
+      sv.Map().PointSameAs(p21_->row_map().get_epetra_map()), "slave dof map vector expected");
+  FOUR_C_ASSERT(sv.NumVectors() == mv.NumVectors(), "column number mismatch {}!={}",
       sv.NumVectors(), mv.NumVectors());
 #endif
 
@@ -312,7 +314,7 @@ void Coupling::Adapter::MortarVolCoupl::master_to_slave(
 
   // project
   int err = p21_->multiply(false, mv, sv_aux);
-  if (err != 0) FOUR_C_THROW("ERROR: Matrix multiply returned error code %i", err);
+  if (err != 0) FOUR_C_THROW("ERROR: Matrix multiply returned error code {}", err);
 
   // copy from auxiliary to physical map (needed for coupling in fluid ale algorithm)
   std::copy(
@@ -388,9 +390,11 @@ void Coupling::Adapter::MortarVolCoupl::slave_to_master(
     const Core::LinAlg::MultiVector<double>& sv, Core::LinAlg::MultiVector<double>& mv) const
 {
 #ifdef FOUR_C_ENABLE_ASSERTIONS
-  FOUR_C_ASSERT(mv.Map().PointSameAs(p12_->row_map()), "master dof map vector expected");
-  FOUR_C_ASSERT(sv.Map().PointSameAs(p21_->row_map()), "slave dof map vector expected");
-  FOUR_C_ASSERT(sv.NumVectors() == mv.NumVectors(), "column number mismatch %d!=%d",
+  FOUR_C_ASSERT(
+      mv.Map().PointSameAs(p12_->row_map().get_epetra_map()), "master dof map vector expected");
+  FOUR_C_ASSERT(
+      sv.Map().PointSameAs(p21_->row_map().get_epetra_map()), "slave dof map vector expected");
+  FOUR_C_ASSERT(sv.NumVectors() == mv.NumVectors(), "column number mismatch {}!={}",
       sv.NumVectors(), mv.NumVectors());
 #endif
 
@@ -403,7 +407,7 @@ void Coupling::Adapter::MortarVolCoupl::slave_to_master(
 
   // project
   int err = p12_->multiply(false, sv, mv_aux);
-  if (err != 0) FOUR_C_THROW("ERROR: Matrix multiply returned error code %i", err);
+  if (err != 0) FOUR_C_THROW("ERROR: Matrix multiply returned error code {}", err);
 
   // copy from auxiliary to physical map (needed for coupling in fluid ale algorithm)
   std::copy(
@@ -416,7 +420,7 @@ void Coupling::Adapter::MortarVolCoupl::slave_to_master(
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-std::shared_ptr<const Epetra_Map> Coupling::Adapter::MortarVolCoupl::master_dof_map() const
+std::shared_ptr<const Core::LinAlg::Map> Coupling::Adapter::MortarVolCoupl::master_dof_map() const
 {
   // safety check
   check_setup();
@@ -428,7 +432,7 @@ std::shared_ptr<const Epetra_Map> Coupling::Adapter::MortarVolCoupl::master_dof_
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-std::shared_ptr<const Epetra_Map> Coupling::Adapter::MortarVolCoupl::slave_dof_map() const
+std::shared_ptr<const Core::LinAlg::Map> Coupling::Adapter::MortarVolCoupl::slave_dof_map() const
 {
   // safety check
   check_setup();

@@ -21,14 +21,11 @@
 #include "4C_poroelast_scatra_part_2wc.hpp"
 #include "4C_poroelast_scatra_utils_clonestrategy.hpp"
 #include "4C_poroelast_utils.hpp"
-#include "4C_so3_poro_p1_scatra_eletypes.hpp"
-#include "4C_so3_poro_scatra_eletypes.hpp"
 #include "4C_solid_poro_3D_ele_pressure_based.hpp"
 #include "4C_solid_poro_3D_ele_pressure_velocity_based.hpp"
+#include "4C_solid_poro_3D_ele_pressure_velocity_based_p1.hpp"
 #include "4C_w1_poro_p1_scatra_eletypes.hpp"
 #include "4C_w1_poro_scatra_eletypes.hpp"
-
-#include <Epetra_Time.h>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -36,14 +33,9 @@ FOUR_C_NAMESPACE_OPEN
 bool PoroElastScaTra::Utils::is_poro_scatra_element(const Core::Elements::Element* actele)
 {
   // checks if element is a poro scatra element (new elements need to be listed here)
-  return actele->element_type() == Discret::Elements::SoHex8PoroScatraType::instance() or
-         actele->element_type() == Discret::Elements::SolidPoroPressureBasedType::instance() or
+  return actele->element_type() == Discret::Elements::SolidPoroPressureBasedType::instance() or
          actele->element_type() ==
              Discret::Elements::SolidPoroPressureVelocityBasedType::instance() or
-         actele->element_type() == Discret::Elements::SoTet4PoroScatraType::instance() or
-         actele->element_type() == Discret::Elements::SoTet10PoroScatraType::instance() or
-         actele->element_type() == Discret::Elements::SoHex27PoroScatraType::instance() or
-         actele->element_type() == Discret::Elements::SoNurbs27PoroScatraType::instance() or
          actele->element_type() == Discret::Elements::WallTri3PoroScatraType::instance() or
          actele->element_type() == Discret::Elements::WallQuad4PoroScatraType::instance() or
          actele->element_type() == Discret::Elements::WallQuad9PoroScatraType::instance() or
@@ -55,8 +47,8 @@ bool PoroElastScaTra::Utils::is_poro_scatra_element(const Core::Elements::Elemen
 bool PoroElastScaTra::Utils::is_poro_p1_scatra_element(const Core::Elements::Element* actele)
 {
   // checks if element is a porop1 scatra element (new elements need to be listed here)
-  return actele->element_type() == Discret::Elements::SoHex8PoroP1ScatraType::instance() or
-         actele->element_type() == Discret::Elements::SoTet4PoroP1ScatraType::instance() or
+  return actele->element_type() ==
+             Discret::Elements::SolidPoroPressureVelocityBasedP1Type::instance() or
          actele->element_type() == Discret::Elements::WallQuad4PoroP1ScatraType::instance() or
          actele->element_type() == Discret::Elements::WallTri3PoroP1ScatraType::instance() or
          actele->element_type() == Discret::Elements::WallQuad9PoroP1ScatraType::instance();
@@ -148,7 +140,7 @@ void PoroElastScaTra::Utils::create_volume_ghosting(Core::FE::Discretization& id
   voldis.push_back(problem->get_dis("porofluid"));
   voldis.push_back(problem->get_dis("scatra"));
 
-  const Epetra_Map* ielecolmap = idiscret.element_col_map();
+  const Core::LinAlg::Map* ielecolmap = idiscret.element_col_map();
 
   for (auto& voldi : voldis)
   {
@@ -157,8 +149,8 @@ void PoroElastScaTra::Utils::create_volume_ghosting(Core::FE::Discretization& id
 
     // Fill rdata with existing colmap
 
-    const Epetra_Map* elecolmap = voldi->element_col_map();
-    const std::shared_ptr<Epetra_Map> allredelecolmap =
+    const Core::LinAlg::Map* elecolmap = voldi->element_col_map();
+    const std::shared_ptr<Core::LinAlg::Map> allredelecolmap =
         Core::LinAlg::allreduce_e_map(*voldi->element_row_map());
 
     for (int i = 0; i < elecolmap->NumMyElements(); ++i)
@@ -190,7 +182,7 @@ void PoroElastScaTra::Utils::create_volume_ghosting(Core::FE::Discretization& id
     }
 
     // re-build element column map
-    Epetra_Map newelecolmap(-1, static_cast<int>(rdata.size()), rdata.data(), 0,
+    Core::LinAlg::Map newelecolmap(-1, static_cast<int>(rdata.size()), rdata.data(), 0,
         Core::Communication::as_epetra_comm(voldi->get_comm()));
     rdata.clear();
 

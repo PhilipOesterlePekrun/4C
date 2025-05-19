@@ -7,6 +7,7 @@
 
 #include "4C_constraint_penalty.hpp"
 
+#include "4C_fem_discretization.hpp"
 #include "4C_fem_general_element.hpp"
 #include "4C_global_data.hpp"
 #include "4C_linalg_utils_densematrix_communication.hpp"
@@ -21,7 +22,7 @@ FOUR_C_NAMESPACE_OPEN
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-CONSTRAINTS::ConstraintPenalty::ConstraintPenalty(
+Constraints::ConstraintPenalty::ConstraintPenalty(
     std::shared_ptr<Core::FE::Discretization> discr, const std::string& conditionname)
     : Constraint(discr, conditionname)
 {
@@ -43,11 +44,13 @@ CONSTRAINTS::ConstraintPenalty::ConstraintPenalty(
       nummyele = numele;
     }
     // initialize maps and importer
-    errormap_ = std::make_shared<Epetra_Map>(
+    errormap_ = std::make_shared<Core::LinAlg::Map>(
         numele, nummyele, 0, Core::Communication::as_epetra_comm(actdisc_->get_comm()));
     rederrormap_ = Core::LinAlg::allreduce_e_map(*errormap_);
-    errorexport_ = std::make_shared<Epetra_Export>(*rederrormap_, *errormap_);
-    errorimport_ = std::make_shared<Epetra_Import>(*rederrormap_, *errormap_);
+    errorexport_ = std::make_shared<Epetra_Export>(
+        rederrormap_->get_epetra_map(), errormap_->get_epetra_map());
+    errorimport_ = std::make_shared<Epetra_Import>(
+        rederrormap_->get_epetra_map(), errormap_->get_epetra_map());
     acterror_ = std::make_shared<Core::LinAlg::Vector<double>>(*rederrormap_);
     initerror_ = std::make_shared<Core::LinAlg::Vector<double>>(*rederrormap_);
     lagrvalues_ = std::make_shared<Core::LinAlg::Vector<double>>(*rederrormap_);
@@ -59,7 +62,7 @@ CONSTRAINTS::ConstraintPenalty::ConstraintPenalty(
   }
 }
 
-void CONSTRAINTS::ConstraintPenalty::initialize(
+void Constraints::ConstraintPenalty::initialize(
     Teuchos::ParameterList& params, Core::LinAlg::Vector<double>& systemvector3)
 {
   FOUR_C_THROW("method not used for penalty formulation!");
@@ -67,7 +70,7 @@ void CONSTRAINTS::ConstraintPenalty::initialize(
 
 /*------------------------------------------------------------------------*
  *------------------------------------------------------------------------*/
-void CONSTRAINTS::ConstraintPenalty::initialize(Teuchos::ParameterList& params)
+void Constraints::ConstraintPenalty::initialize(Teuchos::ParameterList& params)
 {
   // choose action
   switch (constrtype_)
@@ -92,7 +95,7 @@ void CONSTRAINTS::ConstraintPenalty::initialize(Teuchos::ParameterList& params)
 
 /*------------------------------------------------------------------------*
  *------------------------------------------------------------------------*/
-void CONSTRAINTS::ConstraintPenalty::initialize(const double& time)
+void Constraints::ConstraintPenalty::initialize(const double& time)
 {
   for (auto* cond : constrcond_)
   {
@@ -114,7 +117,7 @@ void CONSTRAINTS::ConstraintPenalty::initialize(const double& time)
 
 /*-----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstraintPenalty::evaluate(Teuchos::ParameterList& params,
+void Constraints::ConstraintPenalty::evaluate(Teuchos::ParameterList& params,
     std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix1,
     std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix2,
     std::shared_ptr<Core::LinAlg::Vector<double>> systemvector1,
@@ -139,7 +142,7 @@ void CONSTRAINTS::ConstraintPenalty::evaluate(Teuchos::ParameterList& params,
       FOUR_C_THROW("Unknown constraint/monitor type to be evaluated in Constraint class!");
   }
   // start computing
-  acterror_->PutScalar(0.0);
+  acterror_->put_scalar(0.0);
   evaluate_error(params, *acterror_);
 
   switch (constrtype_)
@@ -165,7 +168,7 @@ void CONSTRAINTS::ConstraintPenalty::evaluate(Teuchos::ParameterList& params,
 
 /*-----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstraintPenalty::evaluate_constraint(Teuchos::ParameterList& params,
+void Constraints::ConstraintPenalty::evaluate_constraint(Teuchos::ParameterList& params,
     std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix1,
     Core::LinAlg::SparseOperator& systemmatrix2,
     std::shared_ptr<Core::LinAlg::Vector<double>> systemvector1,
@@ -204,7 +207,7 @@ void CONSTRAINTS::ConstraintPenalty::evaluate_constraint(Teuchos::ParameterList&
       }
 
       // Evaluate loadcurve if defined. Put current load factor in parameterlist
-      const auto curvenum = cond->parameters().get<Core::IO::Noneable<int>>("curve");
+      const auto curvenum = cond->parameters().get<std::optional<int>>("curve");
       double curvefac = 1.0;
       if (curvenum.has_value() && curvenum.value() > 0)
       {
@@ -297,7 +300,7 @@ void CONSTRAINTS::ConstraintPenalty::evaluate_constraint(Teuchos::ParameterList&
 
 /*-----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstraintPenalty::evaluate_error(
+void Constraints::ConstraintPenalty::evaluate_error(
     Teuchos::ParameterList& params, Core::LinAlg::Vector<double>& systemvector)
 {
   if (!(actdisc_->filled())) FOUR_C_THROW("fill_complete() was not called");
@@ -371,8 +374,8 @@ void CONSTRAINTS::ConstraintPenalty::evaluate_error(
     }
   }
   Core::LinAlg::Vector<double> acterrdist(*errormap_);
-  acterrdist.Export(systemvector, *errorexport_, Add);
-  systemvector.Import(acterrdist, *errorimport_, Insert);
+  acterrdist.export_to(systemvector, *errorexport_, Add);
+  systemvector.import(acterrdist, *errorimport_, Insert);
 }  // end of evaluate_error
 
 FOUR_C_NAMESPACE_CLOSE

@@ -15,6 +15,7 @@
 #include "4C_io_legacy_table.hpp"
 #include "4C_post_common.hpp"
 #include "4C_thermo_ele_action.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_singleton_owner.hpp"
 
 #include <Teuchos_CommandLineProcessor.hpp>
@@ -59,9 +60,9 @@ MonWriter::MonWriter(PostProblem& problem, std::string& infieldtype,
     int localnodeowner = (int)nodeowner_;
     int numnodeowner = 0;
     Core::Communication::sum_all(&localnodeowner, &numnodeowner, 1, (problem.get_comm()));
-    if ((myrank_ == 0) and (numnodeowner == 0)) FOUR_C_THROW("Could not find node %d", node);
+    if ((myrank_ == 0) and (numnodeowner == 0)) FOUR_C_THROW("Could not find node {}", node);
     if ((myrank_ == 0) and (numnodeowner > 1))
-      FOUR_C_THROW("Found more than one owner of node %d: %d", node, numnodeowner);
+      FOUR_C_THROW("Found more than one owner of node {}: {}", node, numnodeowner);
   }
 
   return;
@@ -162,7 +163,7 @@ void MonWriter::write_mon_stress_file(
 {
   // stop it now
   if ((stresstype != "none") and (stresstype != "ndxyz"))
-    FOUR_C_THROW("Cannot deal with requested stress output type: %s", stresstype.c_str());
+    FOUR_C_THROW("Cannot deal with requested stress output type: {}", stresstype);
 
   // write stress
   if (stresstype != "none")
@@ -186,7 +187,7 @@ void MonWriter::write_mon_strain_file(
 {
   // stop it now
   if ((straintype != "none") and (straintype != "ndxyz"))
-    FOUR_C_THROW("Cannot deal with requested strain output type: %s", straintype.c_str());
+    FOUR_C_THROW("Cannot deal with requested strain output type: {}", straintype);
 
   if (straintype != "none")
   {
@@ -212,7 +213,7 @@ void MonWriter::write_mon_pl_strain_file(
 {
   // stop it now
   if ((straintype != "none") and (straintype != "ndxyz"))
-    FOUR_C_THROW("Cannot deal with requested plastic strain output type: %s", straintype.c_str());
+    FOUR_C_THROW("Cannot deal with requested plastic strain output type: {}", straintype);
 
   if (straintype != "none")
   {
@@ -328,7 +329,7 @@ void MonWriter::write_mon_heatflux_file(
 {
   // stop it now
   if ((heatfluxtype != "none") and (heatfluxtype != "ndxyz"))
-    FOUR_C_THROW("Cannot deal with requested heatflux output type: %s", heatfluxtype.c_str());
+    FOUR_C_THROW("Cannot deal with requested heatflux output type: {}", heatfluxtype);
 
   // write heatflux
   if (heatfluxtype != "none")
@@ -356,8 +357,7 @@ void MonWriter::write_mon_tempgrad_file(
 {
   // stop it now
   if ((tempgradtype != "none") and (tempgradtype != "ndxyz"))
-    FOUR_C_THROW(
-        "Cannot deal with requested temperature gradient output type: %s", tempgradtype.c_str());
+    FOUR_C_THROW("Cannot deal with requested temperature gradient output type: {}", tempgradtype);
 
   if (tempgradtype != "none")
   {
@@ -491,7 +491,7 @@ void FluidMonWriter::check_infield_type(std::string& infieldtype)
 /*----------------------------------------------------------------------*/
 void FluidMonWriter::field_error(int node)
 {
-  FOUR_C_THROW("Node %i does not belong to fluid field!", node);
+  FOUR_C_THROW("Node {} does not belong to fluid field!", node);
 }
 
 /*----------------------------------------------------------------------*/
@@ -523,7 +523,7 @@ void FluidMonWriter::write_result(
 {
   // get actual result vector
   auto resvec = result.read_result("velnp");
-  const Epetra_BlockMap& velmap = resvec->Map();
+  const Epetra_BlockMap& velmap = resvec->get_block_map();
   // do output of general time step data
   outfile << std::right << std::setw(20) << result.step();
   outfile << std::right << std::setw(20) << std::scientific << result.time();
@@ -555,7 +555,7 @@ void RedAirwayMonWriter::check_infield_type(std::string& infieldtype)
 /*----------------------------------------------------------------------*/
 void RedAirwayMonWriter::field_error(int node)
 {
-  FOUR_C_THROW("Node %i does not belong to red_airway field!", node);
+  FOUR_C_THROW("Node {} does not belong to red_airway field!", node);
 }
 
 /*----------------------------------------------------------------------*/
@@ -576,7 +576,7 @@ void RedAirwayMonWriter::write_result(
 {
   // get actual result vector
   auto resvec = result.read_result("PO2");
-  const Epetra_BlockMap& pmap = resvec->Map();
+  const Epetra_BlockMap& pmap = resvec->get_block_map();
   // do output of general time step data
   outfile << std::right << std::setw(20) << result.step();
   outfile << std::right << std::setw(20) << std::scientific << result.time();
@@ -608,7 +608,7 @@ void StructMonWriter::check_infield_type(std::string& infieldtype)
 /*----------------------------------------------------------------------*/
 void StructMonWriter::field_error(int node)
 {
-  FOUR_C_THROW("Node %i does not belong to structure field!", node);
+  FOUR_C_THROW("Node {} does not belong to structure field!", node);
 }
 
 /*----------------------------------------------------------------------*/
@@ -674,7 +674,7 @@ void StructMonWriter::write_result(
 
   // get actual result vector displacement
   auto resvec = result.read_result("displacement");
-  const Epetra_BlockMap& dispmap = resvec->Map();
+  const Epetra_BlockMap& dispmap = resvec->get_block_map();
 
   // compute second part of offset
   int offset2 = dispmap.MinAllGID();
@@ -683,53 +683,8 @@ void StructMonWriter::write_result(
   for (unsigned i = 0; i < noddof; ++i)
   {
     const int lid = dispmap.LID(gdof[i] + offset2);
-    if (lid == -1) FOUR_C_THROW("illegal gid %d at %d!", gdof[i], i);
+    if (lid == -1) FOUR_C_THROW("illegal gid {} at {}!", gdof[i], i);
     outfile << std::right << std::setw(16) << std::scientific << (*resvec)[lid];
-  }
-
-  // velocity
-
-  // check if velocity is available
-  MAP* dummydir;
-  if (map_find_map(result.group(), "velocity", &dummydir) and
-      result.field()->problem()->struct_vel_acc() == "yes")
-  {
-    // get actual result vector velocity
-    resvec = result.read_result("velocity");
-    const Epetra_BlockMap& velmap = resvec->Map();
-
-    // compute second part of offset
-    offset2 = velmap.MinAllGID();
-
-    // do output of velocity
-    for (unsigned i = 0; i < noddof; ++i)
-    {
-      const int lid = velmap.LID(gdof[i] + offset2);
-      if (lid == -1) FOUR_C_THROW("illegal gid %d at %d!", gdof[i], i);
-      outfile << std::right << std::setw(16) << std::scientific << (*resvec)[lid];
-    }
-  }
-
-  // acceleration
-
-  // check if acceleration is available
-  if (map_find_map(result.group(), "acceleration", &dummydir) and
-      result.field()->problem()->struct_vel_acc() == "yes")
-  {
-    // get actual result vector acceleration
-    resvec = result.read_result("acceleration");
-    const Epetra_BlockMap& accmap = resvec->Map();
-
-    // compute second part of offset
-    offset2 = accmap.MinAllGID();
-
-    // do output for acceleration
-    for (unsigned i = 0; i < noddof; ++i)
-    {
-      const int lid = accmap.LID(gdof[i] + offset2);
-      if (lid == -1) FOUR_C_THROW("illegal gid %d at %d!", gdof[i], i);
-      outfile << std::right << std::setw(16) << std::scientific << (*resvec)[lid];
-    }
   }
 
   // pressure
@@ -737,7 +692,7 @@ void StructMonWriter::write_result(
   {
     // get actual result vector displacement/pressure
     resvec = result.read_result("displacement");
-    const Epetra_BlockMap& pressmap = resvec->Map();
+    const Epetra_BlockMap& pressmap = resvec->get_block_map();
 
     // compute second part of offset
     offset2 = pressmap.MinAllGID();
@@ -746,7 +701,7 @@ void StructMonWriter::write_result(
     {
       const unsigned i = (unsigned)dim;
       const int lid = pressmap.LID(gdof[i] + offset2);
-      if (lid == -1) FOUR_C_THROW("illegal gid %d at %d!", gdof[i], i);
+      if (lid == -1) FOUR_C_THROW("illegal gid {} at {}!", gdof[i], i);
       outfile << std::right << std::setw(16) << std::scientific << (*resvec)[lid];
     }
   }
@@ -831,7 +786,6 @@ void StructMonWriter::write_str_results(std::ofstream& outfile, PostProblem& pro
     else
     {
       FOUR_C_THROW("trying to write something that is not a stress or a strain");
-      exit(1);
     }
 
     // get pointer to discretisation of actual field
@@ -847,7 +801,7 @@ void StructMonWriter::write_str_results(std::ofstream& outfile, PostProblem& pro
     else if (dim == 2)
       numdf = 2;
     else
-      FOUR_C_THROW("Cannot handle dimension %d", dim);
+      FOUR_C_THROW("Cannot handle dimension {}", dim);
 
     // this is a loop over all time steps that should be written
     // bottom control here, because first set has been read already
@@ -906,7 +860,7 @@ void AleMonWriter::check_infield_type(std::string& infieldtype)
 /*----------------------------------------------------------------------*/
 void AleMonWriter::field_error(int node)
 {
-  FOUR_C_THROW("Node %i does not belong to ALE field!", node);
+  FOUR_C_THROW("Node {} does not belong to ALE field!", node);
 }
 
 /*----------------------------------------------------------------------*/
@@ -938,7 +892,7 @@ void AleMonWriter::write_result(
 {
   // get actual result vector for displacement
   auto resvec = result.read_result("displacement");
-  const Epetra_BlockMap& dispmap = resvec->Map();
+  const Epetra_BlockMap& dispmap = resvec->get_block_map();
   // do output of general time step data
   outfile << std::right << std::setw(10) << result.step();
   outfile << std::right << std::setw(16) << std::scientific << result.time();
@@ -1014,7 +968,7 @@ void FsiFluidMonWriter::write_result(
 {
   // get actual result vector for displacement
   std::shared_ptr<Core::LinAlg::Vector<double>> resvec = result.read_result("dispnp");
-  const Epetra_BlockMap& dispmap = resvec->Map();
+  const Epetra_BlockMap& dispmap = resvec->get_block_map();
   // do output of general time step data
   outfile << std::right << std::setw(10) << result.step();
   outfile << std::right << std::setw(16) << std::scientific << result.time();
@@ -1031,7 +985,7 @@ void FsiFluidMonWriter::write_result(
 
   // get actual result vector for velocity
   resvec = result.read_result("velnp");
-  const Epetra_BlockMap& velmap = resvec->Map();
+  const Epetra_BlockMap& velmap = resvec->get_block_map();
 
   // compute second part of offset
   offset2 = velmap.MinAllGID();
@@ -1049,7 +1003,7 @@ void FsiFluidMonWriter::write_result(
   {
     // get actual result vector for fsilambda
     resvec = result.read_result("fsilambda");
-    const Epetra_BlockMap& lambdamap = resvec->Map();
+    const Epetra_BlockMap& lambdamap = resvec->get_block_map();
 
     // compute second part of offset
     offset2 = lambdamap.MinAllGID();
@@ -1148,7 +1102,7 @@ void FsiStructMonWriter::write_result(
 
   // get actual result vector displacement
   std::shared_ptr<Core::LinAlg::Vector<double>> resvec = result.read_result("displacement");
-  const Epetra_BlockMap& dispmap = resvec->Map();
+  const Epetra_BlockMap& dispmap = resvec->get_block_map();
 
   // compute second part of offset
   int offset2 = dispmap.MinAllGID();
@@ -1157,75 +1111,17 @@ void FsiStructMonWriter::write_result(
   for (unsigned i = 0; i < noddof; ++i)
   {
     const int lid = dispmap.LID(gdof[i] + offset2);
-    if (lid == -1) FOUR_C_THROW("illegal gid %d at %d!", gdof[i], i);
+    if (lid == -1) FOUR_C_THROW("illegal gid {} at {}!", gdof[i], i);
     outfile << std::right << std::setw(16) << std::scientific << (*resvec)[lid];
   }
 
-  // velocity
-
-  // check if velocity is available
   MAP* dummydir;
-  if (map_find_map(result.group(), "velocity", &dummydir) and
-      result.field()->problem()->struct_vel_acc() == "yes")
-  {
-    // get actual result vector velocity
-    resvec = result.read_result("velocity");
-    const Epetra_BlockMap& velmap = resvec->Map();
-
-    // compute second part of offset
-    offset2 = velmap.MinAllGID();
-
-    // do output of velocity
-    for (unsigned i = 0; i < noddof; ++i)
-    {
-      const int lid = velmap.LID(gdof[i] + offset2);
-      if (lid == -1) FOUR_C_THROW("illegal gid %d at %d!", gdof[i], i);
-      outfile << std::right << std::setw(16) << std::scientific << (*resvec)[lid];
-    }
-  }
-  else
-  {
-    for (unsigned i = 0; i < noddof; ++i)
-    {
-      outfile << std::right << std::setw(16) << "not avail.";
-    }
-  }
-
-  // acceleration
-
-  // check if acceleration is available
-  if (map_find_map(result.group(), "acceleration", &dummydir) and
-      result.field()->problem()->struct_vel_acc() == "yes")
-  {
-    // get actual result vector acceleration
-    resvec = result.read_result("acceleration");
-    const Epetra_BlockMap& accmap = resvec->Map();
-
-    // compute second part of offset
-    offset2 = accmap.MinAllGID();
-
-    // do output for acceleration
-    for (unsigned i = 0; i < noddof; ++i)
-    {
-      const int lid = accmap.LID(gdof[i] + offset2);
-      if (lid == -1) FOUR_C_THROW("illegal gid %d at %d!", gdof[i], i);
-      outfile << std::right << std::setw(16) << std::scientific << (*resvec)[lid];
-    }
-  }
-  else
-  {
-    for (unsigned i = 0; i < noddof; ++i)
-    {
-      outfile << std::right << std::setw(16) << "not avail.";
-    }
-  }
-
   // pressure
   if (gdof.size() == (unsigned)dim + 1)
   {
     // get actual result vector displacement/pressure
     resvec = result.read_result("displacement");
-    const Epetra_BlockMap& pressmap = resvec->Map();
+    const Epetra_BlockMap& pressmap = resvec->get_block_map();
 
     // compute second part of offset
     offset2 = pressmap.MinAllGID();
@@ -1234,7 +1130,7 @@ void FsiStructMonWriter::write_result(
     {
       const unsigned i = (unsigned)dim;
       const int lid = pressmap.LID(gdof[i] + offset2);
-      if (lid == -1) FOUR_C_THROW("illegal gid %d at %d!", gdof[i], i);
+      if (lid == -1) FOUR_C_THROW("illegal gid {} at {}!", gdof[i], i);
       outfile << std::right << std::setw(16) << std::scientific << (*resvec)[lid];
     }
   }
@@ -1248,7 +1144,7 @@ void FsiStructMonWriter::write_result(
   {
     // get actual result vector for fsilambda
     resvec = result.read_result("fsilambda");
-    const Epetra_BlockMap& lambdamap = resvec->Map();
+    const Epetra_BlockMap& lambdamap = resvec->get_block_map();
 
     // compute second part of offset
     offset2 = lambdamap.MinAllGID();
@@ -1256,7 +1152,7 @@ void FsiStructMonWriter::write_result(
     for (unsigned i = 0; i < noddof; ++i)
     {
       const int lid = lambdamap.LID(gdof[i] + offset2);
-      if (lid == -1) FOUR_C_THROW("illegal gid %d at %d!", gdof[i], i);
+      if (lid == -1) FOUR_C_THROW("illegal gid {} at {}!", gdof[i], i);
       outfile << std::right << std::setw(16) << std::scientific << (*resvec)[lid];
     }
   }
@@ -1301,7 +1197,7 @@ void ScatraMonWriter::check_infield_type(std::string& infieldtype)
 /*----------------------------------------------------------------------*/
 void ScatraMonWriter::field_error(int node)
 {
-  FOUR_C_THROW("Node %i does not belong to scatra field!", node);
+  FOUR_C_THROW("Node {} does not belong to scatra field!", node);
 }
 
 /*----------------------------------------------------------------------*/
@@ -1343,7 +1239,7 @@ void ScatraMonWriter::write_result(
   // get actual result vector for displacement
   std::shared_ptr<Core::LinAlg::Vector<double>> resvec = result.read_result("phinp");
 
-  const Epetra_BlockMap& dispmap = resvec->Map();
+  const Epetra_BlockMap& dispmap = resvec->get_block_map();
   // do output of general time step data
   outfile << std::right << std::setw(10) << result.step();
   outfile << std::right << std::setw(20) << std::scientific << result.time();
@@ -1374,7 +1270,7 @@ void ThermoMonWriter::check_infield_type(std::string& infieldtype)
 /*----------------------------------------------------------------------*/
 void ThermoMonWriter::field_error(int node)
 {
-  FOUR_C_THROW("Node %i does not belong to thermal field!", node);
+  FOUR_C_THROW("Node {} does not belong to thermal field!", node);
 }
 
 /*----------------------------------------------------------------------*/
@@ -1405,7 +1301,7 @@ void ThermoMonWriter::write_result(
 
   // get actual result vector temperature
   std::shared_ptr<Core::LinAlg::Vector<double>> resvec = result.read_result("temperature");
-  const Epetra_BlockMap& dispmap = resvec->Map();
+  const Epetra_BlockMap& dispmap = resvec->get_block_map();
 
   // compute second part of offset
   int offset2 = dispmap.MinAllGID();
@@ -1414,7 +1310,7 @@ void ThermoMonWriter::write_result(
   for (unsigned i = 0; i < gdof.size(); ++i)
   {
     const int lid = dispmap.LID(gdof[i] + offset2);
-    if (lid == -1) FOUR_C_THROW("illegal gid %d at %d!", gdof[i], i);
+    if (lid == -1) FOUR_C_THROW("illegal gid {} at {}!", gdof[i], i);
     outfile << std::right << std::setw(16) << std::scientific << (*resvec)[lid];
   }
 
@@ -1422,7 +1318,7 @@ void ThermoMonWriter::write_result(
 
   // get actual result vector temperature rate
   resvec = result.read_result("rate");
-  const Epetra_BlockMap& ratemap = resvec->Map();
+  const Epetra_BlockMap& ratemap = resvec->get_block_map();
 
   // compute second part of offset
   offset2 = ratemap.MinAllGID();
@@ -1431,7 +1327,7 @@ void ThermoMonWriter::write_result(
   for (unsigned i = 0; i < gdof.size(); ++i)
   {
     const int lid = ratemap.LID(gdof[i] + offset2);
-    if (lid == -1) FOUR_C_THROW("illegal gid %d at %d!", gdof[i], i);
+    if (lid == -1) FOUR_C_THROW("illegal gid {} at {}!", gdof[i], i);
     outfile << std::right << std::setw(16) << std::scientific << (*resvec)[lid];
   }
 
@@ -1501,7 +1397,6 @@ void ThermoMonWriter::write_thermo_results(std::ofstream& outfile, PostProblem& 
     else
     {
       FOUR_C_THROW("trying to write something that is not a heatflux or a temperature gradient");
-      exit(1);
     }
 
     // get pointer to discretisation of actual field
@@ -1580,7 +1475,7 @@ void ThermoMonWriter::write_thermo_result(std::ofstream& outfile, PostField*& fi
     }
     else
     {
-      FOUR_C_THROW("Don't know what to do with %d dimensions", dim);
+      FOUR_C_THROW("Don't know what to do with {} dimensions", dim);
     }
 
     // print to file
@@ -1648,7 +1543,7 @@ void PoroFluidMultiMonWriter::check_infield_type(std::string& infieldtype)
 /*----------------------------------------------------------------------*/
 void PoroFluidMultiMonWriter::field_error(int node)
 {
-  FOUR_C_THROW("Node %i does not belong to porofluid field!", node);
+  FOUR_C_THROW("Node {} does not belong to porofluid field!", node);
 }
 
 /*----------------------------------------------------------------------*/
@@ -1682,9 +1577,9 @@ void PoroFluidMultiMonWriter::write_result(
   std::shared_ptr<Core::LinAlg::Vector<double>> resvec_sat = result.read_result("saturation");
   std::shared_ptr<Core::LinAlg::Vector<double>> resvec_press = result.read_result("pressure");
 
-  const Epetra_BlockMap& phimap = resvec->Map();
-  const Epetra_BlockMap& satmap = resvec_sat->Map();
-  const Epetra_BlockMap& pressmap = resvec_press->Map();
+  const Epetra_BlockMap& phimap = resvec->get_block_map();
+  const Epetra_BlockMap& satmap = resvec_sat->get_block_map();
+  const Epetra_BlockMap& pressmap = resvec_press->get_block_map();
 
   // do output of general time step data
   outfile << std::right << std::setw(10) << result.step();
@@ -1713,15 +1608,6 @@ void PoroFluidMultiMonWriter::write_result(
     const int lid = pressmap.LID(gdof[i] + offset2);
     outfile << std::right << std::setw(20) << std::setprecision(10) << std::scientific
             << (*resvec_press)[lid];
-  }
-  // do output for porosity
-  if (output_porosity_)
-  {
-    std::shared_ptr<Core::LinAlg::Vector<double>> resvec_poro = result.read_result("porosity");
-    const Epetra_BlockMap& poromap = resvec_poro->Map();
-    const int lid = poromap.LID(poro_dof_);
-    outfile << std::right << std::setw(20) << std::setprecision(10) << std::scientific
-            << (*resvec_poro)[lid];
   }
   outfile << "\n";
 }
@@ -1795,8 +1681,7 @@ FOUR_C_NAMESPACE_CLOSE
  *
  * Note: Works in seriell version only! Requires to read one instance of the discretisation!!
  *
- * \author chfoe
- * \date 11/07
+
  */
 int main(int argc, char** argv)
 {
@@ -1852,7 +1737,6 @@ int main(int argc, char** argv)
     }
     case Core::ProblemType::structure:
     case Core::ProblemType::loma:
-    case Core::ProblemType::fluid_xfem_ls:
     case Core::ProblemType::fluid:
     case Core::ProblemType::fluid_redmodels:
     case Core::ProblemType::fps3i:
@@ -1963,8 +1847,8 @@ int main(int argc, char** argv)
         mymonwriter.write_mon_file(problem, infieldtype, node);
       }
       else
-        FOUR_C_THROW("Unsupported field type %s for problem-type Multiphase_Poroelasticity",
-            infieldtype.c_str());
+        FOUR_C_THROW(
+            "Unsupported field type {} for problem-type Multiphase_Poroelasticity", infieldtype);
       break;
     }
     case Core::ProblemType::poromultiphasescatra:
@@ -1990,13 +1874,13 @@ int main(int argc, char** argv)
         mymonwriter.write_mon_file(problem, infieldtype, node);
       }
       else
-        FOUR_C_THROW("Unsupported field type %s for problem-type Multiphase_Poroelasticity_ScaTra",
-            infieldtype.c_str());
+        FOUR_C_THROW("Unsupported field type {} for problem-type Multiphase_Poroelasticity_ScaTra",
+            infieldtype);
       break;
     }
     default:
     {
-      FOUR_C_THROW("problem type %d not yet supported", problem.problemtype());
+      FOUR_C_THROW("problem type {} not yet supported", problem.problemtype());
     }
     break;
   }

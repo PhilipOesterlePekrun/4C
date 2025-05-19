@@ -9,7 +9,6 @@
 #include "4C_art_net_dyn_drt.hpp"
 #include "4C_ehl_dyn.hpp"
 #include "4C_elch_dyn.hpp"
-#include "4C_elemag_dyn.hpp"
 #include "4C_fluid_dyn_nln_drt.hpp"
 #include "4C_fpsi_dyn.hpp"
 #include "4C_fs3i_dyn.hpp"
@@ -22,10 +21,11 @@
 #include "4C_pasi_dyn.hpp"
 #include "4C_poroelast_dyn.hpp"
 #include "4C_poroelast_scatra_dyn.hpp"
-#include "4C_porofluidmultiphase_dyn.hpp"
-#include "4C_poromultiphase_dyn.hpp"
-#include "4C_poromultiphase_scatra_dyn.hpp"
+#include "4C_porofluid_pressure_based_dyn.hpp"
+#include "4C_porofluid_pressure_based_elast_dyn.hpp"
+#include "4C_porofluid_pressure_based_elast_scatra_dyn.hpp"
 #include "4C_red_airways_dyn_drt.hpp"
+#include "4C_reduced_lung_main.hpp"
 #include "4C_scatra_cardiac_monodomain_dyn.hpp"
 #include "4C_scatra_dyn.hpp"
 #include "4C_ssi_dyn.hpp"
@@ -35,6 +35,7 @@
 #include "4C_structure_dyn_nln_drt.hpp"
 #include "4C_thermo_dyn.hpp"
 #include "4C_tsi_dyn.hpp"
+#include "4C_utils_enum.hpp"
 
 /*----------------------------------------------------------------------*
  |  routine to control execution phase                   m.gee 6/01     |
@@ -127,6 +128,10 @@ void ntacal()
       dyn_red_airways_drt();
       break;
 
+    case Core::ProblemType::reduced_lung:
+      ReducedLung::reduced_lung_main();
+      break;
+
     case Core::ProblemType::poroelast:
       poroelast_drt();
       break;
@@ -134,10 +139,10 @@ void ntacal()
       poro_scatra_drt();
       break;
     case Core::ProblemType::porofluidmultiphase:
-      porofluidmultiphase_dyn(restart);
+      porofluid_pressure_based_dyn(restart);
       break;
     case Core::ProblemType::poromultiphase:
-      poromultiphase_dyn(restart);
+      porofluid_elast_dyn(restart);
       break;
     case Core::ProblemType::poromultiphasescatra:
       poromultiphasescatra_dyn(restart);
@@ -150,9 +155,6 @@ void ntacal()
       break;
     case Core::ProblemType::ssti:
       ssti_drt();
-      break;
-    case Core::ProblemType::redairways_tissue:
-      redairway_tissue_dyn();
       break;
 
     case Core::ProblemType::particle:
@@ -171,12 +173,8 @@ void ntacal()
       MultiScale::np_support_drt();
       break;
 
-    case Core::ProblemType::elemag:
-      electromagnetics_drt();
-      break;
-
     default:
-      FOUR_C_THROW("solution of unknown problemtype %d requested",
+      FOUR_C_THROW("solution of unknown problemtype {} requested",
           Global::Problem::instance()->get_problem_type());
       break;
   }

@@ -7,6 +7,7 @@
 
 #include "4C_art_net_artery.hpp"
 #include "4C_mat_cnst_1d_art.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -92,7 +93,7 @@ void Discret::Elements::Artery::set_diam_in_material(const double diam)
     arterymat->set_diam_initial(diam);
   }
   else
-    FOUR_C_THROW("Artery element got unsupported material type %d", mat->material_type());
+    FOUR_C_THROW("Artery element got unsupported material type {}", mat->material_type());
   return;
 }
 

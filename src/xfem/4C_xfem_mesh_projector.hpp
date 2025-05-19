@@ -16,8 +16,6 @@
 #include "4C_linalg_vector.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
 
-#include <Epetra_MpiComm.h>
-
 #include <memory>
 
 FOUR_C_NAMESPACE_OPEN
@@ -70,10 +68,6 @@ namespace XFEM
     void project_in_full_target_discretization(
         std::vector<std::shared_ptr<Core::LinAlg::Vector<double>>> target_statevecs,
         std::shared_ptr<const Core::LinAlg::Vector<double>> targetdisp = nullptr);
-
-    //! write gmsh output for projection details
-    void gmsh_output(
-        int step = 0, std::shared_ptr<const Core::LinAlg::Vector<double>> targetdisp = nullptr);
 
    private:
     /// determine the search radius for the search tree

@@ -11,6 +11,7 @@
 #include "4C_comm_mpi_utils.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_node.hpp"
+#include "4C_io_input_parameter_container.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -39,7 +40,7 @@ void ALE::AleResultTest::test_node(
 
   if (isnodeofanybody == 0)
   {
-    FOUR_C_THROW("Node %d does not belong to discretization %s", node + 1, aledis_->name().c_str());
+    FOUR_C_THROW("Node {} does not belong to discretization {}", node + 1, aledis_->name());
   }
   else
   {
@@ -52,7 +53,7 @@ void ALE::AleResultTest::test_node(
 
       double result = 0.;
 
-      const Epetra_BlockMap& dispnpmap = dispnp_->Map();
+      const Epetra_BlockMap& dispnpmap = dispnp_->get_block_map();
 
       std::string position = container.get<std::string>("QUANTITY");
       if (position == "dispx")
@@ -69,7 +70,7 @@ void ALE::AleResultTest::test_node(
       }
       else
       {
-        FOUR_C_THROW("Quantity '%s' not supported in ALE testing", position.c_str());
+        FOUR_C_THROW("Quantity '{}' not supported in ALE testing", position);
       }
 
       nerr += compare_values(result, "NODE", container);

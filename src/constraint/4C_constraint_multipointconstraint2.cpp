@@ -25,7 +25,7 @@ FOUR_C_NAMESPACE_OPEN
 /*----------------------------------------------------------------------*
  |  ctor (public)                                               tk 07/08|
  *----------------------------------------------------------------------*/
-CONSTRAINTS::MPConstraint2::MPConstraint2(std::shared_ptr<Core::FE::Discretization> discr,
+Constraints::MPConstraint2::MPConstraint2(std::shared_ptr<Core::FE::Discretization> discr,
     const std::string& conditionname, int& minID, int& maxID)
     : MPConstraint(discr, conditionname, minID, maxID)
 {
@@ -35,7 +35,7 @@ CONSTRAINTS::MPConstraint2::MPConstraint2(std::shared_ptr<Core::FE::Discretizati
     // create constraint discretization and store it with label 0, within the map
     constraintdis_ = create_discretization_from_condition(
         actdisc_, constrcond_, "ConstrDisc", "CONSTRELE2", dummy);
-    std::shared_ptr<Epetra_Map> newcolnodemap =
+    std::shared_ptr<Core::LinAlg::Map> newcolnodemap =
         Core::Rebalance::compute_node_col_map(*actdisc_, *constraintdis_.find(0)->second);
     actdisc_->redistribute(*(actdisc_->node_row_map()), *newcolnodemap);
     std::shared_ptr<Core::DOFSets::DofSet> newdofset =
@@ -50,7 +50,7 @@ CONSTRAINTS::MPConstraint2::MPConstraint2(std::shared_ptr<Core::FE::Discretizati
 |(public)                                                       tk 08/08  |
 |Initialization routine activates conditions (restart)                    |
 *------------------------------------------------------------------------*/
-void CONSTRAINTS::MPConstraint2::initialize(const double& time)
+void Constraints::MPConstraint2::initialize(const double& time)
 {
   for (auto* cond : constrcond_)
   {
@@ -74,7 +74,7 @@ void CONSTRAINTS::MPConstraint2::initialize(const double& time)
 |(public)                                                        tk 07/08|
 |Evaluate Constraints, choose the right action based on type             |
 *-----------------------------------------------------------------------*/
-void CONSTRAINTS::MPConstraint2::initialize(
+void Constraints::MPConstraint2::initialize(
     Teuchos::ParameterList& params, std::shared_ptr<Core::LinAlg::Vector<double>> systemvector)
 {
   const double time = params.get("total time", -1.0);
@@ -109,7 +109,7 @@ void CONSTRAINTS::MPConstraint2::initialize(
   // systemvector is supposed to be the vector with initial values of the constraints
   if (Core::Communication::my_mpi_rank(actdisc_->get_comm()) == 0)
   {
-    systemvector->ReplaceGlobalValues(amplit.size(), amplit.data(), IDs.data());
+    systemvector->replace_global_values(amplit.size(), amplit.data(), IDs.data());
   }
 }
 
@@ -117,7 +117,7 @@ void CONSTRAINTS::MPConstraint2::initialize(
 |(public)                                                        tk 07/08|
 |Evaluate Constraints, choose the right action based on type             |
 *-----------------------------------------------------------------------*/
-void CONSTRAINTS::MPConstraint2::evaluate(Teuchos::ParameterList& params,
+void Constraints::MPConstraint2::evaluate(Teuchos::ParameterList& params,
     std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix1,
     std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix2,
     std::shared_ptr<Core::LinAlg::Vector<double>> systemvector1,
@@ -143,7 +143,7 @@ void CONSTRAINTS::MPConstraint2::evaluate(Teuchos::ParameterList& params,
  |subroutine creating a new discretization containing constraint elements |
  *------------------------------------------------------------------------*/
 std::map<int, std::shared_ptr<Core::FE::Discretization>>
-CONSTRAINTS::MPConstraint2::create_discretization_from_condition(
+Constraints::MPConstraint2::create_discretization_from_condition(
     std::shared_ptr<Core::FE::Discretization> actdisc,
     std::vector<Core::Conditions::Condition*> constrcondvec, const std::string& discret_name,
     const std::string& element_name, int& startID)
@@ -167,7 +167,7 @@ CONSTRAINTS::MPConstraint2::create_discretization_from_condition(
 
   std::set<int> rownodeset;
   std::set<int> colnodeset;
-  const Epetra_Map* actnoderowmap = actdisc->node_row_map();
+  const Core::LinAlg::Map* actnoderowmap = actdisc->node_row_map();
 
   // Loop all conditions in constrcondvec
   for (unsigned int j = 0; j < constrcondvec.size(); j++)
@@ -210,15 +210,15 @@ CONSTRAINTS::MPConstraint2::create_discretization_from_condition(
   // build unique node row map
   std::vector<int> boundarynoderowvec(rownodeset.begin(), rownodeset.end());
   rownodeset.clear();
-  Epetra_Map constraintnoderowmap(-1, boundarynoderowvec.size(), boundarynoderowvec.data(), 0,
-      Core::Communication::as_epetra_comm(newdis->get_comm()));
+  Core::LinAlg::Map constraintnoderowmap(-1, boundarynoderowvec.size(), boundarynoderowvec.data(),
+      0, Core::Communication::as_epetra_comm(newdis->get_comm()));
   boundarynoderowvec.clear();
 
   // build overlapping node column map
   std::vector<int> constraintnodecolvec(colnodeset.begin(), colnodeset.end());
   colnodeset.clear();
-  Epetra_Map constraintnodecolmap(-1, constraintnodecolvec.size(), constraintnodecolvec.data(), 0,
-      Core::Communication::as_epetra_comm(newdis->get_comm()));
+  Core::LinAlg::Map constraintnodecolmap(-1, constraintnodecolvec.size(),
+      constraintnodecolvec.data(), 0, Core::Communication::as_epetra_comm(newdis->get_comm()));
 
   constraintnodecolvec.clear();
 
@@ -233,7 +233,7 @@ CONSTRAINTS::MPConstraint2::create_discretization_from_condition(
  |(private)                                                 tk 04/08    |
  |reorder MPC nodes based on condition input                            |
  *----------------------------------------------------------------------*/
-void CONSTRAINTS::MPConstraint2::reorder_constraint_nodes(
+void Constraints::MPConstraint2::reorder_constraint_nodes(
     std::vector<int>& nodeids, const Core::Conditions::Condition* cond)
 {
   // get this condition's nodes
@@ -255,7 +255,7 @@ void CONSTRAINTS::MPConstraint2::reorder_constraint_nodes(
  |Evaluate method, calling element evaluates of a condition and          |
  |assembing results based on this conditions                             |
  *----------------------------------------------------------------------*/
-void CONSTRAINTS::MPConstraint2::evaluate_constraint(std::shared_ptr<Core::FE::Discretization> disc,
+void Constraints::MPConstraint2::evaluate_constraint(std::shared_ptr<Core::FE::Discretization> disc,
     Teuchos::ParameterList& params, std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix1,
     std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix2,
     std::shared_ptr<Core::LinAlg::Vector<double>> systemvector1,
@@ -308,7 +308,7 @@ void CONSTRAINTS::MPConstraint2::evaluate_constraint(std::shared_ptr<Core::FE::D
       // define global and local index of this bc in redundant vectors
       const int offsetID = params.get<int>("OffsetID");
       int gindex = condID - offsetID;
-      const int lindex = (systemvector3->Map()).LID(gindex);
+      const int lindex = (systemvector3->get_block_map()).LID(gindex);
 
       // Get the current lagrange multiplier value for this condition
       const std::shared_ptr<Core::LinAlg::Vector<double>> lagramul =
@@ -336,7 +336,7 @@ void CONSTRAINTS::MPConstraint2::evaluate_constraint(std::shared_ptr<Core::FE::D
       int err = actele->evaluate(
           params, *disc, lm, elematrix1, elematrix2, elevector1, elevector2, elevector3);
       if (err)
-        FOUR_C_THROW("Proc %d: Element %d returned err=%d",
+        FOUR_C_THROW("Proc {}: Element {} returned err={}",
             Core::Communication::my_mpi_rank(disc->get_comm()), actele->id(), err);
 
       int eid = actele->id();
@@ -370,7 +370,7 @@ void CONSTRAINTS::MPConstraint2::evaluate_constraint(std::shared_ptr<Core::FE::D
       }
 
       // Load curve business
-      const auto curvenum = cond.parameters().get<Core::IO::Noneable<int>>("curve");
+      const auto curvenum = cond.parameters().get<std::optional<int>>("curve");
       double curvefac = 1.0;
       if (curvenum.has_value() && curvenum.value() > 0 && time >= 0.0)
       {
@@ -382,7 +382,7 @@ void CONSTRAINTS::MPConstraint2::evaluate_constraint(std::shared_ptr<Core::FE::D
 
       std::shared_ptr<Core::LinAlg::Vector<double>> timefact =
           params.get<std::shared_ptr<Core::LinAlg::Vector<double>>>("vector curve factors");
-      timefact->ReplaceGlobalValues(1, &curvefac, &gindex);
+      timefact->replace_global_values(1, &curvefac, &gindex);
     }
   }
 }  // end of evaluate_condition

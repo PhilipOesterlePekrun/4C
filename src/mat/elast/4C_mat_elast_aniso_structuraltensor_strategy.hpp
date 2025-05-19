@@ -24,20 +24,20 @@ namespace Mat
   {
     namespace PAR
     {
-      typedef enum DistrType
+      enum DistrType
       {
         distr_type_undefined = 0,
         distr_type_vonmisesfisher = 1,
         distr_type_bingham = 2
-      } DISTR_TYPE_;
+      };
 
-      typedef enum StrategyType
+      enum StrategyType
       {
         strategy_type_undefined = 0,
         strategy_type_standard = 1,
         strategy_type_bydistributionfunction = 2,
         strategy_type_dispersedtransverselyisotropic = 3
-      } STRATEGY_TYPE_;
+      };
 
       /*!
        * @brief material parameters for generalized structural tensor with distribution
@@ -46,7 +46,7 @@ namespace Mat
        * We assume only one symmetry for the distribution function \rho(M), i.e.:
        * \rho(M) = \rho(-M) .
        *
-       * Example input line in .dat file:
+       * Example input line in input file:
        * MAT 2 ELAST_IsoAnisoExpo  K1 1.0E6 K2 100.0 GAMMA 0.0 K1COMP 0.0 K2COMP 0.0 STR_TENS_ID
        * 100 MAT 100 ELAST_StructuralTensor STRATEGY ByDistributionFunction DISTR vonMisesFisher C1
        * 500.0

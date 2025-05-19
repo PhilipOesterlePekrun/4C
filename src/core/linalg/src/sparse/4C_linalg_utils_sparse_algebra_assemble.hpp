@@ -12,12 +12,11 @@
 
 #include "4C_linalg_blocksparsematrix.hpp"
 #include "4C_linalg_fixedsizematrix.hpp"
+#include "4C_linalg_graph.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_serialdensematrix.hpp"
 #include "4C_linalg_serialdensevector.hpp"
 #include "4C_linalg_vector.hpp"
-
-#include <Epetra_CrsGraph.h>
-#include <Epetra_Map.h>
 
 #include <memory>
 
@@ -101,7 +100,7 @@ namespace Core::LinAlg
    *  \param scalar_source (in) : scale the source entries by this factor
    *  \param source        (in) : source vector
    *
-   *  \author hiermeier \date 03/17 */
+   *  */
   void assemble_my_vector(double scalar_target, Core::LinAlg::Vector<double>& target,
       double scalar_source, const Core::LinAlg::Vector<double>& source);
 
@@ -168,7 +167,7 @@ namespace Core::LinAlg
    */
   void apply_dirichlet_to_system(Core::LinAlg::SparseOperator& A, Core::LinAlg::Vector<double>& x,
       Core::LinAlg::Vector<double>& b, const Core::LinAlg::Vector<double>& dbcval,
-      const Epetra_Map& dbcmap);
+      const Core::LinAlg::Map& dbcmap);
 
   /*!
    \brief Apply dirichlet boundary condition to a linear system of equations
@@ -195,7 +194,7 @@ namespace Core::LinAlg
    */
   void apply_dirichlet_to_system(Core::LinAlg::SparseMatrix& A, Core::LinAlg::Vector<double>& x,
       Core::LinAlg::Vector<double>& b, const Core::LinAlg::SparseMatrix& trafo,
-      const Core::LinAlg::Vector<double>& dbcval, const Epetra_Map& dbcmap);
+      const Core::LinAlg::Vector<double>& dbcval, const Core::LinAlg::Map& dbcmap);
 
   /*!
    \brief Apply dirichlet boundary condition to a linear system of equations
@@ -228,7 +227,7 @@ namespace Core::LinAlg
    \pre The map dbcmap must be subset of the maps of the vectors.
    */
   void apply_dirichlet_to_system(Core::LinAlg::Vector<double>& x, Core::LinAlg::Vector<double>& b,
-      const Core::LinAlg::Vector<double>& dbcval, const Epetra_Map& dbcmap);
+      const Core::LinAlg::Vector<double>& dbcval, const Core::LinAlg::Map& dbcmap);
 
   /*!
    \brief Apply dirichlet boundary condition to a linear system of equations
@@ -248,7 +247,7 @@ namespace Core::LinAlg
    \pre The map dbcmap must be subset of the maps of the vectors.
    */
   void apply_dirichlet_to_system(Core::LinAlg::Vector<double>& b,
-      const Core::LinAlg::Vector<double>& dbcval, const Epetra_Map& dbcmap);
+      const Core::LinAlg::Vector<double>& dbcval, const Core::LinAlg::Map& dbcmap);
 
   /*!
    \brief Convert a Dirichlet toggle vector in a Dirichlet map
@@ -262,8 +261,6 @@ namespace Core::LinAlg
    \param dbctoggle (in)     : the Dirichlet toggle vector
    \return MapExtractor object which stores the Dirichlet condition and remaining (other) DOF map
 
-   \author bborn
-   \date 10/08
    */
   std::shared_ptr<Core::LinAlg::MapExtractor> convert_dirichlet_toggle_vector_to_maps(
       const Core::LinAlg::Vector<double>& dbctoggle);

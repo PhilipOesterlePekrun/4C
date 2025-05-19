@@ -13,6 +13,7 @@
 #include "4C_contact_friction_node.hpp"
 #include "4C_contact_interface.hpp"
 #include "4C_contact_node.hpp"
+#include "4C_fem_discretization.hpp"
 #include "4C_inpar_mortar.hpp"
 #include "4C_linalg_sparsematrix.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
@@ -47,16 +48,16 @@ void CONTACT::TSIInterface::assemble_lin_stick(Core::LinAlg::SparseMatrix& linst
 
 
   // create map of stick nodes
-  std::shared_ptr<Epetra_Map> sticknodes = Core::LinAlg::split_map(*activenodes_, *slipnodes_);
-  std::shared_ptr<Epetra_Map> stickt = Core::LinAlg::split_map(*activet_, *slipt_);
+  std::shared_ptr<Core::LinAlg::Map> sticknodes =
+      Core::LinAlg::split_map(*activenodes_, *slipnodes_);
+  std::shared_ptr<Core::LinAlg::Map> stickt = Core::LinAlg::split_map(*activet_, *slipt_);
 
   // nothing to do if no stick nodes
   if (sticknodes->NumMyElements() == 0) return;
 
   // information from interface contact parameter list
-  auto ftype =
-      Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(interface_params(), "FRICTION");
-  if (ftype != Inpar::CONTACT::friction_coulomb) FOUR_C_THROW("only coulomb friction for CTSI");
+  auto ftype = Teuchos::getIntegralValue<CONTACT::FrictionType>(interface_params(), "FRICTION");
+  if (ftype != CONTACT::FrictionType::coulomb) FOUR_C_THROW("only coulomb friction for CTSI");
 
   double frcoeff_in =
       interface_params().get<double>("FRCOEFF");  // the friction coefficient from the input
@@ -71,7 +72,7 @@ void CONTACT::TSIInterface::assemble_lin_stick(Core::LinAlg::SparseMatrix& linst
   // consistent equation is:
   // mu(d,T)*(z_n-c_n*g)ut = 0
 
-  typedef std::map<int, double>::const_iterator _CI;
+  using _CI = std::map<int, double>::const_iterator;
   // loop over all stick nodes of the interface
   for (int i = 0; i < sticknodes->NumMyElements(); ++i)
   {
@@ -112,7 +113,7 @@ void CONTACT::TSIInterface::assemble_lin_stick(Core::LinAlg::SparseMatrix& linst
     double fac = lm_n - cn * wgap;
     for (_CI p = dfrdT.begin(); p != dfrdT.end(); ++p)
     {
-      if (constr_direction_ == Inpar::CONTACT::constr_xyz)
+      if (constr_direction_ == CONTACT::ConstraintDirection::xyz)
         for (int j = 0; j < Dim(); j++)
         {
           linstickTEMPglobal.Assemble(
@@ -128,7 +129,7 @@ void CONTACT::TSIInterface::assemble_lin_stick(Core::LinAlg::SparseMatrix& linst
     }
     for (_CI p = dfrdD.begin(); p != dfrdD.end(); ++p)
     {
-      if (constr_direction_ == Inpar::CONTACT::constr_xyz)
+      if (constr_direction_ == CONTACT::ConstraintDirection::xyz)
         for (int j = 0; j < Dim(); j++)
         {
           linstickDISglobal.Assemble(
@@ -168,16 +169,15 @@ void CONTACT::TSIInterface::assemble_lin_slip(Core::LinAlg::SparseMatrix& linsli
 #endif
 
   // create map of stick nodes
-  std::shared_ptr<Epetra_Map> slipnodes = slipnodes_;
-  std::shared_ptr<Epetra_Map> slipt = slipt_;
+  std::shared_ptr<Core::LinAlg::Map> slipnodes = slipnodes_;
+  std::shared_ptr<Core::LinAlg::Map> slipt = slipt_;
 
   // nothing to do if no stick nodes
   if (slipnodes->NumMyElements() == 0) return;
 
   // information from interface contact parameter list
-  auto ftype =
-      Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(interface_params(), "FRICTION");
-  if (ftype != Inpar::CONTACT::friction_coulomb) FOUR_C_THROW("only coulomb friction for CTSI");
+  auto ftype = Teuchos::getIntegralValue<CONTACT::FrictionType>(interface_params(), "FRICTION");
+  if (ftype != CONTACT::FrictionType::coulomb) FOUR_C_THROW("only coulomb friction for CTSI");
 
   if (n_dim() != 3) FOUR_C_THROW("CTSI only for 3D");
 
@@ -195,7 +195,7 @@ void CONTACT::TSIInterface::assemble_lin_slip(Core::LinAlg::SparseMatrix& linsli
   // consistent equation is:
   // || z_t^tr || z_t - \mu (z_n -c_n*wgap) z_t^tr = 0
 
-  typedef std::map<int, double>::const_iterator _CI;
+  using _CI = std::map<int, double>::const_iterator;
   // loop over all stick nodes of the interface
   for (int i = 0; i < slipnodes->NumMyElements(); ++i)
   {
@@ -243,7 +243,7 @@ void CONTACT::TSIInterface::assemble_lin_slip(Core::LinAlg::SparseMatrix& linsli
     double fac = lm_n - cn * wgap;
     for (_CI p = dfrdT.begin(); p != dfrdT.end(); ++p)
     {
-      if (constr_direction_ == Inpar::CONTACT::constr_xyz)
+      if (constr_direction_ == CONTACT::ConstraintDirection::xyz)
         for (int j = 0; j < n_dim(); ++j)
         {
           linslipTEMPglobal.assemble(
@@ -259,7 +259,7 @@ void CONTACT::TSIInterface::assemble_lin_slip(Core::LinAlg::SparseMatrix& linsli
     }
     for (_CI p = dfrdD.begin(); p != dfrdD.end(); ++p)
     {
-      if (constr_direction_ == Inpar::CONTACT::constr_xyz)
+      if (constr_direction_ == CONTACT::ConstraintDirection::xyz)
         for (int j = 0; j < n_dim(); ++j)
         {
           linslipDISglobal.assemble(
@@ -384,7 +384,7 @@ void CONTACT::TSIInterface::assemble_dual_mass_lumped(
 
 void CONTACT::TSIInterface::assemble_lin_dm_x(Core::LinAlg::SparseMatrix* linD_X,
     Core::LinAlg::SparseMatrix* linM_X, const double fac, const LinDmXMode mode,
-    const std::shared_ptr<Epetra_Map> node_rowmap)
+    const std::shared_ptr<Core::LinAlg::Map> node_rowmap)
 {
   // get out if there's nothing to do
   if (linD_X == nullptr && linM_X == nullptr) return;
@@ -556,8 +556,8 @@ void CONTACT::TSIInterface::assemble_dm_lin_diss(Core::LinAlg::SparseMatrix* d_L
   // there's no dissipation without friction
   if (!friction_) return;
 
-  typedef std::map<int, double>::const_iterator _cim;
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator _cip;
+  using _cim = std::map<int, double>::const_iterator;
+  using _cip = Core::Gen::Pairedvector<int, double>::const_iterator;
 
   const double dt = interface_params().get<double>("TIMESTEP");
 
@@ -576,7 +576,7 @@ void CONTACT::TSIInterface::assemble_dm_lin_diss(Core::LinAlg::SparseMatrix* d_L
     const Core::LinAlg::Matrix<3, 1> n(cnode->mo_data().n(), true);
 
     // projection into tangential plane = 1 - n \otimes n
-    Core::LinAlg::Matrix<3, 3> tang_proj(true);
+    Core::LinAlg::Matrix<3, 3> tang_proj(Core::LinAlg::Initialization::zero);
     for (int i = 0; i < 3; ++i) tang_proj(i, i) = 1.;
     tang_proj.multiply_nt(-1., n, n, 1.);
 
@@ -680,9 +680,9 @@ void CONTACT::TSIInterface::assemble_lin_l_mn_dm_temp(
   // get out if there's nothing to do
   if (lin_disp == nullptr) FOUR_C_THROW("called to assemble something but didn't provide a matrix");
 
-  typedef std::map<int, double>::const_iterator _cim;
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator _cip;
-  typedef std::map<int, std::map<int, double>>::const_iterator _cimm;
+  using _cim = std::map<int, double>::const_iterator;
+  using _cip = Core::Gen::Pairedvector<int, double>::const_iterator;
+  using _cimm = std::map<int, std::map<int, double>>::const_iterator;
 
   // loop over all LM slave nodes (row map)
   for (int j = 0; j < activenodes_->NumMyElements(); ++j)
@@ -758,8 +758,8 @@ void CONTACT::TSIInterface::assemble_dm_l_mn(const double fac, Core::LinAlg::Spa
   // get out if there's nothing to do
   if (DM_LMn == nullptr) FOUR_C_THROW("called to assemble something but didn't provide a matrix");
 
-  typedef std::map<int, double>::const_iterator _cim;
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator _cip;
+  using _cim = std::map<int, double>::const_iterator;
+  using _cip = Core::Gen::Pairedvector<int, double>::const_iterator;
 
   // loop over all LM slave nodes (row map)
   for (int j = 0; j < activenodes_->NumMyElements(); ++j)
@@ -802,7 +802,8 @@ void CONTACT::TSIInterface::assemble_inactive(Core::LinAlg::SparseMatrix* linCon
     FOUR_C_THROW("called to assemble something but didn't provide a matrix");
 
   // inactive nodes
-  std::shared_ptr<Epetra_Map> inactivenodes = Core::LinAlg::split_map(*snoderowmap_, *activenodes_);
+  std::shared_ptr<Core::LinAlg::Map> inactivenodes =
+      Core::LinAlg::split_map(*snoderowmap_, *activenodes_);
 
   // loop over all LM slave nodes (row map)
   for (int j = 0; j < inactivenodes->NumMyElements(); ++j)

@@ -49,7 +49,7 @@ namespace NOX
     class LinearSystem : public ::NOX::Epetra::LinearSystem
     {
      public:
-      typedef std::map<NOX::Nln::SolutionType, Teuchos::RCP<Core::LinAlg::Solver>> SolverMap;
+      using SolverMap = std::map<NOX::Nln::SolutionType, Teuchos::RCP<Core::LinAlg::Solver>>;
 
      protected:
       //! Source of the RowMatrix if using a native preconditioner
@@ -157,7 +157,7 @@ namespace NOX
        *
        *  \param rbid  row block id
        *  \param cbid  column block id */
-      const Epetra_Map& get_jacobian_range_map(unsigned rbid, unsigned cbid) const;
+      const Core::LinAlg::Map& get_jacobian_range_map(unsigned rbid, unsigned cbid) const;
 
       /** \brief access the Jacobian block
        *
@@ -231,7 +231,7 @@ namespace NOX
        *  Nevertheless, the here computed eigenvalues are the exact ones.
        *
        *  \return the computed condition number.
-       *  \author hiermeier \date 04/18 */
+       *  */
       void compute_serial_eigenvalues_of_jacobian(Core::LinAlg::SerialDenseVector& reigenvalues,
           Core::LinAlg::SerialDenseVector& ieigenvalues) const;
 
@@ -282,7 +282,7 @@ namespace NOX
        *  \param linProblem (in) : Solved linear problem
        *  \param lhs        (out): left-hand-side vector which can be extended
        *
-       *  \author hiermeier \date 04/17 */
+       *  */
       virtual void complete_solution_after_solve(
           const Epetra_LinearProblem& linProblem, Core::LinAlg::Vector<double>& lhs) const;
 
@@ -291,8 +291,8 @@ namespace NOX
 
       /// convert sparse matrix to dense matrix
       void convert_sparse_to_dense_matrix(const Core::LinAlg::SparseMatrix& sparse,
-          Core::LinAlg::SerialDenseMatrix& dense, const Epetra_Map& full_rangemap,
-          const Epetra_Map& full_domainmap) const;
+          Core::LinAlg::SerialDenseMatrix& dense, const Core::LinAlg::Map& full_rangemap,
+          const Core::LinAlg::Map& full_domainmap) const;
 
       /// prepare the dense matrix in case of a block sparse matrix
       void prepare_block_dense_matrix(const Core::LinAlg::BlockSparseMatrixBase& block_sparse,

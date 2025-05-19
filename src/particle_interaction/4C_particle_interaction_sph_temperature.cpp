@@ -17,6 +17,7 @@
 #include "4C_particle_interaction_utils.hpp"
 #include "4C_utils_exceptions.hpp"
 
+#include <Teuchos_StandardParameterEntryValidators.hpp>
 #include <Teuchos_TimeMonitor.hpp>
 
 FOUR_C_NAMESPACE_OPEN
@@ -92,8 +93,8 @@ void ParticleInteraction::SPHTemperature::setup(
 
     // safety check
     if (not(thermomaterial_[type_i]->thermalCapacity_ > 0.0))
-      FOUR_C_THROW("thermal capacity for particles of type '%s' not positive!",
-          PARTICLEENGINE::enum_to_type_name(type_i).c_str());
+      FOUR_C_THROW("thermal capacity for particles of type '{}' not positive!",
+          PARTICLEENGINE::enum_to_type_name(type_i));
   }
 
   // setup heat source handler

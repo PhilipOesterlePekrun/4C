@@ -34,15 +34,13 @@ namespace Core::FE
 /// Subclass of ParObjectType that adds element type specific methods
 /*!
   Element types need to be initialized. Furthermore, there is a pre_evaluate
-  method and the ability to read elements from dat files. And finally the
+  method and the ability to read elements from input files. And finally the
   element specific setup of null spaces for multi grid preconditioning is
   here, too.
 
   \note There are boundary elements that do not need all of this
   functionality.
 
-  \author u.kue
-  \date 06/10
  */
 
 namespace Core::Elements
@@ -54,13 +52,13 @@ namespace Core::Elements
     ElementType();
 
    public:
-    /// setup the dat file input line definitions for this type of element
+    /// setup the input file input line definitions for this type of element
     virtual void setup_element_definition(
         std::map<std::string, std::map<std::string, Core::IO::InputSpec>>& definitions)
     {
     }
 
-    /// create an element from a dat file specifier
+    /// create an element from an input file specifier
     virtual std::shared_ptr<Element> create(
         const std::string eletype, const std::string eledistype, const int id, const int owner)
     {
@@ -72,17 +70,6 @@ namespace Core::Elements
 
     /// initialize the element type
     virtual int initialize(Core::FE::Discretization& dis);
-
-    /// preevaluation
-    virtual inline void pre_evaluate(Core::FE::Discretization& dis, Teuchos::ParameterList& p,
-        std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix1,
-        std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix2,
-        std::shared_ptr<Core::LinAlg::Vector<double>> systemvector1,
-        std::shared_ptr<Core::LinAlg::Vector<double>> systemvector2,
-        std::shared_ptr<Core::LinAlg::Vector<double>> systemvector3)
-    {
-      return;
-    }
 
     /*!
     \brief Get nodal block information to create a null space description

@@ -12,7 +12,7 @@
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_node.hpp"
 #include "4C_io_input_spec_builders.hpp"
-#include "4C_so3_nullspace.hpp"
+#include "4C_solid_3D_ele_nullspace.hpp"
 #include "4C_structure_new_elements_paramsinterface.hpp"
 #include "4C_utils_shared_ptr_from_ref.hpp"
 
@@ -64,7 +64,7 @@ void Discret::Elements::Truss3Type::nodal_block_information(
 Core::LinAlg::SerialDenseMatrix Discret::Elements::Truss3Type::compute_null_space(
     Core::Nodes::Node& node, const double* x0, const int numdof, const int dimnsp)
 {
-  return compute_solid_3d_null_space(node, x0);
+  return compute_solid_null_space<3>(node.x(), x0);
 }
 
 void Discret::Elements::Truss3Type::setup_element_definition(
@@ -75,10 +75,10 @@ void Discret::Elements::Truss3Type::setup_element_definition(
   using namespace Core::IO::InputSpecBuilders;
 
   defs["LINE2"] = all_of({
-      entry<std::vector<int>>("LINE2", {.size = 2}),
-      entry<int>("MAT"),
-      entry<double>("CROSS"),
-      entry<std::string>("KINEM"),
+      parameter<std::vector<int>>("LINE2", {.size = 2}),
+      parameter<int>("MAT"),
+      parameter<double>("CROSS"),
+      parameter<std::string>("KINEM"),
   });
 }
 
@@ -92,7 +92,7 @@ Discret::Elements::Truss3::Truss3(int id, int owner)
       eint_(0.0),
       lrefe_(0.0),
       gaussrule_(Core::FE::GaussRule1D::line_2point),
-      diff_disp_ref_(Core::LinAlg::Matrix<1, 3>(true)),
+      diff_disp_ref_(Core::LinAlg::Matrix<1, 3>(Core::LinAlg::Initialization::zero)),
       interface_ptr_(nullptr),
       isinit_(false),
       jacobimass_(),
@@ -119,7 +119,6 @@ Discret::Elements::Truss3::Truss3(const Discret::Elements::Truss3& old)
       kintype_(old.kintype_),
       material_(old.material_),
       x_(old.x_)
-
 {
 }
 /*----------------------------------------------------------------------*
@@ -349,7 +348,7 @@ int Discret::Elements::Truss3Type::initialize(Core::FE::Discretization& dis)
   std::vector<double> xrefe;
 
   // reference nodal tangent positions
-  Core::LinAlg::Matrix<3, 1> trefNodeAux(true);
+  Core::LinAlg::Matrix<3, 1> trefNodeAux(Core::LinAlg::Initialization::zero);
   // resize vectors for the number of coordinates we need to store
   xrefe.resize(3 * 2);
 

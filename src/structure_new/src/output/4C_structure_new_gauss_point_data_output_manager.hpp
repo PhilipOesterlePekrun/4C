@@ -26,6 +26,15 @@ namespace Discret
   class Exporter;
 }
 
+namespace Core::LinAlg
+{
+  template <typename T>
+  class MultiVector;
+
+  template <typename T>
+  class Vector;
+}  // namespace Core::LinAlg
+
 namespace Solid
 {
   namespace ModelEvaluator
@@ -41,7 +50,8 @@ namespace Solid
 
       void add_element_number_of_gauss_points(int numgp);
 
-      void prepare_data(const Epetra_Map& node_col_map, const Epetra_Map& element_row_map);
+      void prepare_data(
+          const Core::LinAlg::Map& node_col_map, const Core::LinAlg::Map& element_row_map);
 
       void post_evaluate();
 
@@ -126,11 +136,11 @@ namespace Solid
       void unpack_quantities(Core::Communication::UnpackBuffer& buffer,
           std::unordered_map<std::string, int>& quantities) const;
 
-      void prepare_nodal_data_vectors(const Epetra_Map& node_col_map);
+      void prepare_nodal_data_vectors(const Core::LinAlg::Map& node_col_map);
 
-      void prepare_element_center_data_vectors(const Epetra_Map& element_col_map);
+      void prepare_element_center_data_vectors(const Core::LinAlg::Map& element_col_map);
 
-      void prepare_gauss_point_data_vectors(const Epetra_Map& element_col_map);
+      void prepare_gauss_point_data_vectors(const Core::LinAlg::Map& element_col_map);
 
       //! output type of the data
       Inpar::Solid::GaussPointDataOutputType output_type_;

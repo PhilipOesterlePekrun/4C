@@ -154,8 +154,8 @@ namespace
       FOUR_C_THROW(
           "It is not allowed to set primary variables of your problem as constants in the "
           "VARFUNCTION.\n\n"
-          "Variables passed to Evaluate: %s \n"
-          "Constants from Input: %s",
+          "Variables passed to Evaluate: {} \n"
+          "Constants from Input: {}",
           join_keys(variable_values).c_str(), join_keys(constants_from_input).c_str());
     }
   }
@@ -177,10 +177,10 @@ Core::Utils::try_create_symbolic_function_of_anything(
     std::string component = function_lin_def.get<std::string>("VARFUNCTION");
 
     std::vector<std::pair<std::string, double>> constants;
-    if (function_lin_def.get_if<std::vector<std::pair<std::string, double>>>("CONSTANTS") !=
-        nullptr)
+    if (auto* constants_map = function_lin_def.get_if<std::map<std::string, double>>("CONSTANTS");
+        constants_map)
     {
-      constants = function_lin_def.get<std::vector<std::pair<std::string, double>>>("CONSTANTS");
+      constants.insert(constants.end(), constants_map->begin(), constants_map->end());
     }
 
     return std::make_shared<Core::Utils::SymbolicFunctionOfAnything>(component, constants);
@@ -218,7 +218,11 @@ Core::Utils::try_create_symbolic_function_of_space_time(
   bool found_function_of_space_time(false);
   for (const auto& ith_function_lin_def : parameters)
   {
-    ignore_errors_in([&]() { maxcomp = ith_function_lin_def.get<int>("COMPONENT"); });
+    // We need to use get_if since we call this function for lines that are completely wrong.
+    // This will go away when the functions are restructured.
+    auto* comp = ith_function_lin_def.get_if<std::optional<int>>("COMPONENT");
+    if (comp) maxcomp = comp->value_or(maxcomp);
+
     ignore_errors_in([&]() { maxvar = ith_function_lin_def.get<int>("VARIABLE"); });
     if (ith_function_lin_def.get_if<std::string>("SYMBOLIC_FUNCTION_OF_SPACE_TIME") != nullptr)
       found_function_of_space_time = true;
@@ -239,9 +243,8 @@ Core::Utils::try_create_symbolic_function_of_space_time(
     const auto& functcomp = parameters[n];
 
     // check the validity of the n-th component
-    int compid = 0;
-    ignore_errors_in([&]() { compid = functcomp.get<int>("COMPONENT"); });
-    if (compid != n) FOUR_C_THROW("expected COMPONENT %d but got COMPONENT %d", n, compid);
+    const int compid = functcomp.get<std::optional<int>>("COMPONENT").value_or(0);
+    if (compid != n) FOUR_C_THROW("expected COMPONENT {} but got COMPONENT {}", n, compid);
 
 
     // read the expression of the n-th component of the i-th function
@@ -354,7 +357,7 @@ Core::Utils::try_create_symbolic_function_of_space_time(
       const bool names_of_all_pieces_equal = std::all_of(
           pieces.begin(), pieces.end(), [&name](auto& var) { return var->name() == name; });
       if (not names_of_all_pieces_equal)
-        FOUR_C_THROW("Variable %d has a piece-wise definition with inconsistent names.", id);
+        FOUR_C_THROW("Variable {} has a piece-wise definition with inconsistent names.", id);
 
       functvarvector.emplace_back(std::make_shared<PiecewiseVariable>(name, pieces));
     }
@@ -385,7 +388,7 @@ double Core::Utils::SymbolicFunctionOfSpaceTime::evaluate(
 
   if (component_mod >= expr_.size())
     FOUR_C_THROW(
-        "There are %d expressions but tried to access component %d", expr_.size(), component);
+        "There are {} expressions but tried to access component {}", expr_.size(), component);
 
   // create map for variables
   std::map<std::string, double> variable_values;
@@ -415,7 +418,7 @@ std::vector<double> Core::Utils::SymbolicFunctionOfSpaceTime::evaluate_spatial_d
 
   if (component_mod >= expr_.size())
     FOUR_C_THROW(
-        "There are %d expressions but tried to access component %d", expr_.size(), component);
+        "There are {} expressions but tried to access component {}", expr_.size(), component);
 
 
   // variables

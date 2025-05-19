@@ -42,8 +42,6 @@ namespace Discret
      This is the poro P1 implementation, i.e. meant to be coupled with a structure problem
      which solves for the porosity. For the fluid not much changes compared with the
      standard implementation. Only the porosity is evaluated in a different way.
-
-     \author vuong 10/14
      */
     template <Core::FE::CellType distype>
     class FluidEleCalcPoroP1 : public FluidEleCalcPoro<distype>
@@ -70,22 +68,19 @@ namespace Discret
       \param lm               (i) location matrix of element
       \param params           (i) element parameter list
       \param mat              (i) material
-      \param elemat1_epetra   (o) element matrix to calculate
-      \param elemat2_epetra   (o) element matrix to calculate
-      \param elevec1_epetra   (o) element vector to calculate
-      \param elevec2_epetra   (o) element vector to calculate
-      \param elevec3_epetra   (o) element vector to calculate
+      \param elemat1          (o) element matrix to calculate
+      \param elemat2          (o) element matrix to calculate
+      \param elevec1          (o) element vector to calculate
+      \param elevec2          (o) element vector to calculate
+      \param elevec3          (o) element vector to calculate
       \param intpoints        (i) Gaussian integration points
 
       */
       int evaluate(Discret::Elements::Fluid* ele, Core::FE::Discretization& discretization,
           const std::vector<int>& lm, Teuchos::ParameterList& params,
-          std::shared_ptr<Core::Mat::Material>& mat,
-          Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec3_epetra,
+          std::shared_ptr<Core::Mat::Material>& mat, Core::LinAlg::SerialDenseMatrix& elemat1,
+          Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+          Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3,
           const Core::FE::GaussIntegration& intpoints) override;
 
       /*!
@@ -97,22 +92,19 @@ namespace Discret
       \param lm               (i) location matrix of element
       \param params           (i) element parameter list
       \param mat              (i) material
-      \param elemat1_epetra   (o) element matrix to calculate
-      \param elemat2_epetra   (o) element matrix to calculate
-      \param elevec1_epetra   (o) element vector to calculate
-      \param elevec2_epetra   (o) element vector to calculate
-      \param elevec3_epetra   (o) element vector to calculate
+      \param elemat1          (o) element matrix to calculate
+      \param elemat2          (o) element matrix to calculate
+      \param elevec1          (o) element vector to calculate
+      \param elevec2          (o) element vector to calculate
+      \param elevec3          (o) element vector to calculate
       \param intpoints        (i) Gaussian integration points
 
       */
       int evaluate_od(Discret::Elements::Fluid* ele, Core::FE::Discretization& discretization,
           const std::vector<int>& lm, Teuchos::ParameterList& params,
-          std::shared_ptr<Core::Mat::Material>& mat,
-          Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec3_epetra,
+          std::shared_ptr<Core::Mat::Material>& mat, Core::LinAlg::SerialDenseMatrix& elemat1,
+          Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+          Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3,
           const Core::FE::GaussIntegration& intpoints) override;
 
      protected:

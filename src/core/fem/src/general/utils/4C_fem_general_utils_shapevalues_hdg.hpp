@@ -84,15 +84,13 @@ namespace Core::FE
   /// Helper class for evaluating HDG polynomials, geometry, etc.
   /*!
 
-    \author kronbichler
-    \date 05/14
   */
   template <Core::FE::CellType distype>
   class ShapeValues
   {
    public:
     //! nen_: number of element nodes (T. Hughes: The Finite Element Method)
-    static constexpr unsigned int nen_ = Core::FE::num_nodes<distype>;
+    static constexpr unsigned int nen_ = Core::FE::num_nodes(distype);
 
     //! number of space dimensions
     static constexpr unsigned int nsd_ = Core::FE::dim<distype>;
@@ -172,15 +170,13 @@ namespace Core::FE
   /// Helper class for evaluating HDG polynomials, geometry, etc.
   /*!
 
-    \author schoeder
-    \date 06/14
   */
   template <Core::FE::CellType distype>
   class ShapeValuesFace
   {
    public:
     //! nen_: number of element nodes (T. Hughes: The Finite Element Method)
-    static constexpr unsigned int nen_ = Core::FE::num_nodes<distype>;
+    static constexpr unsigned int nen_ = Core::FE::num_nodes(distype);
 
     ///! number of nodes on faces
     static constexpr unsigned int nfn_ = Core::FE::DisTypeToNumNodePerFace<distype>::numNodePerFace;
@@ -272,8 +268,6 @@ namespace Core::FE
 
     \note
     The routine is only used in 3D so far and therefore tested only in this case.
-
-    \Author: Berardocco
      */
     void compute_face_reference_system(const Core::Elements::Element& ele, const unsigned int face);
   };

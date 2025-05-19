@@ -97,7 +97,7 @@ bool Cut::Side::find_cut_lines(Mesh& mesh, Element* element, Side& other)
       if (not l->is_cut(element))
       {
         FOUR_C_THROW(
-            "Line (%d, %d) is cut by both sides but not by the element, check this "
+            "Line ({}, {}) is cut by both sides but not by the element, check this "
             "situation as it is not expected!",
             l->begin_point()->id(), l->end_point()->id());
         // l->add_element( element );
@@ -152,7 +152,6 @@ bool Cut::Side::find_cut_lines(Mesh& mesh, Element* element, Side& other)
   }
 
   FOUR_C_THROW("How did you get here?");
-  exit(EXIT_FAILURE);
 }
 
 /*----------------------------------------------------------------------------*
@@ -684,7 +683,7 @@ bool Cut::Side::create_parallel_cut_surface(Mesh& mesh, Element* element, Side& 
   {
     // map to find out which location id  on parallel surface each point has
     std::map<Point*, unsigned int> unique_points;
-    typedef std::map<Point*, unsigned int> unique_points_map;
+    using unique_points_map = std::map<Point*, unsigned int>;
 
     // trying to find duplicate points and remove points between them
     for (std::vector<Point*>::iterator it = cut_points_for_lines.begin();
@@ -860,7 +859,7 @@ bool Cut::Side::create_parallel_cut_surface(Mesh& mesh, Element* element, Side& 
       Point* p1 = *it;
       Point* p2 = *next;
       if (p1 == p2)
-        FOUR_C_THROW("Trying to create line between two points, which are the same! Point id is %d",
+        FOUR_C_THROW("Trying to create line between two points, which are the same! Point id is {}",
             p1->id());
       mesh.new_line(p1, p2, this, &other, element);
     }
@@ -1381,11 +1380,9 @@ unsigned Cut::Side::uncut_facet_number_per_side() const
     case 1:
       return 2;
     default:
-      FOUR_C_THROW("Unsupported parent element dimension! (ele->Dim() = %d )", ele_dim);
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("Unsupported parent element dimension! (ele->Dim() = {} )", ele_dim);
   }
   // can never be reached
-  exit(EXIT_FAILURE);
 }
 
 /*----------------------------------------------------------------------------*
@@ -1580,7 +1577,7 @@ bool Cut::ConcreteSide<probdim, sidetype, num_nodes_side, dim>::is_closer_side(
 {
   /* shoot a ray starting from the startpoint through the midpoint of this side
    * and find an intersection point with the other side */
-  Core::LinAlg::Matrix<probdim, 1> ray_point_xyz(true);
+  Core::LinAlg::Matrix<probdim, 1> ray_point_xyz(Core::LinAlg::Initialization::zero);
   // as second point on the ray we define the midpoint of this side
 
 
@@ -1590,7 +1587,7 @@ bool Cut::ConcreteSide<probdim, sidetype, num_nodes_side, dim>::is_closer_side(
    * almost parallel sides and a start-point next to the common point of the sides
    * the side-center might lead to a ray which is almost parallel to the other side */
 
-  Core::LinAlg::Matrix<dim, num_nodes_side> corner_coords_rst(true);
+  Core::LinAlg::Matrix<dim, num_nodes_side> corner_coords_rst(Core::LinAlg::Initialization::zero);
   this->local_corner_coordinates(corner_coords_rst.data());
 
   /* shrink/perturb the local coordinates around the center point with a given
@@ -1601,7 +1598,8 @@ bool Cut::ConcreteSide<probdim, sidetype, num_nodes_side, dim>::is_closer_side(
   //-----------------------------
   // get perturbed coordinates
   //-----------------------------
-  Core::LinAlg::Matrix<dim, num_nodes_side> inner_corner_coords_rst(true);
+  Core::LinAlg::Matrix<dim, num_nodes_side> inner_corner_coords_rst(
+      Core::LinAlg::Initialization::zero);
 
   // 1. transform such that coordinates center is located in the element center
   for (unsigned i = 0; i < num_nodes_side; ++i)
@@ -1628,11 +1626,11 @@ bool Cut::ConcreteSide<probdim, sidetype, num_nodes_side, dim>::is_closer_side(
    * as possible to guarantee well-conditioned systems for finding ray-cut points */
   //-----------------------------
 
-  Core::LinAlg::Matrix<probdim, 1> xyz(true);
-  Core::LinAlg::Matrix<probdim, 1> ray_dir(true);
+  Core::LinAlg::Matrix<probdim, 1> xyz(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<probdim, 1> ray_dir(Core::LinAlg::Initialization::zero);
 
   // get normal of other side at its center
-  Core::LinAlg::Matrix<probdim, 1> t1, t2, n(true);
+  Core::LinAlg::Matrix<probdim, 1> t1, t2, n(Core::LinAlg::Initialization::zero);
   other->basis_at_center(t1, t2, n);
 
 
@@ -1666,7 +1664,7 @@ bool Cut::ConcreteSide<probdim, sidetype, num_nodes_side, dim>::is_closer_side(
   /* shoot the ray and find a cutpoint with the other side's plane or curved
    * surface space */
   //-----------------------------
-  Core::LinAlg::Matrix<dim, 1> rs(true);
+  Core::LinAlg::Matrix<dim, 1> rs(Core::LinAlg::Initialization::zero);
   double line_xi = 0.0;
 
   bool cut_found = other->ray_cut(startpoint_xyz, ray_point_xyz, rs, line_xi);
@@ -1776,7 +1774,7 @@ bool Cut::ConcreteSide<probdim, sidetype, num_nodes_side, dim>::local_coordinate
 {
   std::shared_ptr<Position> pos = PositionFactory::build_position<probdim, sidetype>(*this, xyz);
   bool success = pos->compute(tol, allow_dist);
-  Core::LinAlg::Matrix<dim, 1> rs(true);
+  Core::LinAlg::Matrix<dim, 1> rs(Core::LinAlg::Initialization::zero);
   if (pos->status() == Position::position_valid) pos->local_coordinates(rs);
   // copy the position
   std::copy(rs.data(), rs.data() + dim, &rsd(0));
@@ -1797,7 +1795,6 @@ bool Cut::ConcreteSide<probdim, sidetype, num_nodes_side, dim>::local_coordinate
       FOUR_C_THROW(
           "Unsupported dim / probdim combination. I think this can't happen "
           "for side elements. If I'm wrong, just ask me. -- hiermeier");
-      exit(EXIT_FAILURE);
     }
     /* For a 1-D and a 2-D problem, the side dimension is equal to the problem
      * dimension */
@@ -1819,10 +1816,10 @@ bool Cut::ConcreteSide<probdim, sidetype, num_nodes_side, dim>::ray_cut(
     const Core::LinAlg::Matrix<probdim, 1>& p1_xyz, const Core::LinAlg::Matrix<probdim, 1>& p2_xyz,
     Core::LinAlg::Matrix<dim, 1>& rs, double& line_xi)
 {
-  Core::LinAlg::Matrix<probdim, num_nodes_side> xyze_surface(true);
+  Core::LinAlg::Matrix<probdim, num_nodes_side> xyze_surface(Core::LinAlg::Initialization::zero);
   this->coordinates(xyze_surface);
 
-  Core::LinAlg::Matrix<probdim, 2> xyze_line(true);
+  Core::LinAlg::Matrix<probdim, 2> xyze_line(Core::LinAlg::Initialization::zero);
   for (unsigned i = 0; i < probdim; ++i)
   {
     xyze_line(i, 0) = p1_xyz(i);
@@ -1830,7 +1827,7 @@ bool Cut::ConcreteSide<probdim, sidetype, num_nodes_side, dim>::ray_cut(
   }
   /* The dim+1 entry corresponds to the parameter space coordinate of the
    * 1-D line element. */
-  Core::LinAlg::Matrix<dim + 1, 1> xsi(true);
+  Core::LinAlg::Matrix<dim + 1, 1> xsi(Core::LinAlg::Initialization::zero);
 
   // do not check for within-limits during the Newton-scheme, since the cut-point is
   // allowed to be not within the side and line
@@ -1876,8 +1873,7 @@ Cut::Side* Cut::SideFactory::create_side(Core::FE::CellType sidetype, int sid,
       break;
     default:
     {
-      FOUR_C_THROW("Unsupported side type! ( %d | %s )", sidetype,
-          Core::FE::cell_type_to_string(sidetype).c_str());
+      FOUR_C_THROW("Unsupported side type! ( {} )", Core::FE::cell_type_to_string(sidetype));
       break;
     }
   }
@@ -1900,7 +1896,7 @@ Cut::Side* Cut::Side::create_level_set_side(const int& sid)
       lvs_side_ptr = new LevelSetSide<3>(sid);
       break;
     default:
-      FOUR_C_THROW("Unsupported problem dimension! (probdim=%d)", probdim);
+      FOUR_C_THROW("Unsupported problem dimension! (probdim={})", probdim);
       break;
   }
   return lvs_side_ptr;

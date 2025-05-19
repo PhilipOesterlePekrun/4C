@@ -96,11 +96,11 @@ void SSI::SSIPart1WC::do_scatra_step()
         std::shared_ptr<Core::LinAlg::MultiVector<double>> phinptemp = reader.read_vector("phinp");
 
         // replace old scatra map with new map since ssi map has more dofs
-        int err = phinptemp->ReplaceMap(*scatra_field()->dof_row_map());
+        int err = phinptemp->ReplaceMap(scatra_field()->dof_row_map()->get_epetra_map());
         if (err) FOUR_C_THROW("Replacing old scatra map with new scatra map in ssi failed!");
 
         // update phinp
-        scatra_field()->phinp()->Update(1.0, *phinptemp, 0.0);
+        scatra_field()->phinp()->update(1.0, *phinptemp, 0.0);
       }
       else
       {
@@ -112,11 +112,11 @@ void SSI::SSIPart1WC::do_scatra_step()
         reader.read_vector(phinptemp, "phinp");
 
         // replace old scatra map with new map since ssi map has more dofs
-        int err = phinptemp->ReplaceMap(*scatra_field()->dof_row_map());
+        int err = phinptemp->replace_map(*scatra_field()->dof_row_map());
         if (err) FOUR_C_THROW("Replacing old scatra map with new scatra map in ssi failed!");
 
         // update phinp
-        scatra_field()->phinp()->Update(1.0, *phinptemp, 0.0);
+        scatra_field()->phinp()->update(1.0, *phinptemp, 0.0);
       }
     }
   }
@@ -166,9 +166,9 @@ void SSI::SSIPart1WCSolidToScatra::prepare_time_step(bool printheader)
 
   if (structure_field()->step() % diffsteps == 0)
   {
-    if (is_s2_i_kinetics_with_pseudo_contact()) structure_field()->determine_stress_strain();
-    set_struct_solution(structure_field()->dispn(), structure_field()->veln(),
-        is_s2_i_kinetics_with_pseudo_contact());
+    if (is_s2i_kinetics_with_pseudo_contact()) structure_field()->determine_stress_strain();
+    set_struct_solution(*structure_field()->dispn(), structure_field()->veln(),
+        is_s2i_kinetics_with_pseudo_contact());
     scatra_field()->prepare_time_step();
   }
 }
@@ -237,9 +237,9 @@ void SSI::SSIPart1WCSolidToScatra::timeloop()
                        // itself.
     if (structure_field()->step() % diffsteps == 0)
     {
-      if (is_s2_i_kinetics_with_pseudo_contact()) structure_field()->determine_stress_strain();
-      set_struct_solution(structure_field()->dispnp(), structure_field()->velnp(),
-          is_s2_i_kinetics_with_pseudo_contact());
+      if (is_s2i_kinetics_with_pseudo_contact()) structure_field()->determine_stress_strain();
+      set_struct_solution(*structure_field()->dispnp(), structure_field()->velnp(),
+          is_s2i_kinetics_with_pseudo_contact());
       do_scatra_step();  // It has its own time and timestep variables, and it increments them by
                          // itself.
     }
@@ -289,7 +289,7 @@ void SSI::SSIPart1WCScatraToSolid::timeloop()
 
   // set zero velocity and displacement field for scatra
   auto zeros_structure = Core::LinAlg::create_vector(*structure_field()->dof_row_map(), true);
-  set_struct_solution(zeros_structure, zeros_structure, false);
+  set_struct_solution(*zeros_structure, zeros_structure, false);
 
   scatra_field()->prepare_time_loop();
 

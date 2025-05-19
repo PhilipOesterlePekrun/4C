@@ -24,11 +24,11 @@
 #include "4C_binstrategy_meshfree_multibin.hpp"
 #include "4C_constraint_element2.hpp"
 #include "4C_constraint_element3.hpp"
+#include "4C_contact_constitutivelaw_valid_laws.hpp"
 #include "4C_contact_element.hpp"
 #include "4C_contact_friction_node.hpp"
 #include "4C_contact_node.hpp"
-#include "4C_elemag_diff_ele.hpp"
-#include "4C_elemag_ele.hpp"
+#include "4C_fem_general_utils_createdis.hpp"
 #include "4C_fem_nurbs_discretization_control_point.hpp"
 #include "4C_fluid_ele.hpp"
 #include "4C_fluid_ele_hdg.hpp"
@@ -38,7 +38,10 @@
 #include "4C_fluid_functions.hpp"
 #include "4C_fluid_xfluid_functions.hpp"
 #include "4C_fluid_xfluid_functions_combust.hpp"
+#include "4C_global_legacy_module_validconditions.hpp"
 #include "4C_global_legacy_module_validmaterials.hpp"
+#include "4C_global_legacy_module_validparameters.hpp"
+#include "4C_io_input_file_utils.hpp"
 #include "4C_io_input_spec_builders.hpp"
 #include "4C_lubrication_ele.hpp"
 #include "4C_mat_aaaneohooke.hpp"
@@ -51,7 +54,6 @@
 #include "4C_mat_damage.hpp"
 #include "4C_mat_elasthyper.hpp"
 #include "4C_mat_elchmat.hpp"
-#include "4C_mat_electromagnetic.hpp"
 #include "4C_mat_fluid_linear_density_viscosity.hpp"
 #include "4C_mat_fluid_murnaghantait.hpp"
 #include "4C_mat_fluid_weakly_compressible.hpp"
@@ -69,7 +71,6 @@
 #include "4C_mat_list_chemoreac.hpp"
 #include "4C_mat_list_chemotaxis.hpp"
 #include "4C_mat_list_reactions.hpp"
-#include "4C_mat_materialdefinition.hpp"
 #include "4C_mat_maxwell_0d_acinus.hpp"
 #include "4C_mat_maxwell_0d_acinus_DoubleExponential.hpp"
 #include "4C_mat_maxwell_0d_acinus_Exponential.hpp"
@@ -108,30 +109,23 @@
 #include "4C_mortar_element.hpp"
 #include "4C_mortar_node.hpp"
 #include "4C_particle_engine_object.hpp"
-#include "4C_porofluidmultiphase_ele.hpp"
-#include "4C_poromultiphase_scatra_function.hpp"
+#include "4C_porofluid_pressure_based_elast_scatra_function.hpp"
+#include "4C_porofluid_pressure_based_ele.hpp"
 #include "4C_red_airways_elementbase.hpp"
 #include "4C_rigidsphere.hpp"
 #include "4C_scatra_ele.hpp"
+#include "4C_scatra_functions.hpp"
 #include "4C_shell7p_ele.hpp"
 #include "4C_shell7p_ele_scatra.hpp"
 #include "4C_shell_kl_nurbs.hpp"
-#include "4C_so3_hex27.hpp"
-#include "4C_so3_hex8.hpp"
-#include "4C_so3_nurbs27.hpp"
-#include "4C_so3_poro_eletypes.hpp"
-#include "4C_so3_poro_p1_eletypes.hpp"
-#include "4C_so3_poro_p1_scatra_eletypes.hpp"
-#include "4C_so3_poro_scatra_eletypes.hpp"
-#include "4C_so3_sh8.hpp"
-#include "4C_so3_tet10.hpp"
-#include "4C_so3_tet4.hpp"
 #include "4C_solid_3D_ele.hpp"
 #include "4C_solid_poro_3D_ele_pressure_based.hpp"
 #include "4C_solid_poro_3D_ele_pressure_velocity_based.hpp"
+#include "4C_solid_poro_3D_ele_pressure_velocity_based_p1.hpp"
 #include "4C_solid_scatra_3D_ele.hpp"
 #include "4C_stru_multi_microstatic.hpp"
 #include "4C_structure_new_functions.hpp"
+#include "4C_structure_new_resulttest.hpp"
 #include "4C_thermo_element.hpp"
 #include "4C_torsion3.hpp"
 #include "4C_truss3.hpp"
@@ -206,26 +200,11 @@ namespace
       << Discret::Elements::Nurbs::Ale2NurbsType::instance().name() << " "
       << Discret::Elements::Bele3Type::instance().name() << " "
       << Discret::Elements::Vele3Type::instance().name() << " "
-      << Discret::Elements::Nurbs::SoNurbs27Type::instance().name() << " "
-      << Discret::Elements::SoNurbs27PoroType::instance().name() << " "
-      << Discret::Elements::SoHex8Type::instance().name() << " "
-      << Discret::Elements::SoHex8PoroType::instance().name() << " "
-      << Discret::Elements::SoHex8PoroP1Type::instance().name() << " "
-      << Discret::Elements::SoHex8Type::instance().name() << " "
       << Discret::Elements::SolidType::instance().name() << " "
       << Discret::Elements::SolidPoroPressureBasedType::instance().name() << " "
       << Discret::Elements::SolidPoroPressureVelocityBasedType::instance().name() << " "
+      << Discret::Elements::SolidPoroPressureVelocityBasedP1Type::instance().name() << " "
       << Discret::Elements::SolidScatraType::instance().name() << " "
-      << Discret::Elements::SoHex27Type::instance().name() << " "
-      << Discret::Elements::SoHex27PoroType::instance().name() << " "
-      << Discret::Elements::SoSh8Type::instance().name() << " "
-      << Discret::Elements::SoTet10Type::instance().name() << " "
-      << Discret::Elements::SoTet10PoroType::instance().name() << " "
-      << Discret::Elements::SoTet4Type::instance().name() << " "
-      << Discret::Elements::SoTet4PoroType::instance().name() << " "
-      << Discret::Elements::SoTet4PoroP1Type::instance().name() << " "
-      << Discret::Elements::SoTet4PoroScatraType::instance().name() << " "
-      << Discret::Elements::SoTet4PoroP1ScatraType::instance().name() << " "
       << Discret::Elements::ArteryType::instance().name() << " "
       << Discret::Elements::RedAirwayType::instance().name() << " "
       << Discret::Elements::RedAcinusType::instance().name() << " "
@@ -235,15 +214,9 @@ namespace
       << Discret::Elements::LubricationType::instance().name() << " "
       << Discret::Elements::PoroFluidMultiPhaseType::instance().name() << " "
       << Discret::Elements::TransportType::instance().name() << " "
-      << Thermo::ElementType::instance().name() << " "
-      << Discret::Elements::ElemagType::instance().name() << " "
-      << Discret::Elements::ElemagDiffType::instance().name() << " "
-      << Discret::Elements::ElemagBoundaryType::instance().name() << " "
-      << Discret::Elements::ElemagDiffBoundaryType::instance().name() << " "
-      << Discret::Elements::ElemagIntFaceType::instance().name() << " "
-      << Discret::Elements::ElemagDiffIntFaceType::instance().name() << " "
-      << Mat::Cnst1dArtType::instance().name() << " " << Mat::AAAneohookeType::instance().name()
-      << " " << Mat::CarreauYasudaType::instance().name() << " "
+      << Thermo::ElementType::instance().name() << " " << Mat::Cnst1dArtType::instance().name()
+      << " " << Mat::AAAneohookeType::instance().name() << " "
+      << Mat::CarreauYasudaType::instance().name() << " "
       << Mat::ConstraintMixtureType::instance().name() << " "
       << Mat::ConstraintMixtureHistoryType::instance().name() << " "
       << Mat::CrystalPlasticityType::instance().name() << " "
@@ -294,7 +267,6 @@ namespace
       << Discret::Elements::KirchhoffLoveShellNurbsType::instance().name() << " "
       << Mat::PlasticLinElastType::instance().name() << " " << Mat::RobinsonType::instance().name()
       << " " << Mat::DamageType::instance().name() << " "
-      << Mat::ElectromagneticMatType::instance().name() << " "
       << Mat::Maxwell0dAcinusType::instance().name() << " "
       << Mat::Maxwell0dAcinusNeoHookeanType::instance().name() << " "
       << Mat::Maxwell0dAcinusExponentialType::instance().name() << " "
@@ -318,7 +290,8 @@ namespace
     Discret::Utils::add_valid_combust_functions(function_manager);
     Discret::Utils::add_valid_xfluid_functions(function_manager);
     add_valid_library_functions(function_manager);
-    PoroMultiPhaseScaTra::add_valid_poro_functions(function_manager);
+    PoroPressureBased::add_valid_poro_functions(function_manager);
+    ScaTra::add_valid_scatra_functions(function_manager);
   }
 
   Core::IO::InputSpec valid_result_lines()
@@ -330,218 +303,200 @@ namespace
             {
                 one_of({
                     all_of({
-                        entry<std::string>("DIS"),
+                        parameter<std::string>("DIS"),
                         one_of({
-                            entry<int>("NODE"),
-                            entry<int>("LINE"),
-                            entry<int>("SURFACE"),
-                            entry<int>("VOLUME"),
+                            parameter<int>("NODE"),
+                            parameter<int>("LINE"),
+                            parameter<int>("SURFACE"),
+                            parameter<int>("VOLUME"),
                         }),
                     }),
-                    tag("SPECIAL"),
+                    parameter<bool>("SPECIAL"),
                 }),
-                entry<std::string>("OP", {.required = false}),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
-                entry<std::string>("NAME", {.required = false}),
+                parameter<Solid::ResultTest::TestOp>(
+                    "OP", {.default_value = Solid::ResultTest::TestOp::unknown}),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("FLUID",
             {
-                entry<std::string>("DIS"),
+                parameter<std::string>("DIS"),
                 one_of({
-                    entry<int>("NODE"),
-                    entry<int>("ELEMENT"),
+                    parameter<int>("NODE"),
+                    parameter<int>("ELEMENT"),
                 }),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
-                entry<std::string>("NAME", {.required = false}),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("XFLUID",
             {
-                entry<std::string>("DIS"),
-                entry<int>("NODE"),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
-                entry<std::string>("NAME", {.required = false}),
+                parameter<std::string>("DIS"),
+                parameter<int>("NODE"),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("ALE",
             {
-                entry<std::string>("DIS"),
-                entry<int>("NODE"),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
-                entry<std::string>("NAME", {.required = false}),
+                parameter<std::string>("DIS"),
+                parameter<int>("NODE"),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("THERMAL",
             {
-                entry<std::string>("DIS"),
-                entry<int>("NODE"),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
-                entry<std::string>("NAME", {.required = false}),
+                parameter<std::string>("DIS"),
+                parameter<int>("NODE"),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("LUBRICATION",
             {
-                entry<std::string>("DIS"),
-                entry<int>("NODE"),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
-                entry<std::string>("NAME", {.required = false}),
+                parameter<std::string>("DIS"),
+                parameter<int>("NODE"),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("POROFLUIDMULTIPHASE",
             {
-                entry<std::string>("DIS"),
+                parameter<std::string>("DIS"),
                 one_of({
-                    entry<int>("NODE"),
-                    entry<int>("ELEMENT"),
-                    tag("SPECIAL"),
+                    parameter<int>("NODE"),
+                    parameter<int>("ELEMENT"),
+                    parameter<bool>("SPECIAL"),
                 }),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
-                entry<std::string>("NAME", {.required = false}),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("SCATRA",
             {
-                entry<std::string>("DIS"),
+                parameter<std::string>("DIS"),
                 one_of({
-                    entry<int>("NODE"),
-                    tag("SPECIAL"),
+                    parameter<int>("NODE"),
+                    parameter<bool>("SPECIAL"),
                 }),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
-                entry<std::string>("NAME", {.required = false}),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("SSI",
             {
                 one_of({
                     all_of({
-                        entry<std::string>("DIS"),
-                        entry<int>("NODE"),
+                        parameter<std::string>("DIS"),
+                        parameter<int>("NODE"),
                     }),
-                    tag("SPECIAL"),
+                    parameter<bool>("SPECIAL"),
                 }),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
-                entry<std::string>("NAME", {.required = false}),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("SSTI",
             {
-                tag("SPECIAL"),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
+                parameter<bool>("SPECIAL"),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("STI",
             {
-                tag("SPECIAL"),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
+                parameter<bool>("SPECIAL"),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("RED_AIRWAY",
             {
-                entry<std::string>("DIS"),
+                parameter<std::string>("DIS"),
                 one_of({
-                    entry<int>("NODE"),
-                    entry<int>("ELEMENT"),
+                    parameter<int>("NODE"),
+                    parameter<int>("ELEMENT"),
                 }),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
-                entry<std::string>("NAME", {.required = false}),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("ARTNET",
             {
-                entry<std::string>("DIS"),
+                parameter<std::string>("DIS"),
                 one_of({
-                    entry<int>("NODE"),
-                    entry<int>("ELEMENT"),
+                    parameter<int>("NODE"),
+                    parameter<int>("ELEMENT"),
                 }),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
-                entry<std::string>("NAME", {.required = false}),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("FSI",
             {
                 one_of({
-                    entry<int>("NODE"),
-                    tag("SPECIAL"),
+                    parameter<int>("NODE"),
+                    parameter<bool>("SPECIAL"),
                 }),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
-                entry<std::string>("NAME", {.required = false}),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("PARTICLE",
             {
-                entry<int>("ID"),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
+                parameter<int>("ID"),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("PARTICLEWALL",
             {
-                entry<std::string>("DIS"),
+                parameter<std::string>("DIS"),
                 one_of({
-                    entry<int>("NODE"),
-                    tag("SPECIAL"),
+                    parameter<int>("NODE"),
+                    parameter<bool>("SPECIAL"),
                 }),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
-                entry<std::string>("NAME", {.required = false}),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("RIGIDBODY",
             {
-                entry<int>("ID"),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
-            }),
-        group("ELECTROMAGNETIC",
-            {
-                entry<std::string>("DIS"),
-                entry<int>("NODE"),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
-                entry<std::string>("NAME", {.required = false}),
+                parameter<int>("ID"),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
         group("CARDIOVASCULAR0D",
             {
-                entry<std::string>("DIS"),
-                tag("SPECIAL"),
-                entry<std::string>("QUANTITY"),
-                entry<double>("VALUE"),
-                entry<double>("TOLERANCE"),
-                entry<std::string>("NAME", {.required = false}),
+                parameter<std::string>("DIS"),
+                parameter<bool>("SPECIAL"),
+                parameter<std::string>("QUANTITY"),
+                parameter<double>("VALUE"),
+                parameter<double>("TOLERANCE"),
+                parameter<std::optional<std::string>>("NAME"),
             }),
     });
   }
-
-  std::unordered_map<Core::Materials::MaterialType, Core::IO::InputSpec> materials()
-  {
-    std::unordered_map<Core::Materials::MaterialType, Core::IO::InputSpec> mat;
-
-    auto mat_definitions = Global::valid_materials();
-    for (const auto& d : *mat_definitions)
-    {
-      mat[d->type()] = Core::IO::InputSpecBuilders::group(d->name(), d->specs());
-    }
-    return mat;
-  }
-
-
 }  // namespace
 
 ModuleCallbacks global_legacy_module_callbacks()
@@ -550,9 +505,12 @@ ModuleCallbacks global_legacy_module_callbacks()
   callbacks.RegisterParObjectTypes = register_par_object_types;
   callbacks.AttachFunctionDefinitions = attach_function_definitions;
   callbacks.valid_result_description_lines = valid_result_lines;
-  callbacks.materials = materials;
+  callbacks.materials = Global::valid_materials;
+  callbacks.conditions = Global::valid_conditions;
+  callbacks.parameters = Global::valid_parameters;
 
   return callbacks;
 }
+
 
 FOUR_C_NAMESPACE_CLOSE

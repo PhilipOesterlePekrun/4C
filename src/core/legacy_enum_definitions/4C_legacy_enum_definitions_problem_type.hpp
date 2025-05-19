@@ -26,13 +26,11 @@ namespace Core
     cardiac_monodomain,  // Cardiac electrophsiology problem
     ehl,        // elastohydrodynamic lubrication problem (or lubrication structure interaction)
     elch,       // electrochemical problem
-    elemag,     // electromagnetic problem
     fluid,      // fluid problem
     fluid_ale,  // fluid on an ale mesh (no structure)
     fbi,        // 3D fluid interacting with a 1D beam
     fluid_redmodels,  // fluid_redairways problem
     fluid_xfem,       // fluid problem including XFEM interfaces
-    fluid_xfem_ls,    // xfluid calculations using levelset for cut.
     fps3i,            // fluid porous structure scatra scatra interaction
     fpsi,             // fluid porous structure interaction problem
     fpsi_xfem,       // fluid poro structure interaction problem including XFEM interfaces (atm just
@@ -54,7 +52,7 @@ namespace Core
     poromultiphase,        // multiphase flow in elastic porous media
     poromultiphasescatra,  // multiphase flow in elastic porous media with transport of species
     red_airways,           // reduced dimensional airways
-    redairways_tissue,     // coupling of reduced-dimensional airways with 3D tissue model
+    reduced_lung,          // New implementation of red_airways with Newton-iteration
     scatra,                // scalar transport problem (e.g. convection-diffusion)
     ssi,                   // scalar structure interaction
     ssti,                  // scalar structure thermo interaction

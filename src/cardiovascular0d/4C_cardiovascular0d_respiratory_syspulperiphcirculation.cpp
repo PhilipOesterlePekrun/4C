@@ -12,7 +12,6 @@
 #include "4C_linalg_serialdensematrix.hpp"
 #include "4C_linalg_serialdensevector.hpp"
 #include "4C_linalg_utils_sparse_algebra_assemble.hpp"
-#include "4C_so3_surface.hpp"
 #include "4C_utils_function_of_time.hpp"
 
 #include <iostream>
@@ -910,7 +909,7 @@ void Utils::CardiovascularRespiratory0DSysPulPeriphCirculation::evaluate(
   {
     for (int j = 0; j < num_dof_; j++)
     {
-      int err = sysvec1->SumIntoGlobalValues(1, &df_np[j], &gindex[j]);
+      int err = sysvec1->sum_into_global_values(1, &df_np[j], &gindex[j]);
       if (err) FOUR_C_THROW("SumIntoGlobalValues failed!");
     }
   }
@@ -919,7 +918,7 @@ void Utils::CardiovascularRespiratory0DSysPulPeriphCirculation::evaluate(
   {
     for (int j = 0; j < num_dof_; j++)
     {
-      int err = sysvec2->SumIntoGlobalValues(1, &f_np[j], &gindex[j]);
+      int err = sysvec2->sum_into_global_values(1, &f_np[j], &gindex[j]);
       if (err) FOUR_C_THROW("SumIntoGlobalValues failed!");
     }
   }
@@ -1241,7 +1240,7 @@ void Utils::CardiovascularRespiratory0DSysPulPeriphCirculation::evaluate_respira
   (*volvec)[34] = V_alv_np;
 
   // we misuse the vol vector to carry information about the O2 saturation S_O2 of the respective
-  // compartment in order to avoid introducing another Epetra vector for this purpose the vol vector
+  // compartment in order to avoid introducing another vector for this purpose the vol vector
   // has plenty of zero entries after LID 34, and it is time-integrated and post-processed to
   // t_{n+\theta} inside the manager
 
@@ -9200,7 +9199,7 @@ void Utils::CardiovascularRespiratory0DSysPulPeriphCirculation::initialize(
 
   for (int j = 0; j < num_dof_; j++)
   {
-    int err = sysvec2->SumIntoGlobalValues(1, &initvals[j], &gindex[j]);
+    int err = sysvec2->sum_into_global_values(1, &initvals[j], &gindex[j]);
     if (err) FOUR_C_THROW("SumIntoGlobalValues failed!");
   }
 

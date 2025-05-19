@@ -19,7 +19,7 @@
 #include <set>
 
 // forward declarations
-class Epetra_Map;
+class Map;
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -126,11 +126,10 @@ namespace XFEM
    *  although it is not recommended because of the resulting communication
    *  overhead.
    *
-   *  \author hiermeier
-   *  \date 09/16 */
+   */
   class MultiFieldMapExtractor
   {
-    typedef std::vector<std::shared_ptr<const Core::FE::Discretization>> XDisVec;
+    using XDisVec = std::vector<std::shared_ptr<const Core::FE::Discretization>>;
 
     // number of map extractor types
     static constexpr unsigned NUM_MAP_TYPES = 2;
@@ -153,8 +152,7 @@ namespace XFEM
      *                       of DoF's per enriched node (necessary for the fixed size
      *                       dofset).
      *
-     *  \author hiermeier
-     *  \date 09/16 */
+     */
     void init(const std::vector<std::shared_ptr<const Core::FE::Discretization>>& dis_vec,
         int max_num_reserved_dofs_per_node);
 
@@ -164,8 +162,7 @@ namespace XFEM
      *  discretizations in the discretization vector (see init()) is
      *  redistributed.
      *
-     *  \author hiermeier
-     *  \date 09/16 */
+     */
     virtual void setup();
 
     /// @name Accessors to the auxiliary interface discretization
@@ -175,12 +172,11 @@ namespace XFEM
      *
      *  \param gid (in): global id of the interface node
      *
-     *  \author hiermeier
-     *  \date 10/16 */
+     */
     Core::Nodes::Node* g_i_node(const int& gid) const;
 
     /// access the interface node row map
-    const Epetra_Map* i_node_row_map() const;
+    const Core::LinAlg::Map* i_node_row_map() const;
 
     /** \brief get the number of DoF's of the given interface node
      *
@@ -189,8 +185,7 @@ namespace XFEM
      *
      *  \param inode (in): pointer to the interface node
      *
-     *  \author hiermeier
-     *  \date 10/16 */
+     */
     int i_num_dof(const Core::Nodes::Node* inode) const;
 
     /// get the number of standard DoF's of the discretization
@@ -211,18 +206,18 @@ namespace XFEM
       return sl_map_extractor(slave_id(field), map_dofs);
     }
 
-    std::shared_ptr<const Epetra_Map> node_row_map(
+    std::shared_ptr<const Core::LinAlg::Map> node_row_map(
         enum FieldName field, enum MultiField::BlockType block) const;
 
     /** \brief return TRUE if the given global node id corresponds to an
      *  interface node
      *
-     *  \author hiermeier
-     *  \date 09/16 */
+     */
     bool is_interface_node(const int& ngid) const;
 
     /// Access the full maps
-    const std::shared_ptr<const Epetra_Map>& full_map(enum MapType map_type = map_dofs) const;
+    const std::shared_ptr<const Core::LinAlg::Map>& full_map(
+        enum MapType map_type = map_dofs) const;
 
     /// @name Extract vector routines
     /// @{
@@ -261,7 +256,7 @@ namespace XFEM
      *  \param partial (in): vector to copy into full vector (Core::LinAlg::Vector<double>)
      *  \param field   (in): field name enumerator of the partial vector
      *
-     *  \author hiermeier \date 10/16 */
+     *  */
     std::shared_ptr<Core::LinAlg::Vector<double>> insert_vector(
         const Core::LinAlg::Vector<double>& partial, enum FieldName field,
         enum MapType map_type = map_dofs) const;
@@ -271,7 +266,7 @@ namespace XFEM
      *  \param partial (in): vector to copy into full vector
      *  \param field   (in): field name enumerator of the partial vector
      *
-     *  \author hiermeier \date 10/16 */
+     *  */
     std::shared_ptr<Core::LinAlg::MultiVector<double>> insert_vector(
         const Core::LinAlg::MultiVector<double>& partial, enum FieldName field,
         enum MapType map_type = map_dofs) const;
@@ -282,7 +277,7 @@ namespace XFEM
      *  \param field   (in): field name enumerator of the partial vector
      *  \param full   (out): vector to copy into
      *
-     *  \author hiermeier \date 10/16 */
+     *  */
     void insert_vector(const Core::LinAlg::MultiVector<double>& partial, enum FieldName field,
         Core::LinAlg::MultiVector<double>& full, enum MapType map_type = map_dofs) const
     {
@@ -291,7 +286,7 @@ namespace XFEM
 
     /** \brief Put a partial vector into a full vector (Core::LinAlg::MultiVector<double>) [derived]
      *
-     *  \author hiermeier \date 10/16  */
+     *  */
     void insert_vector(const Core::LinAlg::MultiVector<double>& partial, int block,
         Core::LinAlg::MultiVector<double>& full, enum MapType map_type = map_dofs) const;
 
@@ -314,7 +309,7 @@ namespace XFEM
      *  \param full   (out): sum into this full vector
      *  \param scale   (in): scaling factor for partial vector
      *
-     *  \author hiermeier \date 10/16 */
+     *  */
     inline void add_vector(const Core::LinAlg::Vector<double>& partial, enum FieldName field,
         Core::LinAlg::Vector<double>& full, double scale, enum MapType map_type = map_dofs) const
     {
@@ -328,7 +323,7 @@ namespace XFEM
      *  \param full   (out): sum into this full vector
      *  \param scale   (in): scaling factor for partial vector
      *
-     *  \author hiermeier \date 10/16 */
+     *  */
     inline void add_vector(const Core::LinAlg::MultiVector<double>& partial, enum FieldName field,
         Core::LinAlg::MultiVector<double>& full, double scale,
         enum MapType map_type = map_dofs) const
@@ -338,7 +333,7 @@ namespace XFEM
 
     /** \brief Add a partial vector to a full vector (Core::LinAlg::MultiVector<double>) [derived]
      *
-     *  \author hiermeier \date 10/16 */
+     *  */
     void add_vector(const Core::LinAlg::MultiVector<double>& partial, int block,
         Core::LinAlg::MultiVector<double>& full, double scale,
         enum MapType map_type = map_dofs) const;
@@ -373,8 +368,7 @@ namespace XFEM
      *
      *  \param dis_id (in): entry of the slave discretization vector
      *
-     *  \author hiermeier
-     *  \date 09/16 */
+     */
     bool is_x_fem_dis(enum FieldName field) const { return is_x_fem_dis(slave_id(field)); }
 
    protected:
@@ -395,8 +389,7 @@ namespace XFEM
      *
      *  \param dis_id (in): entry of the slave discretization vector
      *
-     *  \author hiermeier
-     *  \date 09/16 */
+     */
     bool is_x_fem_dis(int dis_id) const;
 
     /** \brief  Access the master interface node row map of the interface
@@ -405,25 +398,24 @@ namespace XFEM
      *
      *  \param dis_id (in): entry of the slave discretization vector
      *
-     *  \author hiermeier
-     *  \date 09/16 */
-    inline const Epetra_Map& master_interface_node_row_map(enum FieldName field) const
+     */
+    inline const Core::LinAlg::Map& master_interface_node_row_map(enum FieldName field) const
     {
       return master_interface_node_row_map(slave_id(field));
     }
-    const Epetra_Map& master_interface_node_row_map(unsigned dis_id) const
+    const Core::LinAlg::Map& master_interface_node_row_map(unsigned dis_id) const
     {
       check_init();
 
       if (dis_id >= master_interface_node_maps_.size())
         FOUR_C_THROW(
-            "The index %d exceeds the master interface node row map size! "
-            "(size = %d)",
+            "The index {} exceeds the master interface node row map size! "
+            "(size = {})",
             dis_id, master_interface_node_maps_.size());
 
       if (master_interface_node_maps_[dis_id] == nullptr)
         FOUR_C_THROW(
-            "The master interface node row map %d was not initialized "
+            "The master interface node row map {} was not initialized "
             "correctly.",
             dis_id);
 
@@ -432,8 +424,7 @@ namespace XFEM
 
     /** \brief Access the master map extractor
      *
-     *  \author hiermeier
-     *  \date 09/16 */
+     */
     const Core::LinAlg::MultiMapExtractor& ma_map_extractor(enum MapType map_type) const
     {
       if (master_map_extractor_.at(map_type) == nullptr)
@@ -447,14 +438,14 @@ namespace XFEM
      *  \param dis_id (in): block id of the desired discretization
      *  \param btype  (in): choose between interface and non-interface nodes
      *
-     *  \author hiermeier
-     *  \date 10/16 */
-    inline const Epetra_Map& slave_node_row_map(
+     */
+    inline const Core::LinAlg::Map& slave_node_row_map(
         enum XFEM::FieldName field, enum MultiField::BlockType btype) const
     {
       return slave_node_row_map(slave_id(field), btype);
     }
-    const Epetra_Map& slave_node_row_map(unsigned dis_id, enum MultiField::BlockType btype) const;
+    const Core::LinAlg::Map& slave_node_row_map(
+        unsigned dis_id, enum MultiField::BlockType btype) const;
 
     const Core::LinAlg::MultiMapExtractor& sl_map_extractor(
         unsigned dis_id, enum MapType map_type) const
@@ -463,13 +454,13 @@ namespace XFEM
 
       if (dis_id >= slave_map_extractors_.size())
         FOUR_C_THROW(
-            "The index %d exceeds the slave map extractor size! "
-            "(size = %d)",
+            "The index {} exceeds the slave map extractor size! "
+            "(size = {})",
             dis_id, slave_map_extractors_.size());
 
       if (slave_map_extractors_[dis_id].at(map_type) == nullptr)
         FOUR_C_THROW(
-            "The slave dof/node map extractor %d was not initialized "
+            "The slave dof/node map extractor {} was not initialized "
             "correctly.",
             dis_id);
 
@@ -478,7 +469,7 @@ namespace XFEM
 
     /** \brief Access the interface matrix row transformer for the given field
      *
-     *  \author hiermeier \date 10/16 */
+     *  */
     Coupling::Adapter::MatrixRowTransform& i_mat_row_transform(enum FieldName field)
     {
       return i_mat_row_transform(slave_id(field));
@@ -489,13 +480,13 @@ namespace XFEM
 
       if (dis_id >= interface_matrix_row_transformers_.size())
         FOUR_C_THROW(
-            "The index %d exceeds the matrix row transformer size! "
-            "(size = %d)",
+            "The index {} exceeds the matrix row transformer size! "
+            "(size = {})",
             dis_id, interface_matrix_row_transformers_.size());
 
       if (interface_matrix_row_transformers_[dis_id] == nullptr)
         FOUR_C_THROW(
-            "The interface matrix row transformer %d was not initialized "
+            "The interface matrix row transformer {} was not initialized "
             "correctly.",
             dis_id);
 
@@ -504,7 +495,7 @@ namespace XFEM
 
     /** \brief Access the interface matrix column transformer for the given field
      *
-     *  \author hiermeier \date 10/16 */
+     *  */
     Coupling::Adapter::MatrixColTransform& i_mat_col_transform(enum FieldName field)
     {
       return i_mat_col_transform(slave_id(field));
@@ -515,13 +506,13 @@ namespace XFEM
 
       if (dis_id >= interface_matrix_col_transformers_.size())
         FOUR_C_THROW(
-            "The index %d exceeds the matrix column transformer size! "
-            "(size = %d)",
+            "The index {} exceeds the matrix column transformer size! "
+            "(size = {})",
             dis_id, interface_matrix_col_transformers_.size());
 
       if (interface_matrix_col_transformers_[dis_id] == nullptr)
         FOUR_C_THROW(
-            "The interface matrix column transformer %d was not initialized "
+            "The interface matrix column transformer {} was not initialized "
             "correctly.",
             dis_id);
 
@@ -530,7 +521,7 @@ namespace XFEM
 
     /** \brief Access the interface matrix row and column transformer for the given field
      *
-     *  \author hiermeier \date 10/16 */
+     *  */
     Coupling::Adapter::MatrixRowColTransform& i_mat_row_col_transform(enum FieldName field)
     {
       return i_mat_row_col_transform(slave_id(field));
@@ -541,13 +532,13 @@ namespace XFEM
 
       if (dis_id >= interface_matrix_row_col_transformers_.size())
         FOUR_C_THROW(
-            "The index %d exceeds the matrix row col transformer size! "
-            "(size = %d)",
+            "The index {} exceeds the matrix row col transformer size! "
+            "(size = {})",
             dis_id, interface_matrix_row_col_transformers_.size());
 
       if (interface_matrix_row_col_transformers_[dis_id] == nullptr)
         FOUR_C_THROW(
-            "The interface matrix row col transformer %d was not initialized "
+            "The interface matrix row col transformer {} was not initialized "
             "correctly.",
             dis_id);
 
@@ -556,7 +547,7 @@ namespace XFEM
 
     /** \brief Access the interface discretization
      *
-     *  \author hiermeier \date 10/16 */
+     *  */
     inline const Core::FE::Discretization& i_discret() const
     {
       check_init();
@@ -573,13 +564,13 @@ namespace XFEM
 
       if (dis_id >= num_sl_dis())
         FOUR_C_THROW(
-            "The index %d exceeds the slave discretization vector size! "
-            "(size = %d)",
+            "The index {} exceeds the slave discretization vector size! "
+            "(size = {})",
             dis_id, sl_dis_vec().size());
 
       if (sl_dis_vec()[dis_id] == nullptr)
         FOUR_C_THROW(
-            "The slave discretization %d was not initialized "
+            "The slave discretization {} was not initialized "
             "correctly.",
             dis_id);
 
@@ -591,12 +582,12 @@ namespace XFEM
       check_init();
       if (dis_id >= interface_couplings_.size())
         FOUR_C_THROW(
-            "The index %d exceeds the interface coupling size! "
-            "(size = %d)",
+            "The index {} exceeds the interface coupling size! "
+            "(size = {})",
             dis_id, interface_couplings_.size());
       if (interface_couplings_[dis_id] == nullptr)
         FOUR_C_THROW(
-            "The interface coupling %d was not initialized "
+            "The interface coupling {} was not initialized "
             "correctly.",
             dis_id);
 
@@ -651,8 +642,7 @@ namespace XFEM
     /** \brief Build the interface coupling DoF set and complete the interface
      *  discretization
      *
-     *  \author hiermeier
-     *  \date 09/16 */
+     */
     void build_interface_coupling_dof_set();
 
     void build_interface_coupling_adapters();
@@ -668,7 +658,6 @@ namespace XFEM
 
     int max_num_reserved_dofs_per_node_;
 
-    /// Epetra communicator
     MPI_Comm comm_;
 
     /// vector containing pointers to all the input discretizations
@@ -682,7 +671,7 @@ namespace XFEM
      * (containing the same information on all proc's) */
     std::set<int> g_interface_node_gid_set_;
 
-    std::vector<std::shared_ptr<const Epetra_Map>> master_interface_node_maps_;
+    std::vector<std::shared_ptr<const Core::LinAlg::Map>> master_interface_node_maps_;
 
     std::vector<std::vector<std::shared_ptr<Core::LinAlg::MultiMapExtractor>>>
         slave_map_extractors_;

@@ -11,8 +11,6 @@
 
 #include "4C_config.hpp"
 
-#include "4C_io_input_parameter_container.hpp"
-
 #include <mpi.h>
 
 #include <memory>
@@ -22,8 +20,9 @@ FOUR_C_NAMESPACE_OPEN
 
 namespace Core::IO
 {
+  class InputParameterContainer;
   class InputFile;
-}
+}  // namespace Core::IO
 
 namespace Core::Utils
 {
@@ -37,8 +36,6 @@ namespace Core::Utils
     tests, nodal tests and special cases (like beltrami fluid
     flow). These methods provide dummy (FOUR_C_THROW) implementations and
     have to be redefined in subclasses to actually do the testing.
-
-    \author u.kue
   */
   class ResultTest
   {

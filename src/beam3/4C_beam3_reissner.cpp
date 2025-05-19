@@ -16,11 +16,9 @@
 #include "4C_fem_geometry_periodic_boundingbox.hpp"
 #include "4C_global_data.hpp"
 #include "4C_inpar_structure.hpp"
-#include "4C_inpar_validparameters.hpp"
 #include "4C_io_input_spec_builders.hpp"
 #include "4C_linalg_fixedsizematrix.hpp"
 #include "4C_linalg_serialdensematrix.hpp"
-#include "4C_so3_nullspace.hpp"
 #include "4C_utils_exceptions.hpp"
 #include "4C_utils_shared_ptr_from_ref.hpp"
 
@@ -111,70 +109,70 @@ void Discret::Elements::Beam3rType::setup_element_definition(
 
   // note: LINE2 refers to linear Lagrange interpolation of centerline AND triad field
   defs["LINE2"] = all_of({
-      entry<std::vector<int>>("LINE2", {.size = 2}),
-      entry<int>("MAT"),
-      entry<std::vector<double>>("TRIADS", {.size = 6}),
-      tag("FAD", {.default_value = false}),
+      parameter<std::vector<int>>("LINE2", {.size = 2}),
+      parameter<int>("MAT"),
+      parameter<std::vector<double>>("TRIADS", {.size = 6}),
+      parameter<bool>("USE_FAD", {.default_value = false}),
   });
 
   // note: LINE3 refers to quadratic Lagrange interpolation of centerline AND triad field
   defs["LINE3"] = all_of({
-      entry<std::vector<int>>("LINE3", {.size = 3}),
-      entry<int>("MAT"),
-      entry<std::vector<double>>("TRIADS", {.size = 9}),
-      tag("FAD", {.default_value = false}),
+      parameter<std::vector<int>>("LINE3", {.size = 3}),
+      parameter<int>("MAT"),
+      parameter<std::vector<double>>("TRIADS", {.size = 9}),
+      parameter<bool>("USE_FAD", {.default_value = false}),
   });
 
   // note: LINE4 refers to cubic Lagrange interpolation of centerline AND triad field
   defs["LINE4"] = all_of({
-      entry<std::vector<int>>("LINE4", {.size = 4}),
-      entry<int>("MAT"),
-      entry<std::vector<double>>("TRIADS", {.size = 12}),
-      tag("FAD", {.default_value = false}),
+      parameter<std::vector<int>>("LINE4", {.size = 4}),
+      parameter<int>("MAT"),
+      parameter<std::vector<double>>("TRIADS", {.size = 12}),
+      parameter<bool>("USE_FAD", {.default_value = false}),
   });
 
   // note: LINE5 refers to quartic Lagrange interpolation of centerline AND triad field
   defs["LINE5"] = all_of({
-      entry<std::vector<int>>("LINE5", {.size = 5}),
-      entry<int>("MAT"),
-      entry<std::vector<double>>("TRIADS", {.size = 15}),
-      tag("FAD", {.default_value = false}),
+      parameter<std::vector<int>>("LINE5", {.size = 5}),
+      parameter<int>("MAT"),
+      parameter<std::vector<double>>("TRIADS", {.size = 15}),
+      parameter<bool>("USE_FAD", {.default_value = false}),
   });
 
   /* note: HERM2 refers to cubic Hermite interpolation of centerline (2 nodes)
    *       LINE2 refers to linear Lagrange interpolation of the triad field*/
   defs["HERM2LINE2"] = all_of({
-      entry<std::vector<int>>("HERM2LINE2", {.size = 2}),
-      entry<int>("MAT"),
-      entry<std::vector<double>>("TRIADS", {.size = 6}),
-      tag("FAD", {.default_value = false}),
+      parameter<std::vector<int>>("HERM2LINE2", {.size = 2}),
+      parameter<int>("MAT"),
+      parameter<std::vector<double>>("TRIADS", {.size = 6}),
+      parameter<bool>("USE_FAD", {.default_value = false}),
   });
 
   /* note: HERM2 refers to cubic order Hermite interpolation of centerline (2 nodes)
    *       LINE3 refers to quadratic Lagrange interpolation of the triad field*/
   defs["HERM2LINE3"] = all_of({
-      entry<std::vector<int>>("HERM2LINE3", {.size = 3}),
-      entry<int>("MAT"),
-      entry<std::vector<double>>("TRIADS", {.size = 9}),
-      tag("FAD", {.default_value = false}),
+      parameter<std::vector<int>>("HERM2LINE3", {.size = 3}),
+      parameter<int>("MAT"),
+      parameter<std::vector<double>>("TRIADS", {.size = 9}),
+      parameter<bool>("USE_FAD", {.default_value = false}),
   });
 
   /* note: HERM2 refers to cubic Hermite interpolation of centerline (2 nodes)
    *       LINE4 refers to cubic Lagrange interpolation of the triad field*/
   defs["HERM2LINE4"] = all_of({
-      entry<std::vector<int>>("HERM2LINE4", {.size = 4}),
-      entry<int>("MAT"),
-      entry<std::vector<double>>("TRIADS", {.size = 12}),
-      tag("FAD", {.default_value = false}),
+      parameter<std::vector<int>>("HERM2LINE4", {.size = 4}),
+      parameter<int>("MAT"),
+      parameter<std::vector<double>>("TRIADS", {.size = 12}),
+      parameter<bool>("USE_FAD", {.default_value = false}),
   });
 
   /* note: HERM2 refers to cubic Hermite interpolation of centerline (2 nodes)
    *       LINE5 refers to quartic Lagrange interpolation of the triad field*/
   defs["HERM2LINE5"] = all_of({
-      entry<std::vector<int>>("HERM2LINE5", {.size = 5}),
-      entry<int>("MAT"),
-      entry<std::vector<double>>("TRIADS", {.size = 15}),
-      tag("FAD", {.default_value = false}),
+      parameter<std::vector<int>>("HERM2LINE5", {.size = 5}),
+      parameter<int>("MAT"),
+      parameter<std::vector<double>>("TRIADS", {.size = 15}),
+      parameter<bool>("USE_FAD", {.default_value = false}),
   });
 }
 
@@ -309,8 +307,8 @@ Discret::Elements::Beam3r::Beam3r(int id, int owner)
       ekintorsion_(0.0),
       ekinbending_(0.0),
       ekintrans_(0.0),
-      l_(true),
-      p_(true)
+      l_(Core::LinAlg::Initialization::zero),
+      p_(Core::LinAlg::Initialization::zero)
 {
   return;
 }
@@ -771,13 +769,13 @@ void Discret::Elements::Beam3r::set_up_reference_geometry(
     if (xrefe.size() != 3 * nnodecl)
       FOUR_C_THROW(
           "size mismatch in given position vector for stress-free reference geometry of beam3r:"
-          " expected %d and got %d entries!",
+          " expected {} and got {} entries!",
           3 * nnodecl, xrefe.size());
 
     if (rotrefe.size() != 3 * nnodetriad)
       FOUR_C_THROW(
           "size mismatch in given rotation vector for stress-free reference geometry of beam3r:"
-          " expected %d and got %d entries!",
+          " expected {} and got {} entries!",
           3 * nnodetriad, rotrefe.size());
 
 
@@ -819,7 +817,7 @@ void Discret::Elements::Beam3r::set_up_reference_geometry(
     Core::LinAlg::Matrix<3, 1> dr0dxi;
 
     // dummy 3x1 vector
-    Core::LinAlg::Matrix<3, 1> dummy(true);
+    Core::LinAlg::Matrix<3, 1> dummy(Core::LinAlg::Initialization::zero);
 
 
     /********************************** Compute nodal quantities
@@ -1182,8 +1180,8 @@ void Discret::Elements::Beam3r::get_pos_at_xi(
     extract_centerline_dof_values_from_element_state_vector(disp, disp_centerline);
   else
     FOUR_C_THROW(
-        "size mismatch: expected either %d values for disp_centerline or "
-        "%d values for full disp state vector of this element and got %d",
+        "size mismatch: expected either {} values for disp_centerline or "
+        "{} values for full disp state vector of this element and got {}",
         3 * numnodalvalues * nnodecl, 3 * numnodalvalues * nnodecl + 3 * nnodetriad, disp.size());
 
   switch (nnodecl)
@@ -1291,8 +1289,8 @@ void Discret::Elements::Beam3r::get_triad_at_xi(
   else
   {
     FOUR_C_THROW(
-        "size mismatch: expected either %d values for psi (rotation vecs) or "
-        "%d values for for full disp state vector of this element and got %d",
+        "size mismatch: expected either {} values for psi (rotation vecs) or "
+        "{} values for for full disp state vector of this element and got {}",
         3 * nnodetriad, 3 * numnodalvalues * nnodecl + 3 * nnodetriad, disp.size());
   }
 
@@ -1326,7 +1324,7 @@ void Discret::Elements::Beam3r::get_triad_at_xi(
       break;
     }
     default:
-      FOUR_C_THROW("%d is no valid number of nodes for beam3r triad interpolation", nnodetriad);
+      FOUR_C_THROW("{} is no valid number of nodes for beam3r triad interpolation", nnodetriad);
       break;
   }
 }
@@ -1343,7 +1341,7 @@ void Discret::Elements::Beam3r::get_generalized_interpolation_matrix_variations_
   // safety check
   if (static_cast<unsigned int>(Ivar.numRows()) != 6 or
       static_cast<unsigned int>(Ivar.numCols()) != 3 * vpernode * nnodecl + 3 * nnodetriad)
-    FOUR_C_THROW("size mismatch! expected %dx%d matrix and got %dx%d", 6,
+    FOUR_C_THROW("size mismatch! expected {}x{} matrix and got {}x{}", 6,
         3 * vpernode * nnodecl + 3 * nnodetriad, Ivar.numRows(), Ivar.numCols());
 
   switch (nnodetriad)
@@ -1461,7 +1459,7 @@ void Discret::Elements::Beam3r::get_generalized_interpolation_matrix_increments_
   // safety check
   if (static_cast<unsigned int>(Iinc.numRows()) != 6 or
       static_cast<unsigned int>(Iinc.numCols()) != 3 * vpernode * nnodecl + 3 * nnodetriad)
-    FOUR_C_THROW("size mismatch! expected %dx%d matrix and got %dx%d", 6,
+    FOUR_C_THROW("size mismatch! expected {}x{} matrix and got {}x{}", 6,
         3 * vpernode * nnodecl + 3 * nnodetriad, Iinc.numRows(), Iinc.numCols());
 
   switch (nnodetriad)
@@ -1696,7 +1694,7 @@ void Discret::Elements::Beam3r::extract_centerline_dof_values_from_element_state
   const int dofpercombinode = dofperclnode + dofpertriadnode;
 
   if (dofvec.size() != dofperclnode * nnodecl + dofpertriadnode * this->num_node())
-    FOUR_C_THROW("size mismatch: expected %d values for element state vector and got %d",
+    FOUR_C_THROW("size mismatch: expected {} values for element state vector and got {}",
         dofperclnode * nnodecl + dofpertriadnode * this->num_node(), dofvec.size());
 
   // get current values for DOFs relevant for centerline interpolation
@@ -1788,7 +1786,7 @@ void Discret::Elements::Beam3r::extract_rot_vec_dof_values(const std::vector<dou
   const int dofpercombinode = dofperclnode + dofpertriadnode;
 
   if (dofvec.size() != dofperclnode * nnodecl + dofpertriadnode * nnodetriad)
-    FOUR_C_THROW("size mismatch: expected %d values for element state vector and got %d",
+    FOUR_C_THROW("size mismatch: expected {} values for element state vector and got {}",
         dofperclnode * nnodecl + dofpertriadnode * nnodetriad, dofvec.size());
 
   // get current values for DOFs relevant for triad interpolation
@@ -1919,8 +1917,8 @@ void Discret::Elements::Beam3r::get_nodal_triads_from_full_disp_vec_or_from_disp
   else
   {
     FOUR_C_THROW(
-        "size mismatch: expected either %d values for psi (rotation vecs) or "
-        "%d values for for full disp state vector of this element and got %d",
+        "size mismatch: expected either {} values for psi (rotation vecs) or "
+        "{} values for for full disp state vector of this element and got {}",
         3 * nnodetriad, 3 * vpernode * nnodecl + 3 * nnodetriad, dispvec.size());
   }
 

@@ -13,6 +13,7 @@
 #include "4C_inpar_structure.hpp"
 #include "4C_solver_nonlin_nox_enum_lists.hpp"
 #include "4C_utils_exceptions.hpp"
+#include "4C_utils_parameter_list.fwd.hpp"
 
 #include <NOX_Abstract_Vector.H>
 #include <Teuchos_Time.hpp>
@@ -50,7 +51,7 @@ namespace Solid
      * are transformed into enumerators. Furthermore, the maximum time and step number
      * can be found here.
      *
-     * \author Michael Hiermeier */
+     * */
     class BaseDataSDyn
     {
      public:
@@ -981,7 +982,7 @@ namespace Solid
      * This data container is derived from the standard structural dynamics data container
      * and contains some special GenAlpha input parameters.
      *
-     * \author Michael Hiermeier */
+     * */
     class GenAlphaDataSDyn : public BaseDataSDyn
     {
      public:
@@ -1064,7 +1065,7 @@ namespace Solid
      * This data container is derived from the standard structural dynamics data container
      * and contains some special OneStepTheta input parameters.
      *
-     * \author Michael Hiermeier */
+     * */
     class OneStepThetaDataSDyn : public BaseDataSDyn
     {
      public:

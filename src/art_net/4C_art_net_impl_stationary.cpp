@@ -24,6 +24,7 @@
 #include "4C_mat_cnst_1d_art.hpp"
 #include "4C_scatra_resulttest.hpp"
 #include "4C_scatra_timint_implicit.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
@@ -48,7 +49,20 @@ Arteries::ArtNetImplStationary::ArtNetImplStationary(
     Core::IO::DiscretizationWriter& output)
     : TimInt(actdis, linsolvernumber, probparams, artparams, output)
 {
-  //  exit(1);
+  const int restart_step = Global::Problem::instance()->restart();
+  if (restart_step > 0)
+  {
+    FourC::Core::IO::DiscretizationReader reader(
+        discret_, Global::Problem::instance()->input_control_file(), restart_step);
+
+    time_ = reader.read_double("time");
+  }
+
+  visualization_writer_ = std::make_unique<Core::IO::DiscretizationVisualizationWriterMesh>(
+      actdis, Core::IO::visualization_parameters_factory(
+                  Global::Problem::instance()->io_params().sublist("RUNTIME VTK OUTPUT"),
+                  *Global::Problem::instance()->output_control_file(), time_));
+
 
 }  // ArtNetImplStationary::ArtNetImplStationary
 
@@ -80,7 +94,7 @@ void Arteries::ArtNetImplStationary::init(const Teuchos::ParameterList& globalti
   // get a vector layout from the discretization to construct matching
   // vectors and matrices: local <-> global dof numbering
   // -------------------------------------------------------------------
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   // -------------------------------------------------------------------
   // create empty system matrix (6 adjacent nodes as 'good' guess)
@@ -106,7 +120,7 @@ void Arteries::ArtNetImplStationary::init(const Teuchos::ParameterList& globalti
     eleparams.set<const Core::Utils::FunctionManager*>(
         "function_manager", &Global::Problem::instance()->function_manager());
     discret_->evaluate_dirichlet(eleparams, zeros_, nullptr, nullptr, nullptr, dbcmaps_);
-    zeros_->PutScalar(0.0);  // just in case of change
+    zeros_->put_scalar(0.0);  // just in case of change
   }
 
   // the vector containing body and surface forces
@@ -211,7 +225,7 @@ void Arteries::ArtNetImplStationary::solve_scatra()
     FOUR_C_THROW("this type of coupling is only available for explicit time integration");
 
   // provide scatra discretization with fluid primary variable field
-  scatra_->scatra_field()->discretization()->set_state(1, "one_d_artery_pressure", pressurenp_);
+  scatra_->scatra_field()->discretization()->set_state(1, "one_d_artery_pressure", *pressurenp_);
   scatra_->scatra_field()->prepare_time_step();
 
   // -------------------------------------------------------------------
@@ -256,7 +270,7 @@ void Arteries::ArtNetImplStationary::assemble_mat_and_rhs()
 
   // set both system matrix and rhs vector to zero
   sysmat_->zero();
-  rhs_->PutScalar(0.0);
+  rhs_->put_scalar(0.0);
 
   // create the parameters for the discretization
   Teuchos::ParameterList eleparams;
@@ -266,7 +280,7 @@ void Arteries::ArtNetImplStationary::assemble_mat_and_rhs()
 
   // set vector values needed by elements
   discret_->clear_state();
-  discret_->set_state(0, "pressurenp", pressurenp_);
+  discret_->set_state(0, "pressurenp", *pressurenp_);
 
   // call standard loop over all elements
   discret_->evaluate(eleparams, sysmat_, rhs_);
@@ -309,7 +323,7 @@ void Arteries::ArtNetImplStationary::linear_solve()
   solver_->solve(sysmat_->epetra_operator(), pressureincnp_, rhs_, solver_params);
   // note: incremental form since rhs-coupling with poromultielastscatra-framework might be
   //       nonlinear
-  pressurenp_->Update(1.0, *pressureincnp_, 1.0);
+  pressurenp_->update(1.0, *pressureincnp_, 1.0);
 
   // end time measurement for solver
   double mydtsolve = Teuchos::Time::wallTime() - tcpusolve;
@@ -386,7 +400,7 @@ void Arteries::ArtNetImplStationary::reset_artery_diam_previous_time_step()
 void Arteries::ArtNetImplStationary::apply_neumann_bc(Core::LinAlg::Vector<double>& neumann_loads)
 {
   // prepare load vector
-  neumann_loads.PutScalar(0.0);
+  neumann_loads.put_scalar(0.0);
 
   // create parameter list
   Teuchos::ParameterList condparams;
@@ -406,7 +420,7 @@ void Arteries::ArtNetImplStationary::apply_neumann_bc(Core::LinAlg::Vector<doubl
  *----------------------------------------------------------------------*/
 void Arteries::ArtNetImplStationary::add_neumann_to_residual()
 {
-  rhs_->Update(1.0, *neumann_loads_, 1.0);
+  rhs_->update(1.0, *neumann_loads_, 1.0);
   return;
 }
 
@@ -460,6 +474,42 @@ void Arteries::ArtNetImplStationary::prepare_time_loop()
   return;
 }
 
+/*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
+void Arteries::ArtNetImplStationary::collect_runtime_output_data()
+{
+  // write domain decomposition for visualization (only once at step 0!)
+  if (step_ == 0) visualization_writer_->append_element_owner("Owner");
+
+  // radius
+  get_radius();
+
+  visualization_writer_->append_result_data_vector_with_context(
+      *ele_radius_, Core::IO::OutputEntity::element, {"ele_radius"});
+
+  // "pressure in the arteries" vector
+  visualization_writer_->append_result_data_vector_with_context(
+      *pressurenp_, Core::IO::OutputEntity::dof, {"pressure"});
+
+  // flow
+  reconstruct_flow();
+
+  visualization_writer_->append_result_data_vector_with_context(
+      *ele_volflow_, Core::IO::OutputEntity::element, {"ele_volflow"});
+}
+
+/*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
+void Arteries::ArtNetImplStationary::output_restart()
+{
+  // step number and time (only after that data output is possible)
+  output_.new_step(step_, time_);
+
+  // solution
+  output_.write_vector("one_d_artery_pressure", pressurenp_);
+  output_.write_vector("ele_radius", ele_radius_, Core::IO::elementvector);
+}
+
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>//
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>//
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>//
@@ -476,30 +526,18 @@ void Arteries::ArtNetImplStationary::output(
   TEUCHOS_FUNC_TIME_MONITOR("             + output of solution");
 
   // solution output and potentially restart data
-  if (do_output())
+  if (step_ % upres_ == 0)
   {
-    // step number and time (only after that data output is possible)
-    output_.new_step(step_, time_);
+    visualization_writer_->reset();
 
-    // write domain decomposition for visualization (only once at step "upres"!)
-    // and element radius
-    if (step_ == upres_ or step_ == 0)
-    {
-      output_.write_element_data(true);
-    }
-    // for variable radius, we need the output of the radius at every time step
-    output_radius();
+    collect_runtime_output_data();
 
-    // "pressure in the arteries" vector
-    output_.write_vector("one_d_artery_pressure", pressurenp_);
-
-    // output of flow
-    output_flow();
-
-    if (solvescatra_) scatra_->scatra_field()->check_and_write_output_and_restart();
+    visualization_writer_->write_to_disk(time_, step_);
   }
 
-  return;
+  if (solvescatra_) scatra_->scatra_field()->check_and_write_output_and_restart();
+
+  if (step_ % uprestart_ == 0 and step_ != 0) output_restart();
 }
 
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>//
@@ -511,7 +549,7 @@ void Arteries::ArtNetImplStationary::output(
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>//
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>//
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>//
-void Arteries::ArtNetImplStationary::output_radius()
+void Arteries::ArtNetImplStationary::get_radius()
 {
   // loop over row elements
   const int numrowele = discret_->num_my_row_elements();
@@ -524,13 +562,8 @@ void Arteries::ArtNetImplStationary::output_radius()
     if (arterymat == nullptr)
       FOUR_C_THROW("cast to Mat::Cnst1dArt failed during output of radius!");
     const double radius = arterymat->diam() / 2.0;
-    ele_radius_->ReplaceGlobalValue(actele->id(), 0, radius);
+    ele_radius_->replace_global_value(actele->id(), 0, radius);
   }
-
-  // write the output
-  output_.write_vector("ele_radius", ele_radius_, Core::IO::elementvector);
-
-  return;
 }
 
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>//
@@ -542,14 +575,14 @@ void Arteries::ArtNetImplStationary::output_radius()
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>//
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>//
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>//
-void Arteries::ArtNetImplStationary::output_flow()
+void Arteries::ArtNetImplStationary::reconstruct_flow()
 {
   Core::LinAlg::SerialDenseMatrix dummyMat;
   Core::LinAlg::SerialDenseVector dummyVec;
 
   // set vector values needed by elements
   discret_->clear_state();
-  discret_->set_state(0, "pressurenp", pressurenp_);
+  discret_->set_state(0, "pressurenp", *pressurenp_);
 
   // enough to loop over row nodes since element-based quantity
   for (int i = 0; i < discret_->num_my_row_elements(); ++i)
@@ -562,19 +595,14 @@ void Arteries::ArtNetImplStationary::output_flow()
     p.set<Arteries::Action>("action", Arteries::calc_flow_pressurebased);
 
     Core::Elements::LocationArray la(discret_->num_dof_sets());
-    actele->location_vector(*discret_, la, false);
+    actele->location_vector(*discret_, la);
     Core::LinAlg::SerialDenseVector flowVec(1);
 
     actele->evaluate(p, *discret_, la, dummyMat, dummyMat, flowVec, dummyVec, dummyVec);
 
-    int err = ele_volflow_->ReplaceMyValue(i, 0, flowVec(0));
-    if (err != 0) FOUR_C_THROW("ReplaceMyValue failed with error code %d!", err);
+    int err = ele_volflow_->replace_local_value(i, 0, flowVec(0));
+    if (err != 0) FOUR_C_THROW("ReplaceMyValue failed with error code {}!", err);
   }
-
-  // write the output
-  output_.write_vector("ele_volflow", ele_volflow_, Core::IO::elementvector);
-
-  return;
 }
 
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>//
@@ -667,12 +695,12 @@ void Arteries::ArtNetImplStationary::set_initial_field(
   {
     case Inpar::ArtDyn::initfield_zero_field:
     {
-      pressurenp_->PutScalar(0.0);
+      pressurenp_->put_scalar(0.0);
       break;
     }
     case Inpar::ArtDyn::initfield_field_by_function:
     {
-      const Epetra_Map* dofrowmap = discret_->dof_row_map();
+      const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
       // loop all nodes on the processor
       for (int lnodeid = 0; lnodeid < discret_->num_my_row_nodes(); lnodeid++)
@@ -691,7 +719,7 @@ void Arteries::ArtNetImplStationary::set_initial_field(
           double initialval = Global::Problem::instance()
                                   ->function_by_id<Core::Utils::FunctionOfSpaceTime>(startfuncno)
                                   .evaluate(lnode->x().data(), time_, k);
-          int err = pressurenp_->ReplaceMyValues(1, &initialval, &doflid);
+          int err = pressurenp_->replace_local_values(1, &initialval, &doflid);
           if (err != 0) FOUR_C_THROW("dof not on proc");
         }
       }
@@ -711,7 +739,7 @@ void Arteries::ArtNetImplStationary::set_initial_field(
       break;
     }
     default:
-      FOUR_C_THROW("Unknown option for initial field: %d", init);
+      FOUR_C_THROW("Unknown option for initial field: {}", init);
       break;
   }  // switch(init)
 

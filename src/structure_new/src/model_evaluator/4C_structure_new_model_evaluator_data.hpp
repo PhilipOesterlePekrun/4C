@@ -10,9 +10,10 @@
 
 #include "4C_config.hpp"
 
+#include "4C_browniandyn_input.hpp"        // enums
+#include "4C_contact_input.hpp"            // enums
 #include "4C_contact_paramsinterface.hpp"  // base class of the ContactData class
 #include "4C_fem_discretization.hpp"
-#include "4C_inpar_browniandyn.hpp"                       // enums
 #include "4C_structure_new_elements_paramsinterface.hpp"  // base class of the Data class
 #include "4C_structure_new_enum_lists.hpp"
 #include "4C_structure_new_gauss_point_data_output_manager.hpp"
@@ -73,13 +74,11 @@ namespace Solid
      * - Create your own data container class and use a call-back to the parent container to avoid
      *   code redundancy.
      *
-     * \author hiermeier \date 03/2016
      */
     class Data : public Solid::Elements::ParamsInterface
     {
-      typedef std::map<enum NOX::Nln::StatusTest::QuantityType,
-          enum ::NOX::Abstract::Vector::NormType>
-          quantity_norm_type_map;
+      using quantity_norm_type_map =
+          std::map<enum NOX::Nln::StatusTest::QuantityType, enum ::NOX::Abstract::Vector::NormType>;
 
      public:
       //! constructor
@@ -185,7 +184,7 @@ namespace Solid
       std::shared_ptr<std::vector<char>>& coupling_stress_data_ptr() override;
 
       //! mutable access to the optional quantity data vector
-      std::shared_ptr<std::vector<char>>& opt_quantity_data_ptr() override;
+      std::shared_ptr<std::vector<char>> opt_quantity_data_ptr() override;
 
       //! get the current stress type [derived]
       [[nodiscard]] enum Inpar::Solid::StressType get_stress_output_type() const override;
@@ -269,13 +268,6 @@ namespace Solid
       {
         check_init_setup();
         return corr_type_;
-      }
-
-      /// get number of system modifications in case of a mod. Newton direction method
-      int get_number_of_modified_newton_corrections() const
-      {
-        check_init_setup();
-        return num_corr_mod_newton_;
       }
 
       //!@name set routines which can be called inside of the element [derived]
@@ -406,8 +398,8 @@ namespace Solid
             enum ::NOX::Abstract::Vector::NormType>::const_iterator c_it;
         c_it = normtype_update_.find(qtype);
         if (c_it == normtype_update_.end())
-          FOUR_C_THROW("The corresponding norm type could not be found! (quantity: %s)",
-              NOX::Nln::StatusTest::quantity_type_to_string(qtype).c_str());
+          FOUR_C_THROW("The corresponding norm type could not be found! (quantity: {})",
+              NOX::Nln::StatusTest::quantity_type_to_string(qtype));
         return c_it->second;
       }
 
@@ -477,12 +469,6 @@ namespace Solid
       inline void set_is_default_step(const bool& is_default_step)
       {
         is_default_step_ = is_default_step;
-      }
-
-      /// set the number of system corrections in case of a mod. Newton direction method
-      inline void set_number_of_modified_newton_corrections(const int num_corr)
-      {
-        num_corr_mod_newton_ = num_corr;
       }
 
       /// set the current system correction type of the non-linear solver
@@ -574,13 +560,6 @@ namespace Solid
         return stressdata_postprocessed_element_ptr_;
       }
 
-      //! set element volume data vector
-      inline void set_element_volume_data(
-          const std::shared_ptr<Core::LinAlg::Vector<double>>& ele_volumes)
-      {
-        elevolumes_ptr_ = ele_volumes;
-      }
-
       //! set stress data vector
       inline void set_coupling_stress_data(
           const std::shared_ptr<std::vector<char>>& couplstressdata)
@@ -636,19 +615,38 @@ namespace Solid
       }
 
       //! set optional quantity data vector
-      inline void set_opt_quantity_data(const std::shared_ptr<std::vector<char>>& optquantitydata)
+      inline void set_opt_quantity_data(std::shared_ptr<std::vector<char>> opt_quantity_data)
       {
-        optquantitydata_ptr_ = optquantitydata;
+        opt_quantity_data_ptr_ = opt_quantity_data;
       }
+
+      //! get stress data vector
+      inline const std::shared_ptr<std::vector<char>>& get_opt_quantity_data() const
+      {
+        return opt_quantity_data_ptr_;
+      }
+
+      //! get nodal post processed optional quantity data vector
+      [[nodiscard]] const Core::LinAlg::MultiVector<double>&
+      get_opt_quantity_data_node_postprocessed() const
+      {
+        return *opt_quantity_data_postprocessed_nodal_ptr_;
+      }
+
+      //! get nodal post processed optional quantity data vector
+      void set_opt_quantity_data_node_postprocessed(
+          std::shared_ptr<Core::LinAlg::MultiVector<double>>
+              opt_quantity_data_postprocessed_nodal_ptr)
+      {
+        opt_quantity_data_postprocessed_nodal_ptr_ = opt_quantity_data_postprocessed_nodal_ptr;
+      }
+
 
       //! set model evaluator ptr
       inline void set_model_evaluator(Generic* model_ptr) { model_ptr_ = model_ptr; }
 
       //! reset the partial update norm value of the current processor
       void reset_my_norms(const bool& isdefaultstep);
-
-      //! return element volume data vector (read-only)
-      const Core::LinAlg::Vector<double>& current_element_volume_data() const;
 
       //! return the stress data (read-only)
       const std::vector<char>& stress_data() const;
@@ -663,7 +661,7 @@ namespace Solid
       const std::vector<char>& coupling_stress_data() const;
 
       //! return the optional quantity data (read-only)
-      const std::vector<char>& opt_quantity_data() const;
+      [[nodiscard]] const std::vector<char>& opt_quantity_data() const;
 
       //!@}
 
@@ -880,9 +878,6 @@ namespace Solid
        *  Only important for the internal elementwise update. */
       bool is_default_step_;
 
-      /// number of system corrections (modified Newton direction method)
-      int num_corr_mod_newton_;
-
       /// system correction type (e.g. in case of a SOC step, see the
       /// NOX::Nln::Inner::StatusTest::Filter method)
       NOX::Nln::CorrectionType corr_type_;
@@ -902,10 +897,6 @@ namespace Solid
 
       //! @name references to output data container
       //!@{
-
-      //! element volume data vector
-      std::shared_ptr<Core::LinAlg::Vector<double>> elevolumes_ptr_;
-
       //! stress data vector
       std::shared_ptr<std::vector<char>> stressdata_ptr_;
 
@@ -932,7 +923,10 @@ namespace Solid
       std::shared_ptr<std::vector<char>> couplstressdata_ptr_;
 
       //! optional quantity data vector
-      std::shared_ptr<std::vector<char>> optquantitydata_ptr_;
+      std::shared_ptr<std::vector<char>> opt_quantity_data_ptr_;
+
+      //! post processed nodal optional quantity data vector
+      std::shared_ptr<Core::LinAlg::MultiVector<double>> opt_quantity_data_postprocessed_nodal_ptr_;
 
       //! system energy, stored separately by type
       std::map<enum Solid::EnergyType, double> energy_data_;
@@ -981,7 +975,7 @@ namespace Solid
       std::shared_ptr<const Solid::TimeInt::Base> timint_ptr_;
 
       //! read-only access to the epetra communicator
-      MPI_Comm comm_ptr_;
+      MPI_Comm comm_;
 
       //! beam data container pointer
       std::shared_ptr<BeamData> beam_data_ptr_;
@@ -999,8 +993,7 @@ namespace Solid
 
     /*! data container holding special parameters required for the evaluation of beam elements
      *
-     * \author Maximilian Grill
-     * \date 08/16 */
+     */
     class BeamData : public Solid::Elements::BeamParamsInterface
     {
      public:
@@ -1105,8 +1098,7 @@ namespace Solid
     /*--------------------------------------------------------------------------*/
     /*! Contact data container for the contact model evaluation procedure.
      *
-     * \author Michael Hiermeier
-     * \date 04/16 */
+     */
     class ContactData : public CONTACT::ParamsInterface
     {
      public:
@@ -1153,20 +1145,13 @@ namespace Solid
         return str_data_ptr_->get_correction_type();
       }
 
-      /// derived
-      int get_number_of_modified_newton_corrections() const override
-      {
-        check_init();
-        return str_data_ptr_->get_number_of_modified_newton_corrections();
-      }
-
       /*! \brief Get the current active predictor type
        *
        * If no predictor is active, \c pred_vague will be returned.
        *
        * @return Type of predictor
        *
-       * \author hiermeier \date 02/18 */
+       * */
       [[nodiscard]] enum Inpar::Solid::PredEnum get_predictor_type() const override
       {
         check_init();
@@ -1211,28 +1196,14 @@ namespace Solid
       //! get output file name
       [[nodiscard]] std::string get_output_file_path() const override;
 
-      //! get variational approach enumerator
-      [[nodiscard]] enum Inpar::CONTACT::VariationalApproach get_variational_approach_type()
-          const override
-      {
-        return var_type_;
-      }
-
-      //! set variational approach enumerator
-      void set_variational_approach_type(
-          const enum Inpar::CONTACT::VariationalApproach var_type) override
-      {
-        var_type_ = var_type;
-      }
-
       //! set coupling mode enumerator
-      [[nodiscard]] enum Inpar::CONTACT::CouplingScheme get_coupling_scheme() const override
+      [[nodiscard]] enum CONTACT::CouplingScheme get_coupling_scheme() const override
       {
         return coupling_scheme_;
       }
 
       //! set coupling mode enumerator
-      void set_coupling_scheme(const enum Inpar::CONTACT::CouplingScheme scheme) override
+      void set_coupling_scheme(const enum CONTACT::CouplingScheme scheme) override
       {
         coupling_scheme_ = scheme;
       }
@@ -1334,9 +1305,7 @@ namespace Solid
 
       enum Mortar::ActionType mortar_action_;
 
-      enum Inpar::CONTACT::VariationalApproach var_type_;
-
-      enum Inpar::CONTACT::CouplingScheme coupling_scheme_;
+      enum CONTACT::CouplingScheme coupling_scheme_;
 
       std::shared_ptr<const Solid::ModelEvaluator::Data> str_data_ptr_;
 
@@ -1345,8 +1314,7 @@ namespace Solid
 
     /*! Brownian dynamic data container for the model evaluation procedure.
      *
-     * \author Jonas Eichinger
-     * \date 06/16 */
+     */
     class BrownianDynData : public BrownianDynamics::ParamsInterface
     {
      public:
@@ -1416,7 +1384,7 @@ namespace Solid
       };
 
       /// the way how damping coefficient values for beams are specified
-      [[nodiscard]] Inpar::BrownianDynamics::BeamDampingCoefficientSpecificationType
+      [[nodiscard]] BrownianDynamics::BeamDampingCoefficientSpecificationType
       how_beam_damping_coefficients_are_specified() const override
       {
         check_init_setup();
@@ -1478,8 +1446,7 @@ namespace Solid
       double timeintconstrandnumb_;
 
       /// the way how damping coefficient values for beams are specified
-      Inpar::BrownianDynamics::BeamDampingCoefficientSpecificationType
-          beam_damping_coeff_specified_via_;
+      BrownianDynamics::BeamDampingCoefficientSpecificationType beam_damping_coeff_specified_via_;
 
       /// prefactors for damping coefficients of beams if they are specified via input file
       /// (per unit length, NOT yet multiplied by viscosity)

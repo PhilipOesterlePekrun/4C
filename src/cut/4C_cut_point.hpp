@@ -436,8 +436,7 @@ namespace Cut
    * point coordinate stays 3. If probDim is smaller than three, the last
    * coordinates are set to zero.
    *
-   * \author hiermeier
-   * \date 11/16 */
+   */
   template <unsigned prob_dim>
   class ConcretePoint : public Point
   {
@@ -478,8 +477,8 @@ namespace Cut
    *  This class creates a ConcretePoint object with correct problem dimension.
    *  Don't call this class directly! Use the non-member function instead.
    *
-   *  \date 11/16
-   *  \author hiermeier */
+
+   *  */
   class PointFactory
   {
    public:
@@ -500,7 +499,7 @@ namespace Cut
           point = std::make_shared<ConcretePoint<3>>(pid, x, cut_edge, cut_side, tolerance);
           break;
         default:
-          FOUR_C_THROW("Unsupported problem dimension! (probdim=%d)", probdim);
+          FOUR_C_THROW("Unsupported problem dimension! (probdim={})", probdim);
           break;
       }
       return point;
@@ -530,7 +529,7 @@ namespace Cut
     }
   };
 
-  typedef EntityIdLess<Point> PointPidLess;
+  using PointPidLess = EntityIdLess<Point>;
 
   /// position on edge based comparison for sorting and searching
   class PointPositionLess
@@ -557,16 +556,16 @@ namespace Cut
   };
 
 #ifdef CUT_USE_SORTED_VECTOR
-  typedef SortedVector<Point*, true, PointPidLess> PointSet;
-  typedef SortedVector<Point*, true, PointPositionLess> PointPositionSet;
+  using PointSet = SortedVector<Point*, true, PointPidLess>;
+  using PointPositionSet = SortedVector<Point*, true, PointPositionLess>;
 
-  typedef SortedVector<std::shared_ptr<Point>, true, PointPidLess> RCPPointSet;
+  using RCPPointSet = SortedVector<std::shared_ptr<Point>, true, PointPidLess>;
 
 #else
-  typedef std::set<Point*, PointPidLess> PointSet;
-  typedef std::set<Point*, PointPositionLess> PointPositionSet;
+  using PointSet = std::set<Point*, PointPidLess>;
+  using PointPositionSet = std::set<Point*, PointPositionLess>;
 
-  typedef std::set<std::shared_ptr<Point>, PointPidLess> RCPPointSet;
+  using RCPPointSet = std::set<std::shared_ptr<Point>, PointPidLess>;
 
 #endif
 
@@ -626,7 +625,7 @@ namespace Cut
    *
    *  A point knows which cut_elements it is associated to.
    *
-   *  \author hiermeier \date 11/16 */
+   *  */
   void find_common_elements(const std::vector<Point*>& element, plain_element_set& elements);
 
   /// Find if the points in side (which is actually a tet...) share a common side,

@@ -147,12 +147,12 @@ Teuchos::RCP<const std::vector<double>> NOX::Nln::CONSTRAINT::Group::get_rhs_nor
              " for the \"NormF\" Status Test could not be found! (enum="
           << chQ[i] << " | " << NOX::Nln::StatusTest::quantity_type_to_string(chQ[i])
           << " | return value=" << rval << ")" << std::endl;
-      FOUR_C_THROW(msg.str());
+      FOUR_C_THROW("{}", msg.str());
     }
     else
     {
-      FOUR_C_THROW("The norm value %e for quantity %s is not valid!", rval,
-          NOX::Nln::StatusTest::quantity_type_to_string(chQ[i]).c_str());
+      FOUR_C_THROW("The norm value {} for quantity {} is not valid!", rval,
+          NOX::Nln::StatusTest::quantity_type_to_string(chQ[i]));
     }
   }
 
@@ -306,7 +306,7 @@ Teuchos::RCP<std::vector<double>> NOX::Nln::CONSTRAINT::Group::get_solution_upda
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-Teuchos::RCP<const Epetra_Map> NOX::Nln::CONSTRAINT::Group::get_current_active_set_map(
+Teuchos::RCP<const Core::LinAlg::Map> NOX::Nln::CONSTRAINT::Group::get_current_active_set_map(
     const enum NOX::Nln::StatusTest::QuantityType& qt) const
 {
   enum NOX::Nln::SolutionType soltype = NOX::Nln::Aux::convert_quantity_type_to_solution_type(qt);
@@ -316,7 +316,7 @@ Teuchos::RCP<const Epetra_Map> NOX::Nln::CONSTRAINT::Group::get_current_active_s
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-Teuchos::RCP<const Epetra_Map> NOX::Nln::CONSTRAINT::Group::get_old_active_set_map(
+Teuchos::RCP<const Core::LinAlg::Map> NOX::Nln::CONSTRAINT::Group::get_old_active_set_map(
     const enum NOX::Nln::StatusTest::QuantityType& qtype) const
 {
   enum NOX::Nln::SolutionType soltype =

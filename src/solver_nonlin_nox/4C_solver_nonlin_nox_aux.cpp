@@ -7,7 +7,6 @@
 
 #include "4C_solver_nonlin_nox_aux.hpp"
 
-#include "4C_inpar_boolifyparameters.hpp"
 #include "4C_linalg_blocksparsematrix.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_solver_nonlin_nox_linearsystem.hpp"
@@ -17,7 +16,6 @@
 #include "4C_solver_nonlin_nox_statustest_normupdate.hpp"
 #include "4C_solver_nonlin_nox_statustest_normwrms.hpp"
 
-#include <NOX_Abstract_ImplicitWeighting.H>
 #include <NOX_Observer_Vector.hpp>
 #include <Teuchos_ParameterList.hpp>
 
@@ -27,9 +25,6 @@ FOUR_C_NAMESPACE_OPEN
  *----------------------------------------------------------------------------*/
 void NOX::Nln::Aux::set_printing_parameters(Teuchos::ParameterList& p_nox, MPI_Comm comm)
 {
-  // make all Yes/No integral values to Boolean
-  Input::boolify_valid_input_parameters(p_nox);
-
   // adjust printing parameter list
   Teuchos::ParameterList& printParams = p_nox.sublist("Printing");
   printParams.set<int>("MyPID", Core::Communication::my_mpi_rank(comm));
@@ -107,7 +102,6 @@ NOX::Nln::LinSystem::LinearSystemType NOX::Nln::Aux::get_linear_system_type(
       FOUR_C_THROW(
           "There is no capable linear system type for the given linear "
           "solver combination! ( 1 linear solver )");
-      exit(EXIT_FAILURE);
     }
     case 2:
     {
@@ -158,7 +152,6 @@ NOX::Nln::LinSystem::LinearSystemType NOX::Nln::Aux::get_linear_system_type(
       FOUR_C_THROW(
           "There is no capable linear system type for the given linear "
           "solver combination!");
-      exit(EXIT_FAILURE);
     }
   }
 
@@ -175,21 +168,21 @@ double NOX::Nln::Aux::root_mean_square_norm(const double& atol, const double& rt
 
   // calculate the old iterate (k-1)
   Core::LinAlg::Vector<double> v(xnew);
-  v.Update(-1.0, xincr, 1.0);
+  v.update(-1.0, xincr, 1.0);
 
   // new auxiliary vector
-  Core::LinAlg::Vector<double> u(xnew.Map(), false);
+  Core::LinAlg::Vector<double> u(xnew.get_block_map(), false);
 
   // create the weighting factor u = RTOL |x^(k-1)| + ATOL
-  u.PutScalar(1.0);
-  u.Update(rtol, v, atol);
+  u.put_scalar(1.0);
+  u.update(rtol, v, atol);
 
   // v = xincr/u (elementwise)
-  v.ReciprocalMultiply(1.0, u, xincr, 0);
+  v.reciprocal_multiply(1.0, u, xincr, 0);
 
   // rval = sqrt (v * v / N)
-  v.Norm2(&rval);
-  rval /= std::sqrt(static_cast<double>(v.GlobalLength()));
+  v.norm_2(&rval);
+  rval /= std::sqrt(static_cast<double>(v.global_length()));
 
   return rval;
 }
@@ -547,8 +540,8 @@ enum NOX::Nln::SolutionType NOX::Nln::Aux::convert_quantity_type_to_solution_typ
       break;
     case NOX::Nln::StatusTest::quantity_unknown:
     default:
-      FOUR_C_THROW("Unknown conversion for the quantity type \"%s\".",
-          NOX::Nln::StatusTest::quantity_type_to_string(qtype).c_str());
+      FOUR_C_THROW("Unknown conversion for the quantity type \"{}\".",
+          NOX::Nln::StatusTest::quantity_type_to_string(qtype));
   }
   // return the corresponding solution type
   return soltype;
@@ -566,7 +559,7 @@ enum ::NOX::Abstract::Vector::NormType NOX::Nln::Aux::string_to_norm_type(const 
   else if (name == "Max Norm")
     norm_type = ::NOX::Abstract::Vector::MaxNorm;
   else
-    FOUR_C_THROW("Unknown conversion from STL_STRING to NormType enum for %s.", name.c_str());
+    FOUR_C_THROW("Unknown conversion from STL_STRING to NormType enum for {}.", name);
 
   return norm_type;
 }
@@ -621,8 +614,7 @@ std::string NOX::Nln::Aux::get_direction_method_list_name(const Teuchos::Paramet
     return "Newton";
   else
   {
-    FOUR_C_THROW("Currently unsupported direction method string: %s", dir_str->c_str());
-    exit(EXIT_FAILURE);
+    FOUR_C_THROW("Currently unsupported direction method string: {}", *dir_str);
   }
 }
 

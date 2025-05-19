@@ -14,7 +14,6 @@
 #include "4C_coupling_adapter.hpp"
 #include "4C_fsi_str_model_evaluator_partitioned.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_validparameters.hpp"
 #include "4C_io.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
@@ -119,6 +118,15 @@ void FSI::Algorithm::setup()
 
   coupsf_ = std::make_shared<Coupling::Adapter::Coupling>();
 }
+
+/*----------------------------------------------------------------------*/
+/*----------------------------------------------------------------------*/
+void FSI::Algorithm::post_setup()
+{
+  // call post_setup routine of the structural field
+  structure_->post_setup();
+}
+
 
 
 /*----------------------------------------------------------------------*/

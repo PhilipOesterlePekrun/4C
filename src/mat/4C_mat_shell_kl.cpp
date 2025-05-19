@@ -10,6 +10,7 @@
 #include "4C_comm_pack_helpers.hpp"
 #include "4C_global_data.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_exceptions.hpp"
 
 #include <vector>
@@ -27,12 +28,12 @@ Mat::PAR::KirchhoffLoveShell::KirchhoffLoveShell(const Core::Mat::PAR::Parameter
       thickness_(matdata.parameters.get<double>("THICKNESS"))
 {
   if (young_modulus_ <= 0.0)
-    FOUR_C_THROW("Young's modulus has to be positive. Got %f", young_modulus_);
+    FOUR_C_THROW("Young's modulus has to be positive. Got {}", young_modulus_);
   if (poisson_ratio_ <= -1.0 or poisson_ratio_ > 0.5)
     FOUR_C_THROW(
-        "Poisson's ratio has to be in the range (-1,1/2]. Got invalid value %f", poisson_ratio_);
+        "Poisson's ratio has to be in the range (-1,1/2]. Got invalid value {}", poisson_ratio_);
   if (thickness_ < 0.0)
-    FOUR_C_THROW("Thickness has to be positive. Got invalid value %f", thickness_);
+    FOUR_C_THROW("Thickness has to be positive. Got invalid value {}", thickness_);
 }
 
 /**
@@ -101,7 +102,7 @@ void Mat::KirchhoffLoveShell::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::KirchhoffLoveShell*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
 }

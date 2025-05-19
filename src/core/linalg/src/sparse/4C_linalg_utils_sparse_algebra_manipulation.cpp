@@ -49,14 +49,14 @@ void Core::LinAlg::export_to(
     {
       Epetra_Export exporter(source.Map(), target.Map());
       int err = target.Export(source, exporter, Insert);
-      if (err) FOUR_C_THROW("Export using exporter returned err=%d", err);
+      if (err) FOUR_C_THROW("Export using exporter returned err={}", err);
       return;
     }
     else if (sourceunique && !targetunique)
     {
       Epetra_Import importer(target.Map(), source.Map());
       int err = target.Import(source, importer, Insert);
-      if (err) FOUR_C_THROW("Export using importer returned err=%d", err);
+      if (err) FOUR_C_THROW("Export using importer returned err={}", err);
       return;
     }
     else if (!sourceunique && targetunique)
@@ -90,7 +90,7 @@ void Core::LinAlg::export_to(
   }
   catch (int error)
   {
-    FOUR_C_THROW("Caught an Epetra exception %d", error);
+    FOUR_C_THROW("Caught an Epetra exception {}", error);
   }
 
   return;
@@ -103,18 +103,19 @@ void Core::LinAlg::export_to(
 {
   try
   {
-    const bool sourceunique = source.Map().UniqueGIDs();
-    const bool targetunique = target.Map().UniqueGIDs();
+    const bool sourceunique = source.get_block_map().UniqueGIDs();
+    const bool targetunique = target.get_block_map().UniqueGIDs();
 
     // both are unique, does not matter whether ex- or import
-    if (sourceunique && targetunique && Core::Communication::num_mpi_ranks(source.Comm()) == 1 &&
-        Core::Communication::num_mpi_ranks(target.Comm()) == 1)
+    if (sourceunique && targetunique &&
+        Core::Communication::num_mpi_ranks(source.get_comm()) == 1 &&
+        Core::Communication::num_mpi_ranks(target.get_comm()) == 1)
     {
-      for (int i = 0; i < target.Map().NumMyElements(); ++i)
+      for (int i = 0; i < target.get_block_map().NumMyElements(); ++i)
       {
-        const int gid = target.Map().GID(i);
+        const int gid = target.get_block_map().GID(i);
         if (gid < 0) FOUR_C_THROW("No gid for i");
-        const int lid = source.Map().LID(gid);
+        const int lid = source.get_block_map().LID(gid);
         if (lid < 0) continue;
         target[i] = source[lid];
       }
@@ -122,23 +123,23 @@ void Core::LinAlg::export_to(
     }
     else if (sourceunique && targetunique)
     {
-      Epetra_Export exporter(source.Map(), target.Map());
-      int err = target.Export(source, exporter, Insert);
-      if (err) FOUR_C_THROW("Export using exporter returned err=%d", err);
+      Epetra_Export exporter(source.get_block_map(), target.get_block_map());
+      int err = target.export_to(source, exporter, Insert);
+      if (err) FOUR_C_THROW("Export using exporter returned err={}", err);
       return;
     }
     else if (sourceunique && !targetunique)
     {
-      Epetra_Import importer(target.Map(), source.Map());
-      int err = target.Import(source, importer, Insert);
-      if (err) FOUR_C_THROW("Export using exporter returned err=%d", err);
+      Epetra_Import importer(target.get_block_map(), source.get_block_map());
+      int err = target.import(source, importer, Insert);
+      if (err) FOUR_C_THROW("Export using exporter returned err={}", err);
       return;
     }
     else if (!sourceunique && targetunique)
     {
-      Epetra_Export exporter(source.Map(), target.Map());
-      int err = target.Export(source, exporter, Insert);
-      if (err) FOUR_C_THROW("Export using exporter returned err=%d", err);
+      Epetra_Export exporter(source.get_block_map(), target.get_block_map());
+      int err = target.export_to(source, exporter, Insert);
+      if (err) FOUR_C_THROW("Export using exporter returned err={}", err);
       return;
     }
     else if (!sourceunique && !targetunique)
@@ -154,7 +155,7 @@ void Core::LinAlg::export_to(
   }
   catch (int error)
   {
-    FOUR_C_THROW("Caught an Epetra exception %d", error);
+    FOUR_C_THROW("Caught an Epetra exception {}", error);
   }
 
   return;
@@ -163,7 +164,7 @@ void Core::LinAlg::export_to(
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
 std::unique_ptr<Core::LinAlg::Vector<double>> Core::LinAlg::extract_my_vector(
-    const Core::LinAlg::Vector<double>& source, const Epetra_Map& target_map)
+    const Core::LinAlg::Vector<double>& source, const Core::LinAlg::Map& target_map)
 {
   std::unique_ptr<Core::LinAlg::Vector<double>> target =
       std::make_unique<Core::LinAlg::Vector<double>>(target_map);
@@ -178,22 +179,22 @@ std::unique_ptr<Core::LinAlg::Vector<double>> Core::LinAlg::extract_my_vector(
 void Core::LinAlg::extract_my_vector(
     const Core::LinAlg::Vector<double>& source, Core::LinAlg::Vector<double>& target)
 {
-  const int my_num_target_gids = target.Map().NumMyElements();
-  const int* my_target_gids = target.Map().MyGlobalElements();
+  const int my_num_target_gids = target.get_block_map().NumMyElements();
+  const int* my_target_gids = target.get_block_map().MyGlobalElements();
 
-  double* target_values = target.Values();
+  double* target_values = target.get_values();
 
-  const double* src_values = source.Values();
+  const double* src_values = source.get_values();
 
   for (int tar_lid = 0; tar_lid < my_num_target_gids; ++tar_lid)
   {
     const int target_gid = my_target_gids[tar_lid];
 
-    const int src_lid = source.Map().LID(target_gid);
+    const int src_lid = source.get_block_map().LID(target_gid);
     // check if the target_map is a local sub-set of the source map on each proc
     if (src_lid == -1)
-      FOUR_C_THROW("Couldn't find the target GID %d in the source map on proc %d.", target_gid,
-          Core::Communication::my_mpi_rank(source.Comm()));
+      FOUR_C_THROW("Couldn't find the target GID {} in the source map on proc {}.", target_gid,
+          Core::Communication::my_mpi_rank(source.get_comm()));
 
     target_values[tar_lid] = src_values[src_lid];
   }
@@ -238,28 +239,29 @@ std::unique_ptr<Core::LinAlg::SparseMatrix> Core::LinAlg::threshold_matrix(
         A.row_map().GID(row), nnz_thresh, values_thresh.data(), indices_thresh.data());
   }
 
-  A_thresh->complete(A.domain_map(), A.range_map());
+  A_thresh->complete(Map(A.domain_map()), A.range_map());
 
   return A_thresh;
 }
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-std::shared_ptr<Epetra_CrsGraph> Core::LinAlg::threshold_matrix_graph(
+std::shared_ptr<Core::LinAlg::Graph> Core::LinAlg::threshold_matrix_graph(
     const Core::LinAlg::SparseMatrix& A, const double threshold)
 {
-  std::shared_ptr<Epetra_CrsGraph> sparsity_pattern =
-      std::make_shared<Epetra_CrsGraph>(Epetra_DataAccess::Copy, A.row_map(), A.max_num_entries());
+  std::shared_ptr<Core::LinAlg::Graph> sparsity_pattern = std::make_shared<Core::LinAlg::Graph>(
+      Epetra_DataAccess::Copy, A.row_map(), A.max_num_entries());
 
   Core::LinAlg::Vector<double> diagonal(A.row_map(), true);
   A.extract_diagonal_copy(diagonal);
 
   Core::LinAlg::Vector<double> ghosted_diagonal(A.col_map(), true);
-  const Epetra_Import importer = Epetra_Import(A.col_map(), A.row_map());
-  ghosted_diagonal.Import(
-      diagonal.get_ref_of_Epetra_Vector(), importer, Epetra_CombineMode::Insert);
+  const Epetra_Import importer =
+      Epetra_Import(A.col_map().get_epetra_map(), A.row_map().get_epetra_map());
+  ghosted_diagonal.import(
+      diagonal.get_ref_of_epetra_vector(), importer, Epetra_CombineMode::Insert);
 
-  double* D = ghosted_diagonal.Values();
+  double* D = ghosted_diagonal.get_values();
 
   for (int row = 0; row < A.epetra_matrix()->NumMyRows(); row++)
   {
@@ -281,19 +283,20 @@ std::shared_ptr<Epetra_CrsGraph> Core::LinAlg::threshold_matrix_graph(
         indices_new.emplace_back(A.col_map().GID(indices[i]));
     }
 
-    sparsity_pattern->InsertGlobalIndices(global_row, indices_new.size(), indices_new.data());
+    sparsity_pattern->insert_global_indices(global_row, indices_new.size(), indices_new.data());
   }
 
-  sparsity_pattern->FillComplete();
+  sparsity_pattern->fill_complete();
 
   return sparsity_pattern;
 }
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-std::shared_ptr<Epetra_CrsGraph> Core::LinAlg::enrich_matrix_graph(const SparseMatrix& A, int power)
+std::shared_ptr<Core::LinAlg::Graph> Core::LinAlg::enrich_matrix_graph(
+    const SparseMatrix& A, int power)
 {
-  SparseMatrix A_copy(A, Core::LinAlg::Copy);
+  SparseMatrix A_copy(A, Core::LinAlg::DataAccess::Copy);
   A_copy.complete();
 
   for (int pow = 0; pow < power - 1; pow++)
@@ -304,44 +307,15 @@ std::shared_ptr<Epetra_CrsGraph> Core::LinAlg::enrich_matrix_graph(const SparseM
     A_copy = *A_power;
   }
 
-  return std::make_shared<Epetra_CrsGraph>(A_copy.epetra_matrix()->Graph());
-}
-
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-bool Core::LinAlg::split_matrix2x2(std::shared_ptr<Epetra_CrsMatrix> A,
-    std::shared_ptr<BlockSparseMatrix<DefaultBlockMatrixStrategy>>& Ablock,
-    std::shared_ptr<Epetra_Map>& A11rowmap, std::shared_ptr<Epetra_Map>& A22rowmap)
-{
-  if (A == nullptr) FOUR_C_THROW("A==null on entry");
-
-  if (A11rowmap == nullptr && A22rowmap != nullptr)
-    A11rowmap = Core::LinAlg::split_map(A->RowMap(), *A22rowmap);
-  else if (A11rowmap != nullptr && A22rowmap == nullptr)
-    A22rowmap = Core::LinAlg::split_map(A->RowMap(), *A11rowmap);
-  else if (A11rowmap == nullptr && A22rowmap == nullptr)
-    FOUR_C_THROW("Both A11rowmap and A22rowmap == null on entry");
-
-  std::vector<std::shared_ptr<const Epetra_Map>> maps(2);
-  maps[0] = std::make_shared<Epetra_Map>(*A11rowmap);
-  maps[1] = std::make_shared<Epetra_Map>(*A22rowmap);
-  Core::LinAlg::MultiMapExtractor extractor(A->RowMap(), maps);
-
-  // create SparseMatrix view to input matrix A
-  SparseMatrix a(A, View);
-
-  // split matrix into pieces, where main diagonal blocks are square
-  Ablock = Core::LinAlg::split_matrix<DefaultBlockMatrixStrategy>(a, extractor, extractor);
-  Ablock->complete();
-
-  return true;
+  return std::make_shared<Core::LinAlg::Graph>(A_copy.epetra_matrix()->Graph());
 }
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
 bool Core::LinAlg::split_matrix2x2(std::shared_ptr<Core::LinAlg::SparseMatrix> A,
-    std::shared_ptr<Epetra_Map>& A11rowmap, std::shared_ptr<Epetra_Map>& A22rowmap,
-    std::shared_ptr<Epetra_Map>& A11domainmap, std::shared_ptr<Epetra_Map>& A22domainmap,
+    std::shared_ptr<Core::LinAlg::Map>& A11rowmap, std::shared_ptr<Core::LinAlg::Map>& A22rowmap,
+    std::shared_ptr<Core::LinAlg::Map>& A11domainmap,
+    std::shared_ptr<Core::LinAlg::Map>& A22domainmap,
     std::shared_ptr<Core::LinAlg::SparseMatrix>& A11,
     std::shared_ptr<Core::LinAlg::SparseMatrix>& A12,
     std::shared_ptr<Core::LinAlg::SparseMatrix>& A21,
@@ -366,12 +340,12 @@ bool Core::LinAlg::split_matrix2x2(std::shared_ptr<Core::LinAlg::SparseMatrix> A
     FOUR_C_THROW("Both A11domainmap and A22domainmap == null on entry");
 
   // local variables
-  std::vector<std::shared_ptr<const Epetra_Map>> rangemaps(2);
-  std::vector<std::shared_ptr<const Epetra_Map>> domainmaps(2);
-  rangemaps[0] = std::make_shared<Epetra_Map>(*A11rowmap);
-  rangemaps[1] = std::make_shared<Epetra_Map>(*A22rowmap);
-  domainmaps[0] = std::make_shared<Epetra_Map>(*A11domainmap);
-  domainmaps[1] = std::make_shared<Epetra_Map>(*A22domainmap);
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> rangemaps(2);
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> domainmaps(2);
+  rangemaps[0] = std::make_shared<Core::LinAlg::Map>(*A11rowmap);
+  rangemaps[1] = std::make_shared<Core::LinAlg::Map>(*A22rowmap);
+  domainmaps[0] = std::make_shared<Core::LinAlg::Map>(*A11domainmap);
+  domainmaps[1] = std::make_shared<Core::LinAlg::Map>(*A22domainmap);
   Core::LinAlg::MultiMapExtractor range(A->range_map(), rangemaps);
   Core::LinAlg::MultiMapExtractor domain(A->domain_map(), domainmaps);
 
@@ -381,10 +355,10 @@ bool Core::LinAlg::split_matrix2x2(std::shared_ptr<Core::LinAlg::SparseMatrix> A
   Ablock->complete();
   // extract internal data from Ablock in std::shared_ptr form and let Ablock die
   // (this way, internal data from Ablock will live)
-  A11 = std::make_shared<SparseMatrix>((*Ablock)(0, 0), View);
-  A12 = std::make_shared<SparseMatrix>((*Ablock)(0, 1), View);
-  A21 = std::make_shared<SparseMatrix>((*Ablock)(1, 0), View);
-  A22 = std::make_shared<SparseMatrix>((*Ablock)(1, 1), View);
+  A11 = std::make_shared<SparseMatrix>((*Ablock)(0, 0), DataAccess::View);
+  A12 = std::make_shared<SparseMatrix>((*Ablock)(0, 1), DataAccess::View);
+  A21 = std::make_shared<SparseMatrix>((*Ablock)(1, 0), DataAccess::View);
+  A22 = std::make_shared<SparseMatrix>((*Ablock)(1, 1), DataAccess::View);
 
   return true;
 }
@@ -405,16 +379,16 @@ void Core::LinAlg::split_matrix2x2(
   std::shared_ptr<Epetra_CrsMatrix> A22 = ABlock(1, 1).epetra_matrix();
   if (A11->Filled() || A12->Filled() || A21->Filled() || A22->Filled())
     FOUR_C_THROW("Sub-matrices of the block operator are expected to be not filled");
-  const Epetra_Map& A11rmap = ABlock.range_map(0);
-  const Epetra_Map& A11dmap = ABlock.domain_map(0);
-  const Epetra_Map& A22rmap = ABlock.range_map(1);
-  const Epetra_Map& A22dmap = ABlock.domain_map(1);
+  const Core::LinAlg::Map& A11rmap = ABlock.range_map(0);
+  const Core::LinAlg::Map& A11dmap = ABlock.domain_map(0);
+  const Core::LinAlg::Map& A22rmap = ABlock.range_map(1);
+  const Core::LinAlg::Map& A22dmap = ABlock.domain_map(1);
 
   // find out about how the column map is linked to the individual processors.
   // this is done by filling the information about the rowmap into a vector that
   // is then exported to the column map
   Core::LinAlg::Vector<double> dselector(A->DomainMap());
-  for (int i = 0; i < dselector.MyLength(); ++i)
+  for (int i = 0; i < dselector.local_length(); ++i)
   {
     const int gid = A->DomainMap().GID(i);
     if (A11dmap.MyGID(gid))
@@ -445,11 +419,11 @@ void Core::LinAlg::split_matrix2x2(
     double* values;
     int* cindices;
     int err = A->ExtractMyRowView(i, numentries, values, cindices);
-    if (err) FOUR_C_THROW("ExtractMyRowView returned %d", err);
+    if (err) FOUR_C_THROW("ExtractMyRowView returned {}", err);
     for (int j = 0; j < numentries; ++j)
     {
       const int gcid = A->ColMap().GID(cindices[j]);
-      FOUR_C_ASSERT(cindices[j] < selector.MyLength(), "Internal error");
+      FOUR_C_ASSERT(cindices[j] < selector.local_length(), "Internal error");
       // column is in A*1
       if (selector[cindices[j]] == 0.)
       {
@@ -477,7 +451,7 @@ void Core::LinAlg::split_matrix2x2(
     }
 
     if (err1 < 0 || err2 < 0)
-      FOUR_C_THROW("InsertGlobalValues returned err1=%d / err2=%d", err1, err2);
+      FOUR_C_THROW("InsertGlobalValues returned err1={} / err2={}", err1, err2);
   }
 }
 
@@ -505,13 +479,12 @@ void Core::LinAlg::split_matrixmxn(
   // BlockSparseMatrixBase this is done via an Core::LinAlg::Vector<double> which is filled using
   // domain map information and then exported to column map
   Core::LinAlg::Vector<double> dselector(ASparse.domain_map());
-  for (int collid = 0; collid < dselector.MyLength(); ++collid)
+  for (int collid = 0; collid < dselector.local_length(); ++collid)
   {
     const int colgid = ASparse.domain_map().GID(collid);
-    if (colgid < 0) FOUR_C_THROW("Couldn't find local column ID %d in domain map!", collid);
+    if (colgid < 0) FOUR_C_THROW("Couldn't find local column ID {} in domain map!", collid);
 
-    int n(0);
-    for (n = 0; n < N; ++n)
+    for (int n = 0; n < N; ++n)
     {
       if (ABlock.domain_map(n).MyGID(colgid))
       {
@@ -519,7 +492,6 @@ void Core::LinAlg::split_matrixmxn(
         break;
       }
     }
-    if (n == N) FOUR_C_THROW("Matrix column was not found in BlockSparseMatrixBase!");
   }
   Core::LinAlg::Vector<double> selector(A.ColMap());
   Core::LinAlg::export_to(dselector, selector);
@@ -543,7 +515,7 @@ void Core::LinAlg::split_matrixmxn(
     for (int j = 0; j < numentries; ++j)
     {
       const int collid = indices[j];
-      if (collid >= selector.MyLength()) FOUR_C_THROW("Invalid local column ID %d!", collid);
+      if (collid >= selector.local_length()) FOUR_C_THROW("Invalid local column ID {}!", collid);
 
       const int blockid = static_cast<int>(selector[collid]);
       colgids[blockid][counters[blockid]] = A.ColMap().GID(collid);
@@ -583,10 +555,10 @@ int Core::LinAlg::insert_my_row_diagonal_into_unfilled_matrix(
   std::shared_ptr<Epetra_CrsMatrix> dst_mat_ptr = mat.epetra_matrix();
   Epetra_CrsMatrix& dst_mat = *dst_mat_ptr;
 
-  const int my_num_entries = diag.Map().NumMyElements();
-  const int* my_gids = diag.Map().MyGlobalElements();
+  const int my_num_entries = diag.get_block_map().NumMyElements();
+  const int* my_gids = diag.get_block_map().MyGlobalElements();
 
-  double* diag_values = diag.Values();
+  double* diag_values = diag.get_values();
 
   for (int lid = 0; lid < my_num_entries; ++lid)
   {
@@ -595,8 +567,8 @@ int Core::LinAlg::insert_my_row_diagonal_into_unfilled_matrix(
     // skip rows which are not part of the matrix
     if (not dst_mat.RangeMap().MyGID(rgid))
       FOUR_C_THROW(
-          "Could not find the row GID %d in the destination matrix RowMap"
-          " on proc %d.",
+          "Could not find the row GID {} in the destination matrix RowMap"
+          " on proc {}.",
           rgid,
           Core::Communication::my_mpi_rank(
               Core::Communication::unpack_epetra_comm(dst_mat.Comm())));
@@ -608,15 +580,15 @@ int Core::LinAlg::insert_my_row_diagonal_into_unfilled_matrix(
       if (err > 0)
       {
         err = dst_mat.InsertGlobalValues(rgid, 1, (diag_values + lid), &rgid);
-        if (err < 0) FOUR_C_THROW("InsertGlobalValues error: %d", err);
+        if (err < 0) FOUR_C_THROW("InsertGlobalValues error: {}", err);
       }
       else if (err < 0)
-        FOUR_C_THROW("SumIntoGlobalValues error: %d", err);
+        FOUR_C_THROW("SumIntoGlobalValues error: {}", err);
     }
     else
     {
       const int err = dst_mat.InsertGlobalValues(rgid, 1, (diag_values + lid), &rgid);
-      if (err < 0) FOUR_C_THROW("InsertGlobalValues error: %d", err);
+      if (err < 0) FOUR_C_THROW("InsertGlobalValues error: {}", err);
     }
   }
 
@@ -626,11 +598,11 @@ int Core::LinAlg::insert_my_row_diagonal_into_unfilled_matrix(
 /*----------------------------------------------------------------------*
  | split a map into 2 pieces with given Agiven                     06/06|
  *----------------------------------------------------------------------*/
-std::shared_ptr<Epetra_Map> Core::LinAlg::split_map(
-    const Epetra_Map& Amap, const Epetra_Map& Agiven)
+std::shared_ptr<Core::LinAlg::Map> Core::LinAlg::split_map(
+    const Core::LinAlg::Map& Amap, const Core::LinAlg::Map& Agiven)
 {
   MPI_Comm Comm = Core::Communication::unpack_epetra_comm(Amap.Comm());
-  const Epetra_Map& Ag = Agiven;
+  const Core::LinAlg::Map& Ag = Agiven;
 
   int count = 0;
   std::vector<int> myaugids(Amap.NumMyElements());
@@ -644,7 +616,7 @@ std::shared_ptr<Epetra_Map> Core::LinAlg::split_map(
   myaugids.resize(count);
   int gcount;
   Core::Communication::sum_all(&count, &gcount, 1, Comm);
-  std::shared_ptr<Epetra_Map> Aunknown = std::make_shared<Epetra_Map>(
+  std::shared_ptr<Core::LinAlg::Map> Aunknown = std::make_shared<Core::LinAlg::Map>(
       gcount, count, myaugids.data(), 0, Core::Communication::as_epetra_comm(Comm));
 
   return Aunknown;
@@ -653,8 +625,8 @@ std::shared_ptr<Epetra_Map> Core::LinAlg::split_map(
 /*----------------------------------------------------------------------*
  | merge two given maps to one map                            popp 01/08|
  *----------------------------------------------------------------------*/
-std::shared_ptr<Epetra_Map> Core::LinAlg::merge_map(
-    const Epetra_Map& map1, const Epetra_Map& map2, bool overlap)
+std::shared_ptr<Core::LinAlg::Map> Core::LinAlg::merge_map(
+    const Core::LinAlg::Map& map1, const Core::LinAlg::Map& map2, bool overlap)
 {
   // check for unique GIDs and for identity
   // if ((!map1.UniqueGIDs()) || (!map2.UniqueGIDs()))
@@ -664,7 +636,7 @@ std::shared_ptr<Epetra_Map> Core::LinAlg::merge_map(
     if ((overlap == false) && map1.NumGlobalElements() > 0)
       FOUR_C_THROW("Core::LinAlg::merge_map: Result map is overlapping");
     else
-      return std::make_shared<Epetra_Map>(map1);
+      return std::make_shared<Core::LinAlg::Map>(map1);
   }
 
   std::vector<int> mygids(map1.NumMyElements() + map2.NumMyElements());
@@ -693,22 +665,23 @@ std::shared_ptr<Epetra_Map> Core::LinAlg::merge_map(
   // sort merged map
   sort(mygids.begin(), mygids.end());
 
-  return std::make_shared<Epetra_Map>(-1, (int)mygids.size(), mygids.data(), 0, map1.Comm());
+  return std::make_shared<Core::LinAlg::Map>(-1, (int)mygids.size(), mygids.data(), 0, map1.Comm());
 }
 
 /*----------------------------------------------------------------------*
  | merge two given maps to one map                            popp 01/08|
  *----------------------------------------------------------------------*/
-std::shared_ptr<Epetra_Map> Core::LinAlg::merge_map(const std::shared_ptr<const Epetra_Map>& map1,
-    const std::shared_ptr<const Epetra_Map>& map2, bool overlap)
+std::shared_ptr<Core::LinAlg::Map> Core::LinAlg::merge_map(
+    const std::shared_ptr<const Core::LinAlg::Map>& map1,
+    const std::shared_ptr<const Core::LinAlg::Map>& map2, bool overlap)
 {
   // check for cases with null std::shared_ptrs
   if (map1 == nullptr && map2 == nullptr)
     return nullptr;
   else if (map1 == nullptr)
-    return std::make_shared<Epetra_Map>(*map2);
+    return std::make_shared<Core::LinAlg::Map>(*map2);
   else if (map2 == nullptr)
-    return std::make_shared<Epetra_Map>(*map1);
+    return std::make_shared<Core::LinAlg::Map>(*map1);
 
   // wrapped call to non-std::shared_ptr version of MergeMap
   return Core::LinAlg::merge_map(*map1, *map2, overlap);
@@ -717,13 +690,13 @@ std::shared_ptr<Epetra_Map> Core::LinAlg::merge_map(const std::shared_ptr<const 
 /*----------------------------------------------------------------------*
  | Find the intersection of two maps                     hiermeier 10/14|
  *----------------------------------------------------------------------*/
-std::shared_ptr<Epetra_Map> Core::LinAlg::intersect_map(
-    const Epetra_Map& map1, const Epetra_Map& map2)
+std::shared_ptr<Core::LinAlg::Map> Core::LinAlg::intersect_map(
+    const Core::LinAlg::Map& map1, const Core::LinAlg::Map& map2)
 {
   // check if the maps are identical
   if (map1.SameAs(map2))
   {
-    return std::make_shared<Epetra_Map>(map1);
+    return std::make_shared<Core::LinAlg::Map>(map1);
   }
 
   std::vector<int> mygids(std::min(map1.NumMyElements(), map2.NumMyElements()), -1);
@@ -743,15 +716,16 @@ std::shared_ptr<Epetra_Map> Core::LinAlg::intersect_map(
   // sort merged map
   sort(mygids.begin(), mygids.end());
 
-  return std::make_shared<Epetra_Map>(-1, (int)mygids.size(), mygids.data(), 0, map1.Comm());
+  return std::make_shared<Core::LinAlg::Map>(-1, (int)mygids.size(), mygids.data(), 0, map1.Comm());
 }
 
 /*----------------------------------------------------------------------*
  | split a vector into 2 pieces with given submaps            popp 02/08|
  *----------------------------------------------------------------------*/
-bool Core::LinAlg::split_vector(const Epetra_Map& xmap, const Core::LinAlg::Vector<double>& x,
-    std::shared_ptr<Epetra_Map>& x1map, std::shared_ptr<Core::LinAlg::Vector<double>>& x1,
-    std::shared_ptr<Epetra_Map>& x2map, std::shared_ptr<Core::LinAlg::Vector<double>>& x2)
+bool Core::LinAlg::split_vector(const Core::LinAlg::Map& xmap,
+    const Core::LinAlg::Vector<double>& x, std::shared_ptr<Core::LinAlg::Map>& x1map,
+    std::shared_ptr<Core::LinAlg::Vector<double>>& x1, std::shared_ptr<Core::LinAlg::Map>& x2map,
+    std::shared_ptr<Core::LinAlg::Vector<double>>& x2)
 {
   // map extractor with fullmap(xmap) and two other maps (x1map and x2map)
   Core::LinAlg::MapExtractor extractor(xmap, x1map, x2map);
@@ -766,9 +740,11 @@ bool Core::LinAlg::split_vector(const Epetra_Map& xmap, const Core::LinAlg::Vect
 /*----------------------------------------------------------------------*
  | split a vector into 2 pieces with given submaps           farah 02/16|
  *----------------------------------------------------------------------*/
-bool Core::LinAlg::split_vector(const Epetra_Map& xmap, const Core::LinAlg::Vector<double>& x,
-    std::shared_ptr<const Epetra_Map>& x1map, std::shared_ptr<Core::LinAlg::Vector<double>>& x1,
-    std::shared_ptr<const Epetra_Map>& x2map, std::shared_ptr<Core::LinAlg::Vector<double>>& x2)
+bool Core::LinAlg::split_vector(const Core::LinAlg::Map& xmap,
+    const Core::LinAlg::Vector<double>& x, std::shared_ptr<const Core::LinAlg::Map>& x1map,
+    std::shared_ptr<Core::LinAlg::Vector<double>>& x1,
+    std::shared_ptr<const Core::LinAlg::Map>& x2map,
+    std::shared_ptr<Core::LinAlg::Vector<double>>& x2)
 {
   // map extractor with fullmap(xmap) and two other maps (x1map and x2map)
   Core::LinAlg::MapExtractor extractor(xmap, x1map, x2map);
@@ -782,44 +758,43 @@ bool Core::LinAlg::split_vector(const Epetra_Map& xmap, const Core::LinAlg::Vect
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-void Core::LinAlg::std_vector_to_epetra_multi_vector(const std::vector<double>& stdVector,
-    Core::LinAlg::MultiVector<double>& epetraMultiVector, int blockSize)
+void Core::LinAlg::std_vector_to_multi_vector(const std::vector<double>& std_vector,
+    Core::LinAlg::MultiVector<double>& multi_vector, int block_size)
 {
-  for (size_t dim = 0; dim < Teuchos::as<size_t>(blockSize); ++dim)
+  for (size_t dim = 0; dim < Teuchos::as<size_t>(block_size); ++dim)
   {
     double** arrayOfPointers;
-    epetraMultiVector.ExtractView(&arrayOfPointers);
+    multi_vector.ExtractView(&arrayOfPointers);
     double* data = arrayOfPointers[dim];
-    int localLength = epetraMultiVector.MyLength();
+    int localLength = multi_vector.MyLength();
 
     Teuchos::ArrayRCP<double> dataVector(data, 0, localLength, false);
 
-    const double myLength = epetraMultiVector.MyLength();
+    const double myLength = multi_vector.MyLength();
     for (double dofLID = 0; dofLID < myLength; ++dofLID)
     {
-      dataVector[dofLID] = stdVector[dim * myLength + dofLID];
+      dataVector[dofLID] = std_vector[dim * myLength + dofLID];
     }
   }
 }
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-void Core::LinAlg::epetra_multi_vector_to_std_vector(
-    const Core::LinAlg::MultiVector<double>& epetraMultiVector, std::vector<double>& stdVector,
-    int blockSize)
+void Core::LinAlg::multi_vector_to_std_vector(const Core::LinAlg::MultiVector<double>& multi_vector,
+    std::vector<double>& std_vector, int block_size)
 {
-  for (size_t dim = 0; dim < Teuchos::as<size_t>(blockSize); ++dim)
+  for (size_t dim = 0; dim < Teuchos::as<size_t>(block_size); ++dim)
   {
     double** arrayOfPointers;
-    epetraMultiVector.ExtractView(&arrayOfPointers);
+    multi_vector.ExtractView(&arrayOfPointers);
     double* data = arrayOfPointers[dim];
-    int localLength = epetraMultiVector.MyLength();
+    int localLength = multi_vector.MyLength();
 
     Teuchos::ArrayRCP<double> dataVector(data, 0, localLength, false);
 
-    const double myLength = epetraMultiVector.MyLength();
+    const double myLength = multi_vector.MyLength();
     for (double dofLID = 0; dofLID < myLength; ++dofLID)
-      stdVector[dim * myLength + dofLID] = dataVector[dofLID];
+      std_vector[dim * myLength + dofLID] = dataVector[dofLID];
   }
 }
 

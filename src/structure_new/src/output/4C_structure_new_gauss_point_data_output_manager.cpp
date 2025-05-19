@@ -11,10 +11,9 @@
 #include "4C_comm_mpi_utils.hpp"
 #include "4C_comm_utils.hpp"
 #include "4C_global_data.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_structure_new_model_evaluator_manager.hpp"
-
-#include <Epetra_Map.h>
 
 
 FOUR_C_NAMESPACE_OPEN
@@ -40,7 +39,7 @@ void Solid::ModelEvaluator::GaussPointDataOutputManager::add_quantity_if_not_exi
     if (item->second != size)
     {
       FOUR_C_THROW(
-          "The quantity %s is already registered, but with a different size (%d vs. %d). This is "
+          "The quantity {} is already registered, but with a different size ({} vs. {}). This is "
           "fatal!",
           name.c_str(), size, item->second);
     }
@@ -50,7 +49,7 @@ void Solid::ModelEvaluator::GaussPointDataOutputManager::add_quantity_if_not_exi
     if (name.find(MPI_DELIMITER) != std::string::npos)
     {
       FOUR_C_THROW(
-          "The quantity name %s for Gauss Point VTK runtime output contains the delimiter %s that "
+          "The quantity name {} for Gauss Point VTK runtime output contains the delimiter {} that "
           "is used for MPI communication. This is not allowed.",
           name.c_str(), MPI_DELIMITER);
     }
@@ -80,7 +79,7 @@ void Solid::ModelEvaluator::GaussPointDataOutputManager::add_element_number_of_g
 }
 
 void Solid::ModelEvaluator::GaussPointDataOutputManager::prepare_data(
-    const Epetra_Map& node_col_map, const Epetra_Map& element_row_map)
+    const Core::LinAlg::Map& node_col_map, const Core::LinAlg::Map& element_row_map)
 {
   switch (output_type_)
   {
@@ -101,7 +100,7 @@ void Solid::ModelEvaluator::GaussPointDataOutputManager::prepare_data(
 }
 
 void Solid::ModelEvaluator::GaussPointDataOutputManager::prepare_nodal_data_vectors(
-    const Epetra_Map& node_col_map)
+    const Core::LinAlg::Map& node_col_map)
 {
   for (const auto& name_and_size : quantities_)
   {
@@ -115,7 +114,7 @@ void Solid::ModelEvaluator::GaussPointDataOutputManager::prepare_nodal_data_vect
 }
 
 void Solid::ModelEvaluator::GaussPointDataOutputManager::prepare_element_center_data_vectors(
-    const Epetra_Map& element_col_map)
+    const Core::LinAlg::Map& element_col_map)
 {
   for (const auto& name_and_size : quantities_)
   {
@@ -128,7 +127,7 @@ void Solid::ModelEvaluator::GaussPointDataOutputManager::prepare_element_center_
 }
 
 void Solid::ModelEvaluator::GaussPointDataOutputManager::prepare_gauss_point_data_vectors(
-    const Epetra_Map& element_col_map)
+    const Core::LinAlg::Map& element_col_map)
 {
   for (const auto& name_and_size : quantities_)
   {
@@ -164,7 +163,7 @@ void Solid::ModelEvaluator::GaussPointDataOutputManager::post_evaluate()
       {
         auto& data_item = nodal_data(col);
 
-        for (int i = 0; i < data_item.MyLength(); ++i)
+        for (int i = 0; i < data_item.local_length(); ++i)
         {
           if (nodal_count[i] != 0)
           {

@@ -39,8 +39,7 @@ namespace XFEM
        *                   changes from node to node. This case needs extra
        *                   communication effort and is currently unsupported.
        *
-       * \author hiermeier
-       * \date 09/16 */
+       */
       enum MinDofDiscretization
       {
         min_dof_slave,
@@ -177,14 +176,13 @@ namespace XFEM
        *  at each node.
        *  Otherwise the base class variant is called.
        *
-       *  \author  hiermeier
-       *  \date 09/16  */
+       */
       void build_dof_maps(const Core::FE::Discretization& masterdis,
           const Core::FE::Discretization& slavedis,
-          const std::shared_ptr<const Epetra_Map>& masternodemap,
-          const std::shared_ptr<const Epetra_Map>& slavenodemap,
-          const std::shared_ptr<const Epetra_Map>& permmasternodemap,
-          const std::shared_ptr<const Epetra_Map>& permslavenodemap,
+          const std::shared_ptr<const Core::LinAlg::Map>& masternodemap,
+          const std::shared_ptr<const Core::LinAlg::Map>& slavenodemap,
+          const std::shared_ptr<const Core::LinAlg::Map>& permmasternodemap,
+          const std::shared_ptr<const Core::LinAlg::Map>& permslavenodemap,
           const std::vector<int>& masterdofs, const std::vector<int>& slavedofs,
           const int nds_master = 0, const int nds_slave = 0) override;
 
@@ -194,12 +192,11 @@ namespace XFEM
        *  This becomes necessary, since we want to transfer dof's as well as nodal
        *  distributed vectors
        *
-       *  \author hiermeier
-       *  \date 10/16 */
-      void save_node_maps(const std::shared_ptr<const Epetra_Map>& masternodemap,
-          const std::shared_ptr<const Epetra_Map>& slavenodemap,
-          const std::shared_ptr<const Epetra_Map>& permmasternodemap,
-          const std::shared_ptr<const Epetra_Map>& permslavenodemap);
+       */
+      void save_node_maps(const std::shared_ptr<const Core::LinAlg::Map>& masternodemap,
+          const std::shared_ptr<const Core::LinAlg::Map>& slavenodemap,
+          const std::shared_ptr<const Core::LinAlg::Map>& permmasternodemap,
+          const std::shared_ptr<const Core::LinAlg::Map>& permslavenodemap);
 
       /** \brief Identify the number of DoF's of the min-dof discretization as well
        *  as the actual dof GID's
@@ -208,16 +205,16 @@ namespace XFEM
        *  and sets the necessary maps for the coupling.
        */
       void build_min_dof_maps(const Core::FE::Discretization& min_dis,
-          const Epetra_Map& min_nodemap, const Epetra_Map& min_permnodemap,
-          std::shared_ptr<const Epetra_Map>& min_dofmap,
-          std::shared_ptr<const Epetra_Map>& min_permdofmap,
-          std::shared_ptr<Epetra_Export>& min_exporter, const Epetra_Map& max_nodemap,
+          const Core::LinAlg::Map& min_nodemap, const Core::LinAlg::Map& min_permnodemap,
+          std::shared_ptr<const Core::LinAlg::Map>& min_dofmap,
+          std::shared_ptr<const Core::LinAlg::Map>& min_permdofmap,
+          std::shared_ptr<Epetra_Export>& min_exporter, const Core::LinAlg::Map& max_nodemap,
           std::map<int, unsigned>& my_mindofpernode) const;
 
       void build_max_dof_maps(const Core::FE::Discretization& max_dis,
-          const Epetra_Map& max_nodemap, const Epetra_Map& max_permnodemap,
-          std::shared_ptr<const Epetra_Map>& max_dofmap,
-          std::shared_ptr<const Epetra_Map>& max_permdofmap,
+          const Core::LinAlg::Map& max_nodemap, const Core::LinAlg::Map& max_permnodemap,
+          std::shared_ptr<const Core::LinAlg::Map>& max_dofmap,
+          std::shared_ptr<const Core::LinAlg::Map>& max_permdofmap,
           std::shared_ptr<Epetra_Export>& max_exporter,
           const std::map<int, unsigned>& my_mindofpernode) const;
 
@@ -228,13 +225,13 @@ namespace XFEM
 
       enum MinDofDiscretization min_dof_dis_;
 
-      std::shared_ptr<const Epetra_Map> masternodemap_;
+      std::shared_ptr<const Core::LinAlg::Map> masternodemap_;
 
-      std::shared_ptr<const Epetra_Map> slavenodemap_;
+      std::shared_ptr<const Core::LinAlg::Map> slavenodemap_;
 
-      std::shared_ptr<const Epetra_Map> permmasternodemap_;
+      std::shared_ptr<const Core::LinAlg::Map> permmasternodemap_;
 
-      std::shared_ptr<const Epetra_Map> permslavenodemap_;
+      std::shared_ptr<const Core::LinAlg::Map> permslavenodemap_;
 
       //! @name Nodal communication objects
       //@{

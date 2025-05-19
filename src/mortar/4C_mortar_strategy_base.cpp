@@ -13,6 +13,7 @@
 #include "4C_linalg_sparsematrix.hpp"
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
 #include "4C_mortar_defines.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 
@@ -26,14 +27,14 @@ FOUR_C_NAMESPACE_OPEN
 Mortar::StrategyDataContainer::StrategyDataContainer()
     : probdofs_(nullptr),
       probnodes_(nullptr),
-      comm_(nullptr),
+      comm_(MPI_COMM_NULL),
       scontact_(),
       dim_(0),
       alphaf_(0.0),
       parredist_(false),
       maxdof_(0),
-      systype_(Inpar::CONTACT::system_none),
-      dyntype_(Inpar::Solid::dyna_statics),
+      systype_(CONTACT::SystemType::none),
+      dyntype_(Inpar::Solid::DynamicType::Statics),
       dynparam_n_(0.0)
 {
 }
@@ -42,7 +43,7 @@ Mortar::StrategyDataContainer::StrategyDataContainer()
  | ctor (public)                                             popp 01/10 |
  *----------------------------------------------------------------------*/
 Mortar::StrategyBase::StrategyBase(const std::shared_ptr<Mortar::StrategyDataContainer>& data_ptr,
-    const Epetra_Map* dof_row_map, const Epetra_Map* NodeRowMap,
+    const Core::LinAlg::Map* dof_row_map, const Core::LinAlg::Map* NodeRowMap,
     const Teuchos::ParameterList& params, const int spatialDim, const MPI_Comm& comm,
     const double alphaf, const int maxdof)
     : probdofs_(data_ptr->prob_dofs_ptr()),
@@ -57,14 +58,14 @@ Mortar::StrategyBase::StrategyBase(const std::shared_ptr<Mortar::StrategyDataCon
       data_ptr_(data_ptr)
 {
   // *** set data container variables
-  data().prob_dofs_ptr() = std::make_shared<Epetra_Map>(*(dof_row_map));
-  data().prob_nodes_ptr() = std::make_shared<Epetra_Map>(*(NodeRowMap));
+  data().prob_dofs_ptr() = std::make_shared<Core::LinAlg::Map>(*(dof_row_map));
+  data().prob_nodes_ptr() = std::make_shared<Core::LinAlg::Map>(*(NodeRowMap));
   data().comm_ptr() = comm;
   data().s_contact() = params;
   data().n_dim() = spatialDim;
   data().alpha_f() = alphaf;
   data().max_dof() = maxdof;
-  data().sys_type() = Teuchos::getIntegralValue<Inpar::CONTACT::SystemType>(scontact_, "SYSTEM");
+  data().sys_type() = Teuchos::getIntegralValue<CONTACT::SystemType>(scontact_, "SYSTEM");
 }
 
 /*----------------------------------------------------------------------*
@@ -77,18 +78,16 @@ void Mortar::StrategyBase::set_time_integration_info(
   data().set_dyn_type(dyntype);
   switch (dyntype)
   {
-    case Inpar::Solid::dyna_statics:
+    case Inpar::Solid::DynamicType::Statics:
       data().set_dyn_parameter_n(0.0);
       break;
-    case Inpar::Solid::dyna_genalpha:
-    case Inpar::Solid::dyna_genalpha_liegroup:
-    case Inpar::Solid::dyna_onesteptheta:
+    case Inpar::Solid::DynamicType::GenAlpha:
+    case Inpar::Solid::DynamicType::GenAlphaLieGroup:
+    case Inpar::Solid::DynamicType::OneStepTheta:
       data().set_dyn_parameter_n(time_fac);
       break;
     default:
-      FOUR_C_THROW(
-          "Unsupported time integration detected! [\"%s\"]", dynamic_type_string(dyntype).c_str());
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("Unsupported time integration detected! [\"{}\"]", dyntype);
   }
 
   // Check if we only want to compute the contact force at the time endpoint

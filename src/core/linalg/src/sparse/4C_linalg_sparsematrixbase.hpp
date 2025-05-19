@@ -13,7 +13,8 @@
 #include "4C_linalg_sparseoperator.hpp"
 
 #include <Epetra_CrsMatrix.h>
-#include <Epetra_FECrsMatrix.h>
+
+#include <optional>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -70,8 +71,8 @@ namespace Core::LinAlg
      *  on the diagonal of diagonal blocks and zeros everywhere else in the DBC
      *  rows.
      *
-     *  \author hiermeier \date 01/2018 */
-    bool is_dbc_applied(const Epetra_Map& dbcmap, bool diagonalblock = true,
+     *  */
+    bool is_dbc_applied(const Core::LinAlg::Map& dbcmap, bool diagonalblock = true,
         const Core::LinAlg::SparseMatrix* trafo = nullptr) const override;
 
     //@}
@@ -99,21 +100,81 @@ namespace Core::LinAlg
     /** \name Attribute access functions */
     //@{
 
+    /// Returns the number of rows locally owned.
+    int num_my_rows() const { return sysmat_->NumMyRows(); }
+
+    int num_my_entries(int my_row) { return sysmat_->NumMyEntries(my_row); }
+
+    /// Returns the number of global rows.
+    int num_global_rows() const { return sysmat_->NumGlobalRows(); }
+
+    /// Returns the number of global rows.
+    int num_global_cols() const { return sysmat_->NumGlobalCols(); }
+
+    // Returns the number of nonzero entries in a global row.
+    int num_global_entries(int global_row) const { return sysmat_->NumGlobalEntries(global_row); }
+
     /// Returns the maximum number of nonzero entries across all rows on this processor.
     int max_num_entries() const;
 
-    /// Returns the Epetra_Map object associated with the rows of this matrix.
-    const Epetra_Map& row_map() const { return sysmat_->RowMap(); }
+    /// Returns the global number of nonzeros.
+    int num_my_nonzeros() const { return sysmat_->NumMyNonzeros(); }
 
-    /// Returns the Epetra_Map object that describes the set of column-indices that appear in each
-    /// processor's locally owned matrix rows.
-    const Epetra_Map& col_map() const { return sysmat_->ColMap(); }
+    /// Returns the global number of nonzeros.
+    int num_global_nonzeros() const { return sysmat_->NumGlobalNonzeros(); }
+
+    /// Returns the number of allocated entries in a global row.
+    int num_allocated_global_entries(int global_row) const
+    {
+      return sysmat_->NumAllocatedGlobalEntries(global_row);
+    }
+
+    /// Returns the global row index for give local row index, returns IndexBase-1 if we don't have
+    /// this local row.
+    int global_row_index(int local_row_index) const { return sysmat_->GRID(local_row_index); }
+
+    /// Returns the Epetra_Map object associated with the rows of this matrix.
+    const Core::LinAlg::Map& row_map() const
+    {
+      if (!row_map_)
+      {  // check if view is uninitialized
+        row_map_ = Core::LinAlg::Map(sysmat_->RowMap());
+      }
+      return *row_map_;
+    }
+
+    /// Returns the  Epetra_Mapobject that describes the set of column-indices that appear in
+    /// each processor's locally owned matrix rows.
+    const Core::LinAlg::Map& col_map() const
+    {
+      if (!column_map_)
+      {  // check if view is uninitialized
+        column_map_ = Core::LinAlg::Map(sysmat_->ColMap());
+      }
+      return *column_map_;
+    }
 
     /// Returns the Epetra_Map object associated with the domain of this matrix operator.
-    const Epetra_Map& domain_map() const override { return sysmat_->DomainMap(); }
+    const Map& domain_map() const override
+    {
+      if (!domain_map_)
+      {  // check if view is uninitialized
+        domain_map_ = Core::LinAlg::Map(sysmat_->DomainMap());
+      }
+      return *domain_map_;
+    }
+
 
     /// Returns the Epetra_Map object associated with the range of this matrix operator.
-    const Epetra_Map& range_map() const { return sysmat_->RangeMap(); }
+    const Core::LinAlg::Map& range_map() const
+    {
+      if (!range_map_)
+      {  // check if view is uninitialized
+        range_map_ = Core::LinAlg::Map(sysmat_->RangeMap());
+      }
+      return *range_map_;
+    }
+
 
     /// Returns the current UseTranspose setting.
     bool UseTranspose() const override;
@@ -149,6 +210,12 @@ namespace Core::LinAlg
     /// Scales the Epetra_CrsMatrix on the right with a Core::LinAlg::Vector<double> x.
     int right_scale(const Core::LinAlg::Vector<double>& x);
 
+    // Computes the inverse of the sum of absolute values of the rows.
+    int inv_row_sums(Core::LinAlg::Vector<double>& x);
+
+    // Computes the inverse of the sum of absolute values of the columns.
+    int inv_col_sums(Core::LinAlg::Vector<double>& x);
+
     //@}
 
     /** \name Insertion/Replace/SumInto methods */
@@ -163,6 +230,26 @@ namespace Core::LinAlg
     /// Replaces diagonal values of the matrix with those in the user-provided vector.
     int replace_diagonal_values(const Core::LinAlg::Vector<double>& Diagonal);
 
+    /// Inserts values into a local row.
+    int insert_my_values(
+        int my_row, int num_entries, const double* values, const int* indices) const;
+
+    /// Sum values into a local row.
+    int sum_into_my_values(
+        int my_row, int num_entries, const double* values, const int* indices) const;
+
+    /// Replaces values in a local row.
+    int replace_my_values(
+        int my_row, int num_entries, const double* values, const int* indices) const;
+
+    /// Inserts values into a global row.
+    int insert_global_values(
+        int global_row, int num_entries, const double* values, const int* indices) const;
+
+    /// Sum values into a global row.
+    int sum_into_global_values(
+        int global_row, int num_entries, const double* values, const int* indices) const;
+
     //@}
 
     /** \name Extraction methods */
@@ -170,6 +257,31 @@ namespace Core::LinAlg
 
     /// Returns a copy of the main diagonal in a user-provided vector.
     int extract_diagonal_copy(Core::LinAlg::Vector<double>& Diagonal) const;
+
+    /// Returns a copy of the values and indices of a local row.
+    int extract_my_row_copy(
+        int my_row, int length, int& num_entries, double* values, int* indices) const;
+
+    /// Returns a copy of the values and indices of a global row.
+    int extract_global_row_copy(
+        int global_row, int length, int& num_entries, double* values, int* indices) const;
+
+    /// Returns a view of the values and indices of a local row.
+    int extract_my_row_view(int my_row, int& num_entries, double*& values, int*& indices) const;
+
+    /// Returns a view of the values and indices of a global row.
+    int extract_global_row_view(
+        int global_row, int& num_entries, double*& values, int*& indices) const;
+
+    //@}
+
+    /** \name Import / Export methods */
+    //@{
+    int import(
+        const SparseMatrixBase& A, const Epetra_Import& importer, Epetra_CombineMode combine_mode)
+    {
+      return sysmat_->Import(*A.epetra_matrix(), importer, combine_mode);
+    }
 
     //@}
 
@@ -185,9 +297,15 @@ namespace Core::LinAlg
     void add_other(Core::LinAlg::BlockSparseMatrixBase& B, const bool transposeA,
         const double scalarA, const double scalarB) const override;
 
+
    protected:
     /// internal epetra matrix (Epetra_CrsMatrix or Epetra_FECrsMatrix)
     std::shared_ptr<Epetra_CrsMatrix> sysmat_;
+
+    mutable std::optional<Core::LinAlg::Map> range_map_;
+    mutable std::optional<Core::LinAlg::Map> row_map_;
+    mutable std::optional<Core::LinAlg::Map> domain_map_;
+    mutable std::optional<Core::LinAlg::Map> column_map_;
   };
 
 }  // namespace Core::LinAlg

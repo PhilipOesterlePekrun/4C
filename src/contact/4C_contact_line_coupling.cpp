@@ -10,11 +10,11 @@
 #include "4C_contact_defines.hpp"
 #include "4C_contact_element.hpp"
 #include "4C_contact_friction_node.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_contact_integrator.hpp"
 #include "4C_contact_integrator_factory.hpp"
 #include "4C_contact_node.hpp"
 #include "4C_fem_discretization.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_linalg_serialdensematrix.hpp"
 #include "4C_linalg_serialdensevector.hpp"
 #include "4C_linalg_utils_densematrix_inverse.hpp"
@@ -226,7 +226,7 @@ void CONTACT::LineToSurfaceCoupling3d::consist_dual_shape()
 
   // various variables
   double detg = 0.0;
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator _CI;
+  using _CI = Core::Gen::Pairedvector<int, double>::const_iterator;
 
   // initialize matrices de and me
   Core::LinAlg::SerialDenseMatrix me(nnodes, nnodes, true);
@@ -382,8 +382,8 @@ void CONTACT::LineToSurfaceCoupling3d::consist_dual_shape()
   // (this is done according to a quite complex formula, which
   // we get from the linearization of the biorthogonality condition:
   // Lin (Me * Ae = De) -> Lin(Ae)=Lin(De)*Inv(Me)-Ae*Lin(Me)*Inv(Me) )
-  typedef Core::Gen::Pairedvector<int,
-      Core::LinAlg::Matrix<max_nnodes + 1, max_nnodes>>::const_iterator _CIM;
+  using _CIM = Core::Gen::Pairedvector<int,
+      Core::LinAlg::Matrix<max_nnodes + 1, max_nnodes>>::const_iterator;
   for (_CIM p = derivde_new.begin(); p != derivde_new.end(); ++p)
   {
     Core::LinAlg::Matrix<max_nnodes + 1, max_nnodes>& dtmp = derivde_new[p->first];
@@ -410,7 +410,7 @@ void CONTACT::LineToSurfaceCoupling3d::consist_dual_shape()
 void CONTACT::LineToSurfaceCoupling3d::integrate_line()
 {
   // get solution strategy
-  auto sol = Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(imortar_, "STRATEGY");
+  auto sol = Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(imortar_, "STRATEGY");
 
   // create integrator object
   std::shared_ptr<CONTACT::Integrator> integrator =
@@ -1456,7 +1456,7 @@ void CONTACT::LineToSurfaceCoupling3d::lineclip_vertex_linearization(Mortar::Ver
   const int nmrows = surface_element().num_node();
 
   // iterator
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator _CI;
+  using _CI = Core::Gen::Pairedvector<int, double>::const_iterator;
 
   // compute factor Z
   std::array<double, 3> crossZ = {0.0, 0.0, 0.0};
@@ -1715,7 +1715,7 @@ bool CONTACT::LineToSurfaceCoupling3d::auxiliary_plane()
  *----------------------------------------------------------------------*/
 bool CONTACT::LineToSurfaceCoupling3d::auxiliary_line()
 {
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator _CI;
+  using _CI = Core::Gen::Pairedvector<int, double>::const_iterator;
 
   int nnodes = line_element()->num_node();
   if (nnodes != 2) FOUR_C_THROW("Auxiliary line calculation only for line2 elements!");
@@ -2027,8 +2027,8 @@ void CONTACT::LineToSurfaceCoupling3d::slave_vertex_linearization(
     for (int dim = 0; dim < 3; ++dim) snodelin[in][dim][smrtrnodes[in]->dofs()[dim]] += 1.;
 
   // map iterator
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator
-      _CI;  // linearization of element center Auxc()
+  using _CI = Core::Gen::Pairedvector<int,
+      double>::const_iterator;  // linearization of element center Auxc()
   //  std::vector<Core::Gen::Pairedvector<int  ,double> >
   //  linauxc(3,10*surface_element().num_node());
   //  // assume 3 dofs per node
@@ -2223,8 +2223,8 @@ void CONTACT::LineToSurfaceCoupling3d::master_vertex_linearization(
     for (int dim = 0; dim < 3; ++dim) nodelin[in][dim][smrtrnodes[in]->dofs()[dim]] += 1.;
 
   // map iterator
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator
-      _CI;  // linearization of element center Auxc()
+  using _CI = Core::Gen::Pairedvector<int,
+      double>::const_iterator;  // linearization of element center Auxc()
   //  std  ::vector<Core::Gen::Pairedvector<int  ,double> > linauxc(3,surface_element().num_node());
   //  // assume 3 dofs per node
   //
@@ -2372,9 +2372,8 @@ void CONTACT::LineToLineCouplingPoint3d::evaluate_terms(double* sxi, double* mxi
     Core::Gen::Pairedvector<int, double>& dsxi, Core::Gen::Pairedvector<int, double>& dmxi)
 {
   bool friction = false;
-  auto ftype =
-      Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(interface_params(), "FRICTION");
-  if (ftype != Inpar::CONTACT::friction_none) friction = true;
+  auto ftype = Teuchos::getIntegralValue<CONTACT::FrictionType>(interface_params(), "FRICTION");
+  if (ftype != CONTACT::FrictionType::none) friction = true;
 
   // get slave element nodes themselves for normal evaluation
   Core::Nodes::Node** mynodes = line_slave_element()->nodes();
@@ -2398,8 +2397,8 @@ void CONTACT::LineToLineCouplingPoint3d::evaluate_terms(double* sxi, double* mxi
   line_master_element()->evaluate_shape(mxi, mval, mderiv, nnodes);
 
   // map iterator
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator _CI;
-  typedef std::map<int, double>::const_iterator CI;
+  using _CI = Core::Gen::Pairedvector<int, double>::const_iterator;
+  using CI = std::map<int, double>::const_iterator;
 
   int linsize = 0;
   for (int i = 0; i < nrow; ++i)
@@ -2953,7 +2952,7 @@ void CONTACT::LineToLineCouplingPoint3d::line_intersection(double* sxi, double* 
   const int nnodes = 2;
 
   // prepare linearizations
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator _CI;
+  using _CI = Core::Gen::Pairedvector<int, double>::const_iterator;
 
   // calculate slave vector
   Node* ns1 = dynamic_cast<Node*>(line_slave_element()->nodes()[0]);
@@ -3346,7 +3345,7 @@ double CONTACT::LineToLineCouplingPoint3d::calc_current_angle(
     Core::Gen::Pairedvector<int, double>& lineAngle)
 {
   // define iterator for linerization
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator CI;
+  using CI = Core::Gen::Pairedvector<int, double>::const_iterator;
 
   // slave edge vector and master vector edge
   std::array<double, 3> vs = {0.0, 0.0, 0.0};

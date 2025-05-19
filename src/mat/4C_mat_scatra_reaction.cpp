@@ -12,6 +12,7 @@
 #include "4C_global_data.hpp"
 #include "4C_mat_par_bundle.hpp"
 #include "4C_mat_scatra_reaction_coupling.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 
 #include <vector>
@@ -29,8 +30,8 @@ Mat::PAR::ScatraReactionMat::ScatraReactionMat(const Core::Mat::PAR::Parameter::
       distrfunctreaccoeffid_(matdata.parameters.get<int>("DISTRFUNCT")),
       coupling_(set_coupling_type(matdata)),
       couprole_(matdata.parameters.get<std::vector<double>>("ROLE")),
-      reacstart_(matdata.parameters.get_or<std::vector<double>>(
-          "REACSTART", std::vector<double>(numscal_))),
+      reacstart_(matdata.parameters.get<std::optional<std::vector<double>>>("REACSTART")
+              .value_or(std::vector<double>(numscal_))),
       isdistrfunctreaccoeff_(distrfunctreaccoeffid_ != 0),
       isreacstart_(false),
       isinit_(false)
@@ -38,20 +39,20 @@ Mat::PAR::ScatraReactionMat::ScatraReactionMat(const Core::Mat::PAR::Parameter::
   // Some checks for more safety
   if (coupling_ == reac_coup_none)
     FOUR_C_THROW(
-        "The coupling '%s' is not a valid reaction coupling. Valid couplings are "
+        "The coupling '{}' is not a valid reaction coupling. Valid couplings are "
         "'simple_multiplicative', 'constant' and 'michaelis_menten'.",
         (matdata.parameters.get<std::string>("COUPLING")).c_str());
 
   if (numscal_ != (int)stoich_.size())
-    FOUR_C_THROW("number of scalars %d does not fit to size of the STOICH vector %d", numscal_,
+    FOUR_C_THROW("number of scalars {} does not fit to size of the STOICH vector {}", numscal_,
         stoich_.size());
 
   if (numscal_ != (int)couprole_.size())
-    FOUR_C_THROW("number of scalars %d does not fit to size of the ROLE vector %d", numscal_,
+    FOUR_C_THROW("number of scalars {} does not fit to size of the ROLE vector {}", numscal_,
         couprole_.size());
 
   if (numscal_ != (int)reacstart_.size())
-    FOUR_C_THROW("number of scalars %d does not fit to size of the REACSTART vector %d", numscal_,
+    FOUR_C_THROW("number of scalars {} does not fit to size of the REACSTART vector {}", numscal_,
         reacstart_.size());
 
   for (int ii = 0; ii < numscal_; ii++)
@@ -181,7 +182,7 @@ Mat::PAR::ScatraReactionMat::ScatraReactionMat(const Core::Mat::PAR::Parameter::
         break;
 
       default:
-        FOUR_C_THROW("The couplingtype %i is not a valid coupling type.", coupling_);
+        FOUR_C_THROW("The couplingtype {} is not a valid coupling type.", coupling_);
         break;
     }
   }
@@ -298,7 +299,7 @@ void Mat::ScatraReactionMat::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::ScatraReactionMat*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
 }
@@ -488,7 +489,7 @@ double Mat::ScatraReactionMat::calc_perm_influence(const int k,  //!< current sc
   constants.push_back(std::pair<std::string, double>("z", gpcoord[2]));
 
   if (not(stoich()->at(k) > 0))
-    FOUR_C_THROW("You need to specify a positive STOICH entry for scalar %i", k);
+    FOUR_C_THROW("You need to specify a positive STOICH entry for scalar {}", k);
   if (fabs(reac_coeff(constants)) > 1.0e-14) FOUR_C_THROW("You need to set REACOEFF to 0.0!");
 
   return (calc_rea_body_force_term(k, phinp, constants, stoich()->at(k), scale));

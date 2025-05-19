@@ -43,12 +43,12 @@ namespace Utils
   class Cardiovascular0DManager;
 }  // namespace Utils
 
-namespace CONSTRAINTS
+namespace Constraints
 {
   class ConstrManager;
   class ConstraintSolver;
   class SpringDashpotManager;
-}  // namespace CONSTRAINTS
+}  // namespace Constraints
 
 namespace CONTACT
 {
@@ -109,8 +109,7 @@ namespace Solid
    * matrices. It also deals with the output to files and offers method to
    * determine forces and stiffnesses (tangents).
    *
-   * \author bborn
-   * \date 06/08
+
    */
   class TimInt : public Adapter::Structure
   {
@@ -158,8 +157,8 @@ namespace Solid
 
     \warning none
     \return bool
-    \date 08/16
-    \author rauch  */
+
+    */
     virtual void init(const Teuchos::ParameterList& timeparams,
         const Teuchos::ParameterList& sdynparams, const Teuchos::ParameterList& xparams,
         std::shared_ptr<Core::FE::Discretization> actdis,
@@ -181,9 +180,15 @@ namespace Solid
 
     \warning none
     \return void
-    \date 08/16
-    \author rauch  */
+
+    */
     void setup() override;
+
+    /*!
+     * @brief Perform all necessary tasks after setting up the solid time
+     * integration object.
+     */
+    void post_setup() override {}
 
     //! create fields, based on dofrowmap, whose previous time step values are unimportant
     virtual void create_fields();
@@ -382,9 +387,6 @@ namespace Solid
     //! Calculate kinetic, internal and external energy
     virtual void determine_energy();
 
-    //! Calculate an optional quantity
-    void determine_optional_quantity();
-
     /// create result test for encapsulated structure algorithm
     std::shared_ptr<Core::Utils::ResultTest> create_field_test() override;
 
@@ -401,7 +403,6 @@ namespace Solid
     //! This routine always prints the last converged state, i.e.
     //! \f$D_{n}, V_{n}, A_{n}\f$. So, #UpdateIncrement should be called
     //! upon object prior to writing stuff here.
-    //! \author mwgee (originally) \date 03/07
     void output_step(const bool forced_writerestart = false  ///< [in] Force writing of restart data
     );
 
@@ -422,12 +423,10 @@ namespace Solid
     void write_gmsh_struct_output_step() override;
 
     //! Write restart
-    //! \author mwgee (originally) \date 03/07
     virtual void output_restart(bool& datawritten  //!< (in/out) read and append if
                                                    //!< it was written at this time step
     );
     //! Get data that is written during restart
-    //! \author biehler \data 06/13
     void get_restart_data(std::shared_ptr<int> step, std::shared_ptr<double> time,
         std::shared_ptr<Core::LinAlg::Vector<double>> disn,  //!< new displacement state
         std::shared_ptr<Core::LinAlg::Vector<double>> veln,  //!< new velocity state
@@ -439,7 +438,6 @@ namespace Solid
 
     //! Output displacements, velocities and accelerations
     //! and more system vectors
-    //! \author mwgee (originally) \date 03/07
     virtual void output_state(bool& datawritten  //!< (in/out) read and append if
                                                  //!< it was written at this time step
     );
@@ -448,7 +446,6 @@ namespace Solid
     void add_restart_to_output_state();
 
     //! Stress & strain output
-    //! \author lw (originally)
     void output_stress_strain(bool& datawritten  //!< (in/out) read and append if
                                                  //!< it was written at this time step
     );
@@ -456,16 +453,8 @@ namespace Solid
     //! Energy output
     void output_energy();
 
-    //! Optional quantity output
-    void output_opt_quantity(bool& datawritten  //!< (in/out) read and append if
-                                                //!< it was written at this time step
-    );
-
     //! Active set, energy and momentum output for contact
     void output_contact();
-
-    //! Output volume mass
-    void output_volume_mass();
 
     //! Write internal and external forces (if necessary for restart)
     virtual void write_restart_force(std::shared_ptr<Core::IO::DiscretizationWriter> output) = 0;
@@ -534,7 +523,7 @@ namespace Solid
     //@{
 
     //! Return bool indicating if we have nonlinear inertia forces
-    int have_nonlinear_mass() const;
+    Inpar::Solid::MassLin have_nonlinear_mass() const;
 
     //! check whether the initial conditions are fulfilled */
     virtual void nonlinear_mass_sanity_check(
@@ -559,7 +548,7 @@ namespace Solid
     virtual enum Inpar::Solid::DynamicType method_name() const = 0;
 
     //! Provide title
-    std::string method_title() const { return Inpar::Solid::dynamic_type_string(method_name()); }
+    std::string method_title() const;
 
     //! Return true, if time integrator is implicit
     virtual bool method_implicit() = 0;
@@ -618,7 +607,7 @@ namespace Solid
     }
 
     //! Access to dofrowmap of discretization via const raw pointer
-    const Epetra_Map* dof_row_map_view() override;
+    const Core::LinAlg::Map* dof_row_map_view() override;
 
     //! Access solver, one of these have to be removed (see below)
     std::shared_ptr<Core::LinAlg::Solver> solver() { return solver_; }
@@ -764,11 +753,11 @@ namespace Solid
     // std::shared_ptr<std::vector<char> > ElementData() {return discret_->PackMyElements();}
 
     //! dof map of vector of unknowns
-    std::shared_ptr<const Epetra_Map> dof_row_map() override;
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map() override;
 
     //! dof map of vector of unknowns
     // new method for multiple dofsets
-    std::shared_ptr<const Epetra_Map> dof_row_map(unsigned nds) override;
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map(unsigned nds) override;
 
     //! Return stiffness,
     //! i.e. force residual differentiated by displacements
@@ -786,7 +775,7 @@ namespace Solid
     std::shared_ptr<Core::LinAlg::SparseMatrix> mass_matrix();
 
     //! domain map of system matrix
-    const Epetra_Map& domain_map() const override;
+    const Core::LinAlg::Map& domain_map() const override;
 
     //! are there any algebraic constraints?
     bool have_constraint() override = 0;
@@ -795,19 +784,18 @@ namespace Solid
     bool have_spring_dashpot() override = 0;
 
     //! get constraint manager defined in the structure
-    std::shared_ptr<CONSTRAINTS::ConstrManager> get_constraint_manager() override = 0;
+    std::shared_ptr<Constraints::ConstrManager> get_constraint_manager() override = 0;
 
     //! get spring dashpot manager defined in the structure
-    std::shared_ptr<CONSTRAINTS::SpringDashpotManager> get_spring_dashpot_manager() override = 0;
-
-    //! get type of thickness scaling for thin shell structures
-    Inpar::Solid::StcScale get_stc_algo() override = 0;
-
-    //! Access to scaling matrix for STC
-    std::shared_ptr<Core::LinAlg::SparseMatrix> get_stc_mat() override = 0;
-
+    std::shared_ptr<Constraints::SpringDashpotManager> get_spring_dashpot_manager() override = 0;
 
     //@}
+
+    /// Access to scaling matrix for STC
+    std::shared_ptr<Core::LinAlg::SparseMatrix> get_stc_mat() override
+    {
+      FOUR_C_THROW("STC is not implemented in the old time integration framework.");
+    }
 
     //! @name Time step helpers
     //@{
@@ -929,7 +917,6 @@ namespace Solid
     Solid::ModelEvaluator::Generic& model_evaluator(Inpar::Solid::ModelType mtype) override
     {
       FOUR_C_THROW("new time integration only");
-      exit(EXIT_FAILURE);
     }
 
     /*!
@@ -1008,18 +995,15 @@ namespace Solid
     //@}
 
    protected:
-    /// Expand the dbc map by dofs provided in Epetra_Map maptoadd
-    void add_dirich_dofs(const std::shared_ptr<const Epetra_Map> maptoadd) override;
+    /// Expand the dbc map by dofs provided in Core::LinAlg::Map maptoadd
+    void add_dirich_dofs(const std::shared_ptr<const Core::LinAlg::Map> maptoadd) override;
 
-    /// Contract the dbc map by dofs provided in Epetra_Map maptoremove
-    void remove_dirich_dofs(const std::shared_ptr<const Epetra_Map> maptoremove) override;
+    /// Contract the dbc map by dofs provided in Core::LinAlg::Map maptoremove
+    void remove_dirich_dofs(const std::shared_ptr<const Core::LinAlg::Map> maptoremove) override;
 
     //! @name General purpose algorithm members
     //@{
     std::shared_ptr<Core::FE::Discretization> discret_;  //!< attached discretisation
-
-    // face discretization (only initialized for edge-based stabilization)
-    std::shared_ptr<Core::FE::DiscretizationFaces> facediscret_;
 
     int myrank_;  //!< ID of actual processor in parallel
     std::shared_ptr<Core::LinAlg::Solver>
@@ -1057,17 +1041,15 @@ namespace Solid
                                                  //!< if 0, restart is not written
     bool writeele_;                              //!< write elements on/off
     bool writestate_;                            //!< write state on/off
-    bool writevelacc_;                           //!< write velocity and acceleration on/off
     int writeresultsevery_;                      //!< write state/stress/strain every given step
     Inpar::Solid::StressType writestress_;       //!< stress output type
     Inpar::Solid::StressType writecouplstress_;  //!< output type of coupling stress
     Inpar::Solid::StrainType writestrain_;       //!< strain output type
     Inpar::Solid::StrainType writeplstrain_;     //!< plastic strain output type
-    Inpar::Solid::OptQuantityType writeoptquantity_;  //!< stress output type
-    int writeenergyevery_;                            //!< write system energy every given step
-    bool writesurfactant_;                            //!< write surfactant output
-    bool writerotation_;                              //!< write strutural rotation tensor output
-    std::shared_ptr<std::ofstream> energyfile_;       //!< outputfile for energy
+    int writeenergyevery_;                       //!< write system energy every given step
+    bool writesurfactant_;                       //!< write surfactant output
+    bool writerotation_;                         //!< write strutural rotation tensor output
+    std::shared_ptr<std::ofstream> energyfile_;  //!< outputfile for energy
 
     std::shared_ptr<std::vector<char>> stressdata_;  //!< container for element GP stresses
     std::shared_ptr<std::vector<char>>
@@ -1075,11 +1057,9 @@ namespace Solid
     std::shared_ptr<std::vector<char>> straindata_;  //!< container for element GP strains
     std::shared_ptr<std::vector<char>> plstraindata_;  //!< container for element GP plastic strains
     std::shared_ptr<std::vector<char>> rotdata_;       //!< container for element rotation tensor
-    std::shared_ptr<std::vector<char>>
-        optquantitydata_;  //!< container for element GP optional quantities
-    double kinergy_;       //!< kinetic energy
-    double intergy_;       //!< internal energy
-    double extergy_;       //!< external energy
+    double kinergy_;                                   //!< kinetic energy
+    double intergy_;                                   //!< internal energy
+    double extergy_;                                   //!< external energy
     //@}
 
     //! @name Damping
@@ -1095,14 +1075,14 @@ namespace Solid
     //@{
 
     //! whatever constraints
-    std::shared_ptr<CONSTRAINTS::ConstrManager> conman_;      //!< constraint manager
-    std::shared_ptr<CONSTRAINTS::ConstraintSolver> consolv_;  //!< constraint solver
+    std::shared_ptr<Constraints::ConstrManager> conman_;      //!< constraint manager
+    std::shared_ptr<Constraints::ConstraintSolver> consolv_;  //!< constraint solver
 
     // for 0D cardiovascular models
     std::shared_ptr<Utils::Cardiovascular0DManager> cardvasc0dman_;  //!< Cardiovascular0D manager
 
     // spring dashpot
-    std::shared_ptr<CONSTRAINTS::SpringDashpotManager> springman_;
+    std::shared_ptr<Constraints::SpringDashpotManager> springman_;
 
     //! bridge for meshtying and contact
     std::shared_ptr<CONTACT::MeshtyingContactBridge> cmtbridge_;

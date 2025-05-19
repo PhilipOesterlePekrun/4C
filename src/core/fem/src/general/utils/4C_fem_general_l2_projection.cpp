@@ -23,10 +23,11 @@ FOUR_C_NAMESPACE_OPEN
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
 std::shared_ptr<Core::LinAlg::MultiVector<double>> Core::FE::evaluate_and_solve_nodal_l2_projection(
-    Core::FE::Discretization& dis, const Epetra_Map& noderowmap, const std::string& statename,
-    const int& numvec, Teuchos::ParameterList& params, const Teuchos::ParameterList& solverparams,
+    Core::FE::Discretization& dis, const Core::LinAlg::Map& noderowmap,
+    const std::string& statename, const int& numvec, Teuchos::ParameterList& params,
+    const Teuchos::ParameterList& solverparams,
     const std::function<const Teuchos::ParameterList&(int)> get_solver_params,
-    const Epetra_Map& fullnoderowmap, const std::map<int, int>& slavetomastercolnodesmap)
+    const Core::LinAlg::Map& fullnoderowmap, const std::map<int, int>& slavetomastercolnodesmap)
 {
   // create empty matrix
   Core::LinAlg::SparseMatrix massmatrix(noderowmap, 108, false, true);
@@ -51,7 +52,7 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> Core::FE::evaluate_and_solve_
   {
     const int numnode = actele->num_node();
 
-    actele->location_vector(dis, la, false);
+    actele->location_vector(dis, la);
     lmowner = la[0].lmowner_;
     lmstride = la[0].stride_;
     lm = la[0].lm_;
@@ -64,7 +65,7 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> Core::FE::evaluate_and_solve_
     // call the element specific evaluate method (elemat1 = mass matrix, elemat2 = rhs)
     int err = actele->evaluate(
         params, dis, la, elematrix1, elematrix2, elevector1, elevector2, elevector3);
-    if (err) FOUR_C_THROW("Element %d returned err=%d", actele->id(), err);
+    if (err) FOUR_C_THROW("Element {} returned err={}", actele->id(), err);
 
 
     // get element location vector for nodes
@@ -162,8 +163,8 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> Core::FE::compute_nodal_l2_pr
   }
 
   // build node row map which does not include slave pbc nodes
-  Epetra_Map noderowmap(-1, static_cast<int>(reducednoderowmap.size()), reducednoderowmap.data(), 0,
-      fullnoderowmap->Comm());
+  Core::LinAlg::Map noderowmap(-1, static_cast<int>(reducednoderowmap.size()),
+      reducednoderowmap.data(), 0, fullnoderowmap->Comm());
 
   auto nodevec = evaluate_and_solve_nodal_l2_projection(dis, noderowmap, statename, numvec, params,
       solverparams, get_solver_params, *fullnoderowmap, slavetomastercolnodesmap);
@@ -202,7 +203,7 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> Core::FE::solve_nodal_l2_proj
     Core::LinAlg::SparseMatrix& massmatrix, Core::LinAlg::MultiVector<double>& rhs, MPI_Comm comm,
     const int& numvec, const Teuchos::ParameterList& solverparams,
     const std::function<const Teuchos::ParameterList&(int)> get_solver_params,
-    const Epetra_Map& noderowmap, const Epetra_Map& fullnoderowmap,
+    const Core::LinAlg::Map& noderowmap, const Core::LinAlg::Map& fullnoderowmap,
     const std::map<int, int>& slavetomastercolnodesmap)
 {
   // get solver parameter list of linear solver
@@ -283,7 +284,8 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> Core::FE::solve_nodal_l2_proj
         solver_params.refactor = true;
         solver_params.reset = true;
         solver.solve_with_multi_vector(massmatrix.epetra_operator(),
-            (*nodevec)(i).get_ptr_of_MultiVector(), rhs(i).get_ptr_of_MultiVector(), solver_params);
+            (*nodevec)(i).get_ptr_of_multi_vector(), rhs(i).get_ptr_of_multi_vector(),
+            solver_params);
       }
       break;
     }

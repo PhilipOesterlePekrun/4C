@@ -7,8 +7,8 @@
 
 #include "4C_inpar_solver.hpp"
 
+#include "4C_io_input_spec_builders.hpp"
 #include "4C_linear_solver_method.hpp"
-#include "4C_utils_parameter_list.hpp"
 
 #include <BelosTypes.hpp>
 
@@ -16,133 +16,140 @@ FOUR_C_NAMESPACE_OPEN
 
 namespace Inpar::SOLVER
 {
-  void set_valid_solver_parameters(Teuchos::ParameterList& list)
+  Core::IO::InputSpec make_valid_solver_parameters()
   {
-    // Solver options
-    {
-      Teuchos::setStringToIntegralParameter<Core::LinearSolver::SolverType>("SOLVER", "undefined",
-          "The solver to attack the system of linear equations arising of FE approach with.",
-          Teuchos::tuple<std::string>("UMFPACK", "Superlu", "Belos", "undefined"),
-          Teuchos::tuple<Core::LinearSolver::SolverType>(Core::LinearSolver::SolverType::umfpack,
-              Core::LinearSolver::SolverType::superlu, Core::LinearSolver::SolverType::belos,
-              Core::LinearSolver::SolverType::undefined),
-          &list);
-    }
+    using namespace Core::IO::InputSpecBuilders;
+    return all_of({
+        // Solver options
+        deprecated_selection<Core::LinearSolver::SolverType>("SOLVER",
+            {
+                {"UMFPACK", Core::LinearSolver::SolverType::umfpack},
+                {"Superlu", Core::LinearSolver::SolverType::superlu},
+                {"Belos", Core::LinearSolver::SolverType::belos},
+                {"undefined", Core::LinearSolver::SolverType::undefined},
+            },
+            {.description = "The solver to attack the system of linear equations arising of FE "
+                            "approach with.",
+                .default_value = Core::LinearSolver::SolverType::undefined}),
 
-    // Iterative solver options
-    {
-      Teuchos::setStringToIntegralParameter<Core::LinearSolver::IterativeSolverType>("AZSOLVE",
-          "GMRES", "Type of linear solver algorithm to use.",
-          Teuchos::tuple<std::string>("CG", "GMRES", "BiCGSTAB"),
-          Teuchos::tuple<Core::LinearSolver::IterativeSolverType>(
-              Core::LinearSolver::IterativeSolverType::cg,
-              Core::LinearSolver::IterativeSolverType::gmres,
-              Core::LinearSolver::IterativeSolverType::bicgstab),
-          &list);
-    }
+        // Iterative solver options
+        deprecated_selection<Core::LinearSolver::IterativeSolverType>("AZSOLVE",
+            {
+                {"CG", Core::LinearSolver::IterativeSolverType::cg},
+                {"GMRES", Core::LinearSolver::IterativeSolverType::gmres},
+                {"BiCGSTAB", Core::LinearSolver::IterativeSolverType::bicgstab},
+            },
+            {.description = "Type of linear solver algorithm to use.",
+                .default_value = Core::LinearSolver::IterativeSolverType::gmres}),
 
-    // Preconditioner options
-    {
-      Teuchos::setStringToIntegralParameter<Core::LinearSolver::PreconditionerType>("AZPREC", "ILU",
-          "Type of internal preconditioner to use.\n"
-          "Note! this preconditioner will only be used if the input operator\n"
-          "supports the Epetra_RowMatrix interface and the client does not pass\n"
-          "in an external preconditioner!",
-          Teuchos::tuple<std::string>("ILU", "MueLu", "AMGnxn", "Teko"),
-          Teuchos::tuple<Core::LinearSolver::PreconditionerType>(
-              Core::LinearSolver::PreconditionerType::ilu,
-              Core::LinearSolver::PreconditionerType::multigrid_muelu,
-              Core::LinearSolver::PreconditionerType::multigrid_nxn,
-              Core::LinearSolver::PreconditionerType::block_teko),
-          &list);
-    }
+        // Preconditioner options
+        deprecated_selection<Core::LinearSolver::PreconditionerType>("AZPREC",
+            {
+                {"ILU", Core::LinearSolver::PreconditionerType::ilu},
+                {"MueLu", Core::LinearSolver::PreconditionerType::multigrid_muelu},
+                {"AMGnxn", Core::LinearSolver::PreconditionerType::multigrid_nxn},
+                {"Teko", Core::LinearSolver::PreconditionerType::block_teko},
+            },
+            {.description =
+                    "Type of internal preconditioner to use.\nNote! this preconditioner will "
+                    "only be used if the input operator\nsupports the Epetra "
+                    "interface and the client does not pass\nin an external preconditioner!",
+                .default_value = Core::LinearSolver::PreconditionerType::ilu}),
 
-    // Ifpack options
-    {
-      Core::Utils::int_parameter("IFPACKOVERLAP", 0,
-          "The amount of overlap used for the ifpack \"ilu\" preconditioner.", &list);
+        // Ifpack options
+        Core::IO::InputSpecBuilders::parameter<std::optional<std::filesystem::path>>(
+            "IFPACK_XML_FILE",
+            {.description = "This parameter describes the absolute or relative path to an xml file "
+                            "containing the configuration of a Trilinos/Ifpack preconditioner. The "
+                            "content of this xml file needs to follow Ifpack guidelines. Consult "
+                            "the Trilinos/Ifpack documentation and user guide for more information "
+                            "on valid Ifpack parameters.."}),
 
-      Core::Utils::int_parameter("IFPACKGFILL", 0,
-          "The amount of fill allowed for an internal \"ilu\" preconditioner.", &list);
+        // Iterative solver options
+        parameter<int>(
+            "AZITER", {.description = "The maximum number of iterations the underlying iterative "
+                                      "solver is allowed to perform",
+                          .default_value = 1000}),
 
-      std::vector<std::string> ifpack_combine_valid_input = {"Add", "Insert", "Zero"};
-      Core::Utils::string_parameter("IFPACKCOMBINE", "Add",
-          "Combine mode for Ifpack Additive Schwarz", &list, ifpack_combine_valid_input);
-    }
+        parameter<double>("AZTOL", {.description = "The level the residual norms must reach to "
+                                                   "decide about successful convergence",
+                                       .default_value = 1e-8}),
 
-    // Iterative solver options
-    {
-      Core::Utils::int_parameter("AZITER", 1000,
-          "The maximum number of iterations the underlying iterative solver is allowed to "
-          "perform",
-          &list);
+        deprecated_selection<Belos::ScaleType>("AZCONV",
+            {
+                {"AZ_r0", Belos::ScaleType::NormOfInitRes},
+                {"AZ_noscaled", Belos::ScaleType::None},
+            },
+            {.description = "The implicit residual norm scaling type to use for terminating the "
+                            "iterative solver.",
+                .default_value = Belos::ScaleType::NormOfInitRes}),
 
-      Core::Utils::double_parameter("AZTOL", 1e-8,
-          "The level the residual norms must reach to decide about successful convergence", &list);
+        parameter<int>(
+            "AZOUTPUT", {.description = "The number of iterations between each output of the "
+                                        "solver's progress is written to "
+                                        "screen",
+                            .default_value = 0}),
 
-      Teuchos::setStringToIntegralParameter<Belos::ScaleType>("AZCONV", "AZ_r0",
-          "The implicit residual norm scaling type to use for terminating the iterative solver.",
-          Teuchos::tuple<std::string>("AZ_r0", "AZ_noscaled"),
-          Teuchos::tuple<Belos::ScaleType>(Belos::ScaleType::NormOfInitRes, Belos::ScaleType::None),
-          &list);
+        parameter<int>("AZREUSE",
+            {.description = "The number specifying how often to recompute some preconditioners",
+                .default_value = 0}),
 
-      Core::Utils::int_parameter("AZOUTPUT", 0,
-          "The number of iterations between each output of the solver's progress is written to "
-          "screen",
-          &list);
-      Core::Utils::int_parameter(
-          "AZREUSE", 0, "The number specifying how often to recompute some preconditioners", &list);
+        parameter<int>(
+            "AZSUB", {.description = "The maximum size of the Krylov subspace used with \"GMRES\" "
+                                     "before\n a restart is performed.",
+                         .default_value = 50}),
 
-      Core::Utils::int_parameter("AZSUB", 50,
-          "The maximum size of the Krylov subspace used with \"GMRES\" before\n"
-          "a restart is performed.",
-          &list);
+        parameter<bool>("THROW_IF_UNCONVERGED",
+            {.description =
+                    "If set to true, the iterative linear solver "
+                    "will throw an exception if it does not "
+                    "converge. To only issue a warning without stopping the simulation, set "
+                    "this parameter to false.",
+                .default_value = true}),
 
-      Core::Utils::string_parameter(
-          "SOLVER_XML_FILE", "none", "xml file defining any linear solver", &list);
-    }
+        parameter<std::optional<std::filesystem::path>>(
+            "SOLVER_XML_FILE", {.description = "xml file defining any iterative solver"}),
 
-    // MueLu options
-    {
-      Core::Utils::string_parameter(
-          "MUELU_XML_FILE", "none", "xml file defining any MueLu preconditioner", &list);
-    }
 
-    // Teko options
-    {
-      Core::Utils::string_parameter(
-          "TEKO_XML_FILE", "none", "xml file defining any Teko preconditioner", &list);
-    }
+        // MueLu options
+        Core::IO::InputSpecBuilders::parameter<std::optional<std::filesystem::path>>(
+            "MUELU_XML_FILE", {.description = "xml file defining any MueLu preconditioner"}),
 
-    // user-given name of solver block (just for beauty)
-    Core::Utils::string_parameter("NAME", "No_name", "User specified name for solver block", &list);
+        // Teko options
+        Core::IO::InputSpecBuilders::parameter<std::optional<std::filesystem::path>>(
+            "TEKO_XML_FILE", {.description = "xml file defining any Teko preconditioner"}),
 
-    // Parameters for AMGnxn Preconditioner
-    {
-      Core::Utils::string_parameter("AMGNXN_TYPE", "AMG(BGS)",
-          "Name of the pre-built preconditioner to be used. If set to\"XML\" the preconditioner "
-          "is defined using a xml file",
-          &list);
-      Core::Utils::string_parameter(
-          "AMGNXN_XML_FILE", "none", "xml file defining the AMGnxn preconditioner", &list);
-    }
+        // user-given name of solver block (just for beauty)
+        parameter<std::string>("NAME",
+            {.description = "User specified name for solver block", .default_value = "No_name"}),
+
+        // Parameters for AMGnxn Preconditioner
+        parameter<std::string>("AMGNXN_TYPE",
+            {.description = "Name of the pre-built preconditioner to be used. If set "
+                            "to\"XML\" the preconditioner is defined using a xml file",
+                .default_value = "AMG(BGS)"}),
+
+        Core::IO::InputSpecBuilders::parameter<std::optional<std::filesystem::path>>(
+            "AMGNXN_XML_FILE", {.description = "xml file defining the AMGnxn preconditioner"}),
+    });
   }
 
 
-  void set_valid_parameters(Teuchos::ParameterList& list)
+  void set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
   {
     // set valid parameters for solver blocks
 
     // Note: the maximum number of solver blocks is hardwired here. If you change this,
     // don't forget to edit the corresponding parts in globalproblems.cpp, too.
+    auto spec_solver = make_valid_solver_parameters();
     for (int i = 1; i < 10; i++)
     {
       std::stringstream ss;
       ss << "SOLVER " << i;
       std::stringstream ss_description;
       ss_description << "solver parameters for solver block " << i;
-      Teuchos::ParameterList& solverlist = list.sublist(ss.str(), false, ss_description.str());
-      set_valid_solver_parameters(solverlist);
+      list[ss.str()] = Core::IO::InputSpecBuilders::group(
+          ss.str(), {spec_solver}, {.description = ss_description.str(), .defaultable = true});
     }
   }
 

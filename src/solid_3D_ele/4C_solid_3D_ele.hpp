@@ -96,11 +96,6 @@ namespace Discret::Elements
 
     [[nodiscard]] Core::FE::CellType shape() const override { return celltype_; };
 
-    void set_kinematic_type(Inpar::Solid::KinemType kintype)
-    {
-      solid_ele_property_.kintype = kintype;
-    }
-
     [[nodiscard]] virtual std::shared_ptr<Mat::So3Material> solid_material(int nummat = 0) const;
 
     [[nodiscard]] int num_line() const override;
@@ -190,10 +185,9 @@ namespace Discret::Elements
      * are null)
      * @return double (out) : The scalar Cauchy stress value
      */
-    template <int dim>
     double get_normal_cauchy_stress_at_xi(const std::vector<double>& disp,
-        const Core::LinAlg::Matrix<dim, 1>& xi, const Core::LinAlg::Matrix<dim, 1>& n,
-        const Core::LinAlg::Matrix<dim, 1>& dir, CauchyNDirLinearizations<dim>& linearizations);
+        const Core::LinAlg::Matrix<3, 1>& xi, const Core::LinAlg::Matrix<3, 1>& n,
+        const Core::LinAlg::Matrix<3, 1>& dir, CauchyNDirLinearizations<3>& linearizations);
 
     void for_each_gauss_point(Core::FE::Discretization& discretization, std::vector<int>& lm,
         const std::function<void(Mat::So3Material&, double integration_factor, int gp)>& integrator)

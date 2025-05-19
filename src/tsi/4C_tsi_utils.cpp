@@ -18,7 +18,6 @@
 #include "4C_solid_scatra_3D_ele.hpp"
 #include "4C_thermo_element.hpp"
 
-#include <Epetra_MpiComm.h>
 
 
 FOUR_C_NAMESPACE_OPEN
@@ -47,7 +46,7 @@ void TSI::Utils::ThermoStructureCloneStrategy::check_material_type(const int mat
   //  Core::Materials::MaterialType mtype =
   //  Global::Problem::instance()->Materials()->ParameterById(matid)->Type(); if ((mtype !=
   //  Core::Materials::m_thermo_fourier))
-  //    FOUR_C_THROW("Material with ID %d is not admissible for thermo elements",matid);
+  //     FOUR_C_THROW("Material with ID {} is not admissible for thermo elements",matid);
 
 }  // check_material_type()
 
@@ -91,8 +90,7 @@ void TSI::Utils::ThermoStructureCloneStrategy::set_element_data(
   }
   else
   {
-    FOUR_C_THROW(
-        "unsupported element type '%s'", Core::Utils::get_dynamic_type_name(*newele).c_str());
+    FOUR_C_THROW("unsupported element type '{}'", Core::Utils::get_dynamic_type_name(*newele));
   }
   return;
 }  // set_element_data()
@@ -123,8 +121,8 @@ void TSI::Utils::setup_tsi(MPI_Comm comm)
   if (!structdis->filled() or !structdis->have_dofs())
   {
     structdis->fill_complete();
-    Epetra_Map nc = *(structdis->node_col_map());
-    Epetra_Map nr = *(structdis->node_row_map());
+    Core::LinAlg::Map nc = *(structdis->node_col_map());
+    Core::LinAlg::Map nr = *(structdis->node_row_map());
     structdis->redistribute(nr, nc);
   }
 
@@ -297,7 +295,7 @@ void TSI::Utils::TSIMaterialStrategy::assign_material1_to2(
       Core::Elements::Element* actele1 = dis1->g_element(ids_1[i]);
       std::vector<double> centercoords1 = Core::FE::element_center_refe_coords(*actele1);
 
-      Core::LinAlg::Matrix<3, 1> diffcoords(true);
+      Core::LinAlg::Matrix<3, 1> diffcoords(Core::LinAlg::Initialization::zero);
 
       for (int j = 0; j < 3; ++j) diffcoords(j, 0) = centercoords1[j] - centercoords2[j];
 

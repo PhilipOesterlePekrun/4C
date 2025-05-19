@@ -13,27 +13,28 @@
 #include "4C_fem_condition_definition.hpp"
 #include "4C_fem_discretization_hdg.hpp"
 #include "4C_fem_dofset_independent.hpp"
+#include "4C_fem_general_element_definition.hpp"
 #include "4C_fem_general_utils_createdis.hpp"
 #include "4C_fem_nurbs_discretization.hpp"
 #include "4C_global_legacy_module.hpp"
+#include "4C_global_legacy_module_validconditions.hpp"
 #include "4C_global_legacy_module_validmaterials.hpp"
-#include "4C_inpar_validconditions.hpp"
+#include "4C_global_legacy_module_validparameters.hpp"
 #include "4C_io.hpp"
-#include "4C_io_elementreader.hpp"
-#include "4C_io_geometry_type.hpp"
+#include "4C_io_exodus.hpp"
 #include "4C_io_input_file.hpp"
 #include "4C_io_input_file_utils.hpp"
 #include "4C_io_input_spec_builders.hpp"
 #include "4C_io_meshreader.hpp"
 #include "4C_mat_elchmat.hpp"
 #include "4C_mat_elchphase.hpp"
-#include "4C_mat_materialdefinition.hpp"
 #include "4C_mat_micromaterial.hpp"
 #include "4C_mat_newman_multiscale.hpp"
 #include "4C_mat_par_bundle.hpp"
 #include "4C_mat_scatra_multiscale.hpp"
 #include "4C_particle_engine_particlereader.hpp"
 #include "4C_rebalance_graph_based.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_xfem_discretization.hpp"
 #include "4C_xfem_discretization_utils.hpp"
 
@@ -43,40 +44,185 @@
 
 FOUR_C_NAMESPACE_OPEN
 
-void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, const bool read_mesh)
+namespace
 {
-  std::shared_ptr<Core::FE::Discretization> structdis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> fluiddis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> xfluiddis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> aledis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> structaledis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> thermdis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> lubricationdis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> scatradis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> scatra_micro_dis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> cellscatradis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> fluidscatradis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> structscatradis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> artscatradis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> arterydis = nullptr;  //_1D_ARTERY_
-  std::shared_ptr<Core::FE::Discretization> airwaydis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> optidis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> porofluiddis = nullptr;  // fpsi, poroelast
-  std::shared_ptr<Core::FE::Discretization> elemagdis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> celldis = nullptr;
-  std::shared_ptr<Core::FE::Discretization> pboxdis = nullptr;
+  /**
+   * Gather all known sections and their specs.
+   */
+  void gather_all_section_specs(std::map<std::string, Core::IO::InputSpec>& section_specs)
+  {
+    using namespace Core::IO::InputSpecBuilders;
 
+    section_specs["CONTACT CONSTITUTIVE LAWS"] =
+        CONTACT::CONSTITUTIVELAW::valid_contact_constitutive_laws();
+    section_specs["CLONING MATERIAL MAP"] = Core::FE::valid_cloning_material_map();
+    section_specs["RESULT DESCRIPTION"] =
+        global_legacy_module_callbacks().valid_result_description_lines();
+
+    {
+      std::vector<Core::IO::InputSpec> possible_materials;
+      std::vector<Core::Materials::MaterialType> material_type;
+      {
+        auto materials = global_legacy_module_callbacks().materials();
+        for (auto&& [type, spec] : materials)
+        {
+          possible_materials.emplace_back(std::move(spec));
+          material_type.push_back(type);
+        }
+      }
+
+      auto all_materials = all_of({
+          parameter<int>("MAT"),
+          one_of(possible_materials,
+              store_index_as<Core::Materials::MaterialType>("_material_type", material_type)),
+      });
+      section_specs["MATERIALS"] = all_materials;
+    }
+
+    {
+      Core::Utils::FunctionManager functionmanager;
+      global_legacy_module_callbacks().AttachFunctionDefinitions(functionmanager);
+
+      auto valid_functions = functionmanager.valid_function_lines();
+
+      // The FUNCT sections are special and do not fit into the usual pattern of sections and the
+      // capabilities of InputSpec. The special FUNCT<n> section is not supposed to be entered by
+      // users but we use this information inside the input file. Not pretty, but it works.
+      // TODO remove this hack by restructuring the input of functions.
+      section_specs["FUNCT<n>"] = valid_functions;
+    }
+
+    {
+      auto valid_conditions = global_legacy_module_callbacks().conditions();
+      for (const auto& cond : valid_conditions)
+      {
+        auto condition_spec = all_of({
+            parameter<int>(
+                "E", {.description = "ID of the condition. This ID refers to the respective "
+                                     "topological entity of the condition."}),
+            parameter<Core::Conditions::EntityType>(
+                "ENTITY_TYPE", {.description = "The type of entity that E refers to.",
+                                   .default_value = Core::Conditions::EntityType::legacy_id}),
+            all_of(cond.specs()),
+        });
+        section_specs.emplace(cond.section_name(), std::move(condition_spec));
+      }
+    }
+
+    // Up to here all the sections allow for multiple entries. Thus, wrap up the specs into
+    // lists.
+    for (auto& [section_name, spec] : section_specs)
+    {
+      spec = Core::IO::InputSpecBuilders::list(section_name, spec, {.required = false});
+    }
+
+    section_specs.merge(Global::valid_parameters());
+  }
+}  // namespace
+
+Core::IO::InputFile Global::set_up_input_file(MPI_Comm comm)
+{
+  std::map<std::string, Core::IO::InputSpec> valid_sections;
+  gather_all_section_specs(valid_sections);
+
+  std::vector<std::string> legacy_section_names{
+      // elements
+      "STRUCTURE ELEMENTS",
+      "FLUID ELEMENTS",
+      "LUBRICATION ELEMENTS",
+      "TRANSPORT ELEMENTS",
+      "TRANSPORT2 ELEMENTS",
+      "ALE ELEMENTS",
+      "THERMO ELEMENTS",
+      "ARTERY ELEMENTS",
+      "REDUCED D AIRWAYS ELEMENTS",
+      "PARTICLES",
+      "PERIODIC BOUNDINGBOX ELEMENTS",
+      // domains
+      "FLUID DOMAIN",
+      "STRUCTURE DOMAIN",
+      // general geometry
+      "NODE COORDS",
+      "DNODE-NODE TOPOLOGY",
+      "DLINE-NODE TOPOLOGY",
+      "DSURF-NODE TOPOLOGY",
+      "DVOL-NODE TOPOLOGY",
+      // nurbs
+      "STRUCTURE KNOTVECTORS",
+      "FLUID KNOTVECTORS",
+      "ALE KNOTVECTORS",
+      "TRANSPORT KNOTVECTORS",
+      "TRANSPORT2 KNOTVECTORS",
+      "THERMO KNOTVECTORS",
+  };
+
+  std::map<std::string, Core::IO::InputSpec> legacy_partial_specs;
+  // We know quite a lot about the legacy sections. Even though we cannot parse them via
+  // the InputSpec engine, we can still emit as much information as possible to the metadata.
+  //
+  // A parameter named "_positional_<index>_<name>" implies that the parameter needs to appear
+  // at the specified position without a key. This is very useful for the geometry information
+  // which often contains enumerators.
+  {
+    using namespace Core::IO::InputSpecBuilders;
+    std::vector<Core::IO::InputSpec> all_element_specs;
+    Core::Elements::ElementDefinition element_definition;
+    element_definition.setup_valid_element_lines();
+    for (const auto& [element_type, cell_specs] : element_definition.definitions())
+    {
+      std::vector<Core::IO::InputSpec> element_specs;
+      for (const auto& [cell_type, spec] : cell_specs)
+      {
+        element_specs.emplace_back(group(cell_type, {spec}));
+      }
+      all_element_specs.emplace_back(group(element_type, {one_of(std::move(element_specs))}));
+    }
+
+    legacy_partial_specs["legacy_element_specs"] = all_of({
+        parameter<int>("_positional_0_id"),
+        one_of(std::move(all_element_specs)),
+    });
+
+    legacy_partial_specs["legacy_particle_specs"] = PARTICLEENGINE::create_particle_spec();
+  }
+
+  return Core::IO::InputFile{std::move(valid_sections), std::move(legacy_section_names),
+      std::move(legacy_partial_specs), comm};
+}
+
+std::unique_ptr<Core::IO::MeshReader> Global::read_discretization(
+    Global::Problem& problem, Core::IO::InputFile& input, const bool read_mesh)
+{
   // decide which kind of spatial representation is required
   const Core::FE::ShapeFunctionType distype = problem.spatial_approximation_type();
   auto output_control = problem.output_control_file();
 
   // the basic mesh reader. now add desired node and element readers to it!
-  Core::IO::MeshReader meshreader(input, "NODE COORDS",
-      {.mesh_partitioning_parameters = Problem::instance()->mesh_partitioning_params(),
-          .geometric_search_parameters = Problem::instance()->geometric_search_params(),
-          .io_parameters = Problem::instance()->io_params()});
+  auto meshreader_out = std::make_unique<Core::IO::MeshReader>(
+      input, Core::IO::MeshReader::MeshReaderParameters{
+                 .mesh_partitioning_parameters = Problem::instance()->mesh_partitioning_params(),
+                 .geometric_search_parameters = Problem::instance()->geometric_search_params(),
+                 .io_parameters = Problem::instance()->io_params(),
+             });
+  auto& meshreader = *meshreader_out;
 
   MPI_Comm comm = problem.get_communicators()->local_comm();
+
+  enum class DiscretizationType
+  {
+    plain,
+    faces,
+    nurbs,
+    xwall,
+    xfem,
+    hdg,
+  };
+
+  // Store the name of a discretization along with its type and the identifier in the input file.
+  // The identifier may be an empty string to indicate that this discretization is not read from
+  // input for a specific problem.
+  std::map<std::string, std::pair<DiscretizationType, std::string>> discretization_types;
+
   switch (problem.get_problem_type())
   {
     case Core::ProblemType::fsi:
@@ -84,55 +230,31 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
     {
       if (distype == Core::FE::ShapeFunctionType::nurbs)
       {
-        structdis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(
-            "structure", comm, problem.n_dim());
-        fluiddis =
-            std::make_shared<Core::FE::Nurbs::NurbsDiscretization>("fluid", comm, problem.n_dim());
-        aledis =
-            std::make_shared<Core::FE::Nurbs::NurbsDiscretization>("ale", comm, problem.n_dim());
+        discretization_types["structure"] = {DiscretizationType::nurbs, "STRUCTURE"};
+        discretization_types["fluid"] = {DiscretizationType::nurbs, "FLUID"};
+        discretization_types["ale"] = {DiscretizationType::nurbs, "ALE"};
       }
       else if (problem.fluid_dynamic_params().sublist("WALL MODEL").get<bool>("X_WALL"))
       {
-        structdis = std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-        fluiddis = std::make_shared<XFEM::DiscretizationXWall>("fluid", comm, problem.n_dim());
-        aledis = std::make_shared<Core::FE::Discretization>("ale", comm, problem.n_dim());
+        discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
+        discretization_types["fluid"] = {DiscretizationType::xwall, "FLUID"};
+        discretization_types["ale"] = {DiscretizationType::plain, "ALE"};
       }
       else
       {
-        structdis = std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-        fluiddis = std::make_shared<Core::FE::DiscretizationFaces>("fluid", comm, problem.n_dim());
+        discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
         if (problem.x_fluid_dynamic_params().sublist("GENERAL").get<bool>("XFLUIDFLUID"))
-          xfluiddis = std::make_shared<XFEM::DiscretizationXFEM>("xfluid", comm, problem.n_dim());
-        aledis = std::make_shared<Core::FE::Discretization>("ale", comm, problem.n_dim());
+        {
+          discretization_types["xfluid"] = {DiscretizationType::xfem, "FLUID"};
+          // No input for fluid in this case.
+          discretization_types["fluid"] = {DiscretizationType::faces, ""};
+        }
+        else
+        {
+          discretization_types["fluid"] = {DiscretizationType::faces, "FLUID"};
+        }
+        discretization_types["ale"] = {DiscretizationType::plain, "ALE"};
       }
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      fluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
-      if (xfluiddis != nullptr)
-        xfluiddis->set_writer(
-            std::make_shared<Core::IO::DiscretizationWriter>(xfluiddis, output_control, distype));
-      aledis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(aledis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-      problem.add_dis("fluid", fluiddis);
-      if (xfluiddis != nullptr) problem.add_dis("xfluid", xfluiddis);
-      problem.add_dis("ale", aledis);
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structdis, input, "STRUCTURE ELEMENTS"));
-
-      if (xfluiddis != nullptr)
-      {
-        meshreader.add_element_reader(Core::IO::ElementReader(xfluiddis, input, "FLUID ELEMENTS"));
-      }
-      else
-        meshreader.add_element_reader(Core::IO::ElementReader(fluiddis, input, "FLUID ELEMENTS"));
-
-      meshreader.add_element_reader(Core::IO::ElementReader(aledis, input, "ALE ELEMENTS"));
 
       break;
     }
@@ -148,49 +270,14 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
         }
         default:
         {
-          structdis =
-              std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-          fluiddis =
-              std::make_shared<Core::FE::DiscretizationFaces>("fluid", comm, problem.n_dim());
-          aledis = std::make_shared<Core::FE::Discretization>("ale", comm, problem.n_dim());
-          fluidscatradis =
-              std::make_shared<Core::FE::Discretization>("scatra1", comm, problem.n_dim());
-          structscatradis =
-              std::make_shared<Core::FE::Discretization>("scatra2", comm, problem.n_dim());
+          discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
+          discretization_types["fluid"] = {DiscretizationType::faces, "FLUID"};
+          discretization_types["ale"] = {DiscretizationType::plain, "ALE"};
+          discretization_types["scatra1"] = {DiscretizationType::plain, "TRANSPORT"};
+          discretization_types["scatra2"] = {DiscretizationType::plain, "TRANSPORT2"};
           break;
         }
       }
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      fluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
-      aledis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(aledis, output_control, distype));
-      fluidscatradis->set_writer(std::make_shared<Core::IO::DiscretizationWriter>(
-          fluidscatradis, output_control, distype));
-      structscatradis->set_writer(std::make_shared<Core::IO::DiscretizationWriter>(
-          structscatradis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-      problem.add_dis("fluid", fluiddis);
-      problem.add_dis("ale", aledis);
-      problem.add_dis("scatra1", fluidscatradis);
-      problem.add_dis("scatra2", structscatradis);
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structdis, input, "STRUCTURE ELEMENTS"));
-      meshreader.add_element_reader(Core::IO::ElementReader(fluiddis, input, "FLUID ELEMENTS"));
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(fluidscatradis, input, "TRANSPORT ELEMENTS"));
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structscatradis, input, "TRANSPORT2 ELEMENTS"));
-
-#ifdef EXTENDEDPARALLELOVERLAP
-      structdis->CreateExtendedOverlap(false, false, false);
-#endif
-
       break;
     }
     case Core::ProblemType::biofilm_fsi:
@@ -204,139 +291,46 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
         }
         default:
         {
-          structdis =
-              std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-          fluiddis =
-              std::make_shared<Core::FE::DiscretizationFaces>("fluid", comm, problem.n_dim());
-          aledis = std::make_shared<Core::FE::Discretization>("ale", comm, problem.n_dim());
-          structaledis =
-              std::make_shared<Core::FE::Discretization>("structale", comm, problem.n_dim());
+          discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
+          discretization_types["fluid"] = {DiscretizationType::faces, "FLUID"};
+          discretization_types["ale"] = {DiscretizationType::plain, ""};
+          discretization_types["structale"] = {DiscretizationType::plain, ""};
           break;
         }
       }
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      fluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
-      aledis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(aledis, output_control, distype));
-      structaledis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structaledis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-      problem.add_dis("fluid", fluiddis);
-      problem.add_dis("ale", aledis);
-      problem.add_dis("structale", structaledis);
-
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structdis, input, "STRUCTURE ELEMENTS"));
-      meshreader.add_element_reader(Core::IO::ElementReader(fluiddis, input, "FLUID ELEMENTS"));
-
-#ifdef EXTENDEDPARALLELOVERLAP
-      structdis->CreateExtendedOverlap(false, false, false);
-#endif
-
       // fluid scatra field
-      fluidscatradis = std::make_shared<Core::FE::Discretization>("scatra1", comm, problem.n_dim());
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      fluidscatradis->set_writer(std::make_shared<Core::IO::DiscretizationWriter>(
-          fluidscatradis, output_control, distype));
-      problem.add_dis("scatra1", fluidscatradis);
+      discretization_types["scatra1"] = {DiscretizationType::plain, "TRANSPORT"};
 
       // structure scatra field
-      structscatradis =
-          std::make_shared<Core::FE::Discretization>("scatra2", comm, problem.n_dim());
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structscatradis->set_writer(std::make_shared<Core::IO::DiscretizationWriter>(
-          structscatradis, output_control, distype));
-      problem.add_dis("scatra2", structscatradis);
+      discretization_types["scatra2"] = {DiscretizationType::plain, "TRANSPORT2"};
 
       break;
     }
     case Core::ProblemType::fsi_xfem:
     case Core::ProblemType::fluid_xfem:
     {
-      structdis = std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      problem.add_dis("structure", structdis);
-      meshreader.add_advanced_reader(structdis, input, "STRUCTURE",
-          Teuchos::getIntegralValue<Core::IO::GeometryType>(
-              problem.structural_dynamic_params(), "GEOMETRY"),
-          nullptr);
+      discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
 
       if (problem.x_fluid_dynamic_params().sublist("GENERAL").get<bool>("XFLUIDFLUID"))
       {
-        fluiddis = std::make_shared<Core::FE::DiscretizationFaces>("fluid", comm, problem.n_dim());
-        fluiddis->set_writer(
-            std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
-        problem.add_dis("fluid", fluiddis);
+        discretization_types["fluid"] = {DiscretizationType::faces, ""};
 
-        xfluiddis = std::make_shared<XFEM::DiscretizationXFEM>("xfluid", comm, problem.n_dim());
-        xfluiddis->set_writer(
-            std::make_shared<Core::IO::DiscretizationWriter>(xfluiddis, output_control, distype));
-        problem.add_dis("xfluid", xfluiddis);
-
-        meshreader.add_element_reader(
-            Core::IO::ElementReader(xfluiddis, input, "FLUID ELEMENTS", "FLUID"));
+        discretization_types["xfluid"] = {DiscretizationType::xfem, "FLUID"};
       }
       else
       {
-        fluiddis = std::make_shared<XFEM::DiscretizationXFEM>("fluid", comm, problem.n_dim());
-        fluiddis->set_writer(
-            std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
-        problem.add_dis("fluid", fluiddis);
-
-        meshreader.add_advanced_reader(fluiddis, input, "FLUID",
-            Teuchos::getIntegralValue<Core::IO::GeometryType>(
-                problem.fluid_dynamic_params(), "GEOMETRY"),
-            nullptr);
+        discretization_types["fluid"] = {DiscretizationType::xfem, "FLUID"};
       }
 
-      aledis = std::make_shared<Core::FE::Discretization>("ale", comm, problem.n_dim());
-      aledis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(aledis, output_control, distype));
-      problem.add_dis("ale", aledis);
-      meshreader.add_element_reader(Core::IO::ElementReader(aledis, input, "ALE ELEMENTS"));
+      discretization_types["ale"] = {DiscretizationType::plain, "ALE"};
       break;
     }
     case Core::ProblemType::fpsi_xfem:
     {
-      structdis = std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-      fluiddis = std::make_shared<XFEM::DiscretizationXFEM>("fluid", comm, problem.n_dim());
-      porofluiddis =
-          std::make_shared<Core::FE::DiscretizationFaces>("porofluid", comm, problem.n_dim());
-      aledis = std::make_shared<Core::FE::Discretization>("ale", comm, problem.n_dim());
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      fluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
-      porofluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(porofluiddis, output_control, distype));
-      aledis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(aledis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-      problem.add_dis("porofluid", porofluiddis);
-      problem.add_dis("fluid", fluiddis);
-      problem.add_dis("ale", aledis);
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structdis, input, "STRUCTURE ELEMENTS"));
-
-      meshreader.add_advanced_reader(fluiddis, input, "FLUID",
-          Teuchos::getIntegralValue<Core::IO::GeometryType>(
-              problem.fluid_dynamic_params(), "GEOMETRY"),
-          nullptr);
-
-      meshreader.add_element_reader(Core::IO::ElementReader(aledis, input, "ALE ELEMENTS"));
-
+      discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
+      discretization_types["fluid"] = {DiscretizationType::xfem, "FLUID"};
+      discretization_types["porofluid"] = {DiscretizationType::faces, ""};
+      discretization_types["ale"] = {DiscretizationType::plain, "ALE"};
       break;
     }
     case Core::ProblemType::ale:
@@ -345,25 +339,15 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
       {
         case Core::FE::ShapeFunctionType::nurbs:
         {
-          aledis =
-              std::make_shared<Core::FE::Nurbs::NurbsDiscretization>("ale", comm, problem.n_dim());
+          discretization_types["ale"] = {DiscretizationType::nurbs, "ALE"};
           break;
         }
         default:
         {
-          aledis = std::make_shared<Core::FE::Discretization>("ale", comm, problem.n_dim());
+          discretization_types["ale"] = {DiscretizationType::plain, "ALE"};
           break;
         }
       }
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      aledis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(aledis, output_control, distype));
-
-      problem.add_dis("ale", aledis);
-
-      meshreader.add_element_reader(Core::IO::ElementReader(aledis, input, "ALE ELEMENTS"));
-
       break;
     }
     case Core::ProblemType::fluid:
@@ -371,64 +355,27 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
     {
       if (distype == Core::FE::ShapeFunctionType::hdg)
       {
-        fluiddis = std::make_shared<Core::FE::DiscretizationHDG>("fluid", comm, problem.n_dim());
-
-        // create discretization writer - in constructor set into and owned by corresponding discret
-        fluiddis->set_writer(
-            std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
+        discretization_types["fluid"] = {DiscretizationType::hdg, "FLUID"};
       }
       else if (distype == Core::FE::ShapeFunctionType::nurbs)
       {
-        fluiddis =
-            std::make_shared<Core::FE::Nurbs::NurbsDiscretization>("fluid", comm, problem.n_dim());
-
-        // create discretization writer - in constructor set ingto and owned by corresponding
-        // discret
-        fluiddis->set_writer(
-            std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
+        discretization_types["fluid"] = {DiscretizationType::nurbs, "FLUID"};
       }
       else if (problem.fluid_dynamic_params().sublist("WALL MODEL").get<bool>("X_WALL"))
       {
-        fluiddis = std::make_shared<XFEM::DiscretizationXWall>("fluid", comm, problem.n_dim());
-
-        // create discretization writer - in constructor set into and owned by corresponding discret
-        fluiddis->set_writer(
-            std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
+        discretization_types["fluid"] = {DiscretizationType::xwall, "FLUID"};
       }
       else
       {
-        // fluiddis  = Teuchos::rcp(new Core::FE::Discretization("fluid",reader.Comm()));
-        fluiddis = std::make_shared<Core::FE::DiscretizationFaces>("fluid", comm, problem.n_dim());
-
-        // create discretization writer - in constructor set into and owned by corresponding discret
-        fluiddis->set_writer(
-            std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
+        discretization_types["fluid"] = {DiscretizationType::faces, "FLUID"};
       }
-
-      problem.add_dis("fluid", fluiddis);
-
-      meshreader.add_advanced_reader(fluiddis, input, "FLUID",
-          Teuchos::getIntegralValue<Core::IO::GeometryType>(
-              problem.fluid_dynamic_params(), "GEOMETRY"),
-          nullptr);
 
       break;
     }
     case Core::ProblemType::lubrication:
     {
       // create empty discretizations
-      lubricationdis =
-          std::make_shared<Core::FE::Discretization>("lubrication", comm, problem.n_dim());
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      lubricationdis->set_writer(std::make_shared<Core::IO::DiscretizationWriter>(
-          lubricationdis, output_control, distype));
-
-      problem.add_dis("lubrication", lubricationdis);
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(lubricationdis, input, "LUBRICATION ELEMENTS"));
-
+      discretization_types["lubrication"] = {DiscretizationType::plain, "LUBRICATION"};
       break;
     }
     case Core::ProblemType::cardiac_monodomain:
@@ -438,43 +385,23 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
       {
         case Core::FE::ShapeFunctionType::nurbs:
         {
-          fluiddis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(
-              "fluid", comm, problem.n_dim());
-          scatradis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(
-              "scatra", comm, problem.n_dim());
+          discretization_types["fluid"] = {DiscretizationType::nurbs, "FLUID"};
+          discretization_types["scatra"] = {DiscretizationType::nurbs, "TRANSPORT"};
           break;
         }
         case Core::FE::ShapeFunctionType::hdg:
         {
-          fluiddis =
-              std::make_shared<Core::FE::DiscretizationFaces>("fluid", comm, problem.n_dim());
-          scatradis =
-              std::make_shared<Core::FE::DiscretizationHDG>("scatra", comm, problem.n_dim());
+          discretization_types["fluid"] = {DiscretizationType::faces, "FLUID"};
+          discretization_types["scatra"] = {DiscretizationType::hdg, "TRANSPORT"};
           break;
         }
         default:
         {
-          fluiddis =
-              std::make_shared<Core::FE::DiscretizationFaces>("fluid", comm, problem.n_dim());
-          scatradis = std::make_shared<Core::FE::Discretization>("scatra", comm, problem.n_dim());
+          discretization_types["fluid"] = {DiscretizationType::faces, "FLUID"};
+          discretization_types["scatra"] = {DiscretizationType::plain, "TRANSPORT"};
           break;
         }
       }
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      fluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
-      scatradis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(scatradis, output_control, distype));
-
-
-      problem.add_dis("fluid", fluiddis);
-      problem.add_dis("scatra", scatradis);
-
-      meshreader.add_element_reader(Core::IO::ElementReader(fluiddis, input, "FLUID ELEMENTS"));
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(scatradis, input, "TRANSPORT ELEMENTS"));
-
       break;
     }
     case Core::ProblemType::sti:
@@ -484,22 +411,8 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
         FOUR_C_THROW("Scatra-thermo interaction does not work for nurbs discretizations yet!");
 
       // create empty discretizations for scalar and thermo fields
-      scatradis = std::make_shared<Core::FE::Discretization>("scatra", comm, problem.n_dim());
-      thermdis = std::make_shared<Core::FE::Discretization>("thermo", comm, problem.n_dim());
-
-      // create discretization writers
-      scatradis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(scatradis, output_control, distype));
-      thermdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(thermdis, output_control, distype));
-
-      // add empty discretizations to global problem
-      problem.add_dis("scatra", scatradis);
-      problem.add_dis("thermo", thermdis);
-
-      // add element input to node input
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(scatradis, input, "TRANSPORT ELEMENTS"));
+      discretization_types["scatra"] = {DiscretizationType::plain, "TRANSPORT"};
+      discretization_types["thermo"] = {DiscretizationType::plain, "THERMO"};
 
       break;
     }
@@ -507,57 +420,32 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
     {
       if (distype == Core::FE::ShapeFunctionType::hdg)
       {
-        fluiddis = std::make_shared<Core::FE::DiscretizationHDG>("fluid", comm, problem.n_dim());
-        aledis = std::make_shared<Core::FE::Discretization>("ale", comm, problem.n_dim());
+        discretization_types["fluid"] = {DiscretizationType::hdg, "FLUID"};
+        discretization_types["ale"] = {DiscretizationType::plain, "ALE"};
       }
       else if (distype == Core::FE::ShapeFunctionType::nurbs)
       {
-        fluiddis =
-            std::make_shared<Core::FE::Nurbs::NurbsDiscretization>("fluid", comm, problem.n_dim());
-        aledis =
-            std::make_shared<Core::FE::Nurbs::NurbsDiscretization>("ale", comm, problem.n_dim());
+        discretization_types["fluid"] = {DiscretizationType::nurbs, "FLUID"};
+        discretization_types["ale"] = {DiscretizationType::nurbs, "ALE"};
       }
       else if (problem.fluid_dynamic_params().sublist("WALL MODEL").get<bool>("X_WALL"))
       {
-        fluiddis = std::make_shared<XFEM::DiscretizationXWall>("fluid", comm, problem.n_dim());
-        aledis = std::make_shared<Core::FE::Discretization>("ale", comm, problem.n_dim());
+        discretization_types["fluid"] = {DiscretizationType::xwall, "FLUID"};
+        discretization_types["ale"] = {DiscretizationType::plain, "ALE"};
       }
       else
       {
-        fluiddis = std::make_shared<Core::FE::DiscretizationFaces>("fluid", comm, problem.n_dim());
         if (problem.x_fluid_dynamic_params().sublist("GENERAL").get<bool>("XFLUIDFLUID"))
-          xfluiddis = std::make_shared<XFEM::DiscretizationXFEM>("xfluid", comm, problem.n_dim());
-        aledis = std::make_shared<Core::FE::Discretization>("ale", comm, problem.n_dim());
+        {
+          discretization_types["xfluid"] = {DiscretizationType::xfem, "FLUID"};
+          discretization_types["fluid"] = {DiscretizationType::faces, ""};
+        }
+        else
+        {
+          discretization_types["fluid"] = {DiscretizationType::faces, "FLUID"};
+        }
+        discretization_types["ale"] = {DiscretizationType::plain, "ALE"};
       }
-
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      fluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
-      if (xfluiddis != nullptr)
-      {
-        xfluiddis->set_writer(
-            std::make_shared<Core::IO::DiscretizationWriter>(xfluiddis, output_control, distype));
-      }
-      aledis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(aledis, output_control, distype));
-
-
-      problem.add_dis("fluid", fluiddis);
-      if (xfluiddis != nullptr)
-      {
-        problem.add_dis("xfluid", xfluiddis);  // xfem discretization on slot 1
-      }
-      problem.add_dis("ale", aledis);
-
-      if (xfluiddis != nullptr)
-      {
-        meshreader.add_element_reader(Core::IO::ElementReader(xfluiddis, input, "FLUID ELEMENTS"));
-      }
-      else
-        meshreader.add_element_reader(Core::IO::ElementReader(fluiddis, input, "FLUID ELEMENTS"));
-
-      meshreader.add_element_reader(Core::IO::ElementReader(aledis, input, "ALE ELEMENTS"));
 
       break;
     }
@@ -567,38 +455,17 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
       {
         case Core::FE::ShapeFunctionType::nurbs:
         {
-          structdis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(
-              "structure", comm, problem.n_dim());
-          thermdis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(
-              "thermo", comm, problem.n_dim());
+          discretization_types["structure"] = {DiscretizationType::nurbs, "STRUCTURE"};
+          discretization_types["thermo"] = {DiscretizationType::nurbs, "THERMO"};
           break;
         }
         default:
         {
-          structdis =
-              std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-          thermdis = std::make_shared<Core::FE::Discretization>("thermo", comm, problem.n_dim());
+          discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
+          discretization_types["thermo"] = {DiscretizationType::plain, "THERMO"};
           break;
         }
       }
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      thermdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(thermdis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-      problem.add_dis("thermo", thermdis);
-
-      meshreader.add_advanced_reader(structdis, input, "STRUCTURE",
-          Teuchos::getIntegralValue<Core::IO::GeometryType>(
-              problem.structural_dynamic_params(), "GEOMETRY"),
-          nullptr);
-      meshreader.add_advanced_reader(thermdis, input, "THERMO",
-          Teuchos::getIntegralValue<Core::IO::GeometryType>(
-              problem.thermal_dynamic_params(), "GEOMETRY"),
-          nullptr);
 
       break;
     }
@@ -608,24 +475,15 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
       {
         case Core::FE::ShapeFunctionType::nurbs:
         {
-          thermdis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(
-              "thermo", comm, problem.n_dim());
+          discretization_types["thermo"] = {DiscretizationType::nurbs, "THERMO"};
           break;
         }
         default:
         {
-          thermdis = std::make_shared<Core::FE::Discretization>("thermo", comm, problem.n_dim());
+          discretization_types["thermo"] = {DiscretizationType::plain, "THERMO"};
           break;
         }
       }
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      thermdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(thermdis, output_control, distype));
-
-      problem.add_dis("thermo", thermdis);
-
-      meshreader.add_element_reader(Core::IO::ElementReader(thermdis, input, "THERMO ELEMENTS"));
 
       break;
     }
@@ -636,28 +494,15 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
       {
         case Core::FE::ShapeFunctionType::nurbs:
         {
-          structdis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(
-              "structure", comm, problem.n_dim());
+          discretization_types["structure"] = {DiscretizationType::nurbs, "STRUCTURE"};
           break;
         }
         default:
         {
-          structdis =
-              std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
+          discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
           break;
         }
       }
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-
-      meshreader.add_advanced_reader(structdis, input, "STRUCTURE",
-          Teuchos::getIntegralValue<Core::IO::GeometryType>(
-              problem.structural_dynamic_params(), "GEOMETRY"),
-          nullptr);
 
       break;
     }
@@ -665,80 +510,16 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
     case Core::ProblemType::polymernetwork:
     {
       // create empty discretizations
-      structdis = std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-      pboxdis = std::make_shared<Core::FE::Discretization>("boundingbox", comm, problem.n_dim());
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      pboxdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(pboxdis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-      problem.add_dis("boundingbox", pboxdis);
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structdis, input, "STRUCTURE ELEMENTS"));
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(pboxdis, input, "PERIODIC BOUNDINGBOX ELEMENTS"));
-
+      discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
+      discretization_types["boundingbox"] = {DiscretizationType::plain, "PERIODIC BOUNDINGBOX"};
       break;
     }
 
     case Core::ProblemType::loma:
     {
       // create empty discretizations
-      fluiddis = std::make_shared<Core::FE::DiscretizationFaces>("fluid", comm, problem.n_dim());
-      scatradis = std::make_shared<Core::FE::Discretization>("scatra", comm, problem.n_dim());
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      fluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
-      scatradis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(scatradis, output_control, distype));
-
-      problem.add_dis("fluid", fluiddis);
-      problem.add_dis("scatra", scatradis);
-
-      meshreader.add_element_reader(Core::IO::ElementReader(fluiddis, input, "FLUID ELEMENTS"));
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(scatradis, input, "TRANSPORT ELEMENTS"));
-
-      break;
-    }
-
-    case Core::ProblemType::fluid_xfem_ls:
-    {
-      // create empty discretizations
-      structdis = std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-      if (problem.get_problem_type() == Core::ProblemType::fluid_xfem_ls)
-        fluiddis = std::make_shared<XFEM::DiscretizationXFEM>("fluid", comm, problem.n_dim());
-      else
-        fluiddis = std::make_shared<Core::FE::DiscretizationFaces>("fluid", comm, problem.n_dim());
-      scatradis = std::make_shared<Core::FE::Discretization>("scatra", comm, problem.n_dim());
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      fluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
-      scatradis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(scatradis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-      problem.add_dis("fluid", fluiddis);
-      problem.add_dis("scatra", scatradis);
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structdis, input, "STRUCTURE ELEMENTS"));
-      meshreader.add_advanced_reader(fluiddis, input, "FLUID",
-          Teuchos::getIntegralValue<Core::IO::GeometryType>(
-              problem.fluid_dynamic_params(), "GEOMETRY"),
-          nullptr);
-      // meshreader.AddElementReader(Teuchos::rcp(new Core::IO::ElementReader(fluiddis, input,
-      // "FLUID ELEMENTS")));
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(scatradis, input, "TRANSPORT ELEMENTS"));
+      discretization_types["fluid"] = {DiscretizationType::faces, "FLUID"};
+      discretization_types["scatra"] = {DiscretizationType::plain, "TRANSPORT"};
       break;
     }
 
@@ -749,56 +530,27 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
       {
         case Core::FE::ShapeFunctionType::nurbs:
         {
-          fluiddis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(
-              "fluid", comm, problem.n_dim());
-          scatradis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(
-              "scatra", comm, problem.n_dim());
-          aledis =
-              std::make_shared<Core::FE::Nurbs::NurbsDiscretization>("ale", comm, problem.n_dim());
-          scatra_micro_dis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(
-              "scatra_micro", comm, problem.n_dim());
+          discretization_types["fluid"] = {DiscretizationType::nurbs, "FLUID"};
+          discretization_types["scatra"] = {DiscretizationType::nurbs, "TRANSPORT"};
+          discretization_types["ale"] = {DiscretizationType::nurbs, "ALE"};
+          discretization_types["scatra_micro"] = {DiscretizationType::nurbs, "TRANSPORT2"};
           break;
         }
         default:
         {
-          fluiddis =
-              std::make_shared<Core::FE::DiscretizationFaces>("fluid", comm, problem.n_dim());
-          scatradis = std::make_shared<Core::FE::Discretization>("scatra", comm, problem.n_dim());
-          aledis = std::make_shared<Core::FE::Discretization>("ale", comm, problem.n_dim());
-          scatra_micro_dis =
-              std::make_shared<Core::FE::Discretization>("scatra_micro", comm, problem.n_dim());
+          discretization_types["fluid"] = {DiscretizationType::faces, "FLUID"};
+          discretization_types["scatra"] = {DiscretizationType::plain, "TRANSPORT"};
+          discretization_types["ale"] = {DiscretizationType::plain, "ALE"};
+          discretization_types["scatra_micro"] = {DiscretizationType::plain, "TRANSPORT2"};
           break;
         }
       }
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      fluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
-      scatradis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(scatradis, output_control, distype));
-      aledis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(aledis, output_control, distype));
-      scatra_micro_dis->set_writer(std::make_shared<Core::IO::DiscretizationWriter>(
-          scatra_micro_dis, output_control, distype));
-
-      problem.add_dis("fluid", fluiddis);
-      problem.add_dis("scatra", scatradis);
-      problem.add_dis("ale", aledis);
-      problem.add_dis("scatra_micro", scatra_micro_dis);
-
-      meshreader.add_element_reader(Core::IO::ElementReader(fluiddis, input, "FLUID ELEMENTS"));
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(scatradis, input, "TRANSPORT ELEMENTS"));
-      meshreader.add_element_reader(Core::IO::ElementReader(aledis, input, "ALE ELEMENTS"));
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(scatra_micro_dis, input, "TRANSPORT2 ELEMENTS"));
-
       break;
     }
     case Core::ProblemType::art_net:  // _1D_ARTERY_
     {
       // create empty discretizations
-      arterydis = std::make_shared<Core::FE::Discretization>("artery", comm, problem.n_dim());
+      discretization_types["artery"] = {DiscretizationType::plain, "ARTERY"};
 
       // create empty discretizations
       switch (distype)
@@ -810,41 +562,17 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
         }
         default:
         {
-          scatradis =
-              std::make_shared<Core::FE::Discretization>("artery_scatra", comm, problem.n_dim());
+          discretization_types["artery_scatra"] = {DiscretizationType::plain, "TRANSPORT"};
           break;
         }
       }
-
-      problem.add_dis("artery", arterydis);
-      problem.add_dis("artery_scatra", scatradis);
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      arterydis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(arterydis, output_control, distype));
-      scatradis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(scatradis, output_control, distype));
-
-      meshreader.add_element_reader(Core::IO::ElementReader(arterydis, input, "ARTERY ELEMENTS"));
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(scatradis, input, "TRANSPORT ELEMENTS"));
-
       break;
     }
+    case Core::ProblemType::reduced_lung:
     case Core::ProblemType::red_airways:  // _reduced D airways
     {
       // create empty discretizations
-      airwaydis = std::make_shared<Core::FE::Discretization>("red_airway", comm, problem.n_dim());
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      airwaydis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(airwaydis, output_control, distype));
-
-      problem.add_dis("red_airway", airwaydis);
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(airwaydis, input, "REDUCED D AIRWAYS ELEMENTS"));
-
+      discretization_types["red_airway"] = {DiscretizationType::plain, "REDUCED D AIRWAYS"};
       break;
     }
     case Core::ProblemType::poroelast:
@@ -855,42 +583,20 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
       {
         case Core::FE::ShapeFunctionType::nurbs:
         {
-          structdis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(
-              "structure", comm, problem.n_dim());
-          porofluiddis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(
-              "porofluid", comm, problem.n_dim());
+          discretization_types["structure"] = {DiscretizationType::nurbs, "STRUCTURE"};
+          discretization_types["porofluid"] = {DiscretizationType::nurbs, "FLUID"};
           break;
         }
         default:
         {
-          structdis =
-              std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-          porofluiddis =
-              std::make_shared<Core::FE::Discretization>("porofluid", comm, problem.n_dim());
+          discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
+          discretization_types["porofluid"] = {DiscretizationType::plain, "FLUID"};
           break;
         }
       }
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      porofluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(porofluiddis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-      problem.add_dis("porofluid", porofluiddis);
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structdis, input, "STRUCTURE ELEMENTS"));
-      meshreader.add_element_reader(Core::IO::ElementReader(porofluiddis, input, "FLUID ELEMENTS"));
-
       if (problem.poro_multi_phase_dynamic_params().get<bool>("ARTERY_COUPLING"))
       {
-        arterydis = std::make_shared<Core::FE::Discretization>("artery", comm, problem.n_dim());
-        arterydis->set_writer(
-            std::make_shared<Core::IO::DiscretizationWriter>(arterydis, output_control, distype));
-        problem.add_dis("artery", arterydis);
-        meshreader.add_element_reader(Core::IO::ElementReader(arterydis, input, "ARTERY ELEMENTS"));
+        discretization_types["artery"] = {DiscretizationType::plain, "ARTERY"};
       }
 
       break;
@@ -902,58 +608,24 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
       {
         case Core::FE::ShapeFunctionType::nurbs:
         {
-          structdis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(
-              "structure", comm, problem.n_dim());
-          porofluiddis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(
-              "porofluid", comm, problem.n_dim());
-          scatradis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(
-              "scatra", comm, problem.n_dim());
+          discretization_types["structure"] = {DiscretizationType::nurbs, "STRUCTURE"};
+          discretization_types["porofluid"] = {DiscretizationType::nurbs, "FLUID"};
+          discretization_types["scatra"] = {DiscretizationType::nurbs, "TRANSPORT"};
           break;
         }
         default:
         {
-          structdis =
-              std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-          porofluiddis =
-              std::make_shared<Core::FE::Discretization>("porofluid", comm, problem.n_dim());
-          scatradis = std::make_shared<Core::FE::Discretization>("scatra", comm, problem.n_dim());
+          discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
+          discretization_types["porofluid"] = {DiscretizationType::plain, "FLUID"};
+          discretization_types["scatra"] = {DiscretizationType::plain, "TRANSPORT"};
           break;
         }
       }
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      porofluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(porofluiddis, output_control, distype));
-      scatradis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(scatradis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-      problem.add_dis("porofluid", porofluiddis);
-      problem.add_dis("scatra", scatradis);
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structdis, input, "STRUCTURE ELEMENTS"));
-      meshreader.add_element_reader(Core::IO::ElementReader(porofluiddis, input, "FLUID ELEMENTS"));
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(scatradis, input, "TRANSPORT ELEMENTS"));
-
       if (problem.poro_multi_phase_scatra_dynamic_params().get<bool>("ARTERY_COUPLING"))
       {
-        arterydis = std::make_shared<Core::FE::Discretization>("artery", comm, problem.n_dim());
-        arterydis->set_writer(
-            std::make_shared<Core::IO::DiscretizationWriter>(arterydis, output_control, distype));
-        problem.add_dis("artery", arterydis);
-        meshreader.add_element_reader(Core::IO::ElementReader(arterydis, input, "ARTERY ELEMENTS"));
+        discretization_types["artery"] = {DiscretizationType::plain, "ARTERY"};
 
-        artscatradis =
-            std::make_shared<Core::FE::Discretization>("artery_scatra", comm, problem.n_dim());
-        artscatradis->set_writer(std::make_shared<Core::IO::DiscretizationWriter>(
-            artscatradis, output_control, distype));
-        problem.add_dis("artery_scatra", artscatradis);
-        meshreader.add_element_reader(
-            Core::IO::ElementReader(artscatradis, input, "TRANSPORT ELEMENTS"));
+        discretization_types["artery_scatra"] = {DiscretizationType::plain, "TRANSPORT"};
       }
 
       break;
@@ -965,222 +637,85 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
       {
         case Core::FE::ShapeFunctionType::nurbs:
         {
-          porofluiddis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(
-              "porofluid", comm, problem.n_dim());
+          discretization_types["porofluid"] = {DiscretizationType::nurbs, "FLUID"};
           break;
         }
         default:
         {
-          porofluiddis =
-              std::make_shared<Core::FE::Discretization>("porofluid", comm, problem.n_dim());
+          discretization_types["porofluid"] = {DiscretizationType::plain, "FLUID"};
           break;
         }
       }
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      porofluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(porofluiddis, output_control, distype));
-
-      problem.add_dis("porofluid", porofluiddis);
-
-      meshreader.add_element_reader(Core::IO::ElementReader(porofluiddis, input, "FLUID ELEMENTS"));
-
       if (problem.poro_fluid_multi_phase_dynamic_params().get<bool>("ARTERY_COUPLING"))
       {
-        arterydis = std::make_shared<Core::FE::Discretization>("artery", comm, problem.n_dim());
-        arterydis->set_writer(
-            std::make_shared<Core::IO::DiscretizationWriter>(arterydis, output_control, distype));
-        problem.add_dis("artery", arterydis);
-        meshreader.add_element_reader(Core::IO::ElementReader(arterydis, input, "ARTERY ELEMENTS"));
+        discretization_types["artery"] = {DiscretizationType::plain, "ARTERY"};
       }
       break;
     }
     case Core::ProblemType::fpsi:
     {
-      // create empty discretizations
-      structdis = std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-      porofluiddis = std::make_shared<Core::FE::Discretization>("porofluid", comm, problem.n_dim());
-      fluiddis = std::make_shared<Core::FE::DiscretizationFaces>("fluid", comm, problem.n_dim());
-      aledis = std::make_shared<Core::FE::Discretization>("ale", comm, problem.n_dim());
+      discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
+      discretization_types["fluid"] = {DiscretizationType::faces, "FLUID"};
 
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      porofluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(porofluiddis, output_control, distype));
-      fluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
-      aledis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(aledis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-      problem.add_dis("porofluid", porofluiddis);
-      problem.add_dis("fluid", fluiddis);
-      problem.add_dis("ale", aledis);
-
-      meshreader.add_element_reader(Core::IO::ElementReader(fluiddis, input, "FLUID ELEMENTS"));
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structdis, input, "STRUCTURE ELEMENTS"));
-
+      // No input for these discretizations
+      discretization_types["porofluid"] = {DiscretizationType::plain, ""};
+      discretization_types["ale"] = {DiscretizationType::plain, ""};
       break;
     }
     case Core::ProblemType::fbi:
     {
       // create empty discretizations
-      structdis = std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-      fluiddis = std::make_shared<Core::FE::DiscretizationFaces>("fluid", comm, problem.n_dim());
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      fluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-      problem.add_dis("fluid", fluiddis);
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structdis, input, "STRUCTURE ELEMENTS"));
-      meshreader.add_advanced_reader(fluiddis, input, "FLUID",
-          Teuchos::getIntegralValue<Core::IO::GeometryType>(
-              problem.fluid_dynamic_params(), "GEOMETRY"),
-          nullptr);
+      discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
+      discretization_types["fluid"] = {DiscretizationType::faces, "FLUID"};
 
       break;
     }
     case Core::ProblemType::fps3i:
     {
       // create empty discretizations
-      structdis = std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-      porofluiddis = std::make_shared<Core::FE::Discretization>("porofluid", comm, problem.n_dim());
-      fluiddis = std::make_shared<Core::FE::DiscretizationFaces>("fluid", comm, problem.n_dim());
-      aledis = std::make_shared<Core::FE::Discretization>("ale", comm, problem.n_dim());
+      discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
+      discretization_types["fluid"] = {DiscretizationType::faces, "FLUID"};
 
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      porofluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(porofluiddis, output_control, distype));
-      fluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(fluiddis, output_control, distype));
-      aledis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(aledis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-      problem.add_dis("porofluid", porofluiddis);
-      problem.add_dis("fluid", fluiddis);
-      problem.add_dis("ale", aledis);
-
-
-      meshreader.add_element_reader(Core::IO::ElementReader(fluiddis, input, "FLUID ELEMENTS"));
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structdis, input, "STRUCTURE ELEMENTS"));
-
-      // fluid scatra field
-      fluidscatradis = std::make_shared<Core::FE::Discretization>("scatra1", comm, problem.n_dim());
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      fluidscatradis->set_writer(std::make_shared<Core::IO::DiscretizationWriter>(
-          fluidscatradis, output_control, distype));
-      problem.add_dis("scatra1", fluidscatradis);
-
-      // poro structure scatra field
-      structscatradis =
-          std::make_shared<Core::FE::Discretization>("scatra2", comm, problem.n_dim());
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structscatradis->set_writer(std::make_shared<Core::IO::DiscretizationWriter>(
-          structscatradis, output_control, distype));
-      problem.add_dis("scatra2", structscatradis);
+      // No input for these discretizations
+      discretization_types["porofluid"] = {DiscretizationType::plain, ""};
+      discretization_types["ale"] = {DiscretizationType::plain, ""};
+      discretization_types["scatra1"] = {DiscretizationType::plain, ""};
+      discretization_types["scatra2"] = {DiscretizationType::plain, ""};
 
       break;
     }
     case Core::ProblemType::poroscatra:
     {
       // create empty discretizations
-      structdis = std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-      porofluiddis = std::make_shared<Core::FE::Discretization>("porofluid", comm, problem.n_dim());
-      scatradis = std::make_shared<Core::FE::Discretization>("scatra", comm, problem.n_dim());
+      discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
+      discretization_types["porofluid"] = {DiscretizationType::plain, "FLUID"};
+      discretization_types["scatra"] = {DiscretizationType::plain, "TRANSPORT"};
 
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      porofluiddis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(porofluiddis, output_control, distype));
-      scatradis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(scatradis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-      problem.add_dis("porofluid", porofluiddis);
-      problem.add_dis("scatra", scatradis);
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structdis, input, "STRUCTURE ELEMENTS"));
-      meshreader.add_element_reader(Core::IO::ElementReader(porofluiddis, input, "FLUID ELEMENTS"));
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(scatradis, input, "TRANSPORT ELEMENTS"));
       break;
     }
     case Core::ProblemType::ehl:
     {
       // create empty discretizations
-      structdis = std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-      lubricationdis =
-          std::make_shared<Core::FE::Discretization>("lubrication", comm, problem.n_dim());
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      lubricationdis->set_writer(std::make_shared<Core::IO::DiscretizationWriter>(
-          lubricationdis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-      problem.add_dis("lubrication", lubricationdis);
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structdis, input, "STRUCTURE ELEMENTS"));
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(lubricationdis, input, "LUBRICATION ELEMENTS"));
-
+      discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
+      discretization_types["lubrication"] = {DiscretizationType::plain, "LUBRICATION"};
       break;
     }
     case Core::ProblemType::ssi:
     case Core::ProblemType::ssti:
     {
       // create empty discretizations
-      structdis = std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-      scatradis = std::make_shared<Core::FE::Discretization>("scatra", comm, problem.n_dim());
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      scatradis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(scatradis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-      problem.add_dis("scatra", scatradis);
+      discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
+      discretization_types["scatra"] = {DiscretizationType::plain, "TRANSPORT"};
 
       // consider case of additional scatra manifold
       if (problem.ssi_control_params().sublist("MANIFOLD").get<bool>("ADD_MANIFOLD"))
       {
-        auto scatra_manifold_dis =
-            std::make_shared<Core::FE::Discretization>("scatra_manifold", comm, problem.n_dim());
-        scatra_manifold_dis->set_writer(std::make_shared<Core::IO::DiscretizationWriter>(
-            scatra_manifold_dis, output_control, distype));
-        problem.add_dis("scatra_manifold", scatra_manifold_dis);
+        discretization_types["scatra_manifold"] = {DiscretizationType::plain, ""};
       }
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structdis, input, "STRUCTURE ELEMENTS"));
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(scatradis, input, "TRANSPORT ELEMENTS"));
 
       if (problem.get_problem_type() == Core::ProblemType::ssti)
       {
-        thermdis = std::make_shared<Core::FE::Discretization>("thermo", comm, problem.n_dim());
-        thermdis->set_writer(
-            std::make_shared<Core::IO::DiscretizationWriter>(thermdis, output_control, distype));
-        problem.add_dis("thermo", thermdis);
-        meshreader.add_element_reader(
-            Core::IO::ElementReader(thermdis, input, "TRANSPORT ELEMENTS"));
+        discretization_types["thermo"] = {DiscretizationType::plain, "THERMO"};
       }
 
       break;
@@ -1189,32 +724,14 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
     case Core::ProblemType::pasi:
     {
       // create empty discretizations
-      structdis = std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structdis, input, "STRUCTURE ELEMENTS"));
-
+      discretization_types["structure"] = {DiscretizationType::plain, "STRUCTURE"};
       break;
     }
     case Core::ProblemType::level_set:
     {
       // create empty discretizations
-      scatradis = std::make_shared<Core::FE::Discretization>("scatra", comm, problem.n_dim());
+      discretization_types["scatra"] = {DiscretizationType::plain, "TRANSPORT"};
 
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      scatradis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(scatradis, output_control, distype));
-
-      problem.add_dis("scatra", scatradis);
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(scatradis, input, "TRANSPORT ELEMENTS"));
       break;
     }
     case Core::ProblemType::np_support:
@@ -1222,49 +739,8 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
       // no discretizations and nodes needed for supporting procs
       break;
     }
-    case Core::ProblemType::elemag:
-    {
-      // create empty discretizations
-      elemagdis = std::make_shared<Core::FE::DiscretizationHDG>("elemag", comm, problem.n_dim());
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      elemagdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(elemagdis, output_control, distype));
-
-      problem.add_dis("elemag", elemagdis);
-
-      std::set<std::string> elemagelementtypes;
-      elemagelementtypes.insert("ELECTROMAGNETIC");
-      elemagelementtypes.insert("ELECTROMAGNETICDIFF");
-
-      meshreader.add_element_reader(Core::IO::ElementReader(
-          elemagdis, input, "ELECTROMAGNETIC ELEMENTS", elemagelementtypes));
-
-      break;
-    }
-    case Core::ProblemType::redairways_tissue:
-    {
-      // create empty discretizations
-      structdis = std::make_shared<Core::FE::Discretization>("structure", comm, problem.n_dim());
-      airwaydis = std::make_shared<Core::FE::Discretization>("red_airway", comm, problem.n_dim());
-
-      // create discretization writer - in constructor set into and owned by corresponding discret
-      structdis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(structdis, output_control, distype));
-      airwaydis->set_writer(
-          std::make_shared<Core::IO::DiscretizationWriter>(airwaydis, output_control, distype));
-
-      problem.add_dis("structure", structdis);
-      problem.add_dis("red_airway", airwaydis);
-
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(structdis, input, "STRUCTURE ELEMENTS"));
-      meshreader.add_element_reader(
-          Core::IO::ElementReader(airwaydis, input, "REDUCED D AIRWAYS ELEMENTS"));
-    }
-    break;
     default:
-      FOUR_C_THROW("Unknown problem type: %d", problem.get_problem_type());
+      FOUR_C_THROW("Unknown problem type: {}", problem.get_problem_type());
       break;
   }
 
@@ -1278,25 +754,65 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
       if (distype == Core::FE::ShapeFunctionType::polynomial)
       {
         // create empty discretizations
-        arterydis = std::make_shared<Core::FE::Discretization>("artery", comm, problem.n_dim());
-        // create discretization writer - in constructor set into and owned by corresponding discret
-        arterydis->set_writer(
-            std::make_shared<Core::IO::DiscretizationWriter>(arterydis, output_control, distype));
-        problem.add_dis("artery", arterydis);
-        meshreader.add_element_reader(Core::IO::ElementReader(arterydis, input, "ARTERY ELEMENTS"));
-
-        airwaydis = std::make_shared<Core::FE::Discretization>("red_airway", comm, problem.n_dim());
-        // create discretization writer - in constructor set into and owned by corresponding discret
-        airwaydis->set_writer(
-            std::make_shared<Core::IO::DiscretizationWriter>(airwaydis, output_control, distype));
-        problem.add_dis("red_airway", airwaydis);
-        meshreader.add_element_reader(
-            Core::IO::ElementReader(airwaydis, input, "REDUCED D AIRWAYS ELEMENTS"));
+        discretization_types["artery"] = {DiscretizationType::plain, "ARTERY"};
+        discretization_types["red_airway"] = {DiscretizationType::plain, "REDUCED D AIRWAYS"};
       }
     }
     break;
     default:
       break;
+  }
+
+  // Result tests in 4C use the internal node numbering. This means that we need to construct
+  // the generated "DOMAIN" discretizations in a defined order. Specifically, "structure" needs to
+  // come before all other discretizations. Also, "fluid" is expected before other fields. Sort the
+  // info from the map in an equivalent vector.
+  std::vector<std::pair<std::string, std::pair<DiscretizationType, std::string>>>
+      discretization_types_ordered(discretization_types.begin(), discretization_types.end());
+  std::vector<std::string> magical_ordering_of_field_input{"structure", "fluid"};
+  for (const auto& field : magical_ordering_of_field_input | std::views::reverse)
+  {
+    std::ranges::stable_partition(
+        discretization_types_ordered, [&](const auto& pair) { return pair.first == field; });
+  }
+
+  // Instantiate all the enabled discretizations
+  for (const auto& [name, dis_info] : discretization_types_ordered)
+  {
+    const auto& [dis_type, input_file_keyword] = dis_info;
+    std::shared_ptr<Core::FE::Discretization> dis;
+    switch (dis_type)
+    {
+      case DiscretizationType::plain:
+        dis = std::make_shared<Core::FE::Discretization>(name, comm, problem.n_dim());
+        break;
+      case DiscretizationType::faces:
+        dis = std::make_shared<Core::FE::DiscretizationFaces>(name, comm, problem.n_dim());
+        break;
+      case DiscretizationType::nurbs:
+        dis = std::make_shared<Core::FE::Nurbs::NurbsDiscretization>(name, comm, problem.n_dim());
+        break;
+      case DiscretizationType::xwall:
+        dis = std::make_shared<XFEM::DiscretizationXWall>(name, comm, problem.n_dim());
+        break;
+      case DiscretizationType::xfem:
+        dis = std::make_shared<XFEM::DiscretizationXFEM>(name, comm, problem.n_dim());
+        break;
+      case DiscretizationType::hdg:
+        dis = std::make_shared<Core::FE::DiscretizationHDG>(name, comm, problem.n_dim());
+        break;
+    }
+
+    problem.add_dis(name, dis);
+
+    if (!input_file_keyword.empty()) meshreader.attach_discretization(dis, input_file_keyword);
+  }
+
+  // Set the output writer for all discretizations that have been allocated and attached to the
+  // global data.
+  for (const auto& dis : problem.discretization_range() | std::views::values)
+  {
+    dis->set_writer(std::make_unique<Core::IO::DiscretizationWriter>(dis, output_control, distype));
   }
 
   if (read_mesh)  // now read and allocate!
@@ -1327,7 +843,8 @@ void Global::read_fields(Global::Problem& problem, Core::IO::InputFile& input, c
       default:
         break;
     }
-  }  // if(read_mesh)
+  }
+  return meshreader_out;
 }
 
 void Global::read_micro_fields(Global::Problem& problem, const std::filesystem::path& input_path)
@@ -1367,7 +884,7 @@ void Global::read_micro_fields(Global::Problem& problem, const std::filesystem::
   {
     // do weighted repartitioning to obtain new row/column maps
     const Teuchos::ParameterList rebalanceParams;
-    std::shared_ptr<const Epetra_CrsGraph> nodeGraph = macro_dis->build_node_graph();
+    std::shared_ptr<const Core::LinAlg::Graph> nodeGraph = macro_dis->build_node_graph();
     const auto& [nodeWeights, edgeWeights] = Core::Rebalance::build_weights(*macro_dis);
     const auto& [rownodes, colnodes] =
         Core::Rebalance::rebalance_node_maps(*nodeGraph, rebalanceParams, nodeWeights, edgeWeights);
@@ -1530,7 +1047,6 @@ void Global::read_micro_fields(Global::Problem& problem, const std::filesystem::
           micro_problem = Global::Problem::instance(microdisnum);
         }
 
-
         if (micro_inputfile_name[0] != '/')
         {
           micro_inputfile_name = input_path / micro_inputfile_name;
@@ -1543,7 +1059,8 @@ void Global::read_micro_fields(Global::Problem& problem, const std::filesystem::
             (const_cast<char*>(micro_inputfile_name.c_str())), length, 0, subgroupcomm);
 
         // start with actual reading
-        Core::IO::InputFile micro_reader(micro_inputfile_name, subgroupcomm);
+        Core::IO::InputFile micro_input_file = set_up_input_file(subgroupcomm);
+        micro_input_file.read(micro_inputfile_name);
 
         std::shared_ptr<Core::FE::Discretization> dis_micro =
             std::make_shared<Core::FE::Discretization>(
@@ -1563,7 +1080,7 @@ void Global::read_micro_fields(Global::Problem& problem, const std::filesystem::
 
         micro_problem->add_dis(micro_dis_name, dis_micro);
 
-        read_parameter(*micro_problem, micro_reader);
+        read_parameter(*micro_problem, micro_input_file);
 
         // read materials of microscale
         // CAUTION: materials for microscale cannot be read until
@@ -1574,35 +1091,32 @@ void Global::read_micro_fields(Global::Problem& problem, const std::filesystem::
         // function calls!
         problem.materials()->set_read_from_problem(microdisnum);
 
-        read_materials(*micro_problem, micro_reader);
+        read_materials(*micro_problem, micro_input_file);
 
-        Core::IO::MeshReader micromeshreader(micro_reader, "NODE COORDS",
+        Core::IO::MeshReader micromeshreader(micro_input_file,
             {.mesh_partitioning_parameters = Problem::instance()->mesh_partitioning_params(),
                 .geometric_search_parameters = Problem::instance()->geometric_search_params(),
                 .io_parameters = Problem::instance()->io_params()});
 
         if (micro_dis_name == "structure")
         {
-          micromeshreader.add_element_reader(
-              Core::IO::ElementReader(dis_micro, micro_reader, "STRUCTURE ELEMENTS"));
+          micromeshreader.attach_discretization(dis_micro, "STRUCTURE");
         }
         else
-          micromeshreader.add_element_reader(
-              Core::IO::ElementReader(dis_micro, micro_reader, "TRANSPORT ELEMENTS"));
+          micromeshreader.attach_discretization(dis_micro, "TRANSPORT");
 
         micromeshreader.read_and_partition();
 
-
-        read_conditions(*micro_problem, micro_reader);
+        read_conditions(*micro_problem, micro_input_file, micromeshreader);
 
         {
           Core::Utils::FunctionManager function_manager;
           global_legacy_module_callbacks().AttachFunctionDefinitions(function_manager);
-          function_manager.read_input(micro_reader);
+          function_manager.read_input(micro_input_file);
           micro_problem->set_function_manager(std::move(function_manager));
         }
 
-        read_result(*micro_problem, micro_reader);
+        read_result(*micro_problem, micro_input_file);
 
         // At this point, everything for the microscale is read,
         // subsequent reading is only for macroscale
@@ -1621,7 +1135,6 @@ void Global::read_micro_fields(Global::Problem& problem, const std::filesystem::
     problem.materials()->reset_read_from_problem();
   }
 }
-
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
@@ -1686,18 +1199,18 @@ void Global::read_microfields_np_support(Global::Problem& problem)
         (const_cast<char*>(micro_inputfile_name.c_str())), length, 0, subgroupcomm);
 
     // start with actual reading
-    Core::IO::InputFile micro_reader(micro_inputfile_name, subgroupcomm);
+    Core::IO::InputFile micro_input_file = set_up_input_file(subgroupcomm);
+    micro_input_file.read(micro_inputfile_name);
 
     std::shared_ptr<Core::FE::Discretization> structdis_micro =
         std::make_shared<Core::FE::Discretization>("structure", subgroupcomm, problem.n_dim());
 
-    // create discretization writer - in constructor set into and owned by corresponding discret
     structdis_micro->set_writer(std::make_shared<Core::IO::DiscretizationWriter>(structdis_micro,
         micro_problem->output_control_file(), micro_problem->spatial_approximation_type()));
 
     micro_problem->add_dis("structure", structdis_micro);
 
-    read_parameter(*micro_problem, micro_reader);
+    read_parameter(*micro_problem, micro_input_file);
 
     // read materials of microscale
     // CAUTION: materials for microscale cannot be read until
@@ -1708,26 +1221,25 @@ void Global::read_microfields_np_support(Global::Problem& problem)
     // function calls!
     problem.materials()->set_read_from_problem(microdisnum);
 
-    read_materials(*micro_problem, micro_reader);
+    read_materials(*micro_problem, micro_input_file);
 
-    Core::IO::MeshReader micromeshreader(micro_reader, "NODE COORDS",
+    Core::IO::MeshReader micromeshreader(micro_input_file,
         {.mesh_partitioning_parameters = Problem::instance()->mesh_partitioning_params(),
             .geometric_search_parameters = Problem::instance()->geometric_search_params(),
             .io_parameters = Problem::instance()->io_params()});
-    micromeshreader.add_element_reader(
-        Core::IO::ElementReader(structdis_micro, micro_reader, "STRUCTURE ELEMENTS"));
+    micromeshreader.attach_discretization(structdis_micro, "STRUCTURE");
     micromeshreader.read_and_partition();
 
-    read_conditions(*micro_problem, micro_reader);
+    read_conditions(*micro_problem, micro_input_file, micromeshreader);
 
     {
       Core::Utils::FunctionManager function_manager;
       global_legacy_module_callbacks().AttachFunctionDefinitions(function_manager);
-      function_manager.read_input(micro_reader);
+      function_manager.read_input(micro_input_file);
       micro_problem->set_function_manager(std::move(function_manager));
     }
 
-    read_result(*micro_problem, micro_reader);
+    read_result(*micro_problem, micro_input_file);
 
     // At this point, everything for the microscale is read,
     // subsequent reading is only for macroscale
@@ -1748,219 +1260,14 @@ void Global::read_microfields_np_support(Global::Problem& problem)
 /*----------------------------------------------------------------------*/
 void Global::read_parameter(Global::Problem& problem, Core::IO::InputFile& input)
 {
-  std::shared_ptr<Teuchos::ParameterList> list =
-      std::make_shared<Teuchos::ParameterList>("DAT FILE");
+  std::shared_ptr<Teuchos::ParameterList> list = std::make_shared<Teuchos::ParameterList>("ROOT");
 
-  Core::IO::read_parameters_in_section(input, "DISCRETISATION", *list);
-  Core::IO::read_parameters_in_section(input, "PROBLEM SIZE", *list);
-  Core::IO::read_parameters_in_section(input, "PROBLEM TYPE", *list);
-  Core::IO::read_parameters_in_section(input, "BINNING STRATEGY", *list);
-  Core::IO::read_parameters_in_section(input, "BOUNDINGVOLUME STRATEGY", *list);
-  Core::IO::read_parameters_in_section(input, "IO", *list);
-  Core::IO::read_parameters_in_section(input, "IO/EVERY ITERATION", *list);
-  Core::IO::read_parameters_in_section(input, "IO/MONITOR STRUCTURE DBC", *list);
-  Core::IO::read_parameters_in_section(input, "IO/RUNTIME VTK OUTPUT", *list);
-  Core::IO::read_parameters_in_section(input, "IO/RUNTIME VTK OUTPUT/FLUID", *list);
-  Core::IO::read_parameters_in_section(input, "IO/RUNTIME VTK OUTPUT/THERMO", *list);
-  Core::IO::read_parameters_in_section(input, "IO/RUNTIME VTK OUTPUT/STRUCTURE", *list);
-  Core::IO::read_parameters_in_section(input, "IO/RUNTIME VTK OUTPUT/BEAMS", *list);
-  Core::IO::read_parameters_in_section(input, "IO/RUNTIME VTP OUTPUT STRUCTURE", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCTURAL DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCTURAL DYNAMIC/TIMEADAPTIVITY", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCTURAL DYNAMIC/ERROR EVALUATION", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCTURAL DYNAMIC/GENALPHA", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCTURAL DYNAMIC/ONESTEPTHETA", *list);
-  Core::IO::read_parameters_in_section(
-      input, "STRUCTURAL DYNAMIC/TIMEADAPTIVITY/JOINT EXPLICIT", *list);
-  Core::IO::read_parameters_in_section(input, "MORTAR COUPLING", *list);
-  Core::IO::read_parameters_in_section(input, "MORTAR COUPLING/PARALLEL REDISTRIBUTION", *list);
-  Core::IO::read_parameters_in_section(input, "CONTACT DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "CARDIOVASCULAR 0D-STRUCTURE COUPLING", *list);
-  Core::IO::read_parameters_in_section(
-      input, "CARDIOVASCULAR 0D-STRUCTURE COUPLING/SYS-PUL CIRCULATION PARAMETERS", *list);
-  Core::IO::read_parameters_in_section(
-      input, "CARDIOVASCULAR 0D-STRUCTURE COUPLING/RESPIRATORY PARAMETERS", *list);
-  Core::IO::read_parameters_in_section(input, "BROWNIAN DYNAMICS", *list);
-  Core::IO::read_parameters_in_section(input, "BEAM INTERACTION", *list);
-  Core::IO::read_parameters_in_section(input, "BEAM INTERACTION/SPHERE BEAM LINK", *list);
-  Core::IO::read_parameters_in_section(input, "BEAM INTERACTION/BEAM TO BEAM CONTACT", *list);
-  Core::IO::read_parameters_in_section(input, "BEAM INTERACTION/BEAM TO SPHERE CONTACT", *list);
-  Core::IO::read_parameters_in_section(
-      input, "BEAM INTERACTION/BEAM TO SOLID SURFACE CONTACT", *list);
-  Core::IO::read_parameters_in_section(
-      input, "BEAM INTERACTION/BEAM TO SOLID SURFACE MESHTYING", *list);
-  Core::IO::read_parameters_in_section(input, "BEAM INTERACTION/BEAM TO SOLID SURFACE", *list);
-  Core::IO::read_parameters_in_section(
-      input, "BEAM INTERACTION/BEAM TO SOLID SURFACE/RUNTIME VTK OUTPUT", *list);
-  Core::IO::read_parameters_in_section(
-      input, "BEAM INTERACTION/BEAM TO SOLID VOLUME MESHTYING", *list);
-  Core::IO::read_parameters_in_section(
-      input, "BEAM INTERACTION/BEAM TO SOLID VOLUME MESHTYING/RUNTIME VTK OUTPUT", *list);
-  Core::IO::read_parameters_in_section(input, "BEAM INTERACTION/CROSSLINKING", *list);
-  Core::IO::read_parameters_in_section(input, "THERMAL DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "THERMAL DYNAMIC/GENALPHA", *list);
-  Core::IO::read_parameters_in_section(input, "THERMAL DYNAMIC/ONESTEPTHETA", *list);
-  Core::IO::read_parameters_in_section(input, "TSI DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "TSI DYNAMIC/MONOLITHIC", *list);
-  Core::IO::read_parameters_in_section(input, "TSI DYNAMIC/PARTITIONED", *list);
-  Core::IO::read_parameters_in_section(input, "TSI CONTACT", *list);
-  Core::IO::read_parameters_in_section(input, "POROELASTICITY DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "POROSCATRA CONTROL", *list);
-  Core::IO::read_parameters_in_section(input, "POROFLUIDMULTIPHASE DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "POROFLUIDMULTIPHASE DYNAMIC/ARTERY COUPLING", *list);
-  Core::IO::read_parameters_in_section(input, "POROMULTIPHASE DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "POROMULTIPHASE DYNAMIC/PARTITIONED", *list);
-  Core::IO::read_parameters_in_section(input, "POROMULTIPHASE DYNAMIC/MONOLITHIC", *list);
-  Core::IO::read_parameters_in_section(input, "POROMULTIPHASESCATRA DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "POROMULTIPHASESCATRA DYNAMIC/PARTITIONED", *list);
-  Core::IO::read_parameters_in_section(input, "POROMULTIPHASESCATRA DYNAMIC/MONOLITHIC", *list);
-  Core::IO::read_parameters_in_section(input, "ELASTO HYDRO DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "ELASTO HYDRO DYNAMIC/PARTITIONED", *list);
-  Core::IO::read_parameters_in_section(input, "ELASTO HYDRO DYNAMIC/MONOLITHIC", *list);
-  Core::IO::read_parameters_in_section(input, "EMBEDDED MESH COUPLING", *list);
-  Core::IO::read_parameters_in_section(input, "SSI CONTROL", *list);
-  Core::IO::read_parameters_in_section(input, "SSI CONTROL/ELCH", *list);
-  Core::IO::read_parameters_in_section(input, "SSI CONTROL/MANIFOLD", *list);
-  Core::IO::read_parameters_in_section(input, "SSI CONTROL/MONOLITHIC", *list);
-  Core::IO::read_parameters_in_section(input, "SSI CONTROL/PARTITIONED", *list);
-  Core::IO::read_parameters_in_section(input, "SSTI CONTROL", *list);
-  Core::IO::read_parameters_in_section(input, "SSTI CONTROL/MONOLITHIC", *list);
-  Core::IO::read_parameters_in_section(input, "SSTI CONTROL/THERMO", *list);
-  Core::IO::read_parameters_in_section(input, "FLUID DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "FLUID DYNAMIC/RESIDUAL-BASED STABILIZATION", *list);
-  Core::IO::read_parameters_in_section(input, "FLUID DYNAMIC/EDGE-BASED STABILIZATION", *list);
-  Core::IO::read_parameters_in_section(input, "FLUID DYNAMIC/POROUS-FLOW STABILIZATION", *list);
-  Core::IO::read_parameters_in_section(input, "FLUID DYNAMIC/TURBULENCE MODEL", *list);
-  Core::IO::read_parameters_in_section(input, "FLUID DYNAMIC/SUBGRID VISCOSITY", *list);
-  Core::IO::read_parameters_in_section(input, "FLUID DYNAMIC/WALL MODEL", *list);
-  Core::IO::read_parameters_in_section(input, "FLUID DYNAMIC/TIMEADAPTIVITY", *list);
-  Core::IO::read_parameters_in_section(input, "FLUID DYNAMIC/MULTIFRACTAL SUBGRID SCALES", *list);
-  Core::IO::read_parameters_in_section(input, "FLUID DYNAMIC/TURBULENT INFLOW", *list);
-  Core::IO::read_parameters_in_section(input, "FLUID DYNAMIC/NONLINEAR SOLVER TOLERANCES", *list);
-  Core::IO::read_parameters_in_section(input, "LUBRICATION DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "SCALAR TRANSPORT DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "SCALAR TRANSPORT DYNAMIC/NONLINEAR", *list);
-  Core::IO::read_parameters_in_section(input, "SCALAR TRANSPORT DYNAMIC/STABILIZATION", *list);
-  Core::IO::read_parameters_in_section(input, "SCALAR TRANSPORT DYNAMIC/S2I COUPLING", *list);
-  Core::IO::read_parameters_in_section(input, "SCALAR TRANSPORT DYNAMIC/ARTERY COUPLING", *list);
-  Core::IO::read_parameters_in_section(input, "SCALAR TRANSPORT DYNAMIC/EXTERNAL FORCE", *list);
-  Core::IO::read_parameters_in_section(input, "STI DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "STI DYNAMIC/MONOLITHIC", *list);
-  Core::IO::read_parameters_in_section(input, "STI DYNAMIC/PARTITIONED", *list);
-  Core::IO::read_parameters_in_section(input, "FS3I DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "FS3I DYNAMIC/PARTITIONED", *list);
-  Core::IO::read_parameters_in_section(input, "FS3I DYNAMIC/STRUCTURE SCALAR STABILIZATION", *list);
-  Core::IO::read_parameters_in_section(input, "ALE DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "FSI DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "FSI DYNAMIC/CONSTRAINT", *list);
-  Core::IO::read_parameters_in_section(input, "FSI DYNAMIC/MONOLITHIC SOLVER", *list);
-  Core::IO::read_parameters_in_section(input, "FSI DYNAMIC/PARTITIONED SOLVER", *list);
-  Core::IO::read_parameters_in_section(input, "FSI DYNAMIC/TIMEADAPTIVITY", *list);
-  Core::IO::read_parameters_in_section(input, "FLUID BEAM INTERACTION", *list);
-  Core::IO::read_parameters_in_section(
-      input, "FLUID BEAM INTERACTION/BEAM TO FLUID MESHTYING", *list);
-  Core::IO::read_parameters_in_section(
-      input, "FLUID BEAM INTERACTION/BEAM TO FLUID MESHTYING/RUNTIME VTK OUTPUT", *list);
-  Core::IO::read_parameters_in_section(input, "FPSI DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "ARTERIAL DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "REDUCED DIMENSIONAL AIRWAYS DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(
-      input, "COUPLED REDUCED-D AIRWAYS AND TISSUE DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "SEARCH TREE", *list);
-  Core::IO::read_parameters_in_section(input, "XFEM GENERAL", *list);
-  Core::IO::read_parameters_in_section(input, "CUT GENERAL", *list);
-  Core::IO::read_parameters_in_section(input, "XFLUID DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "XFLUID DYNAMIC/GENERAL", *list);
-  Core::IO::read_parameters_in_section(input, "XFLUID DYNAMIC/STABILIZATION", *list);
-  Core::IO::read_parameters_in_section(input, "XFLUID DYNAMIC/XFPSI MONOLITHIC", *list);
-  Core::IO::read_parameters_in_section(input, "LOMA CONTROL", *list);
-  Core::IO::read_parameters_in_section(input, "ELCH CONTROL", *list);
-  Core::IO::read_parameters_in_section(input, "ELCH CONTROL/DIFFCOND", *list);
-  Core::IO::read_parameters_in_section(input, "ELCH CONTROL/SCL", *list);
-  Core::IO::read_parameters_in_section(input, "BIOFILM CONTROL", *list);
-  Core::IO::read_parameters_in_section(input, "PARTICLE DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(
-      input, "PARTICLE DYNAMIC/INITIAL AND BOUNDARY CONDITIONS", *list);
-  Core::IO::read_parameters_in_section(input, "PARTICLE DYNAMIC/SPH", *list);
-  Core::IO::read_parameters_in_section(input, "PARTICLE DYNAMIC/DEM", *list);
-  Core::IO::read_parameters_in_section(input, "PASI DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "LEVEL-SET CONTROL", *list);
-  Core::IO::read_parameters_in_section(input, "LEVEL-SET CONTROL/REINITIALIZATION", *list);
-  Core::IO::read_parameters_in_section(input, "WEAR", *list);
-  Core::IO::read_parameters_in_section(input, "BEAM CONTACT", *list);
-  Core::IO::read_parameters_in_section(input, "BEAM CONTACT/RUNTIME VTK OUTPUT", *list);
-  Core::IO::read_parameters_in_section(input, "BEAM POTENTIAL", *list);
-  Core::IO::read_parameters_in_section(input, "BEAM POTENTIAL/RUNTIME VTK OUTPUT", *list);
-  Core::IO::read_parameters_in_section(input, "SEMI-SMOOTH PLASTICITY", *list);
-  Core::IO::read_parameters_in_section(input, "ELECTROMAGNETIC DYNAMIC", *list);
-  Core::IO::read_parameters_in_section(input, "VOLMORTAR COUPLING", *list);
-  Core::IO::read_parameters_in_section(input, "CARDIAC MONODOMAIN CONTROL", *list);
-  Core::IO::read_parameters_in_section(input, "MOR", *list);
-  Core::IO::read_parameters_in_section(input, "MESH PARTITIONING", *list);
-  Core::IO::read_parameters_in_section(input, "MULTI POINT CONSTRAINTS", *list);
-  Core::IO::read_parameters_in_section(input, "NURBS", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCT NOX", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCT NOX/Direction", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCT NOX/Direction/Newton", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCT NOX/Direction/Newton/Modified", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCT NOX/Direction/Newton/Linear Solver", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCT NOX/Direction/Steepest Descent", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCT NOX/Line Search", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCT NOX/Line Search/Full Step", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCT NOX/Line Search/Backtrack", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCT NOX/Line Search/Polynomial", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCT NOX/Line Search/More'-Thuente", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCT NOX/Pseudo Transient", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCT NOX/Trust Region", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCT NOX/Printing", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCT NOX/Status Test", *list);
-  Core::IO::read_parameters_in_section(input, "STRUCT NOX/Solver Options", *list);
+  auto parameter_section_specs = global_legacy_module_callbacks().parameters();
 
-  // read in solver sections
-  // Note: the maximum number of solver blocks in dat files is hardwired here.
-  // If you change this do not forget to edit the corresponding parts in
-  // validparameters.cpp, too!
-  for (int i = 1; i < 10; i++)
+  for (const auto& [section_name, _] : parameter_section_specs)
   {
-    std::stringstream ss;
-    ss << "SOLVER " << i;
-    Core::IO::read_parameters_in_section(input, ss.str(), *list);
-
-    // adapt path of XML file if necessary
-    Teuchos::ParameterList& sublist = list->sublist(ss.str());
-    std::vector<std::string> listOfFileNameParameters = {
-        "AMGNXN_XML_FILE", "MUELU_XML_FILE", "TEKO_XML_FILE", "SOLVER_XML_FILE"};
-
-    for (auto& filenameParameter : listOfFileNameParameters)
-    {
-      auto* xml_filename = sublist.getPtr<std::string>(filenameParameter);
-      if (xml_filename != nullptr and *xml_filename != "none")
-      {
-        // make path relative to input file path if it is not an absolute path
-        if ((*xml_filename)[0] != '/')
-        {
-          auto input_filename = input.file_for_section(ss.str());
-          *xml_filename = input_filename.parent_path() / *xml_filename;
-        }
-      }
-    }
+    Core::IO::read_parameters_in_section(input, section_name, *list);
   }
-
-  // read in STRUCT NOX/Status Test and modify the xml file name, if there
-  // is one.
-  if (list->sublist("STRUCT NOX").sublist("Status Test").isParameter("XML File"))
-  {
-    // adapt path of XML file if necessary
-    Teuchos::ParameterList& sublist = list->sublist("STRUCT NOX").sublist("Status Test");
-    auto* statustest_xmlfile = sublist.getPtr<std::string>("XML File");
-    // make path relative to input file path if it is not an absolute path
-    if (((*statustest_xmlfile)[0] != '/') and ((*statustest_xmlfile) != "none"))
-    {
-      auto input_filename = input.file_for_section("STRUCT NOX/Status Test");
-      *statustest_xmlfile = input_filename.parent_path() / *statustest_xmlfile;
-      std::cout << "XML file for NOX status test: " << *statustest_xmlfile << std::endl;
-    }
-  }  // STRUCT NOX/Status Test
 
   // check for invalid parameters
   problem.set_parameter_list(list);
@@ -2014,57 +1321,41 @@ void Global::read_parameter(Global::Problem& problem, Core::IO::InputFile& input
   }
 }
 
-
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
 void Global::read_materials(Global::Problem& problem, Core::IO::InputFile& input)
 {
-  std::vector<Core::IO::InputSpec> all_specs;
-  std::vector<Core::Materials::MaterialType> all_types;
+  Core::IO::InputParameterContainer container;
+  try
   {
-    auto materials = global_legacy_module_callbacks().materials();
-    for (auto&& [type, spec] : materials)
-    {
-      all_specs.emplace_back(std::move(spec));
-      all_types.push_back(type);
-    }
+    input.match_section("MATERIALS", container);
+  }
+  catch (const Core::Exception& e)
+  {
+    FOUR_C_THROW(
+        "Failed to match specification in section 'MATERIALS'. The error was:\n{}.", e.what());
   }
 
-  // Whenever one of the materials is read, the lambda function will update this index to the
-  // current material index. This lets us access the correct subcontainer for the current material
-  // without searching through all of them.
-  std::size_t current_index = 0;
-
-  using namespace Core::IO::InputSpecBuilders;
-
-  auto all_materials = all_of({
-      entry<int>("MAT", {.description = "Material ID that may be used to refer to this material."}),
-      one_of(all_specs, [&current_index](Core::IO::ValueParser& parser,
-                            Core::IO::InputParameterContainer& container, std::size_t index)
-          { current_index = index; }),
-  });
-
-  for (const auto& fragment : input.in_section("MATERIALS"))
+  for (const auto& material_entry :
+      container.get_or<std::vector<Core::IO::InputParameterContainer>>("MATERIALS", {}))
   {
-    auto container = fragment.match(all_materials);
+    const int mat_id = material_entry.get<int>("MAT");
 
-    if (!container.has_value())
-    {
-      std::string l(fragment.get_as_dat_style_string());
-      FOUR_C_THROW("Invalid material specification. Could not parse line:\n  %s", l.c_str());
-    }
-
-    const int mat_id = container->get<int>("MAT");
-
-    FOUR_C_ASSERT_ALWAYS(mat_id >= 0, "Material ID must be non-negative. Found: %d", mat_id);
+    FOUR_C_ASSERT_ALWAYS(mat_id >= 0, "Material ID must be non-negative. Found: {}", mat_id);
 
     if (problem.materials()->id_exists(mat_id))
-      FOUR_C_THROW("More than one material with 'MAT %d'", mat_id);
+      FOUR_C_THROW("More than one material with 'MAT {}'", mat_id);
+
+    const auto mat_type = material_entry.get<Core::Materials::MaterialType>("_material_type");
+
+    const auto& group = material_entry.groups();
+    FOUR_C_ASSERT_ALWAYS(
+        group.size() == 1, "Internal error: material must have exactly one group.");
+    const auto& [material_name, material_container] = group.front();
 
     problem.materials()->insert(
         mat_id, Core::Utils::LazyPtr<Core::Mat::PAR::Parameter>(
-                    [mat_id, mat_type = all_types[current_index],
-                        container = container->group(all_specs[current_index].impl().name())]()
+                    [mat_id, mat_type, container = material_entry.group(material_name)]()
                     { return Mat::make_parameter(mat_id, mat_type, container); }));
   }
 
@@ -2075,8 +1366,8 @@ void Global::read_materials(Global::Problem& problem, Core::IO::InputFile& input
   // such operations happen in the code base, thus we construct the materials here.
   for (const auto& [id, mat] : problem.materials()->map())
   {
-    // This is the point where the material is actually constructed via the side effect that we try
-    // to access the material.
+    // This is the point where the material is actually constructed via the side effect that we
+    // try to access the material.
     (void)mat.get();
   }
 }
@@ -2085,54 +1376,44 @@ void Global::read_materials(Global::Problem& problem, Core::IO::InputFile& input
 /*----------------------------------------------------------------------*/
 void Global::read_contact_constitutive_laws(Global::Problem& problem, Core::IO::InputFile& input)
 {
-  auto valid_law_spec = CONTACT::CONSTITUTIVELAW::valid_contact_constitutive_laws();
-
   const std::string contact_const_laws = "CONTACT CONSTITUTIVE LAWS";
-  for (const auto& section_i : input.in_section(contact_const_laws))
-  {
-    auto container = section_i.match(valid_law_spec);
-    if (!container.has_value())
-    {
-      auto l = section_i.get_as_dat_style_string();
-      FOUR_C_THROW("Invalid contact constitutive law specification. Could not parse line:\n  %*s",
-          l.size(), l.data());
-    }
-    CONTACT::CONSTITUTIVELAW::create_contact_constitutive_law_from_input(*container);
-  }
+  Core::IO::InputParameterContainer container;
+  input.match_section(contact_const_laws, container);
+
+  const auto* laws = container.get_if<Core::IO::InputParameterContainer::List>(contact_const_laws);
+  if (laws)
+    for (const auto& law : *laws)
+      CONTACT::CONSTITUTIVELAW::create_contact_constitutive_law_from_input(law);
 }
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
 void Global::read_cloning_material_map(Global::Problem& problem, Core::IO::InputFile& input)
 {
-  auto spec = Core::FE::valid_cloning_material_map();
+  Core::IO::InputParameterContainer container;
+  input.match_section("CLONING MATERIAL MAP", container);
+  const auto* map_entries =
+      container.get_if<Core::IO::InputParameterContainer::List>("CLONING MATERIAL MAP");
 
-  // perform the actual reading and extract the input parameters
-  auto parameters = Core::IO::read_all_lines_in_section(input, "CLONING MATERIAL MAP", spec);
-  for (const auto& input_line : parameters)
+  if (!map_entries) return;
+
+  for (const auto& entry : *map_entries)
   {
-    // extract what was read from the input file
-    std::string src_field = input_line.get<std::string>("SRC_FIELD");
-    int src_matid = input_line.get_or<int>("SRC_MAT", -1);
-    std::string tar_field = input_line.get<std::string>("TAR_FIELD");
-    int tar_matid = input_line.get_or<int>("TAR_MAT", -1);
+    std::string src_field = entry.get<std::string>("SRC_FIELD");
+    int src_matid = entry.get_or<int>("SRC_MAT", -1);
+    std::string tar_field = entry.get<std::string>("TAR_FIELD");
+    int tar_matid = entry.get_or<int>("TAR_MAT", -1);
 
-    // create the key pair
     std::pair<std::string, std::string> fields(src_field, tar_field);
-
-    // enter the material pairing into the map
     std::pair<int, int> matmap(src_matid, tar_matid);
     problem.cloning_material_map()[fields].insert(matmap);
   }
 }
 
-
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
 void Global::read_result(Global::Problem& problem, Core::IO::InputFile& input)
 {
-  const auto lines = global_legacy_module_callbacks().valid_result_description_lines();
-
   // read design nodes <-> nodes, lines <-> nodes, surfaces <-> nodes, volumes <-> nodes
   const auto get_discretization_callback = [](const std::string& name) -> decltype(auto)
   { return *Global::Problem::instance()->get_dis(name); };
@@ -2143,13 +1424,79 @@ void Global::read_result(Global::Problem& problem, Core::IO::InputFile& input)
   Core::IO::read_design(input, "DVOL", nodeset[3], get_discretization_callback);
   problem.get_result_test_manager().set_node_set(nodeset);
 
-  problem.get_result_test_manager().set_parsed_lines(
-      Core::IO::read_all_lines_in_section(input, "RESULT DESCRIPTION", lines));
+  Core::IO::InputParameterContainer container;
+  input.match_section("RESULT DESCRIPTION", container);
+
+  const auto* result_descriptions =
+      container.get_if<Core::IO::InputParameterContainer::List>("RESULT DESCRIPTION");
+  if (result_descriptions) problem.get_result_test_manager().set_parsed_lines(*result_descriptions);
 }
+
+namespace
+{
+  void get_node_sets_from_mesh(
+      std::map<int, std::vector<int>>& node_sets, const Core::IO::MeshReader& mesh_reader)
+  {
+    node_sets.clear();
+    const int my_rank = Core::Communication::my_mpi_rank(mesh_reader.get_comm());
+
+    // Data is available on rank zero: bring it into the right shape and broadcast it.
+    if (my_rank == 0)
+    {
+      auto* exodus_mesh = mesh_reader.get_exodus_mesh_on_rank_zero();
+      if (exodus_mesh)
+      {
+        const auto& node_sets_from_mesh = exodus_mesh->get_node_sets();
+        for (const auto& [id, node_set] : node_sets_from_mesh)
+        {
+          const auto& set = node_set.get_node_set();
+          node_sets[id] = std::vector<int>(set.begin(), set.end());
+        }
+      }
+      Core::Communication::broadcast(node_sets, 0, mesh_reader.get_comm());
+    }
+    else
+    {
+      Core::Communication::broadcast(node_sets, 0, mesh_reader.get_comm());
+    }
+  }
+
+  void get_element_block_nodes_from_mesh(
+      std::map<int, std::vector<int>>& element_block_nodes, const Core::IO::MeshReader& mesh_reader)
+  {
+    element_block_nodes.clear();
+    const int my_rank = Core::Communication::my_mpi_rank(mesh_reader.get_comm());
+
+    // Data is available on rank zero: bring it into the right shape and broadcast it.
+    if (my_rank == 0)
+    {
+      auto* exodus_mesh = mesh_reader.get_exodus_mesh_on_rank_zero();
+      if (exodus_mesh)
+      {
+        const auto& element_blocks = exodus_mesh->get_element_blocks();
+        for (const auto& [id, eb] : element_blocks)
+        {
+          std::set<int> nodes;
+          for (const auto& connectivity : eb.get_ele_conn() | std::views::values)
+          {
+            nodes.insert(connectivity.begin(), connectivity.end());
+          }
+          element_block_nodes[id] = std::vector<int>(nodes.begin(), nodes.end());
+        }
+      }
+      Core::Communication::broadcast(element_block_nodes, 0, mesh_reader.get_comm());
+    }
+    else
+    {
+      Core::Communication::broadcast(element_block_nodes, 0, mesh_reader.get_comm());
+    }
+  }
+}  // namespace
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void Global::read_conditions(Global::Problem& problem, Core::IO::InputFile& input)
+void Global::read_conditions(
+    Global::Problem& problem, Core::IO::InputFile& input, const Core::IO::MeshReader& mesh_reader)
 {
   Teuchos::Time time("", true);
   if (Core::Communication::my_mpi_rank(input.get_comm()) == 0)
@@ -2178,6 +1525,12 @@ void Global::read_conditions(Global::Problem& problem, Core::IO::InputFile& inpu
   std::vector<std::vector<int>> dvol_fenode;
   Core::IO::read_design(input, "DVOL", dvol_fenode, get_discretization_callback);
 
+  std::map<int, std::vector<int>> node_sets;
+  get_node_sets_from_mesh(node_sets, mesh_reader);
+
+  std::map<int, std::vector<int>> element_block_nodes;
+  get_element_block_nodes_from_mesh(element_block_nodes, mesh_reader);
+
   // check for meshfree discretisation to add node set topologies
   std::vector<std::vector<std::vector<int>>*> nodeset(4);
   nodeset[0] = &dnode_fenode;
@@ -2186,7 +1539,7 @@ void Global::read_conditions(Global::Problem& problem, Core::IO::InputFile& inpu
   nodeset[3] = &dvol_fenode;
 
   // create list of known conditions
-  std::vector<Core::Conditions::ConditionDefinition> valid_conditions = Input::valid_conditions();
+  std::vector<Core::Conditions::ConditionDefinition> valid_conditions = Global::valid_conditions();
 
   // test for each condition definition (input file condition section)
   // - read all conditions that match the definition
@@ -2194,62 +1547,91 @@ void Global::read_conditions(Global::Problem& problem, Core::IO::InputFile& inpu
   // - add the conditions to the appropriate discretizations
   //
   // Note that this will reset (un-fill_complete) the discretizations.
-  for (const auto& condition : valid_conditions)
+  for (const auto& condition_definition : valid_conditions)
   {
     std::multimap<int, std::shared_ptr<Core::Conditions::Condition>> cond;
 
-    // read conditions from dat file
-    condition.read(input, cond);
+    // read conditions from the input file
+    condition_definition.read(input, cond);
 
     // add nodes to conditions
-    std::multimap<int, std::shared_ptr<Core::Conditions::Condition>>::const_iterator curr;
-    for (curr = cond.begin(); curr != cond.end(); ++curr)
+    for (const auto& [entity_id, condition] : cond)
     {
-      switch (curr->second->g_type())
+      switch (condition->entity_type())
       {
-        case Core::Conditions::geometry_type_point:
-          if (curr->first < 0 or static_cast<unsigned>(curr->first) >= dnode_fenode.size())
+        case Core::Conditions::EntityType::legacy_id:
+        {
+          switch (condition->g_type())
           {
-            FOUR_C_THROW(
-                "DPoint %d not in range [0:%d[\n"
-                "DPoint condition on non existent DPoint?",
-                curr->first, dnode_fenode.size());
+            case Core::Conditions::geometry_type_point:
+              if (entity_id < 0 or static_cast<unsigned>(entity_id) >= dnode_fenode.size())
+              {
+                FOUR_C_THROW(
+                    "DPoint {} not in range [0:{}[\n"
+                    "DPoint condition on non existent DPoint?",
+                    entity_id, dnode_fenode.size());
+              }
+              condition->set_nodes(dnode_fenode[entity_id]);
+              break;
+            case Core::Conditions::geometry_type_line:
+              if (entity_id < 0 or static_cast<unsigned>(entity_id) >= dline_fenode.size())
+              {
+                FOUR_C_THROW(
+                    "DLine {} not in range [0:{}[\n"
+                    "DLine condition on non existent DLine?",
+                    entity_id, dline_fenode.size());
+              }
+              condition->set_nodes(dline_fenode[entity_id]);
+              break;
+            case Core::Conditions::geometry_type_surface:
+              if (entity_id < 0 or static_cast<unsigned>(entity_id) >= dsurf_fenode.size())
+              {
+                FOUR_C_THROW(
+                    "DSurface {} not in range [0:{}[\n"
+                    "DSurface condition on non existent DSurface?",
+                    entity_id, dsurf_fenode.size());
+              }
+              condition->set_nodes(dsurf_fenode[entity_id]);
+              break;
+            case Core::Conditions::geometry_type_volume:
+              if (entity_id < 0 or static_cast<unsigned>(entity_id) >= dvol_fenode.size())
+              {
+                FOUR_C_THROW(
+                    "DVolume {} not in range [0:{}[\n"
+                    "DVolume condition on non existent DVolume?",
+                    entity_id, dvol_fenode.size());
+              }
+              condition->set_nodes(dvol_fenode[entity_id]);
+              break;
+            default:
+              FOUR_C_THROW("geometry type unspecified");
+              break;
           }
-          curr->second->set_nodes(dnode_fenode[curr->first]);
+
           break;
-        case Core::Conditions::geometry_type_line:
-          if (curr->first < 0 or static_cast<unsigned>(curr->first) >= dline_fenode.size())
-          {
-            FOUR_C_THROW(
-                "DLine %d not in range [0:%d[\n"
-                "DLine condition on non existent DLine?",
-                curr->first, dline_fenode.size());
-          }
-          curr->second->set_nodes(dline_fenode[curr->first]);
+        }
+        case Core::Conditions::EntityType::node_set_id:
+        {
+          // We are rather inconsistent with +/-1 here. The condition internally subtracts 1 from
+          // the ID but this is wrong for the node set ID. For node sets, the ID is meant to
+          // exactly refer to the ID in the mesh file, so we need to add the 1 back.
+          const int node_set_id = entity_id + 1;
+          FOUR_C_ASSERT_ALWAYS(node_sets.contains(node_set_id),
+              "Cannot apply condition '{}' to node set {} which is not specified in the mesh file.",
+              condition_definition.name(), node_set_id);
+          condition->set_nodes(node_sets[node_set_id]);
           break;
-        case Core::Conditions::geometry_type_surface:
-          if (curr->first < 0 or static_cast<unsigned>(curr->first) >= dsurf_fenode.size())
-          {
-            FOUR_C_THROW(
-                "DSurface %d not in range [0:%d[\n"
-                "DSurface condition on non existent DSurface?",
-                curr->first, dsurf_fenode.size());
-          }
-          curr->second->set_nodes(dsurf_fenode[curr->first]);
+        }
+        case Core::Conditions::EntityType::element_block_id:
+        {
+          const int eb_id = entity_id + 1;
+          FOUR_C_ASSERT_ALWAYS(element_block_nodes.contains(eb_id),
+              "Cannot apply condition '{}' to element block {} which is not specified in the mesh "
+              "file.",
+              condition_definition.name(), eb_id);
+          condition->set_nodes(element_block_nodes[eb_id]);
           break;
-        case Core::Conditions::geometry_type_volume:
-          if (curr->first < 0 or static_cast<unsigned>(curr->first) >= dvol_fenode.size())
-          {
-            FOUR_C_THROW(
-                "DVolume %d not in range [0:%d[\n"
-                "DVolume condition on non existent DVolume?",
-                curr->first, dvol_fenode.size());
-          }
-          curr->second->set_nodes(dvol_fenode[curr->first]);
-          break;
-        default:
-          FOUR_C_THROW("geometry type unspecified");
-          break;
+        }
       }
 
       // Iterate through all discretizations and sort the appropriate condition
@@ -2257,10 +1639,10 @@ void Global::read_conditions(Global::Problem& problem, Core::IO::InputFile& inpu
 
       for (const auto& [name, dis] : problem.discretization_range())
       {
-        const std::vector<int>* nodes = curr->second->get_nodes();
+        const std::vector<int>* nodes = condition->get_nodes();
         if (nodes->size() == 0)
-          FOUR_C_THROW("%s condition %d has no nodal cloud", condition.description().c_str(),
-              curr->second->id());
+          FOUR_C_THROW("{} condition {} has no nodal cloud", condition_definition.description(),
+              condition->id());
 
         int foundit = 0;
         for (int node : *nodes)
@@ -2273,7 +1655,7 @@ void Global::read_conditions(Global::Problem& problem, Core::IO::InputFile& inpu
         if (found)
         {
           // Insert a copy since we might insert the same condition in many discretizations.
-          dis->set_condition(condition.name(), curr->second->copy_without_geometry());
+          dis->set_condition(condition_definition.name(), condition->copy_without_geometry());
         }
       }
     }
@@ -2284,7 +1666,6 @@ void Global::read_conditions(Global::Problem& problem, Core::IO::InputFile& inpu
     std::cout << time.totalElapsedTime(true) << " secs\n";
   }
 }
-
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
@@ -2306,7 +1687,7 @@ void Global::read_knots(Global::Problem& problem, Core::IO::InputFile& input)
       auto* nurbsdis = dynamic_cast<Core::FE::Nurbs::NurbsDiscretization*>(&(*dis));
 
       if (nurbsdis == nullptr)
-        FOUR_C_THROW("discretization %s is not a NurbsDiscretization! Panic.", dis->name().c_str());
+        FOUR_C_THROW("discretization {} is not a NurbsDiscretization! Panic.", dis->name());
 
       // define an empty knot vector object
       std::shared_ptr<Core::FE::Nurbs::Knotvector> disknots = nullptr;
@@ -2340,7 +1721,6 @@ void Global::read_knots(Global::Problem& problem, Core::IO::InputFile& input)
     }
   }  // loop fields
 }
-
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/

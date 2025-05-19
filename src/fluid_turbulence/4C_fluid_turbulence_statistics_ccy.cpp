@@ -44,7 +44,7 @@ FLD::TurbulenceStatisticsCcy::TurbulenceStatisticsCcy(
 
   //----------------------------------------------------------------------
   // allocate some vectors
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   meanvelnp_ = Core::LinAlg::create_vector(*dofrowmap, true);
 
@@ -143,7 +143,7 @@ FLD::TurbulenceStatisticsCcy::TurbulenceStatisticsCcy(
     std::vector<int> shellcoordinates_numnodes((*shellcoordinates_).size(), 0);
 
     // get element map
-    const Epetra_Map* elementmap = nurbsdis->element_row_map();
+    const Core::LinAlg::Map* elementmap = nurbsdis->element_row_map();
 
     // loop all available elements
     for (int iele = 0; iele < elementmap->NumMyElements(); ++iele)
@@ -327,7 +327,7 @@ FLD::TurbulenceStatisticsCcy::TurbulenceStatisticsCcy(
       {
         if (fabs(nodeshells_numnodes[rr]) < 1e-9)
         {
-          FOUR_C_THROW("zero nodes in shell layer %d\n", rr);
+          FOUR_C_THROW("zero nodes in shell layer {}\n", rr);
         }
 
         (*nodeshells_)[rr] /= (double)(nodeshells_numnodes[rr]);
@@ -338,7 +338,7 @@ FLD::TurbulenceStatisticsCcy::TurbulenceStatisticsCcy(
       {
         if (fabs(shellcoordinates_numnodes[rr]) < 1e-9)
         {
-          FOUR_C_THROW("zero nodes in sampling shell layer %d\n", rr);
+          FOUR_C_THROW("zero nodes in sampling shell layer {}\n", rr);
         }
 
         (*shellcoordinates_)[rr] /= (double)(shellcoordinates_numnodes[rr]);
@@ -478,18 +478,18 @@ void FLD::TurbulenceStatisticsCcy::do_time_sample(Core::LinAlg::Vector<double>& 
   numsamp_++;
 
   // meanvelnp is a refcount copy of velnp
-  meanvelnp_->Update(1.0, velnp, 0.0);
+  meanvelnp_->update(1.0, velnp, 0.0);
 
   if (withscatra_)
   {
     if (scanp != nullptr)
-      meanscanp_->Update(1.0, *scanp, 0.0);
+      meanscanp_->update(1.0, *scanp, 0.0);
     else
       FOUR_C_THROW("Vector scanp is nullptr");
 
     if (fullphinp != nullptr)
     {
-      int err = meanfullphinp_->Update(1.0, *fullphinp, 0.0);
+      int err = meanfullphinp_->update(1.0, *fullphinp, 0.0);
       if (err) FOUR_C_THROW("Could not update meanfullphinp_");
     }
     else
@@ -575,12 +575,12 @@ void FLD::TurbulenceStatisticsCcy::evaluate_pointwise_mean_values_in_planes()
 
   if (nurbsdis == nullptr) FOUR_C_THROW("Oops. Your discretization is not a NurbsDiscretization.");
 
-  nurbsdis->set_state("velnp", meanvelnp_);
+  nurbsdis->set_state("velnp", *meanvelnp_);
 
   Core::FE::Nurbs::NurbsDiscretization* scatranurbsdis(nullptr);
   if (withscatra_)
   {
-    nurbsdis->set_state("scanp", meanscanp_);
+    nurbsdis->set_state("scanp", *meanscanp_);
 
     scatranurbsdis = dynamic_cast<Core::FE::Nurbs::NurbsDiscretization*>(&(*scatradis_));
     if (scatranurbsdis == nullptr)
@@ -589,12 +589,12 @@ void FLD::TurbulenceStatisticsCcy::evaluate_pointwise_mean_values_in_planes()
     if (meanfullphinp_ == nullptr)
       FOUR_C_THROW("std::shared_ptr is nullptr");
     else
-      scatranurbsdis->set_state("phinp_for_statistics", meanfullphinp_);
+      scatranurbsdis->set_state("phinp_for_statistics", *meanfullphinp_);
 
-    if (not(scatranurbsdis->dof_row_map())->SameAs(meanfullphinp_->Map()))
+    if (not(scatranurbsdis->dof_row_map())->SameAs(meanfullphinp_->get_block_map()))
     {
       scatranurbsdis->dof_row_map()->Print(std::cout);
-      meanfullphinp_->Map().Print(std::cout);
+      meanfullphinp_->get_block_map().Print(std::cout);
       FOUR_C_THROW("Global dof numbering in maps does not match");
     }
   }
@@ -609,7 +609,7 @@ void FLD::TurbulenceStatisticsCcy::evaluate_pointwise_mean_values_in_planes()
   std::shared_ptr<Core::FE::Nurbs::Knotvector> knots = nurbsdis->get_knot_vector();
 
   // get element map
-  const Epetra_Map* elementmap = nurbsdis->element_row_map();
+  const Core::LinAlg::Map* elementmap = nurbsdis->element_row_map();
 
   // loop all available elements
   for (int iele = 0; iele < elementmap->NumMyElements(); ++iele)
@@ -663,8 +663,7 @@ void FLD::TurbulenceStatisticsCcy::evaluate_pointwise_mean_values_in_planes()
     actele->location_vector(*nurbsdis, lm, lmowner, lmstride);
 
     // extract local values from global vector
-    std::vector<double> myvelnp(lm.size());
-    Core::FE::extract_my_values(*(nurbsdis->get_state("velnp")), myvelnp, lm);
+    std::vector<double> myvelnp = Core::FE::extract_values(*(nurbsdis->get_state("velnp")), lm);
 
     // create Matrix objects
     Core::LinAlg::Matrix<3, 27> evelnp;
@@ -682,7 +681,7 @@ void FLD::TurbulenceStatisticsCcy::evaluate_pointwise_mean_values_in_planes()
       eprenp(i) = myvelnp[3 + fi];
     }
 
-    Core::LinAlg::Matrix<1, 27> escanp(true);
+    Core::LinAlg::Matrix<1, 27> escanp(Core::LinAlg::Initialization::zero);
 
     //! scalar at t_(n+1) or t_(n+alpha_F)
     const int nen = 27;  // only quadratic nurbs elements are supported!!
@@ -691,8 +690,7 @@ void FLD::TurbulenceStatisticsCcy::evaluate_pointwise_mean_values_in_planes()
     if (withscatra_)
     {
       // extract local values from global vector
-      std::vector<double> myscanp(lm.size());
-      Core::FE::extract_my_values(*(nurbsdis->get_state("scanp")), myscanp, lm);
+      std::vector<double> myscanp = Core::FE::extract_values(*(nurbsdis->get_state("scanp")), lm);
 
       // insert data into element array (scalar field is stored at pressure dofs)
       for (int i = 0; i < 27; ++i)
@@ -704,7 +702,7 @@ void FLD::TurbulenceStatisticsCcy::evaluate_pointwise_mean_values_in_planes()
       // get pointer to corresponding scatra element with identical global id
       Core::Elements::Element* const actscatraele = scatranurbsdis->g_element(gid);
       if (actscatraele == nullptr)
-        FOUR_C_THROW("could not access transport element with gid %d", gid);
+        FOUR_C_THROW("could not access transport element with gid {}", gid);
 
       // extract local values from the global vectors
       std::vector<int> scatralm;
@@ -716,8 +714,7 @@ void FLD::TurbulenceStatisticsCcy::evaluate_pointwise_mean_values_in_planes()
       std::shared_ptr<const Core::LinAlg::Vector<double>> phinp =
           scatranurbsdis->get_state("phinp_for_statistics");
       if (phinp == nullptr) FOUR_C_THROW("Cannot get state vector 'phinp' for statistics");
-      std::vector<double> myphinp(scatralm.size());
-      Core::FE::extract_my_values(*phinp, myphinp, scatralm);
+      std::vector<double> myphinp = Core::FE::extract_values(*phinp, scatralm);
 
       // fill all element arrays
       for (int i = 0; i < nen; ++i)
@@ -834,7 +831,7 @@ void FLD::TurbulenceStatisticsCcy::evaluate_pointwise_mean_values_in_planes()
             std::map<double, int, PlaneSortCriterion>::iterator shell = countpoints.find(r);
             if (shell == countpoints.end())
             {
-              FOUR_C_THROW("radial coordinate %12.5e was not map\n", r);
+              FOUR_C_THROW("radial coordinate {:12.5e} was not map\n", r);
             }
             else
             {
@@ -930,7 +927,7 @@ void FLD::TurbulenceStatisticsCcy::evaluate_pointwise_mean_values_in_planes()
               std::map<double, int, PlaneSortCriterion>::iterator shell = countpoints.find(r);
               if (shell == countpoints.end())
               {
-                FOUR_C_THROW("radial coordinate %12.5e was not map\n", r);
+                FOUR_C_THROW("radial coordinate {:12.5e} was not map\n", r);
               }
               else
               {
@@ -1031,7 +1028,7 @@ void FLD::TurbulenceStatisticsCcy::evaluate_pointwise_mean_values_in_planes()
               std::map<double, int, PlaneSortCriterion>::iterator shell = countpoints.find(r);
               if (shell == countpoints.end())
               {
-                FOUR_C_THROW("radial coordinate %12.5e was not map\n", r);
+                FOUR_C_THROW("radial coordinate {:12.5e} was not map\n", r);
               }
               else
               {
@@ -1133,7 +1130,7 @@ void FLD::TurbulenceStatisticsCcy::evaluate_pointwise_mean_values_in_planes()
   {
     if (fabs(pointcount[rr]) < 1e-6)
     {
-      FOUR_C_THROW("zero pointcount during computation of averages, layer %d\n", rr);
+      FOUR_C_THROW("zero pointcount during computation of averages, layer {}\n", rr);
     }
 
     lmeanu.push_back(shell->second / pointcount[rr]);
@@ -1277,11 +1274,11 @@ void FLD::TurbulenceStatisticsCcy::evaluate_pointwise_mean_values_in_planes()
 
     // safety checks
     if ((size != pointsumphi_->numRows()) or (size != pointsumphiphi_->numRows()))
-      FOUR_C_THROW("Size mismatch: size = %d <-> M = %d", size, pointsumphi_->numRows());
+      FOUR_C_THROW("Size mismatch: size = {} <-> M = {}", size, pointsumphi_->numRows());
     if ((numscatradofpernode_ != pointsumphi_->numCols()) or
         (numscatradofpernode_ != pointsumphiphi_->numCols()))
       FOUR_C_THROW(
-          "Size mismatch: numdof = %d <-> N = %d", numscatradofpernode_, pointsumphi_->numCols());
+          "Size mismatch: numdof = {} <-> N = {}", numscatradofpernode_, pointsumphi_->numCols());
 
     // loop all available scatra fields
     for (int k = 0; k < numscatradofpernode_; ++k)
@@ -1456,7 +1453,7 @@ void FLD::TurbulenceStatisticsCcy::clear_statistics()
     (*pointsumvw_)[i] = 0;
   }
 
-  meanvelnp_->PutScalar(0.0);
+  meanvelnp_->put_scalar(0.0);
 
   if (withscatra_)
   {
@@ -1470,11 +1467,11 @@ void FLD::TurbulenceStatisticsCcy::clear_statistics()
     if (meanscanp_ == nullptr)
       FOUR_C_THROW("meanscanp_ is nullptr");
     else
-      meanscanp_->PutScalar(0.0);
+      meanscanp_->put_scalar(0.0);
 
     if (meanfullphinp_ != nullptr)
     {
-      meanfullphinp_->PutScalar(0.0);
+      meanfullphinp_->put_scalar(0.0);
 
       // ToDo Is is a good way to initialize everything to zero??
       // Use Shape() instead???

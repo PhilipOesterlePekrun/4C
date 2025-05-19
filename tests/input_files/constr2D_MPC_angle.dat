@@ -25,10 +25,9 @@ PROBLEMTYPE                      Structure
 RESTART                         0
 --------------------------------------------------------------------SOLVER 1
 AZCONV                          AZ_r0
-IFPACKGFILL                     0
 AZITER                          1000
 AZOUTPUT                        0
-IFPACKOVERLAP                   0
+IFPACK_XML_FILE                 xml/preconditioner/ifpack.xml
 AZPREC                          ILU
 AZREUSE                         0
 AZSOLVE                         GMRES
@@ -40,7 +39,7 @@ LINEAR_SOLVER                   1
 NORM_DISP                       Abs
 NORM_RESF                       Abs
 NORMCOMBI_RESFDISP              And
-DAMPING                         No
+DAMPING                         None
 DYNAMICTYPE                      GenAlpha
 K_DAMP                          0.5
 MAXITER                         50
@@ -70,15 +69,13 @@ MAT 1 MAT_Struct_StVenantKirchhoff YOUNG 1.0E4 NUE 0.49 DENS 1.0
 SYMBOLIC_FUNCTION_OF_TIME a
 VARIABLE 0 NAME a TYPE linearinterpolation NUMPOINTS 2 TIMES 0.0 5 VALUES 1 0.75
 ----------------------------------------------DESIGN POINT DIRICH CONDITIONS
-DPOINT                          2
 // Dirichlet Point 1
-E 1 - NUMDOF 2 ONOFF 1 1 VAL 0.0 0.0  FUNCT 0 0
+E 1 NUMDOF 2 ONOFF 1 1 VAL 0.0 0.0  FUNCT 0 0
 // Dirichlet Point 2
-E 2 - NUMDOF 2 ONOFF 1 1 VAL 0.0 0.0  FUNCT 0 0
+E 2 NUMDOF 2 ONOFF 1 1 VAL 0.0 0.0  FUNCT 0 0
 ------------------------------------------DESIGN LINE MULTIPNT CONSTRAINT 2D
-DLINE                           1
 // MPC Line
-E 1 - ConditionID 1 amplitude 3.14159 curve 1 constrNode1 1 constrNode2 2 constrNode3 3 control angle activeTime 0.0
+E 1 ConditionID 1 amplitude 3.14159 curve 1 constrNode1 1 constrNode2 2 constrNode3 3 control angle activeTime 0.0
 ---------------------------------------------------------DNODE-NODE TOPOLOGY
 NODE 1 DNODE 1
 NODE 41 DNODE 2

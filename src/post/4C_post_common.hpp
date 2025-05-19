@@ -16,10 +16,10 @@
 #include "4C_io_hdf.hpp"
 #include "4C_io_legacy_types.hpp"
 #include "4C_legacy_enum_definitions_problem_type.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_serialdensematrix.hpp"
 #include "4C_linalg_vector.hpp"
 
-#include <Epetra_Map.h>
 #include <Teuchos_CommandLineProcessor.hpp>
 
 #include <memory>
@@ -132,17 +132,11 @@ class PostProblem
   //! returns strain type
   std::string straintype() { return straintype_; }
 
-  //! returns optional quantity type
-  std::string optquantitytype() { return optquantitytype_; }
-
   //! returns heatflux type
   std::string heatfluxtype() { return heatfluxtype_; }
 
   //! returns tempgrad type
   std::string tempgradtype() { return tempgradtype_; }
-
-  //! returns struct_vel_acc_
-  std::string struct_vel_acc() { return struct_vel_acc_; }
 
   //! returns struct_mat_disp_
   std::string struct_mat_disp() { return struct_mat_disp_; }
@@ -227,17 +221,11 @@ class PostProblem
   //! strain output type optionally set by command line argument
   std::string straintype_;
 
-  //! optional quantity output type optionally set by command line argument
-  std::string optquantitytype_;
-
   //! heatflux output type optionally set by command line argument
   std::string heatfluxtype_;
 
   //! spatial temperature gradient output type optionally set by command line argument
   std::string tempgradtype_;
-
-  //! structural velocity and acceleration output optionally set by command line argument
-  std::string struct_vel_acc_;
 
   //! material displacement output optionally set by command line argument
   std::string struct_mat_disp_;
@@ -272,8 +260,6 @@ class PostProblem
   classes. So postprocessing calculations are easily possible. Element
   specific output operations can be done by the elements themselves.
 
-  \author m.kue
-  \date 02/07
 */
 class PostField
 {
@@ -353,8 +339,6 @@ class PostField
 
   Most filters will loop all time steps from the control file.
 
-  \author m.kue
-  \date 02/07
 */
 class PostResult
 {

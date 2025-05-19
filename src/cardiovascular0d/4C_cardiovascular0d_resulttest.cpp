@@ -47,7 +47,7 @@ void Cardiovascular0DResultTest::test_special(
   double result = 0.0;          // will hold the actual result of run
 
 
-  const Epetra_BlockMap& cardvasc0dmap = cardvasc0d_dof_->Map();
+  const Epetra_BlockMap& cardvasc0dmap = cardvasc0d_dof_->get_block_map();
   const int offset = cardvasc0dmap.MinAllGID();
 
   bool havegid = false;
@@ -175,7 +175,7 @@ void Cardiovascular0DResultTest::test_special(
 
     // catch quantity strings, which are not handled by cardiovascular 0D result test
     if (unknownquantity)
-      FOUR_C_THROW("Quantity '%s' not supported in cardiovascular 0D testing", quantity.c_str());
+      FOUR_C_THROW("Quantity '{}' not supported in cardiovascular 0D testing", quantity);
 
     if (havegid)
     {
@@ -431,7 +431,7 @@ void Cardiovascular0DResultTest::test_special(
 
     // catch quantity strings, which are not handled by cardiovascular 0D result test
     if (unknownquantity)
-      FOUR_C_THROW("Quantity '%s' not supported in cardiovascular 0D testing", quantity.c_str());
+      FOUR_C_THROW("Quantity '{}' not supported in cardiovascular 0D testing", quantity);
 
     if (havegid)
     {

@@ -8,6 +8,7 @@
 #include "4C_io_legacy_table.hpp"
 
 #include "4C_io_legacy_types.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_exceptions.hpp"
 
 #include <cctype>
@@ -19,8 +20,6 @@ FOUR_C_NAMESPACE_OPEN
 /*!
   \brief Clean up.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 static void destroy_symbol(SYMBOL* symbol)
@@ -49,8 +48,6 @@ static void destroy_symbol(SYMBOL* symbol)
 /*!
   \brief Clean up.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 static void destroy_node(MapNode* node)
@@ -82,8 +79,6 @@ static void destroy_node(MapNode* node)
 
   That's needed before anything can be done with a map.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 void init_map(MAP* map)
@@ -102,8 +97,6 @@ void init_map(MAP* map)
 /*!
   \brief Clean up.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 void destroy_map(MAP* map)
@@ -117,8 +110,6 @@ void destroy_map(MAP* map)
 /*!
   \brief See whether a node matches a certain key.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 static int map_cmp_nodes(const MapNode* lhs, const char* rhs_key)
@@ -134,8 +125,6 @@ static int map_cmp_nodes(const MapNode* lhs, const char* rhs_key)
 
   \return nullptr if there's no such node.
 
-  \author u.kue
-  \date 09/04
 */
 /*----------------------------------------------------------------------*/
 static MapNode* map_find_node(MAP* map, const char* key)
@@ -189,8 +178,6 @@ end:
 
   \return nullptr if there's no such symbol.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 SYMBOL* map_find_symbol(MAP* map, const char* key)
@@ -212,8 +199,6 @@ SYMBOL* map_find_symbol(MAP* map, const char* key)
 /*!
   \brief Find the first symbol, return its value if it's a string.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int map_find_string(MAP* map, const char* key, const char** string)
@@ -232,8 +217,6 @@ int map_find_string(MAP* map, const char* key, const char** string)
 /*!
   \brief Find the first symbol, return its value if it's a integer.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int map_find_int(MAP* map, const char* key, int* integer)
@@ -252,8 +235,6 @@ int map_find_int(MAP* map, const char* key, int* integer)
 /*!
   \brief Find the first symbol, return its value if it's a real.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int map_find_real(MAP* map, const char* key, double* real)
@@ -272,8 +253,6 @@ int map_find_real(MAP* map, const char* key, double* real)
 /*!
   \brief Find the first symbol, return its value if it's a map.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int map_find_map(MAP* map, const char* key, MAP** dir)
@@ -294,8 +273,6 @@ int map_find_map(MAP* map, const char* key, MAP** dir)
 
   Stops if no string is found.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 const char* map_read_string(MAP* map, const char* key)
@@ -304,7 +281,7 @@ const char* map_read_string(MAP* map, const char* key)
 
   if (!map_find_string(map, key, &string))
   {
-    FOUR_C_THROW("no string attribute '%s' in map", key);
+    FOUR_C_THROW("no string attribute '{}' in map", key);
   }
 
   return string;
@@ -317,8 +294,6 @@ const char* map_read_string(MAP* map, const char* key)
 
   Stops if no integer is found.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int map_read_int(MAP* map, const char* key)
@@ -327,7 +302,7 @@ int map_read_int(MAP* map, const char* key)
 
   if (!map_find_int(map, key, &integer))
   {
-    FOUR_C_THROW("no int attribute '%s' in map", key);
+    FOUR_C_THROW("no int attribute '{}' in map", key);
   }
 
   return integer;
@@ -340,8 +315,6 @@ int map_read_int(MAP* map, const char* key)
 
   Stops if no real is found.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 double map_read_real(MAP* map, const char* key)
@@ -351,7 +324,7 @@ double map_read_real(MAP* map, const char* key)
   if (!map_find_real(map, key, &real))
   {
     int value;
-    if (!map_find_int(map, key, &value)) FOUR_C_THROW("no real attribute '%s' in map", key);
+    if (!map_find_int(map, key, &value)) FOUR_C_THROW("no real attribute '{}' in map", key);
     real = value;
   }
 
@@ -365,8 +338,6 @@ double map_read_real(MAP* map, const char* key)
 
   Stops if no map is found.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 MAP* map_read_map(MAP* map, const char* key)
@@ -375,7 +346,7 @@ MAP* map_read_map(MAP* map, const char* key)
 
   if (!map_find_map(map, key, &dir))
   {
-    FOUR_C_THROW("no dir attribute '%s' in map", key);
+    FOUR_C_THROW("no dir attribute '{}' in map", key);
   }
 
   return dir;
@@ -386,8 +357,6 @@ MAP* map_read_map(MAP* map, const char* key)
 /*!
   \brief Tell if the first symbol with that \a key has this \a value.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int map_has_string(MAP* map, const char* key, const char* value)
@@ -418,8 +387,6 @@ int map_has_string(MAP* map, const char* key, const char* value)
 /*!
   \brief Tell if the first symbol with that \a key has this \a value.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int map_has_int(MAP* map, const char* key, const int value)
@@ -450,8 +417,6 @@ int map_has_int(MAP* map, const char* key, const int value)
 /*!
   \brief Tell if the first symbol with that \a key has this \a value.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int map_has_real(MAP* map, const char* key, const double value)
@@ -484,8 +449,6 @@ int map_has_real(MAP* map, const char* key, const double value)
 
   No value comparison here.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int map_has_map(MAP* map, const char* key)
@@ -516,8 +479,6 @@ int map_has_map(MAP* map, const char* key)
   Ownership of the symbol and the key is taken. Both have to be
   allocated using malloc or the like.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 static void map_insert_symbol(MAP* map, SYMBOL* symbol, char* key)
@@ -588,8 +549,6 @@ end:
 /*!
   \brief Insert that string with this key.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 void map_insert_string(MAP* map, char* string, char* key)
@@ -609,8 +568,6 @@ void map_insert_string(MAP* map, char* string, char* key)
 /*!
   \brief Insert that integer with this key.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 void map_insert_int(MAP* map, int integer, char* key)
@@ -630,8 +587,6 @@ void map_insert_int(MAP* map, int integer, char* key)
 /*!
   \brief Insert that real with this key.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 void map_insert_real(MAP* map, double real, char* key)
@@ -651,8 +606,6 @@ void map_insert_real(MAP* map, double real, char* key)
 /*!
   \brief Insert that map with this key.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 void map_insert_map(MAP* map, MAP* dir, char* key)
@@ -673,8 +626,6 @@ void map_insert_map(MAP* map, MAP* dir, char* key)
 /*!
   \brief Tell how many symbols of the given name there are.
 
-  \author u.kue
-  \date 09/04
 */
 /*----------------------------------------------------------------------*/
 int map_symbol_count(MAP* map, const char* key)
@@ -700,8 +651,6 @@ int map_symbol_count(MAP* map, const char* key)
   symbols are not deallocated. The caller must already have a pointer
   to the symbol chain and takes responsibility for it.
 
-  \author u.kue
-  \date 12/04
 */
 /*----------------------------------------------------------------------*/
 void map_disconnect_symbols(MAP* map, const char* key)
@@ -724,8 +673,6 @@ void map_disconnect_symbols(MAP* map, const char* key)
   \param symbol   (i) start of the new symbol chain
   \param count    (i) number of symbol in the chain
 
-  \author u.kue
-  \date 12/04
 */
 /*----------------------------------------------------------------------*/
 void map_prepend_symbols(MAP* map, const char* key, SYMBOL* symbol, int count)
@@ -757,7 +704,7 @@ void map_prepend_symbols(MAP* map, const char* key, SYMBOL* symbol, int count)
   }
   else
   {
-    FOUR_C_THROW("no node for key '%s'", key);
+    FOUR_C_THROW("no node for key '{}'", key);
   }
 }
 
@@ -766,8 +713,6 @@ void map_prepend_symbols(MAP* map, const char* key, SYMBOL* symbol, int count)
 /*!
   \brief Tell whether the symbol is a string.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int symbol_is_string(const SYMBOL* symbol)
@@ -780,8 +725,6 @@ int symbol_is_string(const SYMBOL* symbol)
 /*!
   \brief Tell whether the symbol is an integer.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int symbol_is_int(const SYMBOL* symbol) { return (symbol != nullptr) && (symbol->type == sym_int); }
@@ -791,8 +734,6 @@ int symbol_is_int(const SYMBOL* symbol) { return (symbol != nullptr) && (symbol-
 /*!
   \brief Tell whether the symbol is a real.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int symbol_is_real(const SYMBOL* symbol)
@@ -805,8 +746,6 @@ int symbol_is_real(const SYMBOL* symbol)
 /*!
   \brief Tell whether the symbol is a map.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int symbol_is_map(const SYMBOL* symbol) { return (symbol != nullptr) && (symbol->type == sym_map); }
@@ -817,8 +756,6 @@ int symbol_is_map(const SYMBOL* symbol) { return (symbol != nullptr) && (symbol-
 /*!
   \brief Extract the value if its a string.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int symbol_get_string(const SYMBOL* symbol, const char** string)
@@ -844,8 +781,6 @@ int symbol_get_string(const SYMBOL* symbol, const char** string)
 /*!
   \brief Extract the value if its an integer.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int symbol_get_int(const SYMBOL* symbol, int* integer)
@@ -871,8 +806,6 @@ int symbol_get_int(const SYMBOL* symbol, int* integer)
 /*!
   \brief Extract the value if its a real.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int symbol_get_real(const SYMBOL* symbol, double* real)
@@ -897,8 +830,6 @@ int symbol_get_real(const SYMBOL* symbol, double* real)
 /*!
   \brief Extract the value if its a real.
 
-  \author m.geppert (u.kue)
-  \date 08/06
  */
 /*----------------------------------------------------------------------*/
 int symbol_get_real_as_float(const SYMBOL* symbol, float* real)
@@ -924,8 +855,6 @@ int symbol_get_real_as_float(const SYMBOL* symbol, float* real)
 /*!
   \brief Extract the value if its a map.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 int symbol_get_map(const SYMBOL* symbol, MAP** map)
@@ -951,8 +880,6 @@ int symbol_get_map(const SYMBOL* symbol, MAP** map)
 /*!
   \brief Extract the value if its a map.
 
-  \author u.kue
-  \date 09/04
 */
 /*----------------------------------------------------------------------*/
 MAP* symbol_map(const SYMBOL* symbol)
@@ -965,7 +892,7 @@ MAP* symbol_map(const SYMBOL* symbol)
   }
   else
   {
-    FOUR_C_THROW("Wrong symbol type %d", symbol->type);
+    FOUR_C_THROW("Wrong symbol type {}", symbol->type);
   }
 
   return ret;
@@ -975,11 +902,9 @@ MAP* symbol_map(const SYMBOL* symbol)
 /*!
   \brief The types of tokens recognized by the lexer.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
-typedef enum TokenType
+enum TokenType
 {
   tok_none,
   tok_done,
@@ -991,7 +916,7 @@ typedef enum TokenType
   tok_equal,
   tok_indent,
   tok_dedent
-} TOKEN_TYPE;
+};
 
 
 /*----------------------------------------------------------------------*/
@@ -1004,20 +929,17 @@ typedef enum TokenType
  current line number and indention level. These variables are very
  internal and only used while a control file is read.
 
-  \author u.kue
-  \date 08/04
  */
 /*----------------------------------------------------------------------*/
 struct ParserData
 {
-  TOKEN_TYPE tok;
+  TokenType tok;
   char* token_string;
   int token_int;
   double token_real;
 
   char* file_buffer;
   int file_size;
-  /*char* filename;*/
 
   int pos;
   int lineno;
@@ -1032,8 +954,6 @@ struct ParserData
 
   The file is read on processor 0 and broadcasted to the others.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 static void init_parser_data(ParserData* data, const char* filename, MPI_Comm comm)
@@ -1065,7 +985,7 @@ static void init_parser_data(ParserData* data, const char* filename, MPI_Comm co
 
     if (file == nullptr)
     {
-      FOUR_C_THROW("cannot read file '%s'", filename);
+      FOUR_C_THROW("cannot read file '{}'", filename);
     }
 
     /* find out the control file size */
@@ -1079,7 +999,7 @@ static void init_parser_data(ParserData* data, const char* filename, MPI_Comm co
     bytes_read = fread(data->file_buffer, sizeof(char), (size_t)data->file_size, file);
     if (bytes_read != data->file_size)
     {
-      FOUR_C_THROW("failed to read file %s", filename);
+      FOUR_C_THROW("failed to read file {}", filename);
     }
     /* a trailing zero helps a lot */
     data->file_buffer[data->file_size] = '\0';
@@ -1093,7 +1013,7 @@ static void init_parser_data(ParserData* data, const char* filename, MPI_Comm co
     err = MPI_Bcast(&data->file_size, 1, MPI_INT, 0, comm);
     if (err != 0)
     {
-      FOUR_C_THROW("MPI_Bcast failed: %d", err);
+      FOUR_C_THROW("MPI_Bcast failed: {}", err);
     }
     if (myrank > 0)
     {
@@ -1102,7 +1022,7 @@ static void init_parser_data(ParserData* data, const char* filename, MPI_Comm co
     err = MPI_Bcast(data->file_buffer, data->file_size + 1, MPI_CHAR, 0, comm);
     if (err != 0)
     {
-      FOUR_C_THROW("MPI_Bcast failed: %d", err);
+      FOUR_C_THROW("MPI_Bcast failed: {}", err);
     }
   }
 }
@@ -1112,8 +1032,6 @@ static void init_parser_data(ParserData* data, const char* filename, MPI_Comm co
 /*!
   \brief Clean up.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 static void destroy_parser_data(ParserData* data) { free(data->file_buffer); }
@@ -1122,8 +1040,6 @@ static void destroy_parser_data(ParserData* data) { free(data->file_buffer); }
 /*!
   \brief Get the next char.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 static int getnext(ParserData* data)
@@ -1143,15 +1059,16 @@ static int getnext(ParserData* data)
 }
 
 
-#define TABWIDTH 8
+enum
+{
+  TABWIDTH = 8
+};
 
 
 /*----------------------------------------------------------------------*/
 /*!
   \brief Get the next token.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 static void lexan(ParserData* data)
@@ -1282,7 +1199,7 @@ static void lexan(ParserData* data)
             }
             else
             {
-              FOUR_C_THROW("no digits after point at line %d", data->lineno);
+              FOUR_C_THROW("no digits after point at line {}", data->lineno);
             }
           }
           if ((t == 'E') || (t == 'e'))
@@ -1301,7 +1218,7 @@ static void lexan(ParserData* data)
             }
             else
             {
-              FOUR_C_THROW("no digits after exponent at line %d", data->lineno);
+              FOUR_C_THROW("no digits after exponent at line {}", data->lineno);
             }
           }
           if (t != EOF)
@@ -1336,7 +1253,7 @@ static void lexan(ParserData* data)
             t = getnext(data);
             if (t == EOF)
             {
-              FOUR_C_THROW("expected closing \" on line %d", data->lineno);
+              FOUR_C_THROW("expected closing \" on line {}", data->lineno);
             }
           }
           data->tok = tok_string;
@@ -1356,9 +1273,9 @@ static void lexan(ParserData* data)
         else
         {
           if (t >= 32)
-            FOUR_C_THROW("unexpected char '%c' at line %d", t, data->lineno);
+            FOUR_C_THROW("unexpected char '{}' at line {}", t, data->lineno);
           else
-            FOUR_C_THROW("unexpected char '%d' at line %d", t, data->lineno);
+            FOUR_C_THROW("unexpected char '{}' at line {}", t, data->lineno);
           data->tok = tok_none;
           goto end;
         }
@@ -1377,8 +1294,6 @@ end:
 /*!
   \brief The top down parser.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 static void parse_definitions(ParserData* data, MAP* dir)
@@ -1412,7 +1327,7 @@ static void parse_definitions(ParserData* data, MAP* dir)
             lexan(data);
             if ((data->tok != tok_indent) || (data->token_int != 1))
             {
-              FOUR_C_THROW("Syntaxerror at line %d: single indention expected", data->lineno);
+              FOUR_C_THROW("Syntaxerror at line {}: single indention expected", data->lineno);
             }
 
             map = new MAP;
@@ -1453,11 +1368,11 @@ static void parse_definitions(ParserData* data, MAP* dir)
                 map_insert_real(dir, data->token_real, name);
                 break;
               default:
-                FOUR_C_THROW("Syntaxerror at line %d: string, int or real expected", data->lineno);
+                FOUR_C_THROW("Syntaxerror at line {}: string, int or real expected", data->lineno);
             }
             break;
           default:
-            FOUR_C_THROW("Syntaxerror at line %d: ':' or '=' expected", data->lineno);
+            FOUR_C_THROW("Syntaxerror at line {}: ':' or '=' expected", data->lineno);
         }
         break;
       }
@@ -1465,7 +1380,7 @@ static void parse_definitions(ParserData* data, MAP* dir)
         data->token_int--;
         goto end;
       default:
-        FOUR_C_THROW("Syntaxerror at line %d: name expected", data->lineno);
+        FOUR_C_THROW("Syntaxerror at line {}: name expected", data->lineno);
     }
 
     lexan(data);
@@ -1481,8 +1396,6 @@ end:
   \brief Parse the file given by name and fill the map with this
   file's content (serial only!)
 
-  \author lw
-  \date 05/08
 */
 /*----------------------------------------------------------------------*/
 void parse_control_file_serial(MAP* map, const char* filename)
@@ -1507,7 +1420,7 @@ void parse_control_file_serial(MAP* map, const char* filename)
 
   if (file == nullptr)
   {
-    FOUR_C_THROW("cannot read file '%s'", filename);
+    FOUR_C_THROW("cannot read file '{}'", filename);
   }
 
   /* find out the control file size */
@@ -1521,7 +1434,7 @@ void parse_control_file_serial(MAP* map, const char* filename)
   bytes_read = fread(data.file_buffer, sizeof(char), (size_t)data.file_size, file);
   if (bytes_read != data.file_size)
   {
-    FOUR_C_THROW("failed to read file %s", filename);
+    FOUR_C_THROW("failed to read file {}", filename);
   }
   /* a trailing zero helps a lot */
   data.file_buffer[data.file_size] = '\0';
@@ -1538,8 +1451,6 @@ void parse_control_file_serial(MAP* map, const char* filename)
   \brief Parse the file given by name and fill the map with this
   file's content.
 
-  \author u.kue
-  \date 08/04
 */
 /*----------------------------------------------------------------------*/
 void parse_control_file(MAP* map, const char* filename, MPI_Comm comm)

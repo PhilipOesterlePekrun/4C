@@ -1,0 +1,270 @@
+List of major features that were removed from 4C, including date and revision where code was removed
+
+Reduced-dimensional airways with tissue coupling
+- Removal of the associated problem type and all related files
+- reasons: unused in current research, not well-tested, requires (non-modular) hacks
+  in Discretization and Condition classes
+- removed in commit 15ef77c1fd275eb11642e09caed6fda90d51d819
+- removed by Sebastian Proell
+
+Electromagnetism (elemag) and Electromagnetic Diffusion (EMD)
+ - Removal of all electromagnetic related implementations
+ - reasons: unused in current research and interferes with refactoring effort
+ - removed in commit fd7cadf6eb3c1f20da40f3abf6ec56a28706f332
+ - removed by David Rudlstorfer
+
+Immersed FSI
+- Removal of immersed solids in fluids
+- reasons: unused in current research, block removal of old solid elements
+- removed in commit bfe049b830bebe7eee7acbf7b48dad22784d126d
+- removed by Amadeus Gebauer
+
+TSI Nitsche contact and So3Plast elements
+- The TSI Nitsche contact framework is only used by so3plast elements which are removed.
+- reasons: unused in current research, block removal of old solid elements
+- removed in commit e3c2f9bbd69bde588134686df7ea75dd2361338e
+- removed by Amadeus Gebauer
+
+Lung monolithic fluid-structure interaction
+- The lung monolithic fluid-structure interaction implemenation is removed. In addition the special block
+  preconditioner taylored to this problem type is deleted.
+- reasons: unused in current research, difficult to port to Tpetra
+- removed in commit 1dcaf89dc1a01d1c060ce77aaf3ca48678a5959b
+- removed by Max Firmbach
+
+Free surface flow
+- The free surface flow formulation is removed and with it a special block Gauss-Seidel formulation
+- reasons: unused in current research, difficult to port to Tpetra
+- removed in commit 3d89b49901f185ba4dfebfb78a5fad82435073de
+- removed by Max Firmbach
+
+Structure ALE and wear module
+- ProblemType struct_ale is removed
+- Module "wear" is removed. This only concerns large deformation wear. Small deformation wear via modified gap functions
+  is still available in the contact module.
+- reasons: unused in current research, difficult to port to unified solid implementation
+- removed in commit 7d48b0081beee4f2cf3d72872cefbd54cde2c3e9
+- removed by Sebastian Proell
+
+Volumetric growth materials and AC (atherosclerosis) framework
+- materials removed: MAT_GrowthVolumetric, MAT_GrowthAnisoStrain, MAT_GrowthAnisoStress, MAT_GrowthAnisoStrainConstTrig,
+  MAT_GrowthAnisoStressConstTrig, MAT_GrowthIsoStress, MAT_GrowthAC, MAT_GrowthACRadial, MAT_GrowthACRadialRefConc,
+  MAT_GrowthConst
+- problem type AC-FSI/AC-FS3I for atherosclerosis growth/multiscale problems
+- removed in commit 9c77e6e87509a66c1d9b5021117cd6aa6c15fbe6 on 30/07/2024
+- reasons: these materials required varying densities and/or the definition of additional parameters on element level,
+  which we want to avoid in the new solid elements; the AC framework relied on these materials
+- removed by Janina Datz
+
+Solve FSI problem with constraints (FSI::ConstrMonolithic, with FSI::ConstrMonolithicFluidSplit and FSI::ConstrMonolithicStructureSplit)
+- removed in commit eec2d34fc2f506e425bfbdf8e6103a695382710c
+- reasons: code is unused and untested.
+- removed by Gabriela Loera
+
+Augmented Lagrangian contact formulation (Contact::Aug)
+- removed in commit 2329d32cf3b614ab00c6811adeede2415bcb0472
+- reasons: unused and unmaintained, no active research, interferes with refactoring effort in time integration
+- removed by Sebastian Proell
+
+GEMM ("Generalized energy momentum method")
+- removed in commit c010a388759acd3496601ed847b55168939b56d6 on 30/04/2024
+- reasons: needs special implementations on the element and material level, not actively used
+- removed by Janina Datz
+
+Shell8 and post_s8convert
+- removed in commits 85aa45c0e2061e8a086e8b95fa4a8e8112dda2ce and
+  186f7c4db1997b1939f90e6ec67db7247cdd157b on 26/09/2023
+- reasons: the shell8 element implementation was reworked and replaced by shell7p
+  in 18088b4f632507d78de51bbf7942a96d53d47eee
+- the post_s8convert was not used for some years and currently the implementation does not work
+  due to segmentation fault errors
+- removed by Maire Henke
+
+Two phase flow
+- removed in commits 62c2d195a842fcec1758591f6218c1c86a7491f7,
+  25f9da4fefa4bbdadc8c94453634385b656226f5 and abdaa08842f87946eba5ffdb1cc9225ac917f941
+  on 25/09/2023
+- reasons: implementation no longer in use, was discussed in a PMM
+- removed by Janina Datz
+
+LOCA Bifurcation tracking
+- removed in commit be368fb01964fc1a07e7f1298b963a895f9df964 on 11/08/2023
+- reasons: it is not completely implemented, and not tested (0% coverage)
+- removed by Ingo Scheider
+
+Inverse analysis
+- removed in commit 23c53cb7a65b4a584eb18718641e0136f98d3c59 on 26/07/2023
+- reasons: QUEENS provides all the necessary methods for inverse analysis
+- adjoint formulations were part of the inv_analysis module
+- removed by Janina Datz
+
+structure_xstructure (by Michael Hiermeier)
+- removed in commit f3ed4ac7e2173935262dbfd31d024e6e1b336b3b on 1/5/2023
+- reasons: remnants after removal of xcontact.
+- removed by Hoang Giang Bui
+
+Patspec
+- removed in commit 7afadb7a3cb641f4eabf0c74acf835004d463de9
+- reasons: the patient specific implementations directly in the code are no longer in use
+- respective input files are removed in commit be291660c62d7ff755a885b3fa72818edf4f5d44
+- the material matelast_isovolHUdependentneohooke is removed in b255dcf373e59aaab9cc1bc3441ed25ed62dde30
+- removed by Janina Datz
+
+Inverse design prestressing
+- removed in commit f3f8662ba8cdcdcfbe3b9bcb14755e9b1cfc13d0
+- reasons: the inverse design feature is no longer used, MULF or similar prestressing methods as in the
+  mixture material should be preferred
+- removed by Janina Datz
+
+Topology optimization of fluid domains
+- removed in commit 57aa60e4278aa7d81d45f8dbaad62b8528d44d1b
+- reasons: module is unused and unmaintained -> reduce dependencies and easen maintenance work
+- removed by Carolin Geitner
+
+Xcontact (contact simulations based on CutFEM/XFEM)
+- removed in commit 56f63a325f47ab35bab697a30a0a54a6e23e51c8
+- reasons: - code implementation incomplete
+           - content not of current/future interest
+- removed by Carolin Geitner
+
+ControlledRotationFunction and AccelerationProfileFunction in src/drt_lib
+- removed in b1788c78144a47b90ba42b53a424092f5ebdd58f
+- reasons: unused and untested
+- removed by Carolin Geitner
+
+Clean up Truss3 framework (untested, commented, and unreachable code)
+- removed in commits 8129f73e1edcd86358de743ae321438015d6665f, 909f2e964a575dad7c6d8e94506ab1b1ce3b8351,
+  2928bfb61b7f6b634ef67ea48f59aeaacb66343a
+- reasons: - The entire torsion framework within truss3 is not tested at all and currently not used
+             by any developer (8129f73e1edcd86358de743ae321438015d6665f)
+           - It contains lot's of commented code (909f2e964a575dad7c6d8e94506ab1b1ce3b8351)
+           - Lot's of code is unreachable due to dserrors. This is removed (2928bfb61b7f6b634ef67ea48f59aeaacb66343a)
+- remark: In case one of the removed functionalities will be reactivated in future it is highly recommended
+          to check the entire implementation line by line
+- removed by Stephan Sinzig
+
+Contact preconditioners via Trilinos/MueLu
+- remove in commit c93a999dc5063c49f22acbaa008daa14319c633e
+- reasons: Due to changes in the MueLu interface, these preconditioner have been disabled several years ago.
+           Since there's no value in carrying along dead and unused code, this is removed.
+- context: The saddle-point case for fully coupled AMG is covered in MueLu. All other variants are partially
+           available in MueLu, yet probably need some fixes and need to be connnected to Baci.
+- removed by Matthias Mayr
+
+Levenberg-Marquardt module (gen_inv_analysis) in drt_inv_analysis (by several authors)
+- removed in commit 53b0da7adcab7abe99edae174d78e2d440fd5936
+- reasons: This part of BACI is now available in a more robust way in QUEENS
+           The implementation in BACI was scattered over many modules with several code dublicates
+           The BACI version of Levenberg-Marquardt was not robust enough for large scale applications
+           Nested parallelity made problems in the application as well as in the testing framework
+- removed by Jonas Nitzler
+
+MLMC / UQ module (by Jonas Biehler)
+- removed in commit 53b0da7adcab7abe99edae174d78e2d440fd5936
+- reasons: The framework is now coverd in a more flexible way in QUEENS
+- removed by Jonas Nitzler
+
+Immersed boundary method implementation for membrane finite elements (by Sebastian Fuchs)
+- removed in commit f1582bd7c7d3a0bc3b2b2137e04dbbccc287ffb3 on 2020-04-14
+  and 872a53eacca5739d00c653bab918561741bb5db3 on 2020-04-30
+- reasons: The framework was not fully implemented due to methodological reasons and thus was also not tested.
+- removed by Sebastian Fuchs
+
+Acoustics module (by Svenja Schoeder)
+- removed in commit a263275e53ec5f4cbed966188fbade1981490800 on 2020-04-15
+- reasons: We are not actively developing acoustics applications at this point. Removing it reduces the amount of code that needs to be maintainer. Furthermore, the high-performance part of the module (explicit time integrator) is available as open-source software on https://github.com/kronbichler/exwave including basic documentation and several examples
+- if you need it: Check the exwave code on github and adapt to your needs; in case you need implicit time integration with HDG, checkout commit xxx
+- mainly deleted src/drt_acou
+- removed by Luca Berardocco
+
+cell migration module (by Andreas Rauch)
+- includes prb_immersed_cell and prb_scatra_endoexocytosis
+- prb_immersed_cell is comprised by a structural problem (cell) embedded in a porous medium (extrcellular matrix)
+  This problem was solved using a immersed boundary method
+- prb_scatra_endoexocytosis mainly modells inter-cellular signalling processes
+- related/used in both problems were passive and active fiber material models for the mechanical cell behaviour
+- removed in commit 05505bb75e860b9f798e41c6c8b59aa6757d721c on 2020-04-13
+  and 872a53eacca5739d00c653bab918561741bb5db3 on 2020-04-30
+- reasons: This module is currently unused and not subject to ongoing research. This will thus reduce dependencies and ease maintenance work.
+- removed by Anh-Tu Vuong
+
+FSI using IBM on deformable fluid meshes (by Andreas Rauch)
+- removed in commits 57d21c7794a44f4ce15824d5aae50f3a0b161602 on 2020-04-09
+  and 872a53eacca5739d00c653bab918561741bb5db3 on 2020-04-30
+- reasons: Implementation does not work and thus has not been tested a
+few years at this point. This research topic is not actively developed
+at this time and code removal will lead to lower code complexity.
+- removed by Nora Hagmeyer
+
+chemical diffusion module in variational formulation (by Jorge de Anda Salazar)
+- removed in commit 18ab8339e1223bf87e991e24e5e1a3f3d811e48a on 2020-04-08
+- reasons: This part of the ScaTra framework is currently unused and not subject to ongoing research. This will thus reduce dependencies and ease maintenance work.
+- removed by Christoph Schmidt
+
+old particle framework including dependent modules (by Georg Hammerl)
+- removed in the following commits on 2019-09-09:
+  8b80cd4eeada94e912b49cd4d7650b0c10926ad3 (old particle framework including MD interaction)
+  6a5f67eb96e8b8837c17575420371d4b6dba13ab (fluid action types for cavitation)
+  43678a64be03b632e47de4d0f42605370e460ef6 (cavitation algorithm)
+  02ada95b0ba122b4422676cca399ad9595063a23 (particle-scatra coupling for levelset)
+- reasons: A new particle framework has been added to Baci with Smoothed Particle Hydrodynamics (SPH), Discrete Element Method (DEM), and Particle-Structure-Interaction (PASI).
+           The modules Molecular Dynamics (MD), Cavitation, and Particle-Scatra Coupling for Level-set problems are not migrated and removed in order to reduce dependencies.
+- removed by Sebastian Fuchs
+
+NLNSOL nonlinear solver framework (by Matthias Mayr)
+- removed in commit 01ad0f4967da827bb7e6759dda442dbc3d96fa57 on 2019-07-30
+- further removal of some relicts in commit 4910ef6e0fa5fc2fe450921e99ece34e90ff3e70 on 2020-06-26
+- reasons: it was purely experimental and never worked properly. Removing it reduces the amount of code to be maintained as well as reduces the number of interfaces to MueLu to be kept up-to-date.
+- if you need it: Implement it from scratch (recommended) or check out commit 01ad0f4967da827bb7e6759dda442dbc3d96fa57
+- mainly deleted src/solver_nonlin/
+- removed by Matthias Mayr
+
+xfem combust module (by Flo Henke, Ursula Rasthofer, Benedikt Schott)
+- removed in revision 23268 on 2017-07-27
+- reasons: most of the functionality has been shifted to the current CutFEM framework (see drt_fluid_xfluid and drt_xfem)
+- if you need it: Check revision 23268
+- what has not been shifted to the new framework so far: load balancing, some combustion tests, periodic boundary conditions
+- mainly deleted src/drt_combust and some outdated files in src/drt_xfem, files in Input/combust*.dat
+- removed by B. Schott
+
+interface to aero code (by Georg Hammerl)
+- removed in revision 23256 on 2017-07-13
+- reasons: it is unlikely that we use that particular coupling scenario in the coming years, thus reduce code complexity by not carrying it around
+- if you want to couple to other codes: check the interfaces in 23254 in Input/fs3i_aero_tfsi_flat_plate.dat and the implementation in src/drt_fs3i/aero_tfsi*
+- Removed by M. Kronbichler
+
+meshfree analysis (by Keijo Nissen)
+- removed in revision 23256 on 2017-07-13
+- reasons: invasive implementation, got outdated with respect to the standard polynomial fluid implementation, no active member of LNM can maintain this functionality
+- if you need it: Check revision 23254, get one of the test files or a file by Keijo Nissen
+- removed by M. Kronbichler
+
+curves
+- removed in revision 23111 on 2017-05-05
+- In the course of BACI clean up, Andrea La Spina, Moritz Thon, and Svenja Schoeder were assigned to clean the functions and time
+  curves. Motivation was that functions allowed for time dependence but not the full flexibility as curves and that time derivatives
+  were not always correctly evaluated due to several time dependencies or return of 0 as default. Therefore, functions were extended
+  such that they can depend on self defined variables which in turn can have time dependencies. For details and the commit message,
+  see details/2017_Function.txt
+- Removed by: A. Laspina, S. Schoeder, M. Thon
+
+contact module (by Philipp Farah, Alexander Popp, Tobias Wiesner)
+- removed in revision 23062 on 2017-04-26
+- The code infrastructure that selects parts of the code and applies patches to remove inter-module dependencies turned out to be too brittle and fail regularly
+- If you want to include separate modules: Check the functionality to support modules that was applied in CMakeLists.txt and do-configure of -r23061, but try to find a version that does not rely on patches because the BACI source code changes to often.
+- Removed by: M. Kronbichler
+
+lung inverse analysis (by Sophie Rausch)
+- removed in revision 22737 on 2016-12-27
+- This type of analysis was not used for many years. The features of this inverse analysis are also in gen_inv_analysis.
+- If you need it: Find one of Sophie's dat file and use it. Think if you could write a more general monitor-file, to use the gen_inv_analysis.
+- Removed by: A. Birzle
+
+crack propagation (by Sudhakar Yogaraj)
+- removed in revision 22725 on 2016-12-22
+- due to invasive implementation and difficulty to maintain and migrate to new structural time integration
+
+potential (by Ursula Mayer)
+- removed in revision 22495 on 2016-10-18
+- reasons: invasive implementation, outdated functionality, knowledge about functionality was lost at the institute, no active member of LNM was to be made responsible for shifting this implementation to the new structural time integration.
+- removed by A. Rauch

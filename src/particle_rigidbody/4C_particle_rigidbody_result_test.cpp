@@ -7,6 +7,7 @@
 
 #include "4C_particle_rigidbody_result_test.hpp"
 
+#include "4C_io_input_parameter_container.hpp"
 #include "4C_particle_rigidbody_datastate.hpp"
 #include "4C_particle_rigidbody_interface.hpp"
 #include "4C_utils_exceptions.hpp"
@@ -111,7 +112,7 @@ void ParticleRigidBody::RigidBodyResultTest::test_special(
       actresult = mass[globalid];
     }
     else
-      FOUR_C_THROW("result check failed with unknown quantity '%s'!", quantity.c_str());
+      FOUR_C_THROW("result check failed with unknown quantity '{}'!", quantity);
 
     // compare values
     const int err = compare_values(actresult, "SPECIAL", container);

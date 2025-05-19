@@ -85,9 +85,9 @@ namespace Cut
     bool local_coordinates(const T1& xyz, T2& rst)
     {
       if (static_cast<unsigned>(xyz.m()) < n_prob_dim())
-        FOUR_C_THROW("The dimension of xyz is wrong! (probdim = %d)", n_prob_dim());
+        FOUR_C_THROW("The dimension of xyz is wrong! (probdim = {})", n_prob_dim());
       if (static_cast<unsigned>(rst.m()) < n_dim())
-        FOUR_C_THROW("The dimension of rst is wrong! (dim = %d)", n_dim());
+        FOUR_C_THROW("The dimension of rst is wrong! (dim = {})", n_dim());
 
       bool success = local_coordinates(xyz.data(), rst.data());
 
@@ -107,9 +107,9 @@ namespace Cut
     void global_coordinates(const T1& rst, T2& xyz)
     {
       if (static_cast<unsigned>(xyz.m()) < n_prob_dim())
-        FOUR_C_THROW("The dimension of xyz is wrong! (probdim = %d)", n_prob_dim());
+        FOUR_C_THROW("The dimension of xyz is wrong! (probdim = {})", n_prob_dim());
       if (static_cast<unsigned>(rst.m()) < n_dim())
-        FOUR_C_THROW("The dimension of rst is wrong! (dim = %d)", n_dim());
+        FOUR_C_THROW("The dimension of rst is wrong! (dim = {})", n_dim());
 
       global_coordinates(rst.data(), xyz.data());
 
@@ -126,7 +126,7 @@ namespace Cut
     void element_center(T& midpoint)
     {
       if (static_cast<unsigned>(midpoint.m()) != n_prob_dim())
-        FOUR_C_THROW("The dimension of midpoint is wrong! (probdim = %d)", n_prob_dim());
+        FOUR_C_THROW("The dimension of midpoint is wrong! (probdim = {})", n_prob_dim());
 
       return element_center(midpoint.data());
     }
@@ -143,7 +143,7 @@ namespace Cut
     double scalar(const std::vector<double>& ns, const T& rst)
     {
       if (static_cast<unsigned>(rst.m()) != n_dim())
-        FOUR_C_THROW("The dimension of rst is wrong! (dim = %d)", n_dim());
+        FOUR_C_THROW("The dimension of rst is wrong! (dim = {})", n_dim());
       return Scalar(ns, rst.data());
     }
 
@@ -188,7 +188,7 @@ namespace Cut
     double get_level_set_value(const T& xyz)
     {
       if (static_cast<unsigned>(xyz.m()) < n_prob_dim())
-        FOUR_C_THROW("The dimension of xyz is wrong! (probdim = %d)", n_prob_dim());
+        FOUR_C_THROW("The dimension of xyz is wrong! (probdim = {})", n_prob_dim());
 
       return get_level_set_value(xyz.data());
     }
@@ -199,7 +199,7 @@ namespace Cut
     double get_level_set_value_at_local_coords(const T& rst)
     {
       if (static_cast<unsigned>(rst.m()) < n_dim())
-        FOUR_C_THROW("The dimension of rst is wrong! (dim = %d)", n_dim());
+        FOUR_C_THROW("The dimension of rst is wrong! (dim = {})", n_dim());
 
       return get_level_set_value_at_local_coords(rst.data());
     }
@@ -228,7 +228,7 @@ namespace Cut
     std::vector<double> get_level_set_gradient(const T& xyz)
     {
       if (static_cast<unsigned>(xyz.m()) < n_prob_dim())
-        FOUR_C_THROW("The dimension of xyz is wrong! (probdim = %d)", n_prob_dim());
+        FOUR_C_THROW("The dimension of xyz is wrong! (probdim = {})", n_prob_dim());
 
       return get_level_set_gradient(xyz.data());
     }
@@ -236,7 +236,7 @@ namespace Cut
     std::vector<double> get_level_set_gradient_at_local_coords(const T& rst)
     {
       if (static_cast<unsigned>(rst.m()) < n_dim())
-        FOUR_C_THROW("The dimension of rst is wrong! (dim = %d)", n_dim());
+        FOUR_C_THROW("The dimension of rst is wrong! (dim = {})", n_dim());
 
       return get_level_set_gradient_at_local_coords(rst.data());
     }
@@ -244,7 +244,7 @@ namespace Cut
     std::vector<double> get_level_set_gradient_in_local_coords(const T& xyz)
     {
       if (static_cast<unsigned>(xyz.m()) < n_prob_dim())
-        FOUR_C_THROW("The dimension of xyz is wrong! (probdim = %d)", n_prob_dim());
+        FOUR_C_THROW("The dimension of xyz is wrong! (probdim = {})", n_prob_dim());
 
       return get_level_set_gradient_in_local_coords(xyz.data());
     }
@@ -252,7 +252,7 @@ namespace Cut
     std::vector<double> get_level_set_gradient_at_local_coords_in_local_coords(const T& rst)
     {
       if (static_cast<unsigned>(rst.m()) < n_dim())
-        FOUR_C_THROW("The dimension of rst is wrong! (probdim = %d)", n_prob_dim());
+        FOUR_C_THROW("The dimension of rst is wrong! (probdim = {})", n_prob_dim());
 
       return get_level_set_gradient_at_local_coords_in_local_coords(rst.data());
     }
@@ -328,10 +328,10 @@ namespace Cut
     void coordinates(T& xyze) const
     {
       if (static_cast<unsigned>(xyze.m()) != n_prob_dim())
-        FOUR_C_THROW("xyze has the wrong number of rows! (probdim = %d)", n_prob_dim());
+        FOUR_C_THROW("xyze has the wrong number of rows! (probdim = {})", n_prob_dim());
 
       if (static_cast<unsigned>(xyze.n()) != num_nodes())
-        FOUR_C_THROW("xyze has the wrong number of columns! (numNodes = %d)", num_nodes());
+        FOUR_C_THROW("xyze has the wrong number of columns! (numNodes = {})", num_nodes());
 
       coordinates(xyze.data());
     }
@@ -409,7 +409,7 @@ namespace Cut
     double scalar_from_local_to_global(
         double scalar, std::string transformType, bool shadow = false)
     {
-      const int nen = Core::FE::num_nodes<distype>;
+      const int nen = Core::FE::num_nodes(distype);
       const int dim = Core::FE::dim<distype>;
       Core::LinAlg::Matrix<probdim, nen> xyze;
       Core::LinAlg::Matrix<probdim, 1> xei;
@@ -442,7 +442,7 @@ namespace Cut
       }
       else
         FOUR_C_THROW(
-            "The element dimension is larger than the problem dimension! (%d > %d)", dim, probdim);
+            "The element dimension is larger than the problem dimension! ({} > {})", dim, probdim);
       double VarReturn = 0.0;
       if (transformType == "local_to_global")
         VarReturn = scalar * det;
@@ -634,9 +634,9 @@ namespace Cut
   /*--------------------------------------------------------------------------*/
   /*! \brief Implementation of the concrete cut element
    *
-   *  \author hiermeier */
+   *  */
   template <unsigned probdim, Core::FE::CellType elementtype,
-      unsigned num_nodes_element = Core::FE::num_nodes<elementtype>,
+      unsigned num_nodes_element = Core::FE::num_nodes(elementtype),
       unsigned dim = Core::FE::dim<elementtype>>
   class ConcreteElement : public Element
   {
@@ -731,12 +731,11 @@ namespace Cut
      *  \param rst (in)  : local coordinates
      *  \param xyz (out) : corresponding global coordinates
      *
-     *  \author hiermeier
-     *  \date 08/16 */
+     */
     void point_at(const Core::LinAlg::Matrix<dim, 1>& rst, Core::LinAlg::Matrix<probdim, 1>& xyz)
     {
-      Core::LinAlg::Matrix<num_nodes_element, 1> funct(true);
-      Core::LinAlg::Matrix<probdim, num_nodes_element> xyze(true);
+      Core::LinAlg::Matrix<num_nodes_element, 1> funct(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<probdim, num_nodes_element> xyze(Core::LinAlg::Initialization::zero);
       this->coordinates(xyze);
 
       Core::FE::shape_function<elementtype>(rst, funct);
@@ -847,7 +846,7 @@ namespace Cut
       eval_derivs_in_parameter_space<probdim, elementtype>(
           xyze, rst, deriv1, metrictensor, xjm, &xij, &normalvec1, &normalvec2, true);
 
-      // compute global first derivates
+      // compute global first derivatives
       derxy.multiply(xij, deriv1);
       //----------------------------------
 
@@ -907,7 +906,7 @@ namespace Cut
       phi_deriv1.multiply_nt(deriv1, escaa);
 
       std::vector<double> normal_facet(phi_deriv1.data(), phi_deriv1.data() + dim);
-      if (normal_facet.size() != dim) FOUR_C_THROW("Something went wrong! (dim=%d)", dim);
+      if (normal_facet.size() != dim) FOUR_C_THROW("Something went wrong! (dim={})", dim);
 
       return normal_facet;
     }
@@ -1015,16 +1014,12 @@ namespace Cut
           e = new ConcreteElement<3, elementtype>(eid, sides, nodes, active);
           break;
         default:
-          FOUR_C_THROW("Unsupported problem dimension! ( probdim = %d )", probdim);
+          FOUR_C_THROW("Unsupported problem dimension! ( probdim = {} )", probdim);
           break;
       }
       return e;
     }
   };
-
-  // typedef EntityIdLess<Element> ElementIdLess;
-  //
-  // inline int EntityId( const Element & e ) { return e.Id(); }
 
 }  // namespace Cut
 

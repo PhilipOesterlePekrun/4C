@@ -17,8 +17,6 @@
 #include "4C_scatra_timint_implicit.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
 
-#include <Epetra_MpiComm.h>
-
 #include <memory>
 
 #define USE_PHIN_FOR_VEL  // TODO
@@ -68,20 +66,11 @@ namespace ScaTra
     //! set the velocity field (zero or field by function) (pure level-set problems)
     void set_velocity_field(bool init = false);
 
-    /// set convective velocity field (+ pressure and acceleration field as
-    /// well as fine-scale velocity field, if required) (function for coupled fluid problems)
-    void set_velocity_field(std::shared_ptr<const Core::LinAlg::Vector<double>> convvel,
-        std::shared_ptr<const Core::LinAlg::Vector<double>> acc,
-        std::shared_ptr<const Core::LinAlg::Vector<double>> vel,
-        std::shared_ptr<const Core::LinAlg::Vector<double>> fsvel, bool setpressure = false,
-        bool init = false);
-
-
     // output position of center of mass assuming a smoothed interfaces
     void mass_center_using_smoothing();
 
     /// redistribute the scatra discretization and vectors according to nodegraph
-    void redistribute(Epetra_CrsGraph& nodegraph);
+    virtual void redistribute(Core::LinAlg::Graph& nodegraph);
 
     void test_results() override;
 
@@ -145,6 +134,7 @@ namespace ScaTra
     {
       return nb_grad_val_;
     }
+
     inline std::shared_ptr<const Core::LinAlg::MultiVector<double>> nodal_grad_based_value() const
     {
       return nb_grad_val_;

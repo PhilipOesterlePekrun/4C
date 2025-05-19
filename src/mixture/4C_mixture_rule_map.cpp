@@ -13,8 +13,6 @@
 #include "4C_mixture_constituent.hpp"
 #include "4C_utils_exceptions.hpp"
 
-#include <Epetra_ConfigDefs.h>
-
 #include <algorithm>
 #include <iosfwd>
 #include <memory>
@@ -34,14 +32,14 @@ namespace
     if (it == mass_fractions_map.end())
     {
       FOUR_C_THROW(
-          "Element id %d not found in the mass fraction map supplied by csv file.", ele_id_key);
+          "Element id {} not found in the mass fraction map supplied by csv file.", ele_id_key);
     }
 
     if (it->second.size() != num_constituents)
     {
       FOUR_C_THROW(
-          "Number of mass fractions for element id %d does not match the number of constituents "
-          "%d.",
+          "Number of mass fractions for element id {} does not match the number of constituents "
+          "{}.",
           ele_id_key, num_constituents);
     }
     const std::vector<double> massfracs = it->second;
@@ -50,7 +48,7 @@ namespace
     const double sum = std::accumulate(massfracs.begin(), massfracs.end(), 0.0);
     if (std::abs(1.0 - sum) > 1e-8)
       FOUR_C_THROW(
-          "Mass fractions for element id %d don't sum up to 1, which is unphysical.", ele_id_key);
+          "Mass fractions for element id {} don't sum up to 1, which is unphysical.", ele_id_key);
 
     return massfracs;
   }
@@ -61,7 +59,7 @@ Mixture::PAR::MapMixtureRule::MapMixtureRule(const Core::Mat::PAR::Parameter::Da
       initial_reference_density_(matdata.parameters.get<double>("DENS")),
       num_constituents_(matdata.parameters.get<int>("NUMCONST")),
       mass_fractions_map_(matdata.parameters.get<std::unordered_map<int, std::vector<double>>>(
-          "MASSFRACMAPFILE")) {};
+          "MASSFRACMAPFILE_CONTENT")) {};
 
 std::unique_ptr<Mixture::MixtureRule> Mixture::PAR::MapMixtureRule::create_rule()
 {

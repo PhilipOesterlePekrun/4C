@@ -148,8 +148,8 @@ namespace ScaTra
 
     \warning none
     \return void
-    \date 08/16
-    \author rauch  */
+
+    */
     virtual void init();
 
     /*! \brief Setup all class internal objects and members
@@ -176,7 +176,8 @@ namespace ScaTra
     virtual void setup_context_vector();
 
     //! Initialization of turbulence models
-    void init_turbulence_model(const Epetra_Map* dofrowmap, const Epetra_Map* noderowmap);
+    void init_turbulence_model(
+        const Core::LinAlg::Map* dofrowmap, const Core::LinAlg::Map* noderowmap);
 
     /*========================================================================*/
     //! @name general framework
@@ -226,7 +227,7 @@ namespace ScaTra
     virtual void explicit_predictor() const;
 
     //! set the velocity field (zero or field by function)
-    virtual void set_velocity_field();
+    void set_velocity_field_from_function();
 
     /*! Set external force field
 
@@ -241,22 +242,28 @@ namespace ScaTra
      \f]
      where M is the intrinsic mobility of the scalar.
      */
-    void set_external_force();
+    void set_external_force() const;
 
-    //! set convective velocity field (+ pressure and acceleration field as
-    //! well as fine-scale velocity field, if required)
-    virtual void set_velocity_field(std::shared_ptr<const Core::LinAlg::Vector<double>>
-                                        convvel,  //!< convective velocity/press. vector
-        std::shared_ptr<const Core::LinAlg::Vector<double>> acc,    //!< acceleration vector
-        std::shared_ptr<const Core::LinAlg::Vector<double>> vel,    //!< velocity vector
-        std::shared_ptr<const Core::LinAlg::Vector<double>> fsvel,  //!< fine-scale velocity vector
-        const bool setpressure =
-            false  //!< flag whether the fluid pressure needs to be known for the scatra
-    );
+    //! set the @acceleration vector to the scalar transport discretization
+    void set_acceleration_field(const Core::LinAlg::Vector<double>& acceleration) const;
 
-    void set_wall_shear_stresses(std::shared_ptr<const Core::LinAlg::Vector<double>> wss);
+    //! set the @convective_velocity vector to the scalar transport discretization
+    void set_convective_velocity(const Core::LinAlg::Vector<double>& convective_velocity) const;
 
-    void set_pressure_field(std::shared_ptr<const Core::LinAlg::Vector<double>> pressure);
+    //! set the @fine_scale_velocity vector to the scalar transport discretization
+    void set_fine_scale_velocity(const Core::LinAlg::Vector<double>& fine_scale_velocity) const;
+
+    //! return whether setting of the fine scale velocity is required
+    [[nodiscard]] bool fine_scale_velocity_field_required() const;
+
+    //! set the @velocity vector to the scalar transport discretization
+    void set_velocity_field(const Core::LinAlg::Vector<double>& velocity);
+
+    //! set the @wall_shear_stress vector to the scalar transport discretization
+    void set_wall_shear_stresses(const Core::LinAlg::Vector<double>& wall_shear_stress) const;
+
+    //! set the @pressure vector to the scalar transport discretization
+    void set_pressure_field(const Core::LinAlg::Vector<double>& pressure) const;
 
     void set_membrane_concentration(
         std::shared_ptr<const Core::LinAlg::Vector<double>> MembraneConc);
@@ -382,7 +389,7 @@ namespace ScaTra
      *
      * @param[in] dispnp  displacement vector
      */
-    void apply_mesh_movement(std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp);
+    void apply_mesh_movement(const Core::LinAlg::Vector<double>& dispnp) const;
 
     //! calculate fluxes inside domain and/or on boundary
     void calc_flux(const bool writetofile  //!< flag for writing flux info to file
@@ -465,9 +472,6 @@ namespace ScaTra
     //! return flag for micro scale in multi-scale simulations
     bool micro_scale() const { return micro_scale_; };
 
-    //! return flag for electromagnetic diffusion simulations
-    bool is_emd() const { return isemd_; };
-
     //! print information about current time step to screen
     virtual void print_time_step_info();
 
@@ -548,16 +552,16 @@ namespace ScaTra
     std::shared_ptr<const Core::LinAlg::MapExtractor> dirich_maps() { return dbcmaps_; }
 
     //! add dirichlet dofs to dbcmaps_
-    void add_dirich_cond(const std::shared_ptr<const Epetra_Map> maptoadd);
+    void add_dirich_cond(const std::shared_ptr<const Core::LinAlg::Map> maptoadd);
 
     //! remove dirichlet dofs from dbcmaps_
-    void remove_dirich_cond(const std::shared_ptr<const Epetra_Map> maptoremove);
+    void remove_dirich_cond(const std::shared_ptr<const Core::LinAlg::Map> maptoremove);
 
     //! return pointer to const dofrowmap
-    std::shared_ptr<const Epetra_Map> dof_row_map();
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map();
 
     //! return pointer to const dofrowmap of specified dofset
-    std::shared_ptr<const Epetra_Map> dof_row_map(int nds);
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map(int nds);
 
     //! return discretization
     std::shared_ptr<Core::FE::Discretization> discretization() const override { return discret_; }
@@ -701,7 +705,7 @@ namespace ScaTra
      */
     virtual void build_block_maps(
         const std::vector<std::shared_ptr<Core::Conditions::Condition>>& partitioningconditions,
-        std::vector<std::shared_ptr<const Epetra_Map>>& blockmaps) const;
+        std::vector<std::shared_ptr<const Core::LinAlg::Map>>& blockmaps) const;
 
     //! build null spaces associated with blocks of global system matrix. Hand in solver to access
     //! parameter list and initial number of block (e.g. for coupled problems)
@@ -1287,12 +1291,6 @@ namespace ScaTra
 
     //! flag for micro scale in multi-scale simulations
     const bool micro_scale_;
-
-    //! flag for electromagnetic diffusion simulations
-    bool isemd_;
-
-    //! electromagnetic diffusion current source function
-    int emd_source_;
 
     //! flag for external force
     bool has_external_force_;

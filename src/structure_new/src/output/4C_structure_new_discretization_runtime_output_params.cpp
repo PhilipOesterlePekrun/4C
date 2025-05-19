@@ -21,8 +21,10 @@ Discret::Elements::StructureRuntimeOutputParams::StructureRuntimeOutputParams()
       issetup_(false),
       output_displacement_state_(false),
       output_velocity_state_(false),
+      output_acceleration_state_(false),
       output_element_owner_(false),
       output_element_gid_(false),
+      output_element_material_id_(false),
       output_element_ghosting_(false),
       output_node_gid_(false),
       output_stress_strain_(false),
@@ -42,10 +44,13 @@ void Discret::Elements::StructureRuntimeOutputParams::init(
   // initialize the parameter values
   output_displacement_state_ = IO_vtk_structure_structure_paramslist.get<bool>("DISPLACEMENT");
   output_velocity_state_ = IO_vtk_structure_structure_paramslist.get<bool>("VELOCITY");
+  output_acceleration_state_ = IO_vtk_structure_structure_paramslist.get<bool>("ACCELERATION");
   output_element_owner_ = IO_vtk_structure_structure_paramslist.get<bool>("ELEMENT_OWNER");
   output_element_gid_ = IO_vtk_structure_structure_paramslist.get<bool>("ELEMENT_GID");
   output_element_material_id_ = IO_vtk_structure_structure_paramslist.get<bool>("ELEMENT_MAT_ID");
   output_element_ghosting_ = IO_vtk_structure_structure_paramslist.get<bool>("ELEMENT_GHOSTING");
+  output_optional_quantity_ =
+      IO_vtk_structure_structure_paramslist.get<Inpar::Solid::OptQuantityType>("OPTIONAL_QUANTITY");
   output_node_gid_ = IO_vtk_structure_structure_paramslist.get<bool>("NODE_GID");
   output_stress_strain_ = IO_vtk_structure_structure_paramslist.get<bool>("STRESS_STRAIN");
   gauss_point_data_output_type_ = Teuchos::getIntegralValue<Inpar::Solid::GaussPointDataOutputType>(
@@ -61,9 +66,11 @@ void Discret::Elements::StructureRuntimeOutputParams::init(
     auto io_strain =
         Teuchos::getIntegralValue<Inpar::Solid::StrainType>(io_parameter_list, "STRUCT_STRAIN");
     if (io_stress == Inpar::Solid::stress_none and io_strain == Inpar::Solid::strain_none)
+    {
       FOUR_C_THROW(
           "If stress / strain runtime output is required, one or two of the flags STRUCT_STRAIN / "
-          "STRUCT_STRESS in the --IO section has to be set.");
+          "STRUCT_STRESS in the --IO section has to be activated.");
+    }
   }
 
   isinit_ = true;

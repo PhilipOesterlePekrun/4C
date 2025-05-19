@@ -27,11 +27,11 @@ Core::Conditions::LocsysManager::LocsysManager(Core::FE::Discretization& discret
   if (dim != 2 && dim != 3) FOUR_C_THROW("Locsys problem must be 2D or 3D");
 
   // get node row layout of discretization
-  const Epetra_Map* noderowmap = discret_.node_row_map();
+  const Core::LinAlg::Map* noderowmap = discret_.node_row_map();
 
   // create locsys vector and initialize to -1
   locsystoggle_ = Core::LinAlg::create_vector(*noderowmap, false);
-  locsystoggle_->PutScalar(-1.0);
+  locsystoggle_->put_scalar(-1.0);
 
   // check for locsys boundary conditions
   LocsysManager::discret().get_condition("Locsys", locsysconds_);
@@ -77,10 +77,10 @@ void Core::Conditions::LocsysManager::update(const double time,
   if (time >= 0.0 and !locsysfunct_) return;
 
   // get dof row map of discretization
-  const Epetra_Map* dofrowmap = discret_.dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_.dof_row_map();
 
   // get node row layout of discretization
-  const Epetra_Map* noderowmap = discret_.node_row_map();
+  const Core::LinAlg::Map* noderowmap = discret_.node_row_map();
 
   // Since also time dependent conditions are possible we clear all local systems in the beginning
   nodalrotvectors_.clear();
@@ -119,8 +119,7 @@ void Core::Conditions::LocsysManager::update(const double time,
         typelocsys_[i] = currlocsys->type();
 
         const auto rotangle = currlocsys->parameters().get<std::vector<double>>("ROTANGLE");
-        const auto funct =
-            currlocsys->parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+        const auto funct = currlocsys->parameters().get<std::vector<std::optional<int>>>("FUNCT");
         const auto useUpdatedNodePos = currlocsys->parameters().get<int>("USEUPDATEDNODEPOS");
         const std::vector<int>* nodes = currlocsys->get_nodes();
         const auto useConsistentNodeNormal =
@@ -177,7 +176,7 @@ void Core::Conditions::LocsysManager::update(const double time,
           // Each component j of the pseudo rotation vector that rotates the global xyz system onto
           // the local system assigned to each node consists of a constant, a time dependent and
           // spatially variable part: currotangle_j(x,t) = rotangle_j * funct_j(t,x)
-          Core::LinAlg::Matrix<3, 1> currotangle(true);
+          Core::LinAlg::Matrix<3, 1> currotangle(Core::LinAlg::Initialization::zero);
 
           for (int nodeGID : *nodes)
           {
@@ -201,10 +200,7 @@ void Core::Conditions::LocsysManager::update(const double time,
                   std::vector<int> lm;
                   discret().dof(node, lm);
 
-                  std::vector<double> currDisp;
-                  currDisp.resize(lm.size());
-
-                  Core::FE::extract_my_values(*dispnp, currDisp, lm);
+                  std::vector<double> currDisp = Core::FE::extract_values(*dispnp, lm);
 
                   // Calculate current position for node
                   std::vector<double> currPos(n_dim());
@@ -233,7 +229,7 @@ void Core::Conditions::LocsysManager::update(const double time,
 
             int indices = nodeGID;
             double values = i;
-            locsystoggle_->ReplaceGlobalValues(1, &values, &indices);
+            locsystoggle_->replace_global_values(1, &values, &indices);
           }
         }
       }
@@ -257,7 +253,7 @@ void Core::Conditions::LocsysManager::update(const double time,
   // transformed twice. This is a NURBS/periodic boundary feature.
   std::shared_ptr<Core::LinAlg::Vector<double>> already_processed =
       Core::LinAlg::create_vector(*dofrowmap, true);
-  already_processed->PutScalar(0.0);
+  already_processed->put_scalar(0.0);
 
   // Perform a check for zero diagonal elements. They will crash the SGS-like preconditioners
   bool sanity_check = false;
@@ -394,7 +390,7 @@ void Core::Conditions::LocsysManager::update(const double time,
     nummyentries = static_cast<int>(locsysdofs.size());
     myglobalentries = locsysdofs.data();
   }
-  locsysdofmap_ = std::make_shared<Epetra_Map>(-1, nummyentries, myglobalentries,
+  locsysdofmap_ = std::make_shared<Core::LinAlg::Map>(-1, nummyentries, myglobalentries,
       discret_.dof_row_map()->IndexBase(),
       Core::Communication::as_epetra_comm(discret_.get_comm()));
   if (locsysdofmap_ == nullptr) FOUR_C_THROW("Creation failed.");
@@ -566,8 +562,8 @@ void Core::Conditions::LocsysManager::calc_rotation_vector_for_normal_system(
   // Take care for "negative times", where no information about dispnp_ is available
   if (time < 0.0)
   {
-    std::shared_ptr<Core::LinAlg::Vector<double>> zeroVector =
-        Core::LinAlg::create_vector(*discret().dof_row_map(), true);
+    // TODO is the memory management still working?
+    LinAlg::Vector<double> zeroVector(*discret().dof_row_map(), true);
     discret_.set_state("dispnp", zeroVector);
   }
 
@@ -621,7 +617,7 @@ void Core::Conditions::LocsysManager::calc_rotation_vector_for_normal_system(
     double length = 0.0;
     for (int jdim = 0; jdim < dim_; jdim++)
     {
-      const int localId = massConsistentNodeNormals->Map().LID(nodeGIDs[jdim]);
+      const int localId = massConsistentNodeNormals->get_block_map().LID(nodeGIDs[jdim]);
       nodeNormal(jdim, 0) = (*massConsistentNodeNormals)[localId];
       length += nodeNormal(jdim, 0) * nodeNormal(jdim, 0);
     }
@@ -680,7 +676,7 @@ void Core::Conditions::LocsysManager::calc_rotation_vector_for_normal_system(
     // Do some locsys voodoo
     int indices = nodeGID;
     double values = numLocsysCond;
-    locsystoggle_->ReplaceGlobalValues(1, &values, &indices);
+    locsystoggle_->replace_global_values(1, &values, &indices);
   }
 }
 

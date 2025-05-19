@@ -69,7 +69,7 @@ void SSI::ScatraStructureCloneStrategy::check_material_type(const int matid)
       (mtype != Core::Materials::m_electrode) && (mtype != Core::Materials::m_matlist) &&
       (mtype != Core::Materials::m_matlist_reactions) && (mtype != Core::Materials::m_myocard) &&
       (mtype != Core::Materials::m_thermostvenant))
-    FOUR_C_THROW("Material with ID %d is not admissible for scalar transport elements", matid);
+    FOUR_C_THROW("Material with ID {} is not admissible for scalar transport elements", matid);
 }
 
 
@@ -96,7 +96,7 @@ void SSI::ScatraStructureCloneStrategy::set_element_data(
     {
       FOUR_C_THROW(
           "ScatraStructureCloneStrategy copies scatra discretization from structure "
-          "discretization, but the STRUCTURE elements that are defined in the .dat file are "
+          "discretization, but the STRUCTURE elements that are defined in the input file are "
           "either not meant to be copied to scatra elements or the ImplType is set 'Undefined' "
           "which is not meaningful for the created scatra discretization! Use SOLIDSCATRA, "
           "WALLSCATRA, SHELLSCATRA or TRUSS3SCATRA elements with meaningful ImplType instead!");
@@ -109,8 +109,7 @@ void SSI::ScatraStructureCloneStrategy::set_element_data(
   }
   else
   {
-    FOUR_C_THROW(
-        "unsupported element type '%s'", Core::Utils::get_dynamic_type_name(*newele).c_str());
+    FOUR_C_THROW("unsupported element type '{}'", Core::Utils::get_dynamic_type_name(*newele));
   }
 }
 
@@ -132,7 +131,7 @@ void SSI::ScatraStructureCloneStrategyManifold::set_element_data(
     auto cond_eles = condition->geometry();
     if (cond_eles.find(oldele->id()) != cond_eles.end())
     {
-      impltype = static_cast<Inpar::ScaTra::ImplType>(condition->parameters().get<int>("ImplType"));
+      impltype = condition->parameters().get<Inpar::ScaTra::ImplType>("ImplType");
       continue;
     }
   }
@@ -142,7 +141,7 @@ void SSI::ScatraStructureCloneStrategyManifold::set_element_data(
     FOUR_C_THROW("Scatra Impltype not supported for SSI with transport on manifolds");
 
   auto* trans = dynamic_cast<Discret::Elements::Transport*>(newele.get());
-  if (trans == nullptr or oldele->element_type().name() != "StructuralSurfaceType")
+  if (trans == nullptr or oldele->element_type().name() != "SolidSurfaceType")
     FOUR_C_THROW("element type not supported");
 
   // set distype

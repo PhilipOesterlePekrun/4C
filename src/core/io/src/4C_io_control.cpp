@@ -14,7 +14,6 @@
 #include "4C_io_legacy_table.hpp"
 #include "4C_io_pstream.hpp"
 
-#include <Epetra_MpiComm.h>
 #include <pwd.h>
 #include <unistd.h>
 
@@ -280,7 +279,7 @@ void Core::IO::OutputControl::write_header(
 
     controlfile_.open(control_file_name.c_str(), std::ios_base::out);
     if (not controlfile_)
-      FOUR_C_THROW("Could not open control file '%s' for writing", control_file_name.c_str());
+      FOUR_C_THROW("Could not open control file '{}' for writing", control_file_name);
 
     time_t time_value;
     time_value = time(nullptr);
@@ -408,7 +407,7 @@ int Core::IO::get_last_possible_restart_step(Core::IO::InputControl& inputcontro
 
   FOUR_C_THROW(
       "No restart entry in symbol table. "
-      "Control file corrupt?\n\nLooking for control file at: %s",
+      "Control file corrupt?\n\nLooking for control file at: {}",
       inputcontrol.file_name().c_str());
 
   return 0;

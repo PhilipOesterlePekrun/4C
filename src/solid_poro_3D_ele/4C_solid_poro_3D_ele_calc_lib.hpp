@@ -11,20 +11,32 @@
 
 #include "4C_config.hpp"
 
+#include "4C_fem_discretization.hpp"
+#include "4C_fem_general_cell_type.hpp"
+#include "4C_fem_general_cell_type_traits.hpp"
 #include "4C_fem_general_element.hpp"
+#include "4C_fem_general_element_dof_matrix.hpp"
 #include "4C_fem_general_element_integration_select.hpp"
 #include "4C_fem_general_extract_values.hpp"
+#include "4C_fem_general_utils_local_connectivity_matrices.hpp"
+#include "4C_linalg_fixedsizematrix.hpp"
+#include "4C_linalg_serialdensematrix.hpp"
+#include "4C_linalg_serialdensevector.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_mat_fluidporo.hpp"
 #include "4C_mat_fluidporo_multiphase.hpp"
 #include "4C_mat_structporo.hpp"
 #include "4C_solid_3D_ele_calc_lib.hpp"
 #include "4C_solid_poro_3D_ele_properties.hpp"
+#include "4C_utils_exceptions.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
 
 #include <Teuchos_SerialDenseSolver.hpp>
 
+#include <algorithm>
+#include <cstdint>
 #include <numeric>
+#include <ranges>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -63,6 +75,204 @@ namespace Discret::Elements::Internal
 
 namespace Discret::Elements
 {
+  enum class PorosityFormulation : std::uint8_t
+  {
+    from_material_law,
+    as_primary_variable
+  };
+
+  template <PorosityFormulation porosity_formulation>
+  struct SolidPoroPrimaryVariables
+  {
+  };
+
+  template <>
+  struct SolidPoroPrimaryVariables<PorosityFormulation::from_material_law>
+  {
+    const std::vector<int> solid_location_array;
+    std::vector<double> solid_displacements{};
+
+    const std::vector<int> fluid_location_array;
+    std::vector<double> fluid_velocities{};
+    std::vector<double> fluid_pressures{};
+  };
+
+  template <>
+  struct SolidPoroPrimaryVariables<PorosityFormulation::as_primary_variable>
+  {
+    const std::vector<int> solid_location_array;
+    std::vector<double> solid_displacements{};
+
+    const std::vector<double>& initial_porosity;
+    std::vector<double> porosity{};
+
+    const std::vector<int> fluid_location_array;
+    std::vector<double> fluid_velocities{};
+    std::vector<double> fluid_pressures{};
+  };
+
+  /*!
+   * @brief A group of block matrices for the off-diagonal coupling between solid dofs
+   * (displacements + (optional) porosity) and fluid dofs (velocity + pressure)
+   *
+   * @tparam porosity_formulation
+   */
+  template <PorosityFormulation porosity_formulation>
+  struct SolidPoroOffDiagonalBlockMatrices
+  {
+  };
+
+  template <>
+  struct SolidPoroOffDiagonalBlockMatrices<PorosityFormulation::from_material_law>
+  {
+    Core::LinAlg::SerialDenseMatrix* K_displacement_fluid_dofs = nullptr;
+  };
+
+  template <>
+  struct SolidPoroOffDiagonalBlockMatrices<PorosityFormulation::as_primary_variable>
+  {
+    Core::LinAlg::SerialDenseMatrix* K_displacement_fluid_dofs = nullptr;
+    Core::LinAlg::SerialDenseMatrix* K_porosity_pressure = nullptr;
+  };
+
+  /*!
+   * @brief A group of block matrices for all solid dofs (displacements + (optional) porosity)
+   *
+   * @tparam porosity_formulation
+   */
+  template <PorosityFormulation porosity_formulation>
+  struct SolidPoroDiagonalBlockMatrices
+  {
+  };
+
+  template <>
+  struct SolidPoroDiagonalBlockMatrices<PorosityFormulation::from_material_law>
+  {
+    Core::LinAlg::SerialDenseVector* force_vector = nullptr;
+    Core::LinAlg::SerialDenseMatrix* K_displacement_displacement = nullptr;
+  };
+
+  template <>
+  struct SolidPoroDiagonalBlockMatrices<PorosityFormulation::as_primary_variable>
+  {
+    Core::LinAlg::SerialDenseVector* force_vector = nullptr;
+    Core::LinAlg::SerialDenseVector* porosity_force_vector = nullptr;
+    Core::LinAlg::SerialDenseMatrix* K_displacement_displacement = nullptr;
+    Core::LinAlg::SerialDenseMatrix* K_displacement_porosity = nullptr;
+    Core::LinAlg::SerialDenseMatrix* K_porosity_displacement = nullptr;
+    Core::LinAlg::SerialDenseMatrix* K_porosity_porosity = nullptr;
+  };
+
+  inline SolidPoroPrimaryVariables<PorosityFormulation::from_material_law>
+  extract_solid_poro_primary_variables(const Core::FE::Discretization& discretization,
+      const Core::Elements::LocationArray& la, Core::FE::CellType celltype)
+  {
+    const int num_nodes = Core::FE::get_number_of_element_nodes(celltype);
+    const int num_dim = Core::FE::get_dimension(celltype);
+
+    std::vector<double> fluid_vel(num_nodes * num_dim, 0.0);
+    std::vector<double> fluid_pres(num_nodes, 0.0);
+
+    if (discretization.has_state(1, "fluidvel"))
+    {
+      const Core::LinAlg::Vector<double>& fluidvel = *discretization.get_state(1, "fluidvel");
+
+      auto velocity_dofs = [i = -1, num_dim](const auto&) mutable
+      {
+        i = (i + 1) % (num_dim + 1);
+        return i < num_dim;
+      };
+      auto pressure_dofs = [i = -1, num_dim](const auto&) mutable
+      {
+        i = (i + 1) % (num_dim + 1);
+        return i == num_dim;
+      };
+
+      fluid_vel = Core::FE::extract_values(
+          fluidvel, la[1].lm_ | std::views::filter(velocity_dofs), num_nodes * num_dim);
+      fluid_pres = Core::FE::extract_values(
+          fluidvel, la[1].lm_ | std::views::filter(pressure_dofs), num_nodes);
+    }
+
+    return {
+        .solid_location_array = la[0].lm_,
+        .solid_displacements =
+            Core::FE::extract_values(*discretization.get_state(0, "displacement"), la[0].lm_),
+        .fluid_location_array = la[1].lm_,
+        .fluid_velocities = fluid_vel,
+
+        .fluid_pressures = fluid_pres,
+    };
+  }
+
+  inline SolidPoroPrimaryVariables<PorosityFormulation::as_primary_variable>
+  extract_solid_poro_primary_variables(const Core::FE::Discretization& discretization,
+      const Core::Elements::LocationArray& la, Core::FE::CellType celltype,
+      const std::vector<double>& initial_porosity)
+  {
+    const int num_nodes = Core::FE::get_number_of_element_nodes(celltype);
+    const int num_dim = Core::FE::get_dimension(celltype);
+
+    std::vector<double> fluid_vel(num_nodes * num_dim, 0.0);
+    std::vector<double> fluid_pres(num_nodes, 0.0);
+
+    if (discretization.has_state(1, "fluidvel"))
+    {
+      const Core::LinAlg::Vector<double>& fluidvel = *discretization.get_state(1, "fluidvel");
+
+      auto velocity_dofs = [i = -1, num_dim](const auto&) mutable
+      {
+        i = (i + 1) % (num_dim + 1);
+        return i < num_dim;
+      };
+      auto pressure_dofs = [i = -1, num_dim](const auto&) mutable
+      {
+        i = (i + 1) % (num_dim + 1);
+        return i == num_dim;
+      };
+
+      fluid_vel = Core::FE::extract_values(
+          fluidvel, la[1].lm_ | std::views::filter(velocity_dofs), num_nodes * num_dim);
+      fluid_pres = Core::FE::extract_values(
+          fluidvel, la[1].lm_ | std::views::filter(pressure_dofs), num_nodes);
+    }
+
+    // for explicit porosity (solid-poro-p1), the porosity is stored additionally in the solid
+    // field (d_x^1, d_y^1, d_z^1, porosity^1, ...)
+    // We need to split the location array into a displacement and a porosity part
+    const Core::LinAlg::Vector<double>& displacements =
+        *discretization.get_state(0, "displacement");
+
+    auto displacement_dofs = [i = -1, num_dim](const auto&) mutable
+    {
+      i = (i + 1) % (num_dim + 1);
+      return i < num_dim;
+    };
+    auto porosity_dofs = [i = -1, num_dim](const auto&) mutable
+    {
+      i = (i + 1) % (num_dim + 1);
+      return i == num_dim;
+    };
+
+    std::vector<int> displacement_location_array;
+    displacement_location_array.reserve(num_nodes * num_dim);
+    std::ranges::copy(la[0].lm_ | std::views::filter(displacement_dofs),
+        std::back_inserter(displacement_location_array));
+
+
+    return {
+        .solid_location_array = displacement_location_array,
+        .solid_displacements = Core::FE::extract_values(displacements, displacement_location_array),
+
+        .initial_porosity = initial_porosity,
+        .porosity = Core::FE::extract_values(
+            displacements, la[0].lm_ | std::views::filter(porosity_dofs), num_nodes),
+
+        .fluid_location_array = la[1].lm_,
+        .fluid_velocities = fluid_vel,
+        .fluid_pressures = fluid_pres,
+    };
+  }
 
   template <Core::FE::CellType celltype>
   constexpr auto get_gauss_rule_stiffness_matrix_poro()
@@ -70,80 +280,11 @@ namespace Discret::Elements
     return Discret::Elements::DisTypeToOptGaussRule<celltype>::rule;
   }
 
-  //! extract element data from global vector
-  template <Core::FE::CellType celltype>
-  inline void extract_values_from_global_vector(const Core::FE::Discretization& discretization,
-      const int& dofset, const std::vector<int>& lm,
-      Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_nodes<celltype>>*
-          matrixtofill,
-      Core::LinAlg::Matrix<Internal::num_nodes<celltype>, 1>* vectortofill,
-      const std::string& state, const Core::Elements::Element& ele)
-  {
-    // get state of the global vector
-    std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state =
-        discretization.get_state(dofset, state);
-    if (matrix_state == nullptr) FOUR_C_THROW("Cannot get state vector %s", state.c_str());
-
-    // ask for the number of dofs of dofset
-    const int numdofpernode = discretization.num_dof(dofset, ele.nodes()[0]);
-
-    // extract local values of the global vectors
-    std::vector<double> mymatrix(lm.size());
-    Core::FE::extract_my_values(*matrix_state, mymatrix, lm);
-
-    if (numdofpernode == Internal::num_dim<celltype> + 1)
-    {
-      for (int inode = 0; inode < Internal::num_nodes<celltype>; ++inode)  // number of nodes
-      {
-        // fill a vector field via a pointer
-        if (matrixtofill != nullptr)
-        {
-          for (int idim = 0; idim < Internal::num_dim<celltype>; ++idim)  // number of dimensions
-          {
-            (*matrixtofill)(idim, inode) = mymatrix[idim + (inode * numdofpernode)];
-          }
-        }
-        // fill a scalar field via a pointer
-        if (vectortofill != nullptr)
-          (*vectortofill)(inode, 0) =
-              mymatrix[Internal::num_dim<celltype> + (inode * numdofpernode)];
-      }
-    }
-    else if (numdofpernode == Internal::num_dim<celltype>)
-    {
-      for (int inode = 0; inode < Internal::num_nodes<celltype>; ++inode)  // number of nodes
-      {
-        // fill a vector field via a pointer
-        if (matrixtofill != nullptr)
-        {
-          for (int idim = 0; idim < Internal::num_dim<celltype>; ++idim)  // number of dimensions
-          {
-            (*matrixtofill)(idim, inode) = mymatrix[idim + (inode * numdofpernode)];
-          }
-        }
-      }
-    }
-    else if (numdofpernode == 1)
-    {
-      for (std::size_t inode = 0; inode < Internal::num_nodes<celltype>;
-          ++inode)  // number of nodes
-      {
-        if (vectortofill != nullptr) (*vectortofill)(inode, 0) = mymatrix[inode * numdofpernode];
-      }
-    }
-    else
-    {
-      FOUR_C_THROW(
-          "Unknown degrees of freedom per node. Currently, only dim+1, dim and 1 are supported. "
-          "You have %d dofs per node.",
-          numdofpernode);
-    }
-  }
-
   /*!
    * @brief Calculate volume change
    *
    * @tparam celltype: Cell type
+   * @param displacements (in) : An object holding the displacements of the element nodes
    * @param spatial_material_mapping (in) : An object holding quantities of the spatial material
    * mapping (deformation_gradient, inverse_deformation_gradient,
    * determinant_deformation_gradient)
@@ -157,24 +298,18 @@ namespace Discret::Elements
    */
   template <Core::FE::CellType celltype>
   inline double compute_volume_change(
+      const Core::LinAlg::Matrix<Core::FE::dim<celltype>, Core::FE::num_nodes(celltype)>&
+          displacements,
       const SpatialMaterialMapping<celltype>& spatial_material_mapping,
       const JacobianMapping<celltype>& jacobian_mapping, const Core::Elements::Element& ele,
-      const Core::FE::Discretization& discretization, const std::vector<int>& lm,
       const Inpar::Solid::KinemType& kinematictype)
   {
     if (kinematictype == Inpar::Solid::KinemType::linear)
     {
-      // for linear kinematics the volume change is the trace of the linearized strains
-
+      Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> dispgrad(
+          Core::LinAlg::Initialization::zero);
       // gradient of displacements
-      Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_nodes<celltype>> mydisp(true);
-      extract_values_from_global_vector<celltype>(
-          discretization, 0, lm, &mydisp, nullptr, "displacement", ele);
-
-      Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> dispgrad;
-      dispgrad.clear();
-      // gradient of displacements
-      dispgrad.multiply_nt(mydisp, jacobian_mapping.N_XYZ_);
+      dispgrad.multiply_nt(displacements, jacobian_mapping.N_XYZ_);
 
       double volchange = 1.0;
       // volchange = 1 + trace of the linearized strains (= trace of displacement gradient)
@@ -232,7 +367,8 @@ namespace Discret::Elements
       defgrd_inv_vec(8) = spatial_material_mapping.inverse_deformation_gradient_(2, 2);
 
       // build N_X operator (w.r.t. material configuration)
-      Core::LinAlg::Matrix<9, Internal::num_dof_per_ele<celltype>> N_X(true);  // set to zero
+      Core::LinAlg::Matrix<9, Internal::num_dof_per_ele<celltype>> N_X(
+          Core::LinAlg::Initialization::zero);  // set to zero
       for (int i = 0; i < Internal::num_nodes<celltype>; ++i)
       {
         N_X(0, 3 * i + 0) = jacobian_mapping.N_XYZ_(0, i);
@@ -328,6 +464,149 @@ namespace Discret::Elements
     dPorosity_dDisp.update(dphi_dJ, ddet_defgrd_ddisp);
   }
 
+
+
+  // solid nodal displacement and velocity values
+  template <Core::FE::CellType celltype, PorosityFormulation porosity_formulation>
+  struct SolidVariables
+  {
+  };
+
+  template <Core::FE::CellType celltype>
+  struct SolidVariables<celltype, PorosityFormulation::from_material_law>
+  {
+    Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_nodes<celltype>>
+        soliddisp_nodal{};
+    Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_nodes<celltype>>
+        solidvel_nodal{};
+  };
+
+  template <Core::FE::CellType celltype>
+  struct SolidVariables<celltype, PorosityFormulation::as_primary_variable>
+  {
+    Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_nodes<celltype>>
+        soliddisp_nodal{};
+    Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_nodes<celltype>>
+        solidvel_nodal{};
+    Core::LinAlg::Matrix<Internal::num_nodes<celltype>, 1> solid_porosity_nodal{};
+  };
+
+  /*!
+   * @brief Get nodal primary solid variables from structure field
+   *
+   * @tparam celltype: Cell type
+   * @param discretization (in) : discretization
+   * @param la (in): LocationArray of this element inside discretization
+   * @return solid_variables:  nodal primary solid variables (displacement and velocity)
+   */
+  template <Core::FE::CellType celltype, PorosityFormulation porosity_formulation>
+  inline SolidVariables<celltype, porosity_formulation> get_solid_variable_views(
+      const Core::FE::Discretization& dis,
+      const SolidPoroPrimaryVariables<porosity_formulation>& primary_variables)
+  {
+    std::vector<double> solid_velocity(
+        Core::FE::num_nodes(celltype) * Core::FE::dim<celltype>, 0.0);
+
+    if (dis.has_state(0, "velocity"))
+    {
+      solid_velocity = Core::FE::extract_values(
+          *dis.get_state(0, "velocity"), primary_variables.solid_location_array);
+    }
+
+
+    if constexpr (porosity_formulation == PorosityFormulation::from_material_law)
+    {
+      return SolidVariables<celltype, porosity_formulation>{
+          .soliddisp_nodal =
+              Core::FE::get_element_dof_matrix_view<celltype, Core::FE::dim<celltype>>(
+                  primary_variables.solid_displacements),
+
+          // Note: solid velocity is not a view since it is directly extracted from the global
+          // variables
+          .solidvel_nodal =
+              Core::FE::get_element_dof_matrix<celltype, Core::FE::dim<celltype>>(solid_velocity),
+      };
+    }
+    else
+    {
+      return SolidVariables<celltype, porosity_formulation>{
+          .soliddisp_nodal =
+              Core::FE::get_element_dof_matrix_view<celltype, Core::FE::dim<celltype>>(
+                  primary_variables.solid_displacements),
+
+          // Note: solid velocity is not a view since it is directly extracted from the global
+          // variables
+          .solidvel_nodal =
+              Core::FE::get_element_dof_matrix<celltype, Core::FE::dim<celltype>>(solid_velocity),
+
+          .solid_porosity_nodal = Core::LinAlg::Matrix<Core::FE::num_nodes(celltype), 1>(
+              primary_variables.porosity.data(), true),
+      };
+    }
+  }
+
+  template <Core::FE::CellType celltype, PorosityFormulation porosity_formulation>
+  inline double compute_porosity_and_linearization(Mat::StructPoro& porostructmat,
+      Teuchos::ParameterList& params,
+      const SolidVariables<celltype, porosity_formulation>& solid_variables,
+      const ShapeFunctionsAndDerivatives<celltype> shape_functions, const double solidpressure,
+      const int gp, const double volchange,
+      const Core::LinAlg::Matrix<1, Internal::num_dof_per_ele<celltype>>& ddet_defgrd_ddisp,
+      Core::LinAlg::Matrix<1, Internal::num_dof_per_ele<celltype>>& dPorosity_dDisp)
+  {
+    if constexpr (porosity_formulation == PorosityFormulation::as_primary_variable)
+    {
+      dPorosity_dDisp.put_scalar(0.0);
+
+      return shape_functions.shapefunctions_.dot(solid_variables.solid_porosity_nodal);
+    }
+    else
+    {
+      // Porosity is implicitly given by the solid-poro material
+      double dphi_dJ = 0.0;
+      double porosity = 0.0;
+
+      porostructmat.compute_porosity(params, solidpressure, volchange, gp, porosity,
+          nullptr,  // dphi_dp not needed
+          &dphi_dJ,
+          nullptr,  // dphi_dJdp not needed
+          nullptr,  // dphi_dJJ not needed
+          nullptr   // dphi_dpp not needed
+      );
+
+      dPorosity_dDisp.update(dphi_dJ, ddet_defgrd_ddisp);
+
+      return porosity;
+    }
+  };
+
+  template <Core::FE::CellType celltype, PorosityFormulation porosity_formulation>
+  inline double compute_porosity(Mat::StructPoro& porostructmat, Teuchos::ParameterList& params,
+      const SolidVariables<celltype, porosity_formulation>& solid_variables,
+      const ShapeFunctionsAndDerivatives<celltype> shape_functions, const double solidpressure,
+      const int gp, const double volchange)
+  {
+    if constexpr (porosity_formulation == PorosityFormulation::as_primary_variable)
+    {
+      return shape_functions.shapefunctions_.dot(solid_variables.solid_porosity_nodal);
+    }
+    else
+    {
+      // Porosity is implicitly given by the solid-poro material
+      double porosity = 0.0;
+
+      porostructmat.compute_porosity(params, solidpressure, volchange, gp, porosity,
+          nullptr,  // dphi_dp not needed
+          nullptr,
+          nullptr,  // dphi_dJdp not needed
+          nullptr,  // dphi_dJJ not needed
+          nullptr   // dphi_dpp not needed
+      );
+
+      return porosity;
+    }
+  };
+
   // porosity and derivative of porosity w.r.t. the pressure at gauss point
   struct PorosityAndLinearizationOD
   {
@@ -348,21 +627,32 @@ namespace Discret::Elements
    * @param volchange (in): volume change
    * @param gp (in): Gauss point
    */
-  template <Core::FE::CellType celltype>
+  template <Core::FE::CellType celltype, PorosityFormulation porosity_formulation>
   inline PorosityAndLinearizationOD compute_porosity_and_linearization_od(
-      Mat::StructPoro& porostructmat, Teuchos::ParameterList& params, const double solidpressure,
+      Mat::StructPoro& porostructmat, Teuchos::ParameterList& params,
+      const SolidVariables<celltype, porosity_formulation>& solid_variables,
+      const ShapeFunctionsAndDerivatives<celltype> shape_functions, const double solidpressure,
       const double volchange, const int gp)
   {
+    if constexpr (porosity_formulation == PorosityFormulation::as_primary_variable)
+    {
+      return {
+          .porosity = shape_functions.shapefunctions_.dot(solid_variables.solid_porosity_nodal),
+          .d_porosity_d_pressure = 0.0,
+      };
+    }
+
     PorosityAndLinearizationOD porosity_and_linearization_od{};
     porostructmat.compute_porosity(
         params, solidpressure, volchange, gp, porosity_and_linearization_od.porosity,
-        &porosity_and_linearization_od
-            .d_porosity_d_pressure,  // first derivative of porosity w.r.t. pressure at gauss point
-        nullptr,                     // dphi_dJ not needed
-        nullptr,                     // dphi_dJdp not needed
-        nullptr,                     // dphi_dJJ not needed
-        nullptr                      // dphi_dpp not needed
+        &porosity_and_linearization_od.d_porosity_d_pressure,  // first derivative of porosity
+                                                               // w.r.t. pressure at gauss point
+        nullptr,                                               // dphi_dJ not needed
+        nullptr,                                               // dphi_dJdp not needed
+        nullptr,                                               // dphi_dJJ not needed
+        nullptr                                                // dphi_dpp not needed
     );
+
     return porosity_and_linearization_od;
   }
 
@@ -384,59 +674,17 @@ namespace Discret::Elements
    * @param la (in): LocationArray of this element inside discretization
    * @return fluid_variables:  nodal primary fluid variables (pressure and velocity)
    */
-  template <Core::FE::CellType celltype>
-  inline FluidVariables<celltype> get_fluid_variables(const Core::Elements::Element& ele,
-      const Core::FE::Discretization& discretization, const Core::Elements::LocationArray& la)
+  template <Core::FE::CellType celltype, PorosityFormulation porosity_formulation>
+  inline FluidVariables<celltype> get_fluid_variable_views(
+      const SolidPoroPrimaryVariables<porosity_formulation>& primary_variables)
   {
-    std::vector<double> fluid_ephi(la[1].lm_.size());
-    Core::FE::extract_my_values(*(discretization.get_state(1, "fluidvel")), fluid_ephi, la[1].lm_);
+    FluidVariables<celltype> fluid_variables{
+        .fluidpress_nodal = Core::LinAlg::Matrix<Core::FE::num_nodes(celltype), 1>(
+            primary_variables.fluid_pressures.data(), true),
+        .fluidvel_nodal = Core::FE::get_element_dof_matrix_view<celltype, Core::FE::dim<celltype>>(
+            primary_variables.fluid_velocities)};
 
-    FluidVariables<celltype> fluid_variables{};
-    for (unsigned int inode = 0; inode < Internal::num_nodes<celltype>; ++inode)  // number of nodes
-    {
-      for (unsigned int idim = 0; idim < Internal::num_dim<celltype>;
-          ++idim)  // number of dimensions
-      {
-        (fluid_variables.fluidvel_nodal)(idim, inode) =
-            fluid_ephi[idim + (inode * discretization.num_dof(1, ele.nodes()[0]))];
-      }
-      (fluid_variables.fluidpress_nodal)(inode, 0) =
-          fluid_ephi[Internal::num_dim<celltype> +
-                     (inode * discretization.num_dof(1, ele.nodes()[0]))];
-    }
     return fluid_variables;
-  }
-
-  // solid nodal displacement and velocity values
-  template <Core::FE::CellType celltype>
-  struct SolidVariables
-  {
-    Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_nodes<celltype>>
-        soliddisp_nodal{};
-    Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_nodes<celltype>>
-        solidvel_nodal{};
-  };
-
-  /*!
-   * @brief Get nodal primary solid variables from structure field
-   *
-   * @tparam celltype: Cell type
-   * @param discretization (in) : discretization
-   * @param la (in): LocationArray of this element inside discretization
-   * @return solid_variables:  nodal primary solid variables (displacement and velocity)
-   */
-  template <Core::FE::CellType celltype>
-  inline SolidVariables<celltype> get_solid_variables(
-      const Core::FE::Discretization& discretization, const Core::Elements::LocationArray& la)
-  {
-    SolidVariables<celltype> solid_variables{};
-
-    Core::FE::extract_my_values(
-        *(discretization.get_state(0, "displacement")), solid_variables.soliddisp_nodal, la[0].lm_);
-    Core::FE::extract_my_values(
-        *(discretization.get_state(0, "velocity")), solid_variables.solidvel_nodal, la[0].lm_);
-
-    return solid_variables;
   }
 
   // get values at integration point
@@ -445,7 +693,8 @@ namespace Discret::Elements
       Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_nodes<celltype>> node_values,
       const ShapeFunctionsAndDerivatives<celltype> shapefunctions)
   {
-    Core::LinAlg::Matrix<Internal::num_dim<celltype>, 1> value_at_gp(true);
+    Core::LinAlg::Matrix<Internal::num_dim<celltype>, 1> value_at_gp(
+        Core::LinAlg::Initialization::zero);
     value_at_gp.multiply(node_values, shapefunctions.shapefunctions_);
     return value_at_gp;
   }
@@ -606,6 +855,12 @@ namespace Discret::Elements
   {
     std::vector<double> anisotropic_permeability_coeffs(Internal::num_dim<celltype>, 0.0);
 
+    FOUR_C_ASSERT(std::all_of(anisotropic_permeability_nodal_coeffs.begin(),
+                      anisotropic_permeability_nodal_coeffs.end(), [](const auto& nodal_coeffs)
+                      { return nodal_coeffs.size() == Core::FE::num_nodes(celltype); }),
+        "Given permeability coefficients do not match the number of nodes. Expecting {}.",
+        Core::FE::num_nodes(celltype));
+
     for (int node = 0; node < Internal::num_nodes<celltype>; ++node)
     {
       const double shape_val = shapefct(node);
@@ -648,16 +903,20 @@ namespace Discret::Elements
           force_vector)
   {
     Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> matreatensor(
-        true);
-    Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> reatensor(true);
+        Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> reatensor(
+        Core::LinAlg::Initialization::zero);
     Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> linreac_dphi(
-        true);
-    Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> linreac_dJ(true);
-    Core::LinAlg::Matrix<Internal::num_dim<celltype>, 1> rea_fluid_vel(true);
-    Core::LinAlg::Matrix<Internal::num_dim<celltype>, 1> rea_disp_vel(true);
+        Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> linreac_dJ(
+        Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<Internal::num_dim<celltype>, 1> rea_fluid_vel(
+        Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<Internal::num_dim<celltype>, 1> rea_disp_vel(
+        Core::LinAlg::Initialization::zero);
 
     static Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> temp(
-        true);
+        Core::LinAlg::Initialization::zero);
     std::vector<double> anisotropic_permeability_coeffs =
         compute_anisotropic_permeability_coeffs_at_gp<celltype>(
             shapefunctions, anisotropy_properties.nodal_coeffs_);
@@ -735,12 +994,14 @@ namespace Discret::Elements
       Core::LinAlg::Matrix<Internal::num_dim<celltype>, 1>& rea_disp_vel)
   {
     Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> matreatensor(
-        true);
+        Core::LinAlg::Initialization::zero);
     Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>>
         linreac_ddet_defgrd(
-            true);  // Derivative of the material reaction tensor w.r.t. the determinant of the
+            Core::LinAlg::Initialization::zero);  // Derivative of the material reaction tensor
+                                                  // w.r.t. the determinant of the
 
-    Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> temp(true);
+    Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> temp(
+        Core::LinAlg::Initialization::zero);
 
     std::vector<double> anisotropic_permeability_coeffs =
         compute_anisotropic_permeability_coeffs_at_gp<celltype>(
@@ -845,7 +1106,7 @@ namespace Discret::Elements
 
     // B^T . dfstress/dv^f
     Core::LinAlg::Matrix<Internal::num_dof_per_ele<celltype>, Internal::num_dof_per_ele<celltype>>
-        dfstressb_dv_bop(true);
+        dfstressb_dv_bop(Core::LinAlg::Initialization::zero);
     dfstressb_dv_bop.multiply_tn(bop, dfstressb_dv);
 
     for (int i = 0; i < Internal::num_nodes<celltype>; i++)
@@ -1073,15 +1334,18 @@ namespace Discret::Elements
     const double numdim_ = Internal::num_dim<celltype>;
     const double numnod_ = Internal::num_nodes<celltype>;
     Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> matreatensor(
-        true);
-    Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> reatensor(true);
+        Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> reatensor(
+        Core::LinAlg::Initialization::zero);
     Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> linreac_dphi(
-        true);
-    Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> linreac_dJ(true);
-    Core::LinAlg::Matrix<Internal::num_dim<celltype>, 1> reafvel(true);
-    Core::LinAlg::Matrix<Internal::num_dim<celltype>, 1> reavel(true);
+        Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> linreac_dJ(
+        Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<Internal::num_dim<celltype>, 1> reafvel(
+        Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<Internal::num_dim<celltype>, 1> reavel(Core::LinAlg::Initialization::zero);
     static Core::LinAlg::Matrix<Internal::num_dim<celltype>, Internal::num_dim<celltype>> temp(
-        true);
+        Core::LinAlg::Initialization::zero);
     std::vector<double> anisotropic_permeability_coeffs =
         compute_anisotropic_permeability_coeffs_at_gp<celltype>(
             shapefunctions, anisotropy_properties.nodal_coeffs_);
@@ -1430,7 +1694,8 @@ namespace Discret::Elements
     Discret::Elements::Internal::calculate_viscous_stress<celltype>(integration_fac, viscosity,
         det_defgrd, porosity, fvelder, defgrd_inv, C_inv, fstress, CinvFvel);
     // B^T . C^-1
-    static Core::LinAlg::Matrix<Internal::num_dof_per_ele<celltype>, 1> fstressb(true);
+    static Core::LinAlg::Matrix<Internal::num_dof_per_ele<celltype>, 1> fstressb(
+        Core::LinAlg::Initialization::zero);
     fstressb.multiply_tn(bop, fstress);
     force_vector.update(1.0, fstressb, 1.0);
   }
@@ -1479,7 +1744,8 @@ namespace Discret::Elements
     Discret::Elements::Internal::calculate_viscous_stress<celltype>(integration_fac, viscosity,
         det_defgrd, porosity, fvelder, defgrd_inv, C_inv, fstress, CinvFvel);
     // B^T . C^-1
-    static Core::LinAlg::Matrix<Internal::num_dof_per_ele<celltype>, 1> fstressb(true);
+    static Core::LinAlg::Matrix<Internal::num_dof_per_ele<celltype>, 1> fstressb(
+        Core::LinAlg::Initialization::zero);
     fstressb.multiply_tn(bop, fstress);
 
     // evaluate viscous terms (for darcy-brinkman flow only)
@@ -1488,7 +1754,7 @@ namespace Discret::Elements
       tmp.multiply_nt(fvelder, defgrd_inv);
       double fac = integration_fac * viscosity;
       Core::LinAlg::Matrix<Internal::num_str<celltype>, Internal::num_dof_per_ele<celltype>>
-          fstress_dus(true);
+          fstress_dus(Core::LinAlg::Initialization::zero);
 
       {
         for (int n = 0; n < Internal::num_nodes<celltype>; ++n)
@@ -1646,7 +1912,7 @@ namespace Discret::Elements
       inverse.setMatrix(Teuchos::rcpFromRef(pressderiv));
       int err = inverse.invert();
       if (err != 0)
-        FOUR_C_THROW("Inversion of matrix for pressure derivative failed with error code %d.", err);
+        FOUR_C_THROW("Inversion of matrix for pressure derivative failed with error code {}.", err);
     }
 
     // calculate derivatives of saturation w.r.t. pressure
@@ -1807,7 +2073,7 @@ namespace Discret::Elements
     // dC^-1/dDisp
     Core::LinAlg::Matrix<Internal::num_str<celltype>,
         Internal::num_dim<celltype> * Internal::num_nodes<celltype>>
-        dInverseCauchyGreen_dDisp(true);
+        dInverseCauchyGreen_dDisp(Core::LinAlg::Initialization::zero);
 
     for (int n = 0; n < Internal::num_nodes<celltype>; ++n)
     {

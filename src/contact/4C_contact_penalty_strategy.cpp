@@ -10,11 +10,12 @@
 #include "4C_contact_constitutivelaw_cubic_contactconstitutivelaw.hpp"
 #include "4C_contact_defines.hpp"
 #include "4C_contact_element.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_contact_interface.hpp"
 #include "4C_contact_node.hpp"
 #include "4C_contact_paramsinterface.hpp"
+#include "4C_fem_discretization.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_inpar_structure.hpp"
 #include "4C_linalg_sparsematrix.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
@@ -31,8 +32,8 @@ FOUR_C_NAMESPACE_OPEN
 /*----------------------------------------------------------------------*
  | ctor (public)                                              popp 05/09|
  *----------------------------------------------------------------------*/
-CONTACT::PenaltyStrategy::PenaltyStrategy(const Epetra_Map* dof_row_map,
-    const Epetra_Map* NodeRowMap, Teuchos::ParameterList params,
+CONTACT::PenaltyStrategy::PenaltyStrategy(const Core::LinAlg::Map* dof_row_map,
+    const Core::LinAlg::Map* NodeRowMap, Teuchos::ParameterList params,
     std::vector<std::shared_ptr<CONTACT::Interface>> interface, const int spatialDim,
     const MPI_Comm& comm, const double alphaf, const int maxdof)
     : AbstractStrategy(std::make_shared<CONTACT::AbstractStrategyDataContainer>(), dof_row_map,
@@ -50,9 +51,9 @@ CONTACT::PenaltyStrategy::PenaltyStrategy(const Epetra_Map* dof_row_map,
  *----------------------------------------------------------------------*/
 CONTACT::PenaltyStrategy::PenaltyStrategy(
     const std::shared_ptr<CONTACT::AbstractStrategyDataContainer>& data_ptr,
-    const Epetra_Map* dof_row_map, const Epetra_Map* NodeRowMap, Teuchos::ParameterList params,
-    std::vector<std::shared_ptr<CONTACT::Interface>> interface, const int spatialDim,
-    const MPI_Comm& comm, const double alphaf, const int maxdof)
+    const Core::LinAlg::Map* dof_row_map, const Core::LinAlg::Map* NodeRowMap,
+    Teuchos::ParameterList params, std::vector<std::shared_ptr<CONTACT::Interface>> interface,
+    const int spatialDim, const MPI_Comm& comm, const double alphaf, const int maxdof)
     : AbstractStrategy(data_ptr, dof_row_map, NodeRowMap, params, spatialDim, comm, alphaf, maxdof),
       interface_(interface),
       constrnorm_(0.0),
@@ -178,13 +179,13 @@ void CONTACT::PenaltyStrategy::evaluate_contact(
     interface_[i]->assemble_reg_normal_forces(localisincontact, localactivesetchange);
 
     // evaluate lagrange multipliers (regularized forces) in tangential direction
-    auto soltype = Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(params(), "STRATEGY");
+    auto soltype = Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(params(), "STRATEGY");
 
-    if (friction_ and (soltype == Inpar::CONTACT::solution_penalty or
-                          soltype == Inpar::CONTACT::solution_multiscale))
+    if (friction_ and (soltype == CONTACT::SolvingStrategy::penalty or
+                          soltype == CONTACT::SolvingStrategy::multiscale))
       interface_[i]->assemble_reg_tangent_forces_penalty();
 
-    if (friction_ and soltype == Inpar::CONTACT::solution_uzawa)
+    if (friction_ and soltype == CONTACT::SolvingStrategy::uzawa)
       interface_[i]->assemble_reg_tangent_forces_uzawa();
 
     isincontact = isincontact || localisincontact;
@@ -210,7 +211,7 @@ void CONTACT::PenaltyStrategy::evaluate_contact(
   if ((Core::Communication::my_mpi_rank(get_comm()) == 0) && (globalchange >= 1))
     std::cout << "ACTIVE CONTACT SET HAS CHANGED..." << std::endl;
 
-  // (re)setup active global Epetra_Maps
+  // (re)setup active global Core::LinAlg::Maps
   // the map of global active nodes is needed for the penalty case, too.
   // this is due to the fact that we want to monitor the constraint norm
   // of the active nodes
@@ -271,19 +272,19 @@ void CONTACT::PenaltyStrategy::evaluate_contact(
   }
 
 #ifdef CONTACTFDPENALTYTRAC
-  auto ftype = Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(Params(), "FRICTION");
+  auto ftype = Teuchos::getIntegralValue<CONTACT::FrictionType>(Params(), "FRICTION");
 
   // check derivatives of penalty traction
   for (int i = 0; i < (int)interface_.size(); ++i)
   {
     if (IsInContact())
     {
-      if (ftype == Inpar::CONTACT::friction_coulomb)
+      if (ftype == CONTACT::FrictionType::coulomb)
       {
         std::cout << "LINZMATRIX" << *linzmatrix_ << std::endl;
         interface_[i]->fd_check_penalty_trac_fric();
       }
-      else if (ftype == Inpar::CONTACT::friction_none)
+      else if (ftype == CONTACT::FrictionType::none)
       {
         std::cout << "-- CONTACTFDDERIVZ --------------------" << std::endl;
         interface_[i]->fd_check_penalty_trac_nor();
@@ -348,7 +349,7 @@ void CONTACT::PenaltyStrategy::evaluate_contact(
     dold_->multiply(true, *zold_, fcmdold);
     Core::LinAlg::Vector<double> fcmdoldtemp(*problem_dofs());
     Core::LinAlg::export_to(fcmdold, fcmdoldtemp);
-    feff->Update(-alphaf_, fcmdoldtemp, 1.0);
+    feff->update(-alphaf_, fcmdoldtemp, 1.0);
   }
 
   {
@@ -359,7 +360,7 @@ void CONTACT::PenaltyStrategy::evaluate_contact(
     mold_->multiply(true, *zold_, fcmmold);
     Core::LinAlg::Vector<double> fcmmoldtemp(*problem_dofs());
     Core::LinAlg::export_to(fcmmold, fcmmoldtemp);
-    feff->Update(alphaf_, fcmmoldtemp, 1.0);
+    feff->update(alphaf_, fcmmoldtemp, 1.0);
   }
 
   {
@@ -367,7 +368,7 @@ void CONTACT::PenaltyStrategy::evaluate_contact(
     dmatrix_->multiply(true, *z_, fcmd);
     Core::LinAlg::Vector<double> fcmdtemp(*problem_dofs());
     Core::LinAlg::export_to(fcmd, fcmdtemp);
-    feff->Update(-(1 - alphaf_), fcmdtemp, 1.0);
+    feff->update(-(1 - alphaf_), fcmdtemp, 1.0);
   }
 
   {
@@ -376,7 +377,7 @@ void CONTACT::PenaltyStrategy::evaluate_contact(
     mmatrix_->multiply(true, *z_, *fcmm);
     Core::LinAlg::Vector<double> fcmmtemp(*problem_dofs());
     Core::LinAlg::export_to(*fcmm, fcmmtemp);
-    feff->Update(1 - alphaf_, fcmmtemp, 1.0);
+    feff->update(1 - alphaf_, fcmmtemp, 1.0);
   }
 
 #ifdef CONTACTFDGAP
@@ -403,14 +404,14 @@ void CONTACT::PenaltyStrategy::evaluate_friction(
   // one difference
 
   // check if friction should be applied
-  auto ftype = Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(params(), "FRICTION");
+  auto ftype = Teuchos::getIntegralValue<CONTACT::FrictionType>(params(), "FRICTION");
 
   // coulomb friction case
-  if (ftype == Inpar::CONTACT::friction_coulomb || ftype == Inpar::CONTACT::friction_stick)
+  if (ftype == CONTACT::FrictionType::coulomb || ftype == CONTACT::FrictionType::stick)
   {
     evaluate_contact(kteff, feff);
   }
-  else if (ftype == Inpar::CONTACT::friction_tresca)
+  else if (ftype == CONTACT::FrictionType::tresca)
   {
     FOUR_C_THROW(
         "Error in AbstractStrategy::Evaluate: Penalty Strategy for"
@@ -506,26 +507,26 @@ void CONTACT::PenaltyStrategy::initialize_uzawa(
   dold_->multiply(true, *zold_, fcmdold);
   Core::LinAlg::Vector<double> fcmdoldtemp(*problem_dofs());
   Core::LinAlg::export_to(fcmdold, fcmdoldtemp);
-  feff->Update(alphaf_, fcmdoldtemp, 1.0);
+  feff->update(alphaf_, fcmdoldtemp, 1.0);
 
   Core::LinAlg::Vector<double> fcmmold(mold_->domain_map());
   mold_->multiply(true, *zold_, fcmmold);
   Core::LinAlg::Vector<double> fcmmoldtemp(*problem_dofs());
   Core::LinAlg::export_to(fcmmold, fcmmoldtemp);
-  feff->Update(-alphaf_, fcmmoldtemp, 1.0);
+  feff->update(-alphaf_, fcmmoldtemp, 1.0);
 
   Core::LinAlg::Vector<double> fcmd(*gsdofrowmap_);
   dmatrix_->multiply(true, *z_, fcmd);
   Core::LinAlg::Vector<double> fcmdtemp(*problem_dofs());
   Core::LinAlg::export_to(fcmd, fcmdtemp);
-  feff->Update(1 - alphaf_, fcmdtemp, 1.0);
+  feff->update(1 - alphaf_, fcmdtemp, 1.0);
 
   std::shared_ptr<Core::LinAlg::Vector<double>> fcmm =
       Core::LinAlg::create_vector(*gmdofrowmap_, true);
   mmatrix_->multiply(true, *z_, *fcmm);
   Core::LinAlg::Vector<double> fcmmtemp(*problem_dofs());
   Core::LinAlg::export_to(*fcmm, fcmmtemp);
-  feff->Update(-(1 - alphaf_), fcmmtemp, 1.0);
+  feff->update(-(1 - alphaf_), fcmmtemp, 1.0);
 
   // reset some matrices
   // must use FE_MATRIX type here, as we will do non-local assembly!
@@ -595,7 +596,7 @@ void CONTACT::PenaltyStrategy::update_constraint_norm(int uzawaiter)
   {
     // export weighted gap vector to gactiveN-map
     std::shared_ptr<Core::LinAlg::Vector<double>> gact;
-    if (constr_direction_ == Inpar::CONTACT::constr_xyz)
+    if (constr_direction_ == CONTACT::ConstraintDirection::xyz)
     {
       gact = Core::LinAlg::create_vector(*gactivedofs_, true);
       Core::LinAlg::export_to(*wgap_, *gact);
@@ -603,11 +604,11 @@ void CONTACT::PenaltyStrategy::update_constraint_norm(int uzawaiter)
     else
     {
       gact = Core::LinAlg::create_vector(*gactivenodes_, true);
-      if (gact->GlobalLength()) Core::LinAlg::export_to(*wgap_, *gact);
+      if (gact->global_length()) Core::LinAlg::export_to(*wgap_, *gact);
     }
 
     // compute constraint norm
-    gact->Norm2(&cnorm);
+    gact->norm_2(&cnorm);
 
     // Evaluate norm in tangential direction for frictional contact
     if (friction_)
@@ -622,9 +623,9 @@ void CONTACT::PenaltyStrategy::update_constraint_norm(int uzawaiter)
     // adaptive update of penalty parameter
     // (only for Uzawa Augmented Lagrange strategy)
     //********************************************************************
-    auto soltype = Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(params(), "STRATEGY");
+    auto soltype = Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(params(), "STRATEGY");
 
-    if (soltype == Inpar::CONTACT::solution_uzawa)
+    if (soltype == CONTACT::SolvingStrategy::uzawa)
     {
       // check convergence of cnorm and update penalty parameter
       // only do this for second, third, ... Uzawa iteration
@@ -770,13 +771,13 @@ void CONTACT::PenaltyStrategy::assemble()
     interface_[i]->assemble_reg_normal_forces(localisincontact, localactivesetchange);
 
     // evaluate lagrange multipliers (regularized forces) in tangential direction
-    auto soltype = Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(params(), "STRATEGY");
+    auto soltype = Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(params(), "STRATEGY");
 
-    if (friction_ and (soltype == Inpar::CONTACT::solution_penalty or
-                          soltype == Inpar::CONTACT::solution_multiscale))
+    if (friction_ and (soltype == CONTACT::SolvingStrategy::penalty or
+                          soltype == CONTACT::SolvingStrategy::multiscale))
       interface_[i]->assemble_reg_tangent_forces_penalty();
 
-    if (friction_ and soltype == Inpar::CONTACT::solution_uzawa)
+    if (friction_ and soltype == CONTACT::SolvingStrategy::uzawa)
       interface_[i]->assemble_reg_tangent_forces_uzawa();
 
     isincontact = isincontact || localisincontact;
@@ -802,7 +803,7 @@ void CONTACT::PenaltyStrategy::assemble()
   if ((Core::Communication::my_mpi_rank(get_comm()) == 0) && (globalchange >= 1))
     std::cout << "ACTIVE CONTACT SET HAS CHANGED..." << std::endl;
 
-  // (re)setup active global Epetra_Maps
+  // (re)setup active global Core::LinAlg::Maps
   // the map of global active nodes is needed for the penalty case, too.
   // this is due to the fact that we want to monitor the constraint norm
   // of the active nodes
@@ -907,7 +908,7 @@ void CONTACT::PenaltyStrategy::assemble()
     dmatrix_->multiply(true, *z_, fcmd);
     Core::LinAlg::Vector<double> fcmdtemp(*problem_dofs());
     Core::LinAlg::export_to(fcmd, fcmdtemp);
-    fc_->Update(-(1.), fcmdtemp, 1.0);
+    fc_->update(-(1.), fcmdtemp, 1.0);
   }
 
   {
@@ -916,10 +917,10 @@ void CONTACT::PenaltyStrategy::assemble()
     mmatrix_->multiply(true, *z_, *fcmm);
     Core::LinAlg::Vector<double> fcmmtemp(*problem_dofs());
     Core::LinAlg::export_to(*fcmm, fcmmtemp);
-    fc_->Update(1, fcmmtemp, 1.0);
+    fc_->update(1, fcmmtemp, 1.0);
   }
 
-  fc_->Scale(-1.);
+  fc_->scale(-1.);
   kc_->complete();
 
 
@@ -1106,7 +1107,7 @@ CONTACT::PenaltyStrategy::lagrange_multiplier_old() const
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-std::shared_ptr<const Epetra_Map> CONTACT::PenaltyStrategy::lm_dof_row_map_ptr(
+std::shared_ptr<const Core::LinAlg::Map> CONTACT::PenaltyStrategy::lm_dof_row_map_ptr(
     const bool& redist) const
 {
   auto& dyn_params = Global::Problem::instance()->structural_dynamic_params();

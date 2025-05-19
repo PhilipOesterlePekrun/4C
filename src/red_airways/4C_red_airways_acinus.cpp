@@ -65,26 +65,30 @@ void Discret::Elements::RedAcinusType::setup_element_definition(
   using namespace Core::IO::InputSpecBuilders;
 
   defs["LINE2"] = all_of({
-      entry<std::vector<int>>("LINE2", {.size = 2}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<double>("AcinusVolume"),
-      entry<double>("AlveolarDuctVolume"),
-      entry<double>("E1_0", {.required = false}),
-      entry<double>("E1_LIN", {.required = false}),
-      entry<double>("E1_EXP", {.required = false}),
-      entry<double>("TAU", {.required = false}),
-      entry<double>("E1_01", {.required = false}),
-      entry<double>("E1_LIN1", {.required = false}),
-      entry<double>("E1_EXP1", {.required = false}),
-      entry<double>("TAU1", {.required = false}),
-      entry<double>("E1_02", {.required = false}),
-      entry<double>("E1_LIN2", {.required = false}),
-      entry<double>("E1_EXP2", {.required = false}),
-      entry<double>("TAU2", {.required = false}),
-      entry<double>("KAPPA", {.required = false}),
-      entry<double>("BETA", {.required = false}),
-      entry<double>("Area", {.required = false}),
+      parameter<std::vector<int>>("LINE2", {.size = 2}),
+      parameter<int>("MAT"),
+      deprecated_selection<std::string>("TYPE",
+          {"NeoHookean", "Exponential", "DoubleExponential", "VolumetricOgden"},
+          {.description = "Visco-elastic model of this acinus"}),
+      parameter<double>("AcinusVolume"),
+      parameter<double>("AlveolarDuctVolume"),
+      // Maxwell exponential
+      parameter<std::optional<double>>("E1_0"),
+      parameter<std::optional<double>>("E1_LIN"),
+      parameter<std::optional<double>>("E1_EXP"),
+      parameter<std::optional<double>>("TAU"),
+      // Maxwell double exponential
+      parameter<std::optional<double>>("E1_01"),
+      parameter<std::optional<double>>("E1_LIN1"),
+      parameter<std::optional<double>>("E1_EXP1"),
+      parameter<std::optional<double>>("TAU1"),
+      parameter<std::optional<double>>("E1_02"),
+      parameter<std::optional<double>>("E1_LIN2"),
+      parameter<std::optional<double>>("E1_EXP2"),
+      parameter<std::optional<double>>("TAU2"),
+      // VolOgden
+      parameter<std::optional<double>>("KAPPA"),
+      parameter<std::optional<double>>("BETA"),
   });
 }
 
@@ -134,7 +138,7 @@ Core::FE::CellType Discret::Elements::RedAcinus::shape() const
     case 3:
       return Core::FE::CellType::line3;
     default:
-      FOUR_C_THROW("unexpected number of nodes %d", num_node());
+      FOUR_C_THROW("unexpected number of nodes {}", num_node());
       break;
   }
 }
@@ -158,7 +162,6 @@ void Discret::Elements::RedAcinus::pack(Core::Communication::PackBuffer& data) c
 
   add_to_pack(data, acinus_params_.volume_relaxed);
   add_to_pack(data, acinus_params_.alveolar_duct_volume);
-  add_to_pack(data, acinus_params_.area);
   add_to_pack(data, acinus_params_.volume_init);
   add_to_pack(data, acinus_params_.generation);
 
@@ -182,7 +185,6 @@ void Discret::Elements::RedAcinus::unpack(Core::Communication::UnpackBuffer& buf
 
   extract_from_pack(buffer, acinus_params_.volume_relaxed);
   extract_from_pack(buffer, acinus_params_.alveolar_duct_volume);
-  extract_from_pack(buffer, acinus_params_.area);
   extract_from_pack(buffer, acinus_params_.volume_init);
   extract_from_pack(buffer, acinus_params_.generation);
 

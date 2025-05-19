@@ -9,6 +9,7 @@
 
 #include "4C_comm_mpi_utils.hpp"
 #include "4C_contact_element.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_contact_interface.hpp"
 #include "4C_contact_node.hpp"
 #include "4C_coupling_adapter.hpp"
@@ -17,7 +18,6 @@
 #include "4C_fem_nurbs_discretization_control_point.hpp"
 #include "4C_fem_nurbs_discretization_knotvector.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_inpar_structure.hpp"
 #include "4C_linalg_sparsematrix.hpp"
 
@@ -57,10 +57,10 @@ void Adapter::CouplingPoroMortar::read_mortar_condition(
   switch (Global::Problem::instance()->get_problem_type())
   {
     case Core::ProblemType::poroelast:
-      input.set<int>("PROBTYPE", Inpar::CONTACT::poroelast);
+      input.set<CONTACT::Problemtype>("PROBTYPE", CONTACT::Problemtype::poroelast);
       break;
     case Core::ProblemType::poroscatra:
-      input.set<int>("PROBTYPE", Inpar::CONTACT::poroscatra);
+      input.set<CONTACT::Problemtype>("PROBTYPE", CONTACT::Problemtype::poroscatra);
       break;
     default:
       FOUR_C_THROW("Invalid poro problem is specified");
@@ -73,10 +73,10 @@ void Adapter::CouplingPoroMortar::read_mortar_condition(
       1 / (stru.sublist("ONESTEPTHETA").get<double>("THETA") * stru.get<double>("TIMESTEP"));
   input.set<double>("porotimefac", porotimefac);
   const Teuchos::ParameterList& porodyn = Global::Problem::instance()->poroelast_dynamic_params();
-  input.set<bool>("CONTACTNOPEN",
-      porodyn.get<bool>("CONTACTNOPEN"));  // used in the integrator
-  if (!porodyn.get<bool>("CONTACTNOPEN"))
-    FOUR_C_THROW("Set CONTACTNOPEN for Poroelastic meshtying!");
+  input.set<bool>("CONTACT_NO_PENETRATION",
+      porodyn.get<bool>("CONTACT_NO_PENETRATION"));  // used in the integrator
+  if (!porodyn.get<bool>("CONTACT_NO_PENETRATION"))
+    FOUR_C_THROW("Set CONTACT_NO_PENETRATION for Poroelastic meshtying!");
 }
 
 /*----------------------------------------------------------------------*
@@ -334,7 +334,7 @@ void Adapter::CouplingPoroMortar::create_strategy(
   // to other time integration strategies
 
   if (Teuchos::getIntegralValue<Inpar::Solid::DynamicType>(stru, "DYNAMICTYPE") ==
-      Inpar::Solid::dyna_statics)
+      Inpar::Solid::DynamicType::Statics)
   {
     theta = 1.0;
   }
@@ -373,9 +373,9 @@ void Adapter::CouplingPoroMortar::complete_interface(
   // interface->create_volume_ghosting(*masterdis);
 
   // store old row maps (before parallel redistribution)
-  slavedofrowmap_ = std::make_shared<Epetra_Map>(*interface->slave_row_dofs());
-  masterdofrowmap_ = std::make_shared<Epetra_Map>(*interface->master_row_dofs());
-  slavenoderowmap_ = std::make_shared<Epetra_Map>(*interface->slave_row_nodes());
+  slavedofrowmap_ = std::make_shared<Core::LinAlg::Map>(*interface->slave_row_dofs());
+  masterdofrowmap_ = std::make_shared<Core::LinAlg::Map>(*interface->master_row_dofs());
+  slavenoderowmap_ = std::make_shared<Core::LinAlg::Map>(*interface->slave_row_nodes());
 
   // print parallel distribution
   interface->print_parallel_distribution();
@@ -402,7 +402,7 @@ void Adapter::CouplingPoroMortar::evaluate_poro_mt(
     std::shared_ptr<Core::LinAlg::SparseMatrix>& f,
     std::shared_ptr<Core::LinAlg::SparseMatrix>& k_fs,
     std::shared_ptr<Core::LinAlg::Vector<double>>& frhs, Coupling::Adapter::Coupling& coupfs,
-    std::shared_ptr<const Epetra_Map> fdofrowmap)
+    std::shared_ptr<const Core::LinAlg::Map> fdofrowmap)
 {
   // safety check
   check_setup();

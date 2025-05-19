@@ -62,10 +62,7 @@ namespace Discret
       Right now we do not read any stabilization parameters from the
       input file but have a fixed version.
 
-      \author gjb
-      \date 08/08
-      \author ehrl
-      \date 03/10
+
     */
     template <Core::FE::CellType distype>
     class FluidBoundaryImpl : public FluidBoundaryInterface
@@ -83,7 +80,7 @@ namespace Discret
           Core::LinAlg::SerialDenseVector& elevec3) override;
 
       //! number of element nodes
-      static constexpr int bdrynen_ = Core::FE::num_nodes<distype>;
+      static constexpr int bdrynen_ = Core::FE::num_nodes(distype);
 
       //! number of spatial dimensions of boundary element
       static constexpr int bdrynsd_ = Core::FE::dim<distype>;
@@ -97,7 +94,7 @@ namespace Discret
       //! Evaluate a Neumann boundary condition
       int evaluate_neumann(Discret::Elements::FluidBoundary* ele, Teuchos::ParameterList& params,
           Core::FE::Discretization& discretization, Core::Conditions::Condition& condition,
-          std::vector<int>& lm, Core::LinAlg::SerialDenseVector& elevec1_epetra,
+          std::vector<int>& lm, Core::LinAlg::SerialDenseVector& elevec1,
           Core::LinAlg::SerialDenseMatrix* elemat1) override;
 
      protected:
@@ -114,19 +111,6 @@ namespace Discret
           Teuchos::ParameterList& params, Core::FE::Discretization& discretization,
           std::vector<int>& lm, Core::LinAlg::SerialDenseVector& elevec1,
           const std::vector<double>& edispnp);
-
-      /*!
-        \brief Calculate mean curvature H. Interpolate the results to achieve better
-        results in the surface tension algorithm (c0 field -> c1 field).
-
-        \param elevec1  (out)     : Nodal values of mean curvature
-        \param edispnp  (in)      : Displacement-vector
-        \param enormals (in)      : Node normals
-      */
-      void element_mean_curvature(Discret::Elements::FluidBoundary* ele,
-          Teuchos::ParameterList& params, Core::FE::Discretization& discretization,
-          std::vector<int>& lm, Core::LinAlg::SerialDenseVector& elevec1,
-          const std::vector<double>& edispnp, std::vector<double>& enormals);
 
       /*!
       brief integrate elemental areas over a surface

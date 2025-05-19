@@ -12,9 +12,9 @@
 #include "4C_fbi_beam_to_fluid_meshtying_params.hpp"
 #include "4C_fbi_fluid_assembly_strategy.hpp"
 #include "4C_fbi_fluidblockmatrix_assembly_strategy.hpp"
+#include "4C_fbi_input.hpp"
 #include "4C_geometry_pair_line_to_3D_evaluation_data.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_fbi.hpp"
 #include "4C_linalg_sparseoperator.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -27,8 +27,9 @@ Adapter::FBIConstraintBridge::FBIConstraintBridge()
       geometry_evaluation_data_(nullptr) {};
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void Adapter::FBIConstraintBridge::setup(const Epetra_Map* beam_map, const Epetra_Map* fluid_map,
-    std::shared_ptr<Core::LinAlg::SparseOperator> fluidmatrix, bool fluidmeshtying)
+void Adapter::FBIConstraintBridge::setup(const Core::LinAlg::Map* beam_map,
+    const Core::LinAlg::Map* fluid_map, std::shared_ptr<Core::LinAlg::SparseOperator> fluidmatrix,
+    bool fluidmeshtying)
 {
   // Create the beaminteraction data container and set the parameters
   beam_interaction_params_ = std::make_shared<FBI::BeamToFluidMeshtyingParams>();
@@ -40,14 +41,14 @@ void Adapter::FBIConstraintBridge::setup(const Epetra_Map* beam_map, const Epetr
 
   // Create the beaminteraction data container and set the parameters
   geometry_evaluation_data_ =
-      std::make_shared<GEOMETRYPAIR::LineTo3DEvaluationData>(geometry_parameter_list);
+      std::make_shared<GeometryPair::LineTo3DEvaluationData>(geometry_parameter_list);
 
   if (fluidmeshtying)
   {
     // For the option condensed smat this can be changed by creating a FEMatrix instead of a
     // CRSMatrix!
     if (beam_interaction_params_->get_contact_discretization() ==
-        Inpar::FBI::BeamToFluidDiscretization::mortar)
+        FBI::BeamToFluidDiscretization::mortar)
       FOUR_C_THROW("Fluid Meshtying is not supported when using a mortar discretization!");
 
     assemblystrategy_ = std::make_shared<FBI::Utils::FBIBlockAssemblyStrategy>();

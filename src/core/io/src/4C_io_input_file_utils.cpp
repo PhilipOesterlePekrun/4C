@@ -17,11 +17,11 @@
 #include "4C_io_input_spec.hpp"
 #include "4C_io_pstream.hpp"
 #include "4C_io_value_parser.hpp"
+#include "4C_io_yaml.hpp"
 #include "4C_linalg_utils_densematrix_communication.hpp"
+#include "4C_utils_exceptions.hpp"
 #include "4C_utils_string.hpp"
 
-#include <ryml.hpp>
-#include <ryml_std.hpp>
 #include <Teuchos_ParameterList.hpp>
 #include <Teuchos_StrUtils.hpp>
 #include <Teuchos_Time.hpp>
@@ -30,261 +30,12 @@
 
 FOUR_C_NAMESPACE_OPEN
 
-namespace
-{
-  void print_dat_impl(std::ostream& stream, const Teuchos::ParameterList& list,
-      const std::string& parentname, bool comment);
-
-  void print_documentation(std::ostream& stream, const Teuchos::ParameterEntry& entry)
-  {
-    // Helper function to print documentation
-    std::string doc = entry.docString();
-    if (!doc.empty())
-    {
-      Teuchos::StrUtils::printLines(stream, "// ", doc);
-    }
-  }
-
-
-  void print_sublist(std::ostream& stream, const std::string& parentname, const std::string& name,
-      const Teuchos::ParameterList& list, bool comment)
-  {
-    // Helper function to print a sublist
-    std::string secname = parentname;
-    if (!secname.empty()) secname += "/";
-    secname += name;
-    unsigned l = secname.length();
-    stream << "--" << std::string(std::max<int>(65 - l, 0), '-');
-    stream << secname << "\n";
-    print_dat_impl(stream, list.sublist(name), secname, comment);
-  }
-
-  void print_parameter(std::ostream& stream, const Teuchos::ParameterEntry& entry,
-      const std::string& name, const Teuchos::ParameterList& list, bool comment)
-  {
-    // Retrieve the parameter entry's validator (if any)
-    Teuchos::RCP<const Teuchos::ParameterEntryValidator> validator = entry.validator();
-
-    // Print comments if requested
-    if (comment)
-    {
-      // Check if the validator has valid string values
-      if (validator != Teuchos::null)
-      {
-        Teuchos::RCP<const Teuchos::Array<std::string>> validValues =
-            validator->validStringValues();
-
-        // If valid values exist, print them
-        if (validValues != Teuchos::null)
-        {
-          unsigned totalLength = 0;
-          // Calculate the total length of all valid values
-          for (const auto& value : *validValues)
-          {
-            totalLength += value.length() + 1;  // Include space/comma
-          }
-          // Print valid values in a compact or expanded format based on total length
-          if (totalLength < 74)
-          {
-            // Print all values in a single line, separated by commas
-            stream << "//     ";
-            for (auto it = validValues->begin(); it != validValues->end(); ++it)
-            {
-              stream << *it;
-              if (std::next(it) != validValues->end())
-              {
-                stream << ",";  // Add a comma if it's not the last element
-              }
-            }
-            stream << "\n";
-          }
-          else
-          {
-            // Print each value on a new line
-            for (const auto& value : *validValues)
-            {
-              stream << "//     " << value << '\n';
-            }
-          }
-        }
-      }
-    }
-
-    // Print the parameter's name and value
-    const Teuchos::any& value = entry.getAny(false);
-    stream << name;
-    unsigned nameLength = name.length();
-    // Ensure proper spacing for alignment
-    stream << std::string(std::max<int>(31 - nameLength, 0), ' ');
-
-    // Optionally print an equal sign if needed
-    if (Core::IO::need_to_print_equal_sign(list)) stream << " =";
-
-    try
-    {
-      // print true/false for bool values to distinguish them from type int
-      if (value.type() == typeid(bool))
-      {
-        stream << " " << (Teuchos::any_cast<bool>(value) ? "true" : "false") << "\n";
-      }
-      else
-      {
-        // For non-boolean types, print the value directly
-        stream << " " << value << "\n";
-      }
-    }
-    catch (const Teuchos::NonprintableTypeException&)
-    {
-      // Handle non-printable enum class types
-      stream << value.typeName() << "\n";
-    }
-  }
-
-  void print_dat_impl(std::ostream& stream, const Teuchos::ParameterList& list,
-      const std::string& parentname, bool comment)
-  {
-    // Main loop over the parameter list that calls the helper functions to print
-    // documentation, sublists or parameters:
-    //
-    // Iterate through the parameter list in two distinct phases to ensure proper ordering and
-    // handling:
-    // - **Phase 0**:
-    //    Print all parameters that are not sublists. This ensures that top-level parameters
-    //    are written to stream first, without any nested content interfering.
-    // - **Phase 1**:
-    //    Recursively handle and print all sublists. This phase is executed after all non-sublists
-    //    have been processed, allowing sublists to be printed in their hierarchical order.
-    //
-    // By separating the iteration into these phases, we avoid issues with alphabetical
-    // ordering that could cause invalid output sequences for nested lists.
-    for (int iterationPhase = 0; iterationPhase < 2; ++iterationPhase)
-    {
-      for (auto paramIter = list.begin(); paramIter != list.end(); ++paramIter)
-      {
-        const Teuchos::ParameterEntry& entry = list.entry(paramIter);
-        const std::string& name = list.name(paramIter);
-
-        if ((entry.isList() && iterationPhase == 0) || (!entry.isList() && iterationPhase == 1))
-        {
-          continue;
-        }
-        if (comment)
-        {
-          stream << "//\n";
-          print_documentation(stream, entry);
-        }
-        if (entry.isList())
-        {
-          print_sublist(stream, parentname, name, list, comment);
-        }
-        else
-        {
-          print_parameter(stream, entry, name, list, comment);
-        }
-      }
-    }
-    stream << std::endl;
-  }
-
-
-  void recursively_determine_sublists(const Teuchos::ParameterList& list,
-      std::vector<std::pair<std::string, const Teuchos::ParameterList*>>& sublists,
-      const std::string& parent_section_name = "")
-  {
-    for (const auto& key_value : list)
-    {
-      const Teuchos::ParameterEntry& entry = key_value.second;
-      const std::string& name = key_value.first;
-      if (entry.isList())
-      {
-        const std::string current_section_full_name =
-            (parent_section_name == "") ? name : parent_section_name + "/" + name;
-
-        sublists.emplace_back(current_section_full_name, &list.sublist(name));
-        recursively_determine_sublists(list.sublist(name), sublists, current_section_full_name);
-      }
-    }
-  }
-
-
-  void print_metadata_yaml_impl(ryml::NodeRef node, const Teuchos::ParameterList& list,
-      const std::string& parent_section_name)
-  {
-    // prevent invalid ordering of parameters caused by alphabetical output:
-    // determine all sublists first to pull them out onto the same indentation level
-    std::vector<std::pair<std::string, const Teuchos::ParameterList*>> sublists;
-    recursively_determine_sublists(list, sublists);
-
-
-
-    const auto print_key_value =
-        [](ryml::NodeRef parent, const std::string& key, const Teuchos::ParameterEntry& entry)
-    {
-      const auto to_string = [](const Teuchos::any& any)
-      {
-        std::stringstream s;
-        s << any;
-        return s.str();
-      };
-
-      auto yaml_entry = parent.append_child();
-      // Serialize the key since the ParameterList gives us a temporary copy
-      yaml_entry << ryml::key(key);
-      yaml_entry |= ryml::MAP;
-
-      const Teuchos::any& v = entry.getAny(false);
-      yaml_entry["type"] << v.typeName();
-      yaml_entry["default"] << to_string(v);
-
-      const std::string& doc = entry.docString();
-      if (doc != "")
-      {
-        yaml_entry["description"] << doc;
-        // Add double quotes to the description to prevent YAML from interpreting special characters
-        yaml_entry["description"] |= ryml::VAL_DQUO;
-      }
-
-      Teuchos::RCP<const Teuchos::ParameterEntryValidator> validator = entry.validator();
-      if (validator != Teuchos::null)
-      {
-        Teuchos::RCP<const Teuchos::Array<std::string>> values = validator->validStringValues();
-        if (values != Teuchos::null)
-        {
-          auto yaml_values = yaml_entry["valid options"];
-          yaml_values |= ryml::SEQ;
-
-          for (int i = 0; i < (int)values->size(); ++i)
-          {
-            yaml_values[i] << (*values)[i];
-          }
-        }
-      }
-    };
-
-    for (const auto& [name, sublist] : sublists)
-    {
-      auto yaml_sublist = node.append_child();
-      // Serialize the name since the ParameterList gives us a temporary copy
-      yaml_sublist << ryml::key(name);
-      yaml_sublist |= ryml::MAP;
-
-      for (const auto& key_value : *sublist)
-      {
-        if (!key_value.second.isList())
-          print_key_value(yaml_sublist, key_value.first, key_value.second);
-      }
-    }
-  }
-}  // namespace
-
 void Core::IO::print_section_header(std::ostream& out, const std::string& header)
 {
-  constexpr std::size_t max_line_width = 65ul;
-  FOUR_C_ASSERT_ALWAYS(header.length() <= max_line_width, "Header '%s' too long", header.c_str());
+  constexpr std::size_t max_padding = 65ul;
+  const std::size_t padding = (header.length() < max_padding) ? (max_padding - header.length()) : 0;
 
-  out << "--";
-  out << std::string(std::max(max_line_width - header.length(), 0ul), '-');
-  out << header << '\n';
+  out << "--" << std::string(padding, '-') << header << '\n';
 }
 
 
@@ -294,63 +45,6 @@ void Core::IO::print_section(std::ostream& out, const std::string& header, const
   print_section_header(out, header);
   spec.print_as_dat(out);
 }
-
-
-void Core::IO::print_dat(std::ostream& stream, const Teuchos::ParameterList& list, bool comment)
-{
-  print_dat_impl(stream, list, "", comment);
-}
-
-
-void Core::IO::print_metadata_yaml(std::ostream& stream, const Teuchos::ParameterList& list)
-{
-  ryml::Tree tree;
-  ryml::NodeRef root = tree.rootref();
-  root |= ryml::MAP;
-
-  {
-    // First write some metadata
-    auto metadata = root["metadata"];
-    metadata |= ryml::MAP;
-    metadata["commit_hash"] << VersionControl::git_hash;
-  }
-
-  {
-    // Then write the key-value parameters.
-    auto parameters = root["parameters"];
-    parameters |= ryml::MAP;
-    print_metadata_yaml_impl(parameters, list, "");
-  }
-
-  stream << tree;
-}
-
-
-bool Core::IO::need_to_print_equal_sign(const Teuchos::ParameterList& list)
-{
-  // Helper function to check if string contains a space.
-  const auto string_has_space = [](const std::string& s)
-  { return std::any_of(s.begin(), s.end(), [](unsigned char c) { return std::isspace(c); }); };
-
-  return std::any_of(list.begin(), list.end(),
-      [&](const auto& it)
-      {
-        // skip entries that are lists: they are allowed to have spaces
-        if (it.second.isList()) return false;
-
-        const std::string& name = it.key;
-
-        const Teuchos::RCP<const Teuchos::Array<std::string>>& values_ptr =
-            it.second.validator()->validStringValues();
-
-        const bool value_has_space =
-            (values_ptr != Teuchos::null) &&
-            std::any_of(values_ptr->begin(), values_ptr->end(), string_has_space);
-
-        return value_has_space || string_has_space(name);
-      });
-}
-
 
 
 std::pair<std::string, std::string> Core::IO::read_key_value(const std::string& line)
@@ -367,61 +61,18 @@ std::pair<std::string, std::string> Core::IO::read_key_value(const std::string& 
     separator_index = line.find(' ');
 
     if (separator_index == std::string::npos)
-      FOUR_C_THROW("Line '%s' with just one word in parameter section", line.c_str());
+      FOUR_C_THROW("Line '{}' with just one word in parameter section", line);
   }
 
   std::string key = Core::Utils::trim(line.substr(0, separator_index));
   std::string value = Core::Utils::trim(line.substr(separator_index + 1));
 
-  if (key.empty()) FOUR_C_THROW("Cannot get key from line '%s'", line.c_str());
-  if (value.empty()) FOUR_C_THROW("Cannot get value from line '%s'", line.c_str());
+  if (key.empty()) FOUR_C_THROW("Cannot get key from line '{}'", line);
+  if (value.empty()) FOUR_C_THROW("Cannot get value from line '{}'", line);
 
   return {std::move(key), std::move(value)};
 }
 
-
-std::vector<Core::IO::InputParameterContainer> Core::IO::read_all_lines_in_section(
-    Core::IO::InputFile& input, const std::string& section, const InputSpec& spec)
-{
-  std::vector<Core::IO::InputParameterContainer> parsed_lines;
-
-  for (const auto& line : input.in_section(section))
-  {
-    ValueParser parser{line.get_as_dat_style_string()};
-    Core::IO::InputParameterContainer container;
-    spec.fully_parse(parser, container);
-    parsed_lines.emplace_back(std::move(container));
-  }
-
-  return parsed_lines;
-}
-
-
-std::pair<std::vector<Core::IO::InputParameterContainer>, std::vector<std::string>>
-Core::IO::read_matching_lines_in_section(
-    Core::IO::InputFile& input, const std::string& section, const IO::InputSpec& spec)
-{
-  std::vector<std::string> unparsed_lines;
-  std::vector<Core::IO::InputParameterContainer> parsed_lines;
-
-  for (const auto& input_line : input.in_section(section))
-  {
-    try
-    {
-      ValueParser parser{input_line.get_as_dat_style_string(),
-          {.base_path = input.file_for_section(section).parent_path()}};
-      InputParameterContainer container;
-      spec.fully_parse(parser, container);
-      parsed_lines.emplace_back(std::move(container));
-    }
-    catch (const Core::Exception& e)
-    {
-      unparsed_lines.emplace_back(input_line.get_as_dat_style_string());
-    }
-  }
-
-  return {parsed_lines, unparsed_lines};
-}
 
 namespace
 {
@@ -441,86 +92,25 @@ namespace
     return sublist->sublist(name);
   }
 
-  void add_entry(const std::string& key, const std::string& value, Teuchos::ParameterList& list)
-  {
-    // safety check: Is there a duplicate of the same parameter?
-    if (list.isParameter(key))
-      FOUR_C_THROW("Duplicate parameter '%s' in sublist '%s'", key.c_str(), list.name().c_str());
-
-    if (key.empty()) FOUR_C_THROW("Internal error: missing key.", key.c_str());
-    // safety check: Is the parameter without any specified value?
-    if (value.empty())
-      FOUR_C_THROW("Missing value for parameter %s. Fix your input file!", key.c_str());
-
-    {  // try to find an int
-      std::stringstream ssi;
-      int iv;
-
-      ssi << value;
-      ssi >> iv;
-
-      if (ssi.eof())
-      {
-        list.set(key, iv);
-        return;
-      }
-    }
-
-#ifdef FOUR_C_ENABLE_FE_TRAPPING
-    // somehow the following test whether we have a double or not
-    // creates always an internal floating point exception (FE_INVALID). An alternative
-    // implementation using boost::lexical_cast<double> does not solve this problem!
-    // Better temporarily disable this floating point exception in the following,
-    // so that we can go on.
-    feclearexcept(FE_INVALID);
-    /*feenableexcept(FE_INVALID | FE_DIVBYZERO | FE_UNDERFLOW | FE_OVERFLOW);*/
-    fedisableexcept(FE_INVALID);
-#endif
-
-    {  // try to find a double
-      std::stringstream ssd;
-      double dv;
-
-      ssd << value;
-      ssd >> dv;
-
-#ifdef FOUR_C_ENABLE_FE_TRAPPING
-      feclearexcept(FE_INVALID);
-      /*feenableexcept(FE_INVALID | FE_DIVBYZERO | FE_UNDERFLOW | FE_OVERFLOW);*/
-      feenableexcept(FE_INVALID | FE_DIVBYZERO);
-#endif
-
-      if (ssd.eof())
-      {
-        list.set(key, dv);
-        return;
-      }
-    }
-
-    // if it is not an int or a double it must be a string
-    list.set(key, value);
-  }
 }  // namespace
 
 
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-bool Core::IO::read_parameters_in_section(
+void Core::IO::read_parameters_in_section(
     InputFile& input, const std::string& section_name, Teuchos::ParameterList& list)
 {
   if (section_name.empty()) FOUR_C_THROW("Empty section name given.");
 
-  Teuchos::ParameterList& sublist = find_sublist(section_name, list);
+  InputParameterContainer container;
+  input.match_section(section_name, container);
 
-  for (const auto& line : input.in_section(section_name))
-  {
-    const auto& [key, value] = read_key_value(std::string(line.get_as_dat_style_string()));
+  // If there is no group with the given name, we don't need to do anything. The InputFile
+  // made sure this is legal and the group is not required and empty.
+  if (!container.has_group(section_name)) return;
 
-    add_entry(key, value, sublist);
-  }
-
-  return true;
+  container.group(section_name).to_teuchos_parameter_list(find_sublist(section_name, list));
 }
 
 /*----------------------------------------------------------------------*/
@@ -549,12 +139,17 @@ void Core::IO::read_design(InputFile& input, const std::string& name,
     if (not stream)
     {
       auto s = l.get_as_dat_style_string();
-      FOUR_C_THROW("Illegal line in section '%s': '%*s'", marker.c_str(), s.size(), s.data());
+      FOUR_C_THROW("Illegal line in section '{}': '{}'", marker, s);
     }
 
-    if (nname == "NODE")  // plain old reading of the design nodes from the .dat-file
+    if (nname == "NODE")  // plain old reading of the design nodes from the input file
     {
       stream >> nodeid >> dname >> dobj;
+
+      FOUR_C_ASSERT_ALWAYS(name == dname || (name == "DSURF" && dname == "DSURFACE") ||
+                               (name == "DVOL" && dname == "DVOLUME"),
+          "Wrong design node name: {}. Expected {}.", dname, name);
+
       topology[dobj - 1].insert(nodeid - 1);
     }
     else  // fancy specification of the design nodes by specifying min or max of the domain
@@ -580,7 +175,7 @@ void Core::IO::read_design(InputFile& input, const std::string& name,
 
       std::istringstream stream{l};
       stream >> nname;
-      if (not stream) FOUR_C_THROW("Illegal line in section '%s': '%s'", marker.c_str(), l.data());
+      if (not stream) FOUR_C_THROW("Illegal line in section '{}': '{}'", marker, l.data());
 
       if (nname == "CORNER" && name == "DNODE")
       {
@@ -625,7 +220,7 @@ void Core::IO::read_design(InputFile& input, const std::string& name,
       }
       else
       {
-        FOUR_C_THROW("Illegal line in section '%s': '%s'", marker.c_str(), l.data());
+        FOUR_C_THROW("Illegal line in section '{}': '{}'", marker, l.data());
       }
 
       const Core::FE::Discretization& actdis = get_discretization(disname);
@@ -635,7 +230,7 @@ void Core::IO::read_design(InputFile& input, const std::string& name,
         for (int init = 0; init < 9; ++init) box_specifications.push_back(0.0);
         if (Core::Communication::my_mpi_rank(input.get_comm()) == 0)  // Reading is done by proc 0
         {
-          // get original domain section from the *.dat-file
+          // get original domain section from the input file
           std::string dommarker = disname + " DOMAIN";
           std::transform(dommarker.begin(), dommarker.end(), dommarker.begin(), ::toupper);
 
@@ -741,8 +336,8 @@ void Core::IO::read_design(InputFile& input, const std::string& name,
 
 
       if (dname.substr(0, name.length()) != name)
-        FOUR_C_THROW("Illegal line in section '%s': '%s'\n%s found, where %s was expected",
-            marker.c_str(), l.data(), dname.substr(0, name.length()).c_str(), name.c_str());
+        FOUR_C_THROW("Illegal line in section '{}': '{}'\n{} found, where {} was expected",
+            marker.c_str(), l.data(), dname.substr(0, name.length()), name);
     }
   }
 
@@ -764,307 +359,139 @@ void Core::IO::read_design(InputFile& input, const std::string& name,
 void Core::IO::read_knots(InputFile& input, const std::string& name,
     std::shared_ptr<Core::FE::Nurbs::Knotvector>& disknots)
 {
-  // io to shell
   const int myrank = Core::Communication::my_mpi_rank(input.get_comm());
-
   Teuchos::Time time("", true);
 
-  // only the knotvector section of this discretisation
-  // type is of interest
   std::string field;
-  if (name == "fluid" or name == "xfluid" or name == "porofluid")
-  {
+  if (name == "fluid" || name == "xfluid" || name == "porofluid")
     field = "FLUID";
-  }
   else if (name == "structure")
-  {
     field = "STRUCTURE";
-  }
   else if (name == "ale")
-  {
     field = "ALE";
-  }
   else if (name == "scatra")
-  {
     field = "TRANSPORT";
-  }
   else if (name == "thermo")
-  {
     field = "THERMO";
-  }
   else if (name == "scatra_micro")
-  {
     field = "TRANSPORT2";
-  }
   else
-  {
-    FOUR_C_THROW("Unknown discretization name for knotvector input\n");
-  }
+    FOUR_C_THROW("Unknown discretization name for knotvector input.");
 
-  // another valid section name was found
   const std::string sectionname = field + " KNOTVECTORS";
 
   if (myrank == 0)
   {
     Core::IO::cout << "Reading knot vectors for " << name << " discretization :\n";
     fflush(stdout);
-  }
 
-  // number of patches to be determined
-  int npatches = 0;
+    int npatches = 0;
+    int nurbs_dim = 0;
 
-  // dimension of nurbs patches
-  int nurbs_dim = 0;
-
-  //--------------------------------------------------------------------
-  //--------------------------------------------------------------------
-  //      first, determine number of patches and dimension of nurbs
-  //--------------------------------------------------------------------
-  //--------------------------------------------------------------------
-  {
-    // temporary string
-    std::string tmp;
-    // loop lines in file
-    for (const auto& line : input.in_section(sectionname))
+    for (const auto& line : input.in_section_rank_0_only(sectionname))
     {
-      // count number of patches in knotvector section of
-      // this discretisation
-      {
-        std::string::size_type loc;
-        std::istringstream file{std::string{line.get_as_dat_style_string()}};
-        file >> tmp;
-
-        // check for the number of dimensions
-        loc = tmp.rfind("NURBS_DIMENSION");
-        if (loc != std::string::npos)
-        {
-          // set number of nurbs dimension
-          std::string str_nurbs_dim;
-          file >> str_nurbs_dim;
-          char* endptr = nullptr;
-          nurbs_dim = static_cast<int>(strtol(str_nurbs_dim.c_str(), &endptr, 10));
-
-          continue;
-        }
-
-        // check for a new patch
-        loc = tmp.rfind("ID");
-        if (loc != std::string::npos)
-        {
-          // increase number of patches
-          npatches++;
-
-          continue;
-        }
-      }
-    }  // end loop through file
-  }
-
-  if (myrank == 0)
-  {
-    printf("                        %8d patches", npatches);
-    fflush(stdout);
-  }
-
-
-  //--------------------------------------------------------------------
-  //--------------------------------------------------------------------
-  //                alloc knotvector object to fill
-  //--------------------------------------------------------------------
-  //--------------------------------------------------------------------
-
-  // allocate knotvector for this dis
-  disknots = std::make_shared<Core::FE::Nurbs::Knotvector>(nurbs_dim, npatches);
-
-  // make sure that we have some Knotvector object to fill
-  if (disknots == nullptr)
-  {
-    FOUR_C_THROW("disknots should have been allocated before");
-  }
-
-  //--------------------------------------------------------------------
-  //--------------------------------------------------------------------
-  //                finally read knotvector section
-  //--------------------------------------------------------------------
-  //--------------------------------------------------------------------
-  {
-    // this is a pointer to the knots of one patch in one direction
-    // we will read them and put them
-    std::vector<std::shared_ptr<std::vector<double>>> patch_knots(nurbs_dim);
-
-    // temporary string
-    std::string tmp;
-
-    // start to read something when read is true
-    bool read = false;
-
-    // index for number of patch
-    int npatch = 0;
-    // index for u/v/w
-    int actdim = -1;
-    // ints for the number of knots
-    std::vector<int> n_x_m_x_l(nurbs_dim);
-    // ints for patches degrees
-    std::vector<int> degree(nurbs_dim);
-    // a vector of strings holding the knotvectortypes read
-    std::vector<std::string> knotvectortype(nurbs_dim);
-
-    // count for sanity check
-    int count_read = 0;
-    std::vector<int> count_vals(nurbs_dim);
-
-    // loop lines in file
-    for (const auto& line : input.in_section(sectionname))
-    {
-      std::istringstream file{std::string{line.get_as_dat_style_string()}};
+      std::string line_str{line.get_as_dat_style_string()};
+      std::istringstream file{line_str};
+      std::string tmp;
       file >> tmp;
 
-      // check for a new patch
-      std::string::size_type loc = tmp.rfind("BEGIN");
-      if (loc != std::string::npos)
+      if (tmp == "NURBS_DIMENSION")
       {
-        file >> tmp;
+        file >> nurbs_dim;
+      }
+      else if (tmp == "ID")
+      {
+        npatches++;
+      }
+    }
 
-        // activate reading
+    printf("                        %8d patches", npatches);
+    fflush(stdout);
+
+    disknots = std::make_shared<Core::FE::Nurbs::Knotvector>(nurbs_dim, npatches);
+
+    std::vector<std::shared_ptr<std::vector<double>>> patch_knots(nurbs_dim);
+    std::vector<int> n_x_m_x_l(nurbs_dim), degree(nurbs_dim), count_vals(nurbs_dim);
+    std::vector<std::string> knotvectortype(nurbs_dim);
+
+    bool read = false;
+    int npatch = 0, actdim = -1, count_read = 0;
+
+    for (const auto& line : input.in_section_rank_0_only(sectionname))
+    {
+      std::string line_str{line.get_as_dat_style_string()};
+      std::istringstream file{line_str};
+      std::string tmp;
+      file >> tmp;
+
+      if (tmp == "BEGIN")
+      {
         read = true;
-
         actdim = -1;
-
-        // create vectors for knots in this patch
-        for (int rr = 0; rr < nurbs_dim; ++rr)
-        {
-          patch_knots[rr] = std::make_shared<std::vector<double>>();
-          (*(patch_knots[rr])).clear();
-        }
-
-        // reset counter for knot values
-        for (int rr = 0; rr < nurbs_dim; rr++)
-        {
-          count_vals[rr] = 0;
-        }
-
-        continue;
+        for (auto& knots : patch_knots) knots = std::make_shared<std::vector<double>>();
+        std::fill(count_vals.begin(), count_vals.end(), 0);
       }
-
-      // get ID of patch we are currently reading
-      loc = tmp.rfind("ID");
-      if (loc != std::string::npos)
+      else if (tmp == "ID")
       {
-        std::string str_npatch;
-        file >> str_npatch;
-
-        char* endptr = nullptr;
-        npatch = static_cast<int>(strtol(str_npatch.c_str(), &endptr, 10));
+        file >> npatch;
         npatch--;
-
-        continue;
       }
-
-      // get number of knots in the knotvector direction
-      // we are currently reading
-      loc = tmp.rfind("NUMKNOTS");
-      if (loc != std::string::npos)
+      else if (tmp == "NUMKNOTS")
       {
-        std::string str_numknots;
-        file >> str_numknots;
-
-        // increase dimesion for knotvector (i.e. next time
-        // we'll fill the following knot vector)
-        actdim++;
-        if (actdim > nurbs_dim)
-        {
-          FOUR_C_THROW(
-              "too many knotvectors, we only need one for each dimension (nurbs_dim = %d)\n",
-              nurbs_dim);
-        }
-
-        char* endptr = nullptr;
-        n_x_m_x_l[actdim] = static_cast<int>(strtol(str_numknots.c_str(), &endptr, 10));
-
-        continue;
+        file >> n_x_m_x_l[++actdim];
       }
-
-      // get number of bspline polinomial associated with
-      // knots in this direction
-      loc = tmp.rfind("DEGREE");
-      if (loc != std::string::npos)
+      else if (tmp == "DEGREE")
       {
-        std::string str_degree;
-        file >> str_degree;
-
-        char* endptr = nullptr;
-        degree[actdim] = static_cast<int>(strtol(str_degree.c_str(), &endptr, 10));
-
-        continue;
+        file >> degree[actdim];
       }
-
-      // get type of knotvector (interpolated or periodic)
-      loc = tmp.rfind("TYPE");
-      if (loc != std::string::npos)
+      else if (tmp == "TYPE")
       {
-        std::string type;
-
-        file >> type;
-        knotvectortype[actdim] = type;
-
-        continue;
+        file >> knotvectortype[actdim];
       }
-
-      // locate end of patch
-      loc = tmp.rfind("END");
-      if (loc != std::string::npos)
+      else if (tmp == "END")
       {
         for (int rr = 0; rr < nurbs_dim; ++rr)
         {
           disknots->set_knots(
               rr, npatch, degree[rr], n_x_m_x_l[rr], knotvectortype[rr], patch_knots[rr]);
         }
-        file >> tmp;
-        // stop reading of knot values if we are here
         read = false;
-
-        for (int rr = 0; rr < nurbs_dim; rr++)
+        for (int rr = 0; rr < nurbs_dim; ++rr)
         {
           if (n_x_m_x_l[rr] != count_vals[rr])
           {
-            FOUR_C_THROW("not enough knots read in dim %d (%d!=NUMKNOTS=%d), nurbs_dim=%d\n", rr,
+            FOUR_C_THROW("not enough knots read in dim {} ({}!=NUMKNOTS={}), nurbs_dim={}\n", rr,
                 count_vals[rr], n_x_m_x_l[rr], nurbs_dim);
           }
         }
-
-        // count for sanity check
         count_read++;
-
-        continue;
       }
-
-      //  reading of knot values if read is true and no
-      // other keyword was found
-      if (read)
+      else if (read)
       {
-        char* endptr = nullptr;
-
-        double dv = strtod(tmp.c_str(), &endptr);
-
-        // count for sanity check
+        patch_knots[actdim]->push_back(std::stod(tmp));
         count_vals[actdim]++;
-
-        (*(patch_knots[actdim])).push_back(dv);
       }
-    }  // end loop through file
+    }
 
     if (count_read != npatches)
     {
       FOUR_C_THROW("wasn't able to read enough patches\n");
     }
-  }
 
-  if (myrank == 0)
-  {
+    std::cout << "Rank 0 sending out knot vectors to all other ranks" << std::endl;
+    // Now we have to broadcast the knot vectors to all other processors
+    Core::Communication::broadcast(*disknots, 0, input.get_comm());
+
     Core::IO::cout << " in...." << time.totalElapsedTime(true) << " secs\n";
-
     time.reset();
     fflush(stdout);
+  }
+  else
+  {
+    std::cout << "Rank " << myrank << " waiting for knot vectors from rank 0" << std::endl;
+    // All other ranks receive the knot vectors from rank 0.
+    disknots = std::make_shared<Core::FE::Nurbs::Knotvector>();
+    Core::Communication::broadcast(*disknots, 0, input.get_comm());
   }
 }
 

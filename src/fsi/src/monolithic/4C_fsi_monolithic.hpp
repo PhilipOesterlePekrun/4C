@@ -105,6 +105,13 @@ namespace FSI
     explicit MonolithicBase(MPI_Comm comm, const Teuchos::ParameterList& timeparams);
 
 
+    /*!
+     * @brief Perform all necessary tasks after setting up the object.
+     * Currently, this only calls the post_setup method of the structure
+     * field.
+     */
+    void post_setup();
+
     /// read restart data
     void read_restart(int step) override;
 
@@ -283,7 +290,7 @@ namespace FSI
   /// base class of all monolithic FSI algorithms with NOX as nonlinear solver
   /*!
 
-    Monolithic FSI is a Netwon solver on a block matrix with field blocks.
+    Monolithic FSI is a Newton solver on a block matrix with field blocks.
    */
   class Monolithic : public MonolithicBase,
                      public MonolithicInterface,
@@ -494,7 +501,10 @@ namespace FSI
     std::shared_ptr<::NOX::Utils> utils() const { return utils_; }
 
     /// full monolithic dof row map
-    std::shared_ptr<const Epetra_Map> dof_row_map() const { return blockrowdofmap_.full_map(); }
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map() const
+    {
+      return blockrowdofmap_.full_map();
+    }
 
     /*! \brief set full monolithic dof row map
      *
@@ -502,7 +512,7 @@ namespace FSI
      *  defines the number of blocks, their maps and the block order. The block
      *  maps must be row maps by themselves and must not contain identical GIDs.
      */
-    void set_dof_row_maps(const std::vector<std::shared_ptr<const Epetra_Map>>& maps);
+    void set_dof_row_maps(const std::vector<std::shared_ptr<const Core::LinAlg::Map>>& maps);
 
     /// extractor to communicate between full monolithic map and block maps of single fields
     const Core::LinAlg::MultiMapExtractor& extractor() const { return blockrowdofmap_; }

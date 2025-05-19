@@ -51,22 +51,22 @@ namespace Cut
 
 #ifdef CUT_USE_SORTED_VECTOR
 
-  typedef SortedVector<int> plain_int_set;
+  using plain_int_set = SortedVector<int>;
 
-  typedef SortedVector<Node*> plain_node_set;
-  typedef SortedVector<Edge*> plain_edge_set;
-  typedef SortedVector<Side*> plain_side_set;
-  typedef SortedVector<Element*> plain_element_set;
+  using plain_node_set = SortedVector<Node*>;
+  using plain_edge_set = SortedVector<Edge*>;
+  using plain_side_set = SortedVector<Side*>;
+  using plain_element_set = SortedVector<Element*>;
 
-  typedef SortedVector<Point*> plain_point_set;
-  typedef SortedVector<Line*> plain_line_set;
-  typedef SortedVector<Facet*> plain_facet_set;
-  typedef SortedVector<VolumeCell*> plain_volumecell_set;
+  using plain_point_set = SortedVector<Point*>;
+  using plain_line_set = SortedVector<Line*>;
+  using plain_facet_set = SortedVector<Facet*>;
+  using plain_volumecell_set = SortedVector<VolumeCell*>;
 
-  typedef SortedVector<std::pair<Point*, Point*>> point_line_set;
+  using point_line_set = SortedVector<std::pair<Point*, Point*>>;
 
-  typedef SortedVector<BoundaryCell*> plain_boundarycell_set;
-  typedef SortedVector<IntegrationCell*> plain_integrationcell_set;
+  using plain_boundarycell_set = SortedVector<BoundaryCell*>;
+  using plain_integrationcell_set = SortedVector<IntegrationCell*>;
 
   template <class Set>
   void set_erase(Set& s, typename Set::iterator& i)
@@ -76,22 +76,22 @@ namespace Cut
 
 #else
 
-  typedef std::set<int> plain_int_set;
+  using plain_int_set = std::set<int>;
 
-  typedef std::set<Node*> plain_node_set;
-  typedef std::set<Edge*> plain_edge_set;
-  typedef std::set<Side*> plain_side_set;
-  typedef std::set<Element*> plain_element_set;
+  using plain_node_set = std::set<Node*>;
+  using plain_edge_set = std::set<Edge*>;
+  using plain_side_set = std::set<Side*>;
+  using plain_element_set = std::set<Element*>;
 
-  typedef std::set<Point*> plain_point_set;
-  typedef std::set<Line*> plain_line_set;
-  typedef std::set<Facet*> plain_facet_set;
-  typedef std::set<VolumeCell*> plain_volumecell_set;
+  using plain_point_set = std::set<Point*>;
+  using plain_line_set = std::set<Line*>;
+  using plain_facet_set = std::set<Facet*>;
+  using plain_volumecell_set = std::set<VolumeCell*>;
 
-  typedef std::set<std::pair<Point*, Point*>> point_line_set;
+  using point_line_set = std::set<std::pair<Point*, Point*>>;
 
-  typedef std::set<BoundaryCell*> plain_boundarycell_set;
-  typedef std::set<IntegrationCell*> plain_integrationcell_set;
+  using plain_boundarycell_set = std::set<BoundaryCell*>;
+  using plain_integrationcell_set = std::set<IntegrationCell*>;
 
   template <class set>
   void set_erase(set& s, typename set::iterator& i)
@@ -134,10 +134,10 @@ namespace Cut
    *                              extension 1D element in 3D)
    *  \param unit_normal  (in)  : scale the normal vectors to unit length if \TRUE
    *
-   *  \date 07/16
-   *  \author hiermeier */
+
+   *  */
   template <unsigned probdim, Core::FE::CellType distype, typename Valtype,
-      unsigned num_nodes_element = Core::FE::num_nodes<distype>,
+      unsigned num_nodes_element = Core::FE::num_nodes(distype),
       unsigned dim = Core::FE::dim<distype>>
   Valtype eval_derivs_in_parameter_space(
       const Core::LinAlg::Matrix<probdim, num_nodes_element, Valtype>& xyze,
@@ -250,10 +250,9 @@ namespace Cut
    *
    *  For more information, see description of the actual function (above).
    *
-   *  \author hiermeier
-   *  \date 08/16 */
+   */
   template <unsigned probdim, Core::FE::CellType distype, typename Valtype,
-      unsigned num_nodes_element = Core::FE::num_nodes<distype>,
+      unsigned num_nodes_element = Core::FE::num_nodes(distype),
       unsigned dim = Core::FE::dim<distype>>
   inline Valtype eval_derivs_in_parameter_space(
       const Core::LinAlg::Matrix<probdim, num_nodes_element, Valtype>& xyze,
@@ -285,7 +284,7 @@ namespace Cut
    *  \param xyze (in)   : global nodal positions (rows == probdim, cols = numNodes)
    *  \param scale (out) : scaling factor
    *
-   *  \author hiermeier */
+   *  */
   template <unsigned probdim, class T>
   void get_element_scale(const T& xyze, double& scale)
   {
@@ -321,7 +320,7 @@ namespace Cut
    *  \param xyze (in)  : (scaled) global nodal positions (rows == probdim, cols = numNodes)
    *  \para shift (out) : shift vector to move the element center to the origin
    *
-   *  \author hiermeier */
+   *  */
   template <unsigned probdim, class T>
   void get_element_shift(const T& xyze, Core::LinAlg::Matrix<probdim, 1>& shift)
   {
@@ -351,7 +350,7 @@ namespace Cut
    *  \param correct_shape (out): matrix with the desired number of rows and columns.
    *                              (Core::LinAlg::SerialDenseMatrix or Core::LinAlg::(T)Matrix)
    *
-   *  \author hiermeier \date 11/16 */
+   *  */
   template <class T1, class T2>
   void fix_matrix_shape(const T1& wrong_shape, T2& correct_shape)
   {
@@ -376,9 +375,9 @@ namespace Cut
    *                            for dim = 1 and probdim = 3 )
    *  \param unit_normal (in) : scale the normal to unit length
    *
-   *  \author hiermeier \date 12/16 */
+   *  */
   template <unsigned probdim, Core::FE::CellType distype, class T1, class T2, class T3,
-      unsigned num_nodes_element = Core::FE::num_nodes<distype>,
+      unsigned num_nodes_element = Core::FE::num_nodes(distype),
       unsigned dim = Core::FE::dim<distype>>
   void eval_normal_vectors(const T1& xyze, const T2& rst, T3& normalvec1, T3* normalvec2 = nullptr,
       bool unit_normal = true)
@@ -433,7 +432,7 @@ namespace Cut
    *                            for dim = 1 and probdim = 3 )
    *  \param unit_normal (in) : scale the normal to unit length
    *
-   *  \author hiermeier \date 12/16 */
+   *  */
   template <unsigned probdim, class T1, class T2, class T3>
   void eval_normal_vectors(Core::FE::CellType distype, const T1& xyze, const T2& rst,
       T3& normalvec1, T3* normalvec2 = nullptr, bool unit_normal = true)
@@ -453,9 +452,8 @@ namespace Cut
             xyze, rst, normalvec1, normalvec2, unit_normal);
         break;
       default:
-        FOUR_C_THROW("Currently unsupported discretization type: %s",
-            Core::FE::cell_type_to_string(distype).c_str());
-        exit(EXIT_FAILURE);
+        FOUR_C_THROW("Currently unsupported discretization type: {}",
+            Core::FE::cell_type_to_string(distype));
     }
   }
 }  // namespace Cut

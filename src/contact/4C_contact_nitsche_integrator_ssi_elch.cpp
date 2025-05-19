@@ -18,6 +18,7 @@
 #include "4C_scatra_ele_parameter_elch.hpp"
 #include "4C_scatra_ele_parameter_timint.hpp"
 #include "4C_solid_3D_ele_calc_lib.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -25,11 +26,12 @@ FOUR_C_NAMESPACE_OPEN
 namespace
 {
   template <Core::FE::CellType celltype, int prob_dim>
-  Core::LinAlg::Matrix<Core::FE::num_nodes<celltype>, prob_dim> evaluate_nodal_coordinates(
+  Core::LinAlg::Matrix<Core::FE::num_nodes(celltype), prob_dim> evaluate_nodal_coordinates(
       Core::Nodes::Node** nodes)
   {
-    Core::LinAlg::Matrix<Core::FE::num_nodes<celltype>, prob_dim> xrefe(true);
-    for (auto i = 0; i < Core::FE::num_nodes<celltype>; ++i)
+    Core::LinAlg::Matrix<Core::FE::num_nodes(celltype), prob_dim> xrefe(
+        Core::LinAlg::Initialization::zero);
+    for (auto i = 0; i < Core::FE::num_nodes(celltype); ++i)
     {
       const auto& x = nodes[i]->x();
       for (auto dim = 0; dim < prob_dim; ++dim) xrefe(i, dim) = x[dim];
@@ -264,7 +266,7 @@ void CONTACT::IntegratorNitscheSsiElch::calculate_spatial_derivative_of_det_f(co
     }
     default:
     {
-      FOUR_C_THROW("Not implemented for discretization type: %i!", electrode_ele->shape());
+      FOUR_C_THROW("Not implemented for discretization type: {}!", electrode_ele->shape());
       break;
     }
   }
@@ -279,7 +281,7 @@ void CONTACT::IntegratorNitscheSsiElch::calculate_spatial_derivative_of_det_f(co
 {
   auto electrode_ele = electrode_quantities.element;
 
-  const int num_ele_nodes = Core::FE::num_nodes<distype>;
+  const int num_ele_nodes = Core::FE::num_nodes(distype);
   const int ele_dim = Core::FE::dim<distype>;
 
   FOUR_C_ASSERT(num_ele_nodes == electrode_ele->num_node(),
@@ -481,7 +483,7 @@ void CONTACT::IntegratorNitscheSsiElch::integrate_ssi_interface_condition(
     default:
     {
       FOUR_C_THROW(
-          "Evaluation is not implemented for this scatra-scatra interface kinetic model: %i",
+          "Evaluation is not implemented for this scatra-scatra interface kinetic model: {}",
           kinetic_model);
     }
   }

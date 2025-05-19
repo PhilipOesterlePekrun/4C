@@ -27,6 +27,16 @@ namespace
 {
   using namespace FourC;
 
+  void set_up_default_parameters_line_to_3d(Teuchos::ParameterList& list)
+  {
+    list.set("GEOMETRY_PAIR_STRATEGY", Inpar::GeometryPair::LineTo3DStrategy::segmentation);
+    list.set("GEOMETRY_PAIR_SEGMENTATION_SEARCH_POINTS", 6);
+    list.set("GEOMETRY_PAIR_SEGMENTATION_NOT_ALL_GAUSS_POINTS_PROJECT_VALID_ACTION",
+        Inpar::GeometryPair::NotAllGaussPointsProjectValidAction::fail);
+    list.set("GAUSS_POINTS", 6);
+    list.set("INTEGRATION_POINTS_CIRCUMFERENCE", 6);
+  }
+
   /**
    * Class to test the local coupling matrices calculated by the beam to fluid meshtying gpts pair.
    */
@@ -41,9 +51,9 @@ namespace
     {
       // Set up the evaluation data container for the geometry pairs.
       Teuchos::ParameterList line_to_volume_params_list;
-      Inpar::GEOMETRYPAIR::set_valid_parameters_line_to3_d(line_to_volume_params_list);
+      set_up_default_parameters_line_to_3d(line_to_volume_params_list);
       evaluation_data_ =
-          std::make_shared<GEOMETRYPAIR::LineTo3DEvaluationData>(line_to_volume_params_list);
+          std::make_shared<GeometryPair::LineTo3DEvaluationData>(line_to_volume_params_list);
     }
 
     /**
@@ -98,13 +108,13 @@ namespace
       pair.init(intersection_params, pair_elements);
 
       pair.ele1pos_ =
-          GEOMETRYPAIR::InitializeElementData<BeamType, double>::initialize(beam_element.get());
+          GeometryPair::InitializeElementData<BeamType, double>::initialize(beam_element.get());
       pair.ele1posref_ =
-          GEOMETRYPAIR::InitializeElementData<BeamType, double>::initialize(beam_element.get());
+          GeometryPair::InitializeElementData<BeamType, double>::initialize(beam_element.get());
       pair.ele1poscur_ =
-          GEOMETRYPAIR::InitializeElementData<BeamType, double>::initialize(beam_element.get());
+          GeometryPair::InitializeElementData<BeamType, double>::initialize(beam_element.get());
       pair.ele1vel_ =
-          GEOMETRYPAIR::InitializeElementData<BeamType, double>::initialize(beam_element.get());
+          GeometryPair::InitializeElementData<BeamType, double>::initialize(beam_element.get());
       pair.ele1posref_.element_position_ = q_beam;
       pair.ele2posref_.element_position_ = q_fluid;
 
@@ -148,7 +158,7 @@ namespace
 
    private:
     //! Evaluation data container for geometry pairs.
-    std::shared_ptr<GEOMETRYPAIR::LineTo3DEvaluationData> evaluation_data_;
+    std::shared_ptr<GeometryPair::LineTo3DEvaluationData> evaluation_data_;
   };
 
   /**
@@ -157,8 +167,8 @@ namespace
   TEST_F(BeamToFluidMeshtyingPairGPTSTest, TestBeamToFluidMeshtyingHex8MovingBeam)
   {
     // Element types.
-    typedef GEOMETRYPAIR::t_hermite beam_type;
-    typedef GEOMETRYPAIR::t_hex8 fluid_type;
+    using beam_type = GeometryPair::t_hermite;
+    using fluid_type = GeometryPair::t_hex8;
 
     // Definition of variables for this test case.
     Core::LinAlg::Matrix<beam_type::n_dof_, 1, double> q_beam;
@@ -170,9 +180,12 @@ namespace
     std::vector<double> fluid_dofvec;
 
     // Matrices for the results.
-    Core::LinAlg::Matrix<fluid_type::n_dof_, fluid_type::n_dof_, double> results_kff(true);
-    Core::LinAlg::Matrix<fluid_type::n_dof_, beam_type::n_dof_, double> results_kfs(true);
-    Core::LinAlg::Matrix<beam_type::n_dof_, fluid_type::n_dof_, double> results_ksf(true);
+    Core::LinAlg::Matrix<fluid_type::n_dof_, fluid_type::n_dof_, double> results_kff(
+        Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<fluid_type::n_dof_, beam_type::n_dof_, double> results_kfs(
+        Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<beam_type::n_dof_, fluid_type::n_dof_, double> results_ksf(
+        Core::LinAlg::Initialization::zero);
     Core::LinAlg::SerialDenseVector results_fs(beam_type::n_dof_, true);
     Core::LinAlg::SerialDenseVector results_ff(fluid_type::n_dof_, true);
     results_fs.putScalar(0.0);

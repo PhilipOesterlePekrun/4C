@@ -76,7 +76,7 @@ namespace Adapter
     }
 
     /// get constraint manager defined in the structure
-    virtual std::shared_ptr<CONSTRAINTS::ConstrManager> get_constraint_manager()
+    virtual std::shared_ptr<Constraints::ConstrManager> get_constraint_manager()
     {
       return structure_->get_constraint_manager();
     }
@@ -112,7 +112,7 @@ namespace Adapter
     }
 
     //! unique map of all dofs that should be constrained with DBC
-    virtual std::shared_ptr<const Epetra_Map> combined_dbc_map();
+    virtual std::shared_ptr<const Core::LinAlg::Map> combined_dbc_map();
 
     //! perform result test
     void test_results(Global::Problem* problem);

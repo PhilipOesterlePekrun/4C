@@ -64,7 +64,7 @@ namespace Core::IO
     if (point_coordinates.size() != num_spatial_dimensions * num_row_nodes)
     {
       FOUR_C_THROW(
-          "DiscretizationVisualizationWriterNodes expected %d coordinate values, but got %d",
+          "DiscretizationVisualizationWriterNodes expected {} coordinate values, but got {}",
           num_spatial_dimensions * num_row_nodes, point_coordinates.size());
     }
   }
@@ -79,9 +79,9 @@ namespace Core::IO
      * collected solution data vectors by calling AppendVisualizationPointDataVector() */
 
     std::vector<double> point_result_data;
-    point_result_data.reserve(result_data_dofbased.MyLength());
+    point_result_data.reserve(result_data_dofbased.local_length());
 
-    for (int lid = 0; lid < result_data_dofbased.MyLength(); ++lid)
+    for (int lid = 0; lid < result_data_dofbased.local_length(); ++lid)
       point_result_data.push_back((result_data_dofbased)[lid]);
 
     visualization_manager_->get_visualization_data().set_point_data_vector<double>(
@@ -105,8 +105,8 @@ namespace Core::IO
     if ((unsigned int)result_data_nodebased.NumVectors() != result_num_components_per_node)
       FOUR_C_THROW(
           "DiscretizationVisualizationWriterNodes: expected Core::LinAlg::MultiVector<double> with "
-          "%d columns but "
-          "got %d",
+          "{} columns but "
+          "got {}",
           result_num_components_per_node, result_data_nodebased.NumVectors());
 
 

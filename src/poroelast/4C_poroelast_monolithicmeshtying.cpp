@@ -14,6 +14,7 @@
 #include "4C_global_data.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 #include "4C_structure_aux.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -68,13 +69,13 @@ void PoroElast::MonolithicMeshtying::evaluate(
       std::make_shared<Core::LinAlg::Vector<double>>(*fluid_field()->velocity_row_map(), true);
 
   const int ndim = Global::Problem::instance()->n_dim();
-  int* mygids = fpres->Map().MyGlobalElements();
-  double* val = fpres->Values();
-  for (int i = 0; i < fpres->MyLength(); ++i)
+  int* mygids = fpres->get_block_map().MyGlobalElements();
+  double* val = fpres->get_values();
+  for (int i = 0; i < fpres->local_length(); ++i)
   {
     int gid = mygids[i] - ndim;
     // copy pressure value into first velocity DOF of the same node
-    modfpres->ReplaceGlobalValues(1, &val[i], &gid);
+    modfpres->replace_global_values(1, &val[i], &gid);
   }
   // convert velocity map to structure displacement map
   modfpres = fluid_structure_coupling().slave_to_master(*modfpres);
@@ -98,8 +99,8 @@ void PoroElast::MonolithicMeshtying::evaluate(
       fluid_field()->dof_row_map());
 
   // assign modified parts of system matrix into full system matrix
-  systemmatrix_->assign(1, 1, Core::LinAlg::View, *f);
-  systemmatrix_->assign(1, 0, Core::LinAlg::View, *k_fs);
+  systemmatrix_->assign(1, 1, Core::LinAlg::DataAccess::View, *f);
+  systemmatrix_->assign(1, 0, Core::LinAlg::DataAccess::View, *k_fs);
 
   // assign modified part of RHS vector into full RHS vector
   extractor()->insert_vector(*frhs, 1, *rhs_);
@@ -180,7 +181,7 @@ void PoroElast::MonolithicMeshtying::build_convergence_norms()
   //------------------------------------------------------------- build residual increment norms
   // can stay exactly the same because a monolithic scheme with the same increments as without
   // meshtying is used
-  iterinc_->Norm2(&norminc_);
+  iterinc_->norm_2(&norminc_);
 
   // displacement and fluid velocity & pressure incremental vector
   std::shared_ptr<const Core::LinAlg::Vector<double>> interincs;
@@ -203,9 +204,9 @@ void PoroElast::MonolithicMeshtying::build_convergence_norms()
 void PoroElast::MonolithicMeshtying::setup_extractor()
 {
   // some maps and vectors
-  std::shared_ptr<Epetra_Map> factivenmap;
-  std::shared_ptr<Epetra_Map> factivenmapcomplement;
-  std::vector<std::shared_ptr<const Epetra_Map>> fluidveldofmapvec;
+  std::shared_ptr<Core::LinAlg::Map> factivenmap;
+  std::shared_ptr<Core::LinAlg::Map> factivenmapcomplement;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> fluidveldofmapvec;
 
   // get activemap from poro lagrange strategy of the adapter
   factivenmap = mortar_adapter_->get_poro_strategy()->fluid_active_n_dof_map();
@@ -287,9 +288,8 @@ void PoroElast::MonolithicMeshtying::print_newton_iter_header_stream(std::ostrin
 {
   oss << "------------------------------------------------------------" << std::endl;
   oss << "                   Newton-Raphson Scheme                    " << std::endl;
-  oss << "                NormRES " << vector_norm_string(vectornormfres_);
-  oss << "     NormINC " << vector_norm_string(vectornorminc_) << "                    "
-      << std::endl;
+  oss << "                NormRES " << vectornormfres_;
+  oss << "     NormINC " << vectornorminc_ << "                    " << std::endl;
   oss << "------------------------------------------------------------" << std::endl;
 
   // enter converged state etc

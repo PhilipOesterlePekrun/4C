@@ -33,12 +33,10 @@ namespace Cut
   */
   class LevelSetIntersection : public virtual ParentIntersection
   {
-    typedef ParentIntersection my;
+    using my = ParentIntersection;
 
 
    public:
-    LevelSetIntersection(MPI_Comm comm, bool create_side = true);
-
     /// constructor for LevelSetIntersection class
     LevelSetIntersection(int myrank = -1, bool create_side = true);
 
@@ -60,8 +58,7 @@ namespace Cut
      *  standard Cut routine for parallel Level Set Cut where dofsets and node
      *  positions have to be parallelized
      *
-     *  \author winter
-     *  \date 08/14  */
+     */
     void cut_mesh(bool screenoutput = false) override;
 
     /*! \brief Performs all the level set cut operations including find positions
@@ -71,8 +68,7 @@ namespace Cut
      *  node positions have not to be computed, standard cut for cut_test (Only used
      *  for cut test)
      *
-     *  \author winter
-     *  \date 08/14  */
+     */
     void cut(bool include_inner = true, bool screenoutput = false,
         VCellGaussPts VCellGP = VCellGaussPts_Tessellation);
 
@@ -95,7 +91,7 @@ namespace Cut
    private:
     MPI_Comm get_comm() const
     {
-      if (not comm_) FOUR_C_THROW("Epetra communicator was not initialized!");
+      if (not comm_) FOUR_C_THROW("MPI communicator was not initialized!");
 
       return comm_;
     }

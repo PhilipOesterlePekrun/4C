@@ -15,9 +15,9 @@
 #include "4C_config.hpp"
 
 #include "4C_inpar_structure.hpp"
-#include "4C_inpar_thermo.hpp"
-#include "4C_inpar_tsi.hpp"
+#include "4C_thermo_input.hpp"
 #include "4C_tsi_algorithm.hpp"
+#include "4C_tsi_input.hpp"
 
 #include <Teuchos_Time.hpp>
 
@@ -70,9 +70,6 @@ namespace TSI
   //!
   //!  \note There is the Algorithm class for general purpose TSI algorithms.
   //!  This simplifies the monolithic implementation.
-  //!
-  //!  \author u.kue
-  //!  \date 02/08
   class Monolithic : public Algorithm
   {
    public:
@@ -154,7 +151,6 @@ namespace TSI
 
     //! is convergence reached of iterative solution technique?
     //! keep your fingers crossed...
-    //! \author lw (originally in STR) \date 12/07
     bool converged();
 
     //! outer iteration loop
@@ -169,22 +165,19 @@ namespace TSI
     //! larger convergence radius than newton and is therefore more stable
     //! and/or can do larger time steps
     //!
-    //! originally by mwgee for structural analysis \date 03/12
+
     void ptc();
 
     //! @name Output
 
     //! print to screen information about residual forces and displacements
-    //! \author lw (originally in STR) \date 12/07
     void print_newton_iter();
 
     //! contains text to print_newton_iter
-    //! \author lw (originally in STR) \date 12/07
     void print_newton_iter_text(FILE* ofile  //!< output file handle
     );
 
     //! contains header to print_newton_iter
-    //! \author lw (originally) \date 12/07
     void print_newton_iter_header(FILE* ofile  //!< output file handle
     );
 
@@ -192,8 +185,8 @@ namespace TSI
     void print_newton_conv();
 
     //! Determine norm of force residual
-    double calculate_vector_norm(const enum Inpar::TSI::VectorNorm norm,  //!< norm to use
-        const Core::LinAlg::Vector<double>& vect  //!< the vector of interest
+    double calculate_vector_norm(const enum TSI::VectorNorm norm,  //!< norm to use
+        const Core::LinAlg::Vector<double>& vect                   //!< the vector of interest
     );
 
     //@}
@@ -235,7 +228,7 @@ namespace TSI
     //! @name Access methods for subclasses
 
     //! full monolithic dof row map
-    std::shared_ptr<const Epetra_Map> dof_row_map() const;
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map() const;
 
     //! set full monolithic dof row map
     /*!
@@ -247,7 +240,7 @@ namespace TSI
 
     //! combined DBC map
     //! unique map of all dofs that should be constrained with DBC
-    std::shared_ptr<Epetra_Map> combined_dbc_map();
+    std::shared_ptr<Core::LinAlg::Map> combined_dbc_map();
 
     //! extractor to communicate between full monolithic map and block maps
     std::shared_ptr<Core::LinAlg::MultiMapExtractor> extractor() const { return blockrowdofmap_; }
@@ -326,22 +319,21 @@ namespace TSI
 
     //! @name iterative solution technique
 
-    enum Inpar::TSI::NlnSolTech soltech_;  //!< kind of iteration technique or
-                                           //!< nonlinear solution technique
+    enum TSI::NlnSolTech soltech_;  //!< kind of iteration technique or
+                                    //!< nonlinear solution technique
 
-    enum Inpar::TSI::ConvNorm normtypeinc_;       //!< convergence check for increments
-    enum Inpar::TSI::ConvNorm normtyperhs_;       //!< convergence check for residual forces
+    enum TSI::ConvNorm normtypeinc_;              //!< convergence check for increments
+    enum TSI::ConvNorm normtyperhs_;              //!< convergence check for residual forces
     enum Inpar::Solid::ConvNorm normtypedisi_;    //!< convergence check for residual displacements
     enum Inpar::Solid::ConvNorm normtypestrrhs_;  //!< convergence check for residual forces
-    enum Inpar::Thermo::ConvNorm normtypetempi_;  //!< convergence check for residual temperatures
-    enum Inpar::Thermo::ConvNorm
-        normtypethrrhs_;  //!< convergence check for residual thermal forces
+    enum Thermo::ConvNorm normtypetempi_;         //!< convergence check for residual temperatures
+    enum Thermo::ConvNorm normtypethrrhs_;        //!< convergence check for residual thermal forces
 
-    enum Inpar::TSI::BinaryOp combincrhs_;  //!< binary operator to combine increments and forces
+    enum TSI::BinaryOp combincrhs_;  //!< binary operator to combine increments and forces
 
-    enum Inpar::TSI::VectorNorm iternorm_;     //!< vector norm to check TSI values with
-    enum Inpar::TSI::VectorNorm iternormstr_;  //!< vector norm to check structural values with
-    enum Inpar::TSI::VectorNorm iternormthr_;  //!< vector norm to check thermal values with
+    enum TSI::VectorNorm iternorm_;     //!< vector norm to check TSI values with
+    enum TSI::VectorNorm iternormstr_;  //!< vector norm to check structural values with
+    enum TSI::VectorNorm iternormthr_;  //!< vector norm to check thermal values with
 
     double tolinc_;     //!< tolerance for increment
     double tolrhs_;     //!< tolerance for rhs
@@ -382,7 +374,7 @@ namespace TSI
     //@}
 
     //! @name line search parameters
-    Inpar::TSI::LineSearch ls_strategy_;
+    TSI::LineSearch ls_strategy_;
     double ls_step_length_;
     std::pair<double, double> last_iter_res_;
     //@}

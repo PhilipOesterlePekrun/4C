@@ -178,7 +178,7 @@ void Core::FE::Discretization::build_node_row_map()
       ++count;
     }
   if (count != nummynodes) FOUR_C_THROW("Mismatch in no. of nodes");
-  noderowmap_ = std::make_shared<Epetra_Map>(
+  noderowmap_ = std::make_shared<Core::LinAlg::Map>(
       -1, nummynodes, nodeids.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
   return;
 }
@@ -202,7 +202,7 @@ void Core::FE::Discretization::build_node_col_map()
     ++count;
   }
   if (count != nummynodes) FOUR_C_THROW("Mismatch in no. of nodes");
-  nodecolmap_ = std::make_shared<Epetra_Map>(
+  nodecolmap_ = std::make_shared<Core::LinAlg::Map>(
       -1, nummynodes, nodeids.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
   return;
 }
@@ -229,7 +229,7 @@ void Core::FE::Discretization::build_element_row_map()
       ++count;
     }
   if (count != nummyeles) FOUR_C_THROW("Mismatch in no. of elements");
-  elerowmap_ = std::make_shared<Epetra_Map>(
+  elerowmap_ = std::make_shared<Core::LinAlg::Map>(
       -1, nummyeles, eleids.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
   return;
 }
@@ -252,7 +252,7 @@ void Core::FE::Discretization::build_element_col_map()
     ++count;
   }
   if (count != nummyeles) FOUR_C_THROW("Mismatch in no. of elements");
-  elecolmap_ = std::make_shared<Epetra_Map>(
+  elecolmap_ = std::make_shared<Core::LinAlg::Map>(
       -1, nummyeles, eleids.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
   return;
 }
@@ -304,7 +304,7 @@ void Core::FE::Discretization::build_node_to_element_pointers()
       Core::Nodes::Node* node = g_node(nodes[j]);
       if (!node)
         FOUR_C_THROW(
-            "Node %d is not on this proc %d", j, Core::Communication::my_mpi_rank(get_comm()));
+            "Node {} is not on this proc {}", j, Core::Communication::my_mpi_rank(get_comm()));
       else
         node->add_element_ptr(elecurr->second.get());
     }

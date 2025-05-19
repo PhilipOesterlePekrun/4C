@@ -18,6 +18,8 @@
 #include "4C_fluid_ele_action.hpp"
 #include "4C_fluid_ele_factory.hpp"
 #include "4C_fluid_ele_interface.hpp"
+#include "4C_fluid_ele_parameter_intface.hpp"
+#include "4C_fluid_ele_parameter_xfem.hpp"
 #include "4C_fluid_utils_infnormscaling.hpp"
 #include "4C_fluid_utils_mapextractor.hpp"
 #include "4C_fluid_xfluid_outputservice.hpp"
@@ -407,9 +409,6 @@ void FLD::XFluid::set_element_general_fluid_xfem_parameter()
 {
   Teuchos::ParameterList eleparams;
 
-  // do not call another action as then another object of the std-class will be created
-  eleparams.set<FLD::Action>("action", FLD::set_general_fluid_xfem_parameter);
-
   //------------------------------------------------------------------------------------------------------
   // set general element parameters
   eleparams.set("form of convective term", convform_);
@@ -446,12 +445,14 @@ void FLD::XFluid::set_element_general_fluid_xfem_parameter()
       params_->sublist("XFLUID DYNAMIC/STABILIZATION");
 
 
-  //------------------------------------------------------------------------------------------------------
-  // set the params in the XFEM-parameter-list class
-  Discret::Elements::FluidType::instance().pre_evaluate(
-      *discret_, eleparams, nullptr, nullptr, nullptr, nullptr, nullptr);
+  Discret::Elements::FluidEleParameterXFEM* fldpara =
+      Discret::Elements::FluidEleParameterXFEM::instance();
 
-  return;
+  fldpara->set_element_general_fluid_parameter(
+      eleparams, Core::Communication::my_mpi_rank(discret_->get_comm()));
+  fldpara->set_element_turbulence_parameters(eleparams);
+  fldpara->set_element_xfem_parameter(
+      eleparams, Core::Communication::my_mpi_rank(discret_->get_comm()));
 }
 
 // -------------------------------------------------------------------
@@ -463,8 +464,6 @@ void FLD::XFluid::set_face_general_fluid_xfem_parameter()
   // set general fluid stabilization parameter for faces
   {
     Teuchos::ParameterList faceparams;
-
-    faceparams.set<FLD::Action>("action", FLD::set_general_face_fluid_parameter);
 
     faceparams.sublist("EDGE-BASED STABILIZATION") = params_->sublist("EDGE-BASED STABILIZATION");
 
@@ -478,8 +477,10 @@ void FLD::XFluid::set_face_general_fluid_xfem_parameter()
     if (physicaltype_ == Inpar::FLUID::oseen)
       faceparams.set<int>("OSEENFIELDFUNCNO", params_->get<int>("OSEENFIELDFUNCNO"));
 
-    Discret::Elements::FluidIntFaceType::instance().pre_evaluate(
-        *discret_, faceparams, nullptr, nullptr, nullptr, nullptr, nullptr);
+    Discret::Elements::FluidEleParameterIntFace* fldintfacepara =
+        Discret::Elements::FluidEleParameterIntFace::instance();
+    fldintfacepara->set_face_general_fluid_parameter(
+        faceparams, Core::Communication::my_mpi_rank(discret_->get_comm()));
   }
 
   //------------------------------------------------------------------------------------------------------
@@ -487,14 +488,14 @@ void FLD::XFluid::set_face_general_fluid_xfem_parameter()
   {
     Teuchos::ParameterList faceparams;
 
-    faceparams.set<FLD::Action>("action", FLD::set_general_face_xfem_parameter);
-
     // set general fluid face parameters are contained in the following two sublists
     faceparams.sublist("XFLUID DYNAMIC/STABILIZATION") =
         params_->sublist("XFLUID DYNAMIC/STABILIZATION");
 
-    Discret::Elements::FluidIntFaceType::instance().pre_evaluate(
-        *discret_, faceparams, nullptr, nullptr, nullptr, nullptr, nullptr);
+    Discret::Elements::FluidEleParameterIntFace* fldintfacepara =
+        Discret::Elements::FluidEleParameterIntFace::instance();
+    fldintfacepara->set_face_general_xfem_parameter(
+        faceparams, Core::Communication::my_mpi_rank(discret_->get_comm()));
   }
 
   return;
@@ -508,8 +509,6 @@ void FLD::XFluid::set_element_time_parameter()
 {
   Teuchos::ParameterList eleparams;
 
-  // set action
-  eleparams.set<FLD::Action>("action", FLD::set_time_parameter);
   // set time integration scheme
   eleparams.set<Inpar::FLUID::TimeIntegrationScheme>("TimeIntegrationScheme", timealgo_);
   // set general element parameters
@@ -537,11 +536,7 @@ void FLD::XFluid::set_element_time_parameter()
     eleparams.set<bool>("ost new", params_->get<bool>("ost new"));
   }
 
-  // call standard loop over elements
-  // discret_->evaluate(eleparams,nullptr,nullptr,nullptr,nullptr,nullptr);
-
-  Discret::Elements::FluidType::instance().pre_evaluate(
-      *discret_, eleparams, nullptr, nullptr, nullptr, nullptr, nullptr);
+  Discret::Elements::FluidEleParameterTimInt::instance()->set_element_time_parameter(eleparams);
 }
 
 /*----------------------------------------------------------------------*
@@ -704,8 +699,7 @@ void FLD::XFluid::extract_node_vectors(XFEM::DiscretizationXFEM& dis,
     const Core::Nodes::Node* node = dis.l_col_node(lid);
     std::vector<int> lm;
     dis.initial_dof(node, lm);  // initial dofs!
-    std::vector<double> mydisp;
-    Core::FE::extract_my_values(dispnp_col, mydisp, lm);
+    std::vector<double> mydisp = Core::FE::extract_values(dispnp_col, lm);
     if (mydisp.size() < 3) FOUR_C_THROW("we need at least 3 dofs here");
 
     Core::LinAlg::Matrix<3, 1> currpos;
@@ -744,16 +738,16 @@ void FLD::XFluid::assemble_mat_and_rhs(int itnum)
   // set general vector values needed by elements
   discret_->clear_state();
 
-  discret_->set_state("hist", state_->hist_);
-  discret_->set_state("veln", state_->veln_);
-  discret_->set_state("accam", state_->accam_);
-  discret_->set_state("scaaf", state_->scaaf_);
-  discret_->set_state("scaam", state_->scaam_);
+  discret_->set_state("hist", *state_->hist_);
+  discret_->set_state("veln", *state_->veln_);
+  discret_->set_state("accam", *state_->accam_);
+  discret_->set_state("scaaf", *state_->scaaf_);
+  discret_->set_state("scaam", *state_->scaam_);
 
   if (alefluid_)
   {
-    discret_->set_state("dispnp", state_->dispnp_);
-    discret_->set_state("gridv", state_->gridvnp_);
+    discret_->set_state("dispnp", *state_->dispnp_);
+    discret_->set_state("gridv", *state_->gridvnp_);
   }
 
   set_state_tim_int();
@@ -784,7 +778,7 @@ void FLD::XFluid::assemble_mat_and_rhs(int itnum)
 
     //-------------------------------------------------------------------------------
     // finalize the complete matrix
-    // REMARK: for EpetraFECrs matrices Complete() calls the GlobalAssemble() routine to gather
+    // REMARK: for matrices Complete() calls the GlobalAssemble() routine to gather
     // entries from all processors and calls a fill_complete for the first run. For further
     // Newton-steps then the optimized FEAssemble routine is used for speedup.
     state_->sysmat_->complete();
@@ -800,19 +794,19 @@ void FLD::XFluid::assemble_mat_and_rhs(int itnum)
     //-------------------------------------------------------------------------------
     // finalize residual vector
     // need to export residual_col to state_->residual_ (row)
-    Core::LinAlg::Vector<double> res_tmp(state_->residual_->Map(), true);
-    Epetra_Export exporter(state_->residual_col_->Map(), res_tmp.Map());
-    int err2 = res_tmp.Export(*state_->residual_col_, exporter, Add);
-    if (err2) FOUR_C_THROW("Export using exporter returned err=%d", err2);
+    Core::LinAlg::Vector<double> res_tmp(state_->residual_->get_block_map(), true);
+    Epetra_Export exporter(state_->residual_col_->get_block_map(), res_tmp.get_block_map());
+    int err2 = res_tmp.export_to(*state_->residual_col_, exporter, Add);
+    if (err2) FOUR_C_THROW("Export using exporter returned err={}", err2);
 
     // add Neumann loads and contributions from evaluate of volume and face integrals
-    state_->residual_->Update(1.0, res_tmp, 1.0, *state_->neumann_loads_, 0.0);
+    state_->residual_->update(1.0, res_tmp, 1.0, *state_->neumann_loads_, 0.0);
 
     //-------------------------------------------------------------------------------
     // scaling to get true residual vector
     // negative sign to get forces acting on structural side
     // additional residual-scaling to remove the theta*dt-scaling
-    state_->trueresidual_->Update(-1.0 * residual_scaling(), *state_->residual_, 0.0);
+    state_->trueresidual_->update(-1.0 * residual_scaling(), *state_->residual_, 0.0);
   }
 
   //-------------------------------------------------------------------------------
@@ -844,7 +838,7 @@ void FLD::XFluid::assemble_mat_and_rhs_vol_terms()
   const int numrowele = discret_->num_my_row_elements();
 
   // REMARK: in this XFEM framework the whole evaluate routine uses only row elements
-  // and assembles into EpetraFECrs matrix
+  // and assembles into matrix
   // this is 4C-unusual but more efficient in all XFEM applications
   for (int i = 0; i < numrowele; ++i)
   {
@@ -892,9 +886,8 @@ void FLD::XFluid::assemble_mat_and_rhs_vol_terms()
         // for quadratic elements, there are some volume-cells with respect to subelements, that
         // have to be assembled at once
 
-        // get element location vector, dirichlet flags and ownerships (discret, nds, la,
-        // doDirichlet)
-        actele->location_vector(*discret_, nds, la, false);
+        // get element location vector
+        actele->location_vector(*discret_, nds, la);
 
         // get dimension of element matrices and vectors
         // Reshape element matrices and vectors and init to zero (rdim, cdim)
@@ -913,7 +906,7 @@ void FLD::XFluid::assemble_mat_and_rhs_vol_terms()
               strategy.elevector3());
 
           if (err)
-            FOUR_C_THROW("Proc %d: Element %d returned err=%d",
+            FOUR_C_THROW("Proc {}: Element {} returned err={}",
                 Core::Communication::my_mpi_rank(discret_->get_comm()), actele->id(), err);
         }
         else
@@ -931,7 +924,7 @@ void FLD::XFluid::assemble_mat_and_rhs_vol_terms()
               strategy.elevector2(), strategy.elevector3(), intpoints_sets[set_counter], cells);
 
           if (err)
-            FOUR_C_THROW("Proc %d: Element %d returned err=%d",
+            FOUR_C_THROW("Proc {}: Element {} returned err={}",
                 Core::Communication::my_mpi_rank(discret_->get_comm()), actele->id(), err);
         }
 
@@ -1103,9 +1096,8 @@ void FLD::XFluid::assemble_mat_and_rhs_vol_terms()
                       "For a two-sided level set coupling, we should not enter here with inside "
                       "volume-cells!!!");
 
-                // get element location vector, dirichlet flags and ownerships (discret, nds, la,
-                // doDirichlet)
-                actele->location_vector(*coupl_dis, nds_other, la_other, false);
+                // get element location vector
+                actele->location_vector(*coupl_dis, nds_other, la_other);
                 std::copy(la_other[0].lm_.begin(), la_other[0].lm_.end(),
                     std::inserter(patchlm, patchlm.end()));
               }
@@ -1215,11 +1207,10 @@ void FLD::XFluid::assemble_mat_and_rhs_vol_terms()
         // introduce an vector containing the rows for that values have to be communicated
         // REMARK: when assembling row elements also non-row rows have to be communicated
         std::vector<int> myowner(la[0].lmowner_.size(),
-            Core::Communication::my_mpi_rank(strategy.systemvector1()->Comm()));
+            Core::Communication::my_mpi_rank(strategy.systemvector1()->get_comm()));
         {
           TEUCHOS_FUNC_TIME_MONITOR("FLD::XFluid::XFluidState::Evaluate 6) FEAssemble");
-          // calls the Assemble function for EpetraFECrs matrices including communication of non-row
-          // entries
+          // calls the Assemble function for matrices including communication of non-row entries
           state_->sysmat_->fe_assemble(strategy.elematrix1(), la[0].lm_, myowner, la[0].lm_);
         }
         // REMARK:: call Assemble without lmowner
@@ -1242,7 +1233,7 @@ void FLD::XFluid::assemble_mat_and_rhs_vol_terms()
         FOUR_C_THROW("No matlists allowed here!!");
 
       // get element location vector, dirichlet flags and ownerships
-      actele->location_vector(*discret_, la, false);
+      actele->location_vector(*discret_, la);
 
       // get dimension of element matrices and vectors
       // Reshape element matrices and vectors and init to zero
@@ -1257,19 +1248,18 @@ void FLD::XFluid::assemble_mat_and_rhs_vol_terms()
             strategy.elevector3());
 
         if (err)
-          FOUR_C_THROW("Proc %d: Element %d returned err=%d",
+          FOUR_C_THROW("Proc {}: Element {} returned err={}",
               Core::Communication::my_mpi_rank(discret_->get_comm()), actele->id(), err);
       }
 
       // introduce an vector containing the rows for that values have to be communicated
       // REMARK: when assembling row elements also non-row rows have to be communicated
       std::vector<int> myowner(la[0].lmowner_.size(),
-          Core::Communication::my_mpi_rank(strategy.systemvector1()->Comm()));
+          Core::Communication::my_mpi_rank(strategy.systemvector1()->get_comm()));
       {
         TEUCHOS_FUNC_TIME_MONITOR("FLD::XFluid::XFluidState::Evaluate 6) FEAssemble");
 
-        // calls the Assemble function for EpetraFECrs matrices including communication of non-row
-        // entries
+        // calls the Assemble function for matrices including communication of non-row entries
         state_->sysmat_->fe_assemble(strategy.elematrix1(), la[0].lm_, myowner, la[0].lm_);
       }
 
@@ -1311,7 +1301,7 @@ void FLD::XFluid::assemble_mat_and_rhs_face_terms(
     const int numrowintfaces = xdiscret->num_my_row_faces();
 
     // REMARK: in this XFEM framework the whole evaluate routine uses only row internal faces
-    // and assembles into EpetraFECrs matrix
+    // and assembles into matrix
     // this is 4C-unusual but more efficient in all XFEM applications
     for (int i = 0; i < numrowintfaces; ++i)
     {
@@ -1356,7 +1346,7 @@ void FLD::XFluid::integrate_shape_function(Teuchos::ParameterList& eleparams,
   const int numrowele = discret.num_my_row_elements();
 
   // REMARK: in this XFEM framework the whole evaluate routine uses only row elements
-  // and assembles into EpetraFECrs matrix
+  // and assembles into matrix
   // this is 4C-unusual but more efficient in all XFEM applications
   for (int i = 0; i < numrowele; ++i)
   {
@@ -1401,9 +1391,8 @@ void FLD::XFluid::integrate_shape_function(Teuchos::ParameterList& eleparams,
         // to be assembled at once
 
 
-        // get element location vector, dirichlet flags and ownerships (discret, nds, la,
-        // doDirichlet)
-        actele->location_vector(discret, nds, la, false);
+        // get element location vector
+        actele->location_vector(discret, nds, la);
 
         // get dimension of element matrices and vectors
         // Reshape element matrices and vectors and init to zero (rdim, cdim)
@@ -1423,7 +1412,7 @@ void FLD::XFluid::integrate_shape_function(Teuchos::ParameterList& eleparams,
               strategy.elevector1(), elevec2, elevec3);
 
           if (err)
-            FOUR_C_THROW("Proc %d: Element %d returned err=%d",
+            FOUR_C_THROW("Proc {}: Element {} returned err={}",
                 Core::Communication::my_mpi_rank(discret.get_comm()), actele->id(), err);
         }
         else
@@ -1440,7 +1429,7 @@ void FLD::XFluid::integrate_shape_function(Teuchos::ParameterList& eleparams,
               ele, discret, la[0].lm_, strategy.elevector1(), intpoints_sets[set_counter], cells);
 
           if (err)
-            FOUR_C_THROW("Proc %d: Element %d returned err=%d",
+            FOUR_C_THROW("Proc {}: Element {} returned err={}",
                 Core::Communication::my_mpi_rank(discret.get_comm()), actele->id(), err);
         }
 
@@ -1453,7 +1442,7 @@ void FLD::XFluid::integrate_shape_function(Teuchos::ParameterList& eleparams,
         std::vector<int> myowner;
         for (size_t index = 0; index < la[0].lmowner_.size(); index++)
         {
-          myowner.push_back(Core::Communication::my_mpi_rank(strategy.systemvector1()->Comm()));
+          myowner.push_back(Core::Communication::my_mpi_rank(strategy.systemvector1()->get_comm()));
         }
 
         // REMARK:: call Assemble without lmowner
@@ -1473,7 +1462,7 @@ void FLD::XFluid::integrate_shape_function(Teuchos::ParameterList& eleparams,
       TEUCHOS_FUNC_TIME_MONITOR("FLD::XFluid::XFluidState::Evaluate 3) standard domain");
 
       // get element location vector, dirichlet flags and ownerships
-      actele->location_vector(discret, la, false);
+      actele->location_vector(discret, la);
 
       // get dimension of element matrices and vectors
       // Reshape element matrices and vectors and init to zero
@@ -1491,7 +1480,7 @@ void FLD::XFluid::integrate_shape_function(Teuchos::ParameterList& eleparams,
           strategy.elevector1(), elevec2, elevec3);
 
       if (err)
-        FOUR_C_THROW("Proc %d: Element %d returned err=%d",
+        FOUR_C_THROW("Proc {}: Element {} returned err={}",
             Core::Communication::my_mpi_rank(discret.get_comm()), actele->id(), err);
 
       // introduce an vector containing the rows for that values have to be communicated
@@ -1499,7 +1488,7 @@ void FLD::XFluid::integrate_shape_function(Teuchos::ParameterList& eleparams,
       std::vector<int> myowner;
       for (size_t index = 0; index < la[0].lmowner_.size(); index++)
       {
-        myowner.push_back(Core::Communication::my_mpi_rank(strategy.systemvector1()->Comm()));
+        myowner.push_back(Core::Communication::my_mpi_rank(strategy.systemvector1()->get_comm()));
       }
 
       // REMARK:: call Assemble without lmowner
@@ -1516,11 +1505,11 @@ void FLD::XFluid::integrate_shape_function(Teuchos::ParameterList& eleparams,
 
   //-------------------------------------------------------------------------------
   // need to export residual_col to systemvector1 (residual_)
-  Core::LinAlg::Vector<double> vec_tmp(vec.Map(), false);
-  Epetra_Export exporter(strategy.systemvector1()->Map(), vec_tmp.Map());
-  int err2 = vec_tmp.Export(*strategy.systemvector1(), exporter, Add);
-  if (err2) FOUR_C_THROW("Export using exporter returned err=%d", err2);
-  vec.Scale(1.0, vec_tmp);
+  Core::LinAlg::Vector<double> vec_tmp(vec.get_block_map(), false);
+  Epetra_Export exporter(strategy.systemvector1()->get_block_map(), vec_tmp.get_block_map());
+  int err2 = vec_tmp.export_to(*strategy.systemvector1(), exporter, Add);
+  if (err2) FOUR_C_THROW("Export using exporter returned err={}", err2);
+  vec.scale(1.0, vec_tmp);
 }
 
 
@@ -1528,7 +1517,7 @@ void FLD::XFluid::integrate_shape_function(Teuchos::ParameterList& eleparams,
  |  evaluate gradient penalty terms to reconstruct ghost values  schott 03/12 |
  *----------------------------------------------------------------------*/
 void FLD::XFluid::assemble_mat_and_rhs_gradient_penalty(
-    Core::LinAlg::MapExtractor& ghost_penaly_dbcmaps,
+    Core::LinAlg::MapExtractor& ghost_penalty_dbcmaps,
     std::shared_ptr<Core::LinAlg::SparseMatrix> sysmat_gp,
     Core::LinAlg::Vector<double>& residual_gp, std::shared_ptr<Core::LinAlg::Vector<double>> vec)
 {
@@ -1541,7 +1530,7 @@ void FLD::XFluid::assemble_mat_and_rhs_gradient_penalty(
   // TODO: check if this is necessary or worse!
   //  sysmat_gp->Zero()
 
-  residual_gp.PutScalar(0.0);
+  residual_gp.put_scalar(0.0);
   std::shared_ptr<Core::LinAlg::Vector<double>> residual_gp_col =
       Core::LinAlg::create_vector(*state_->xfluiddofcolmap_, true);
 
@@ -1554,12 +1543,12 @@ void FLD::XFluid::assemble_mat_and_rhs_gradient_penalty(
     // FOUR_C_THROW("which vectors have to be set for gradient penalty for timeintegration in
     // alefluid?!"); In principle we would not need gridv, as tau is anyway set to 1.0 at the end
     // ...
-    discret_->set_state("dispnp", state_->dispnp_);
-    discret_->set_state("gridv", state_->gridvnp_);
+    discret_->set_state("dispnp", *state_->dispnp_);
+    discret_->set_state("gridv", *state_->gridvnp_);
   }
 
   // set scheme-specific element parameters and vector values
-  discret_->set_state("velaf", vec);
+  discret_->set_state("velaf", *vec);
 
 
 
@@ -1577,13 +1566,13 @@ void FLD::XFluid::assemble_mat_and_rhs_gradient_penalty(
   // for which not ghost-penalty term has been assembled
   // for these rows we later have to assemble ones, as we solve for the whole vector
 
-  const Epetra_Map& dbctoggle = *(ghost_penaly_dbcmaps.cond_map());
+  const Core::LinAlg::Map& dbctoggle = *(ghost_penalty_dbcmaps.cond_map());
 
   bool diagonalblock = true;
 
-  for (int i = 0; i < sysmat_gp->epetra_matrix()->NumMyRows(); ++i)
+  for (int i = 0; i < sysmat_gp->num_my_rows(); ++i)
   {
-    int row = sysmat_gp->epetra_matrix()->GRID(i);
+    int row = sysmat_gp->global_row_index(i);
 
     // check if there is already a value set, otherwise set at least a diagonal entry
     if (dbctoggle.MyGID(row))
@@ -1592,10 +1581,10 @@ void FLD::XFluid::assemble_mat_and_rhs_gradient_penalty(
       {
         double v = 1.0;
 #ifdef FOUR_C_ENABLE_ASSERTIONS
-        int err = sysmat_gp->epetra_matrix()->InsertGlobalValues(row, 1, &v, &row);
-        if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::InsertGlobalValues returned err=%d", err);
+        int err = sysmat_gp->insert_global_values(row, 1, &v, &row);
+        if (err < 0) FOUR_C_THROW("insert_global_values returned err={}", err);
 #else
-        sysmat_gp->epetra_matrix()->InsertGlobalValues(row, 1, &v, &row);
+        sysmat_gp->insert_global_values(row, 1, &v, &row);
 #endif
       }
     }
@@ -1603,15 +1592,15 @@ void FLD::XFluid::assemble_mat_and_rhs_gradient_penalty(
 
   //-------------------------------------------------------------------------------
   // need to export residual_col to systemvector1 (residual_)
-  Core::LinAlg::Vector<double> res_tmp(residual_gp.Map(), false);
-  Epetra_Export exporter(residual_gp_col->Map(), res_tmp.Map());
-  int err2 = res_tmp.Export(*residual_gp_col, exporter, Add);
-  if (err2) FOUR_C_THROW("Export using exporter returned err=%d", err2);
-  residual_gp.Update(1.0, res_tmp, 1.0);
+  Core::LinAlg::Vector<double> res_tmp(residual_gp.get_block_map(), false);
+  Epetra_Export exporter(residual_gp_col->get_block_map(), res_tmp.get_block_map());
+  int err2 = res_tmp.export_to(*residual_gp_col, exporter, Add);
+  if (err2) FOUR_C_THROW("Export using exporter returned err={}", err2);
+  residual_gp.update(1.0, res_tmp, 1.0);
 
   //-------------------------------------------------------------------------------
   // finalize the complete matrix
-  // REMARK: for EpetraFECrs matrices Complete() calls the GlobalAssemble() routine to gather
+  // REMARK: for matrices Complete() calls the GlobalAssemble() routine to gather
   // entries from all processors
   sysmat_gp->complete();
 
@@ -1651,7 +1640,7 @@ std::shared_ptr<std::vector<double>> FLD::XFluid::evaluate_error_compared_to_ana
   const auto calcerr =
       Teuchos::getIntegralValue<Inpar::FLUID::CalcError>(*params_, "calculate error");
 
-  if (calcerr != Inpar::FLUID::no_error_calculation)
+  if (calcerr != Inpar::FLUID::no)
   {
     // define the norms that have to be computed
 
@@ -1940,7 +1929,7 @@ void FLD::XFluid::compute_error_norms(Core::LinAlg::SerialDenseVector& glob_dom_
 
   // set vector values needed by elements
   discret_->clear_state();
-  discret_->set_state("u and p at time n+1 (converged)", state_->velnp_);
+  discret_->set_state("u and p at time n+1 (converged)", *state_->velnp_);
 
   condition_manager_->set_state();
 
@@ -1990,7 +1979,7 @@ void FLD::XFluid::compute_error_norms(Core::LinAlg::SerialDenseVector& glob_dom_
         const std::vector<int>& nds = nds_sets[set_counter];
 
         // get element location vector, dirichlet flags and ownerships
-        actele->location_vector(*discret_, nds, la, false);
+        actele->location_vector(*discret_, nds, la);
 
         //------------------------------------------------------------
         // Evaluate interface integral errors
@@ -2014,7 +2003,7 @@ void FLD::XFluid::compute_error_norms(Core::LinAlg::SerialDenseVector& glob_dom_
           if (!has_xfem_integration_rule)  // use standard integration!!!
           {
             // get element location vector, dirichlet flags and ownerships
-            actele->location_vector(*discret_, la, false);
+            actele->location_vector(*discret_, la);
 
             Core::LinAlg::SerialDenseMatrix elemat1;
             Core::LinAlg::SerialDenseMatrix elemat2;
@@ -2056,7 +2045,7 @@ void FLD::XFluid::compute_error_norms(Core::LinAlg::SerialDenseVector& glob_dom_
     else
     {
       // get element location vector, dirichlet flags and ownerships
-      actele->location_vector(*discret_, la, false);
+      actele->location_vector(*discret_, la);
 
       Core::LinAlg::SerialDenseMatrix elemat1;
       Core::LinAlg::SerialDenseMatrix elemat2;
@@ -2494,7 +2483,7 @@ void FLD::XFluid::solve()
     //--------- Apply Dirichlet boundary conditions to system of equations
     //          residual displacements are supposed to be zero at
     //          boundary conditions
-    state_->inc_vel()->PutScalar(0.0);
+    state_->inc_vel()->put_scalar(0.0);
     Core::LinAlg::apply_dirichlet_to_system(*state_->system_matrix(), *state_->inc_vel(),
         *state_->residual(), *state_->zeros(), *(state_->dbc_map_extractor()->cond_map()));
 
@@ -2570,8 +2559,7 @@ void FLD::XFluid::solve()
       gen_alpha_intermediate_values();
     }
 
-    std::cout << "MAXNUMENTRIES: " << state_->sysmat_->epetra_matrix()->MaxNumEntries()
-              << std::endl;
+    std::cout << "MAXNUMENTRIES: " << state_->sysmat_->max_num_entries() << std::endl;
   }
 
   // Reset the solver and so release the system matrix' pointer (enables to delete the
@@ -2595,23 +2583,23 @@ bool FLD::XFluid::convergence_check(int itnum, int itemax, const double velresto
 
   std::shared_ptr<Core::LinAlg::Vector<double>> onlyvel =
       state_->vel_pres_splitter()->extract_other_vector(*state_->residual());
-  onlyvel->Norm2(&vresnorm_);
+  onlyvel->norm_2(&vresnorm_);
 
   state_->vel_pres_splitter()->extract_other_vector(*state_->inc_vel(), *onlyvel);
-  onlyvel->Norm2(&incvelnorm_L2_);
+  onlyvel->norm_2(&incvelnorm_L2_);
 
   state_->vel_pres_splitter()->extract_other_vector(*state_->velnp(), *onlyvel);
-  onlyvel->Norm2(&velnorm_L2_);
+  onlyvel->norm_2(&velnorm_L2_);
 
   std::shared_ptr<Core::LinAlg::Vector<double>> onlypre =
       state_->vel_pres_splitter()->extract_cond_vector(*state_->residual());
-  onlypre->Norm2(&presnorm_);
+  onlypre->norm_2(&presnorm_);
 
   state_->vel_pres_splitter()->extract_cond_vector(*state_->inc_vel(), *onlypre);
-  onlypre->Norm2(&incprenorm_L2_);
+  onlypre->norm_2(&incprenorm_L2_);
 
   state_->vel_pres_splitter()->extract_cond_vector(*state_->velnp(), *onlypre);
-  onlypre->Norm2(&prenorm_L2_);
+  onlypre->norm_2(&prenorm_L2_);
 
   // care for the case that nothing really happens in the velocity
   // or pressure field
@@ -2761,21 +2749,21 @@ void FLD::XFluid::setup_krylov_space_projection(Core::Conditions::Condition* ksp
   // confirm that mode flags are number of nodal dofs
   const int nummodes = kspcond->parameters().get<int>("NUMMODES");
   if (nummodes != (numdim_ + 1))
-    FOUR_C_THROW("Expecting numdim_+1 modes in Krylov projection definition. Check dat-file!");
+    FOUR_C_THROW("Expecting numdim_+1 modes in Krylov projection definition. Check input file!");
 
-  // get vector of mode flags as given in dat-file
+  // get vector of mode flags as given in input file
   const auto* modeflags = &kspcond->parameters().get<std::vector<int>>("ONOFF");
 
-  // confirm that only the pressure mode is selected for Krylov projection in dat-file
+  // confirm that only the pressure mode is selected for Krylov projection in input file
   for (int rr = 0; rr < numdim_; ++rr)
   {
     if (((*modeflags)[rr]) != 0)
     {
-      FOUR_C_THROW("Expecting only an undetermined pressure. Check dat-file!");
+      FOUR_C_THROW("Expecting only an undetermined pressure. Check input file!");
     }
   }
   if (((*modeflags)[numdim_]) != 1)
-    FOUR_C_THROW("Expecting an undetermined pressure. Check dat-file!");
+    FOUR_C_THROW("Expecting an undetermined pressure. Check input file!");
   std::vector<int> activemodeids(1, numdim_);
 
   // allocate kspsplitter_
@@ -2784,14 +2772,14 @@ void FLD::XFluid::setup_krylov_space_projection(Core::Conditions::Condition* ksp
 
   kspsplitter_->setup(*discret_);
 
-  // get from dat-file definition how weights are to be computed
+  // get from input file definition how weights are to be computed
   const std::string* weighttype = &kspcond->parameters().get<std::string>("WEIGHTVECDEF");
 
   // set flag for projection update true only if ALE and integral weights
   if (alefluid_ and (*weighttype == "integration")) updateprojection_ = true;
 
   projector_ = std::make_shared<Core::LinAlg::KrylovProjector>(
-      activemodeids, weighttype, discret_->dof_row_map());
+      activemodeids, weighttype, &discret_->dof_row_map()->get_epetra_map());
 
   // update the projector
   update_krylov_space_projection();
@@ -2814,7 +2802,7 @@ void FLD::XFluid::update_krylov_space_projection()
   // Modify c within this scope
   {
     auto& c0 = (*c)(0);
-    c0.PutScalar(0.0);
+    c0.put_scalar(0.0);
 
     // extract vector of pressure-dofs
     std::shared_ptr<Core::LinAlg::Vector<double>> presmode =
@@ -2822,12 +2810,12 @@ void FLD::XFluid::update_krylov_space_projection()
 
     const std::string* weighttype = projector_->weight_type();
 
-    // compute w_ as defined in dat-file
+    // compute w_ as defined in input file
     if (*weighttype == "pointvalues")
     {
       // Smart xfluid people put FOUR_C_THROW here. I guess they had there reasons. KN
       FOUR_C_THROW(
-          "Pointvalues for weights is not supported for xfluid, choose integration in dat-file");
+          "Pointvalues for weights is not supported for xfluid, choose integration in input file");
 
       /*
       // export to vector to normalize against
@@ -2849,7 +2837,7 @@ void FLD::XFluid::update_krylov_space_projection()
       std::shared_ptr<Core::LinAlg::MultiVector<double>> w = projector_->get_non_const_weights();
 
       auto& w0 = (*w)(0);
-      w0.PutScalar(0.0);
+      w0.put_scalar(0.0);
 
       // create parameter list for condition evaluate and ...
       Teuchos::ParameterList mode_params;
@@ -2858,7 +2846,7 @@ void FLD::XFluid::update_krylov_space_projection()
 
       if (alefluid_)
       {
-        discret_->set_state("dispnp", state_->dispnp_);
+        discret_->set_state("dispnp", *state_->dispnp_);
       }
 
       /*
@@ -2883,7 +2871,7 @@ void FLD::XFluid::update_krylov_space_projection()
     }
 
     // construct c by setting all pressure values to 1.0 and export to c
-    presmode->PutScalar(1.0);
+    presmode->put_scalar(1.0);
     std::shared_ptr<Core::LinAlg::Vector<double>> tmpc =
         Core::LinAlg::create_vector(*(discret_->dof_row_map()), true);
     Core::LinAlg::export_to(*presmode, *tmpc);
@@ -2917,7 +2905,7 @@ void FLD::XFluid::check_matrix_nullspace()
 
     double norm = 1e9;
 
-    result.Norm2(&norm);
+    result.norm_2(&norm);
 
     if (norm > 1e-12)
     {
@@ -2935,7 +2923,7 @@ void FLD::XFluid::check_matrix_nullspace()
       std::cout << "   for xfem, yet). In this case sysmat_ could be     " << std::endl;
       std::cout << "   correct. -> adapt nullspace vector                " << std::endl;
       std::cout << "#####################################################" << std::endl;
-      FOUR_C_THROW("Nullspace check for sysmat_ failed, Ac returned %12.5e", norm);
+      FOUR_C_THROW("Nullspace check for sysmat_ failed, Ac returned {:12.5e}", norm);
     }
   }
 
@@ -2980,18 +2968,18 @@ void FLD::XFluid::update_by_increments(std::shared_ptr<const Core::LinAlg::Vecto
     std::shared_ptr<Core::LinAlg::Vector<double>> velnp_tmp =
         Core::LinAlg::create_vector(*discret_->dof_row_map(), true);
 
-    state_->incvel_->Update(1.0, *stepinc, -1.0, *state_->velnp_, 0.0);
-    state_->incvel_->Update(1.0, *state_->veln_, 1.0);
+    state_->incvel_->update(1.0, *stepinc, -1.0, *state_->velnp_, 0.0);
+    state_->incvel_->update(1.0, *state_->veln_, 1.0);
 
     // update the current u^(n+1,i+1) = u^n + (u^(n+1,i+1)-u^n) = veln_ + stepinc
-    velnp_tmp->Update(1.0, *state_->veln_, 1.0, *stepinc, 0.0);
+    velnp_tmp->update(1.0, *state_->veln_, 1.0, *stepinc, 0.0);
 
     // take the Dirichlet values from velnp and insert them in velnp_tmp
     state_->dbcmaps_->insert_cond_vector(
         *state_->dbcmaps_->extract_cond_vector(*state_->velnp_), *velnp_tmp);
 
     // set the whole vector with u^(n+1,i+1) including the Dirichlet values to velnp_
-    state_->velnp_->Update(1.0, *velnp_tmp, 0.0);
+    state_->velnp_->update(1.0, *velnp_tmp, 0.0);
   }
   else  // the first call in a new time-step
   {
@@ -3197,23 +3185,23 @@ void FLD::XFluid::time_update()
 
 
   // update old acceleration
-  state_->accn_->Update(1.0, *state_->accnp_, 0.0);
+  state_->accn_->update(1.0, *state_->accnp_, 0.0);
 
   // velocities/pressures of this step become most recent
   // velocities/pressures of the last step
-  state_->velnm_->Update(1.0, *state_->veln_, 0.0);
-  state_->veln_->Update(1.0, *state_->velnp_, 0.0);
+  state_->velnm_->update(1.0, *state_->veln_, 0.0);
+  state_->veln_->update(1.0, *state_->velnp_, 0.0);
 
   if (alefluid_)
   {
     // displacements of this step becomes most recent
     // displacements of the last step
-    dispnm_->Update(1.0, *dispn_, 0.0);
-    dispn_->Update(1.0, *dispnp_, 0.0);
+    dispnm_->update(1.0, *dispn_, 0.0);
+    dispn_->update(1.0, *dispnp_, 0.0);
 
     // gridvelocities of this step become most recent
     // gridvelocities of the last step
-    gridvn_->Update(1.0, *gridvnp_, 0.0);
+    gridvn_->update(1.0, *gridvnp_, 0.0);
   }
 
   // update of interface fields (interface velocity and interface displacements)
@@ -3331,8 +3319,8 @@ void FLD::XFluid::cut_and_set_state_vectors()
   if (!increment_transfer_success)
   {
     // velocity as start value for first Newton step
-    state_->velnp_->Update(1.0, *state_->veln_, 0.0);  // use old velocity as start value
-    state_->accnp_->Update(1.0, *state_->accn_, 0.0);  // use old velocity as start value
+    state_->velnp_->update(1.0, *state_->veln_, 0.0);  // use old velocity as start value
+    state_->accnp_->update(1.0, *state_->accn_, 0.0);  // use old velocity as start value
   }
 
 
@@ -3381,7 +3369,7 @@ void FLD::XFluid::x_timint_store_old_state_data(const bool firstcall_in_timestep
     dofset_Intn_ = state_->dof_set();
 
     // safe the old dofmap
-    dofcolmap_Intn_ = std::make_shared<Epetra_Map>(*discret_->dof_col_map());
+    dofcolmap_Intn_ = std::make_shared<Core::LinAlg::Map>(*discret_->dof_col_map());
   }
 
   //------------------------------------------
@@ -3514,7 +3502,7 @@ void FLD::XFluid::x_timint_do_time_step_transfer(const bool screen_out)
     FOUR_C_THROW("check which vectors have to be reconstructed for non-OST scheme");
 
   //---------------------------------------------------------------
-  const Epetra_Map* newdofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* newdofrowmap = discret_->dof_row_map();
 
   // all vectors that have to be transferred from old dofset at t^n to new dofset at t^(n+1=
   std::vector<std::shared_ptr<const Core::LinAlg::Vector<double>>> oldRowStateVectors;
@@ -3617,7 +3605,7 @@ void FLD::XFluid::x_timint_do_time_step_transfer(const bool screen_out)
               .empty())
         FOUR_C_THROW(
             "Even though projection failed, some nodes still demand projection. No alternatives "
-            "found for e.g. %d",
+            "found for e.g. {}",
             xfluid_timeint
                 ->get_node_to_dof_map_for_reconstr(Inpar::XFEM::Xf_TimeInt_by_PROJ_from_DIS)
                 .begin()
@@ -3727,7 +3715,7 @@ bool FLD::XFluid::x_timint_do_increment_step_transfer(
 
 
   //---------------------------------------------------------------
-  const Epetra_Map* newdofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* newdofrowmap = discret_->dof_row_map();
 
   // all vectors that have to be transferred from old dofset to new dofset
   // vec_n+1(Gamma_n+1,i) -> vec_n+1(Gamma_n+1,i+1)
@@ -3823,7 +3811,7 @@ bool FLD::XFluid::x_timint_do_increment_step_transfer(
               .empty())
         FOUR_C_THROW(
             "Even though projection failed, some nodes still hold a projection label. No "
-            "alternatives found for e.g. %d",
+            "alternatives found for e.g. {}",
             xfluid_timeint
                 ->get_node_to_dof_map_for_reconstr(Inpar::XFEM::Xf_TimeInt_by_PROJ_from_DIS)
                 .begin()
@@ -3947,8 +3935,6 @@ void FLD::XFluid::x_timint_transfer_vectors_between_steps(
         dbcgids,  /// set of dof gids that must not be changed by ghost penalty reconstruction
     bool fill_permutation_map, bool screen_out)
 {
-  const bool reconstruct_method_output = false;
-
   xfluid_timeint->transfer_dofs_to_new_map(oldRowStateVectors, newRowStateVectors, dbcgids);
 
   if (fill_permutation_map) permutation_map_ = xfluid_timeint->get_permutation_map();
@@ -3956,8 +3942,6 @@ void FLD::XFluid::x_timint_transfer_vectors_between_steps(
   if (myrank_ == 0 and screen_out) std::cout << " done\n" << std::flush;
 
   xfluid_timeint->set_and_print_status(screen_out);
-
-  if (reconstruct_method_output) xfluid_timeint->output();
 }
 
 /*----------------------------------------------------------------------*
@@ -4051,8 +4035,8 @@ void FLD::XFluid::x_timint_get_reconstruct_status(
  |                                                         schott 08/14 |
  *----------------------------------------------------------------------*/
 std::shared_ptr<Core::LinAlg::MapExtractor> FLD::XFluid::create_dbc_map_extractor(
-    const std::set<int>& dbcgids,  ///< dbc global dof ids
-    const Epetra_Map* dofrowmap    ///< dofrowmap
+    const std::set<int>& dbcgids,       ///< dbc global dof ids
+    const Core::LinAlg::Map* dofrowmap  ///< dofrowmap
 )
 {
   // create DBC and free map and build their common extractor
@@ -4068,7 +4052,7 @@ std::shared_ptr<Core::LinAlg::MapExtractor> FLD::XFluid::create_dbc_map_extracto
     nummyelements = dbcgidsv.size();
     myglobalelements = dbcgidsv.data();
   }
-  std::shared_ptr<Epetra_Map> dbcmap = std::make_shared<Epetra_Map>(
+  std::shared_ptr<Core::LinAlg::Map> dbcmap = std::make_shared<Core::LinAlg::Map>(
       -1, nummyelements, myglobalelements, dofrowmap->IndexBase(), dofrowmap->Comm());
 
   // build the map extractor of Dirichlet-conditioned and free DOFs
@@ -4083,7 +4067,7 @@ std::shared_ptr<Core::LinAlg::MapExtractor> FLD::XFluid::create_dbc_map_extracto
  *----------------------------------------------------------------------*/
 void FLD::XFluid::x_timint_ghost_penalty(std::vector<std::shared_ptr<Core::LinAlg::Vector<double>>>&
                                              rowVectors,  ///< vectors to be reconstructed
-    const Epetra_Map* dofrowmap,                          ///< dofrowmap
+    const Core::LinAlg::Map* dofrowmap,                   ///< dofrowmap
     const std::set<int>& dbcgids,                         ///< dbc global ids
     const bool screen_out                                 ///< screen output?
 )
@@ -4094,7 +4078,7 @@ void FLD::XFluid::x_timint_ghost_penalty(std::vector<std::shared_ptr<Core::LinAl
   //----------------------------------------
   // object holds maps/subsets for DOFs subjected to Dirichlet BCs
   // which will not be modified by the ghost-penalty reconstruction
-  std::shared_ptr<Core::LinAlg::MapExtractor> ghost_penaly_dbcmaps =
+  std::shared_ptr<Core::LinAlg::MapExtractor> ghost_penalty_dbcmaps =
       create_dbc_map_extractor(dbcgids, dofrowmap);
 
   //----------------------------------------
@@ -4104,7 +4088,7 @@ void FLD::XFluid::x_timint_ghost_penalty(std::vector<std::shared_ptr<Core::LinAl
       vecs_it != rowVectors.end(); vecs_it++)
   {
     // reconstruct values using ghost penalty approach
-    x_timint_reconstruct_ghost_values(*vecs_it, *ghost_penaly_dbcmaps, screen_out);
+    x_timint_reconstruct_ghost_values(*vecs_it, *ghost_penalty_dbcmaps, screen_out);
   }
 
 
@@ -4119,8 +4103,8 @@ void FLD::XFluid::x_timint_ghost_penalty(std::vector<std::shared_ptr<Core::LinAl
 void FLD::XFluid::x_timint_reconstruct_ghost_values(
     std::shared_ptr<Core::LinAlg::Vector<double>> vec,  ///< vector to be reconstructed
     Core::LinAlg::MapExtractor&
-        ghost_penaly_dbcmaps,  ///< which dofs are fixed during the ghost-penalty reconstruction?
-    const bool screen_out      ///< screen output?
+        ghost_penalty_dbcmaps,  ///< which dofs are fixed during the ghost-penalty reconstruction?
+    const bool screen_out       ///< screen output?
 )
 {
   Core::Communication::barrier(discret_->get_comm());
@@ -4157,8 +4141,8 @@ void FLD::XFluid::x_timint_reconstruct_ghost_values(
 
   std::vector<int> numentries(state_->xfluiddofrowmap_->NumMyElements());
 
-  const Epetra_Map& rowmap = *state_->xfluiddofrowmap_;
-  const Epetra_Map& condmap = *(ghost_penaly_dbcmaps.cond_map());
+  const Core::LinAlg::Map& rowmap = *state_->xfluiddofrowmap_;
+  const Core::LinAlg::Map& condmap = *(ghost_penalty_dbcmaps.cond_map());
 
   for (unsigned i = 0; i < numentries.size(); ++i)
   {
@@ -4203,7 +4187,7 @@ void FLD::XFluid::x_timint_reconstruct_ghost_values(
     const double tcpu = Teuchos::Time::wallTime();
 
     // evaluate routine
-    assemble_mat_and_rhs_gradient_penalty(ghost_penaly_dbcmaps, sysmat_gp, *residual_gp, vec);
+    assemble_mat_and_rhs_gradient_penalty(ghost_penalty_dbcmaps, sysmat_gp, *residual_gp, vec);
 
     // end time measurement for element
     dtele_ = Teuchos::Time::wallTime() - tcpu;
@@ -4220,16 +4204,17 @@ void FLD::XFluid::x_timint_reconstruct_ghost_values(
     Core::Communication::barrier(discret_->get_comm());
 
     TEUCHOS_FUNC_TIME_MONITOR(
-        "FLD::XFluid::x_timint_reconstruct_ghost_values::ghost_penaly_dbcmaps->insert_cond_vector");
+        "FLD::XFluid::x_timint_reconstruct_ghost_values::ghost_penalty_dbcmaps->insert_cond_"
+        "vector");
 
-    ghost_penaly_dbcmaps.insert_cond_vector(
-        *ghost_penaly_dbcmaps.extract_cond_vector(*zeros_gp), *residual_gp);
+    ghost_penalty_dbcmaps.insert_cond_vector(
+        *ghost_penalty_dbcmaps.extract_cond_vector(*zeros_gp), *residual_gp);
   }
 
   //--------- Apply Dirichlet boundary conditions to system of equations
   //          residual displacements are supposed to be zero at
   //          boundary conditions
-  incvel_gp->PutScalar(0.0);
+  incvel_gp->put_scalar(0.0);
 
   {
     Core::Communication::barrier(discret_->get_comm());
@@ -4237,7 +4222,7 @@ void FLD::XFluid::x_timint_reconstruct_ghost_values(
         "FLD::XFluid::x_timint_reconstruct_ghost_values::apply_dirichlet_to_system");
 
     Core::LinAlg::apply_dirichlet_to_system(
-        *sysmat_gp, *incvel_gp, *residual_gp, *zeros_gp, *(ghost_penaly_dbcmaps.cond_map()));
+        *sysmat_gp, *incvel_gp, *residual_gp, *zeros_gp, *(ghost_penalty_dbcmaps.cond_map()));
   }
 
   //-------solve for residual displacements to correct incremental displacements
@@ -4261,7 +4246,7 @@ void FLD::XFluid::x_timint_reconstruct_ghost_values(
   // -------------------------------------------------------------------
   // update velocity and pressure values by increments
   // -------------------------------------------------------------------
-  vec->Update(1.0, *incvel_gp, 1.0);
+  vec->update(1.0, *incvel_gp, 1.0);
 
   return;
 }  // ReconstructGhostValues
@@ -4272,8 +4257,8 @@ void FLD::XFluid::x_timint_reconstruct_ghost_values(
  *----------------------------------------------------------------------*/
 void FLD::XFluid::x_timint_semi_lagrangean(
     std::vector<std::shared_ptr<Core::LinAlg::Vector<double>>>&
-        newRowStateVectors,          ///< vectors to be reconstructed
-    const Epetra_Map* newdofrowmap,  ///< dofrowmap at current interface position
+        newRowStateVectors,                 ///< vectors to be reconstructed
+    const Core::LinAlg::Map* newdofrowmap,  ///< dofrowmap at current interface position
     std::vector<std::shared_ptr<const Core::LinAlg::Vector<double>>>&
         oldRowStateVectors,  ///< vectors from which we reconstruct values (same order of vectors as
                              ///< in newRowStateVectors)
@@ -4281,9 +4266,9 @@ void FLD::XFluid::x_timint_semi_lagrangean(
         dispn,  ///< displacement initial col - vector timestep n
                 ///< //set to nullptr if no ale displacements
     std::shared_ptr<Core::LinAlg::Vector<double>>
-        dispnp,                      ///< displacement initial col - vector timestep n+1
-                                     ///< //if nullptr ... --> no ale displacements
-    const Epetra_Map* olddofcolmap,  ///< dofcolmap at time and interface position t^n
+        dispnp,                             ///< displacement initial col - vector timestep n+1
+                                            ///< //if nullptr ... --> no ale displacements
+    const Core::LinAlg::Map* olddofcolmap,  ///< dofcolmap at time and interface position t^n
     std::map<int, std::vector<Inpar::XFEM::XFluidTimeInt>>&
         node_to_reconstr_method,  ///< reconstruction map for nodes and its dofsets
     const bool screen_out         ///< screen output?
@@ -4482,22 +4467,22 @@ void FLD::XFluid::set_initial_flow_field(
           double initialval = Global::Problem::instance()
                                   ->function_by_id<Core::Utils::FunctionOfSpaceTime>(startfuncno)
                                   .evaluate(lnode->x().data(), time_, dof % 4);
-          state_->velnp_->ReplaceGlobalValues(1, &initialval, &gid);
+          state_->velnp_->replace_global_values(1, &initialval, &gid);
         }
       }
     }
 
     // initialize veln_ as well.
-    state_->veln_->Update(1.0, *state_->velnp_, 0.0);
-    state_->velnm_->Update(1.0, *state_->velnp_, 0.0);
+    state_->veln_->update(1.0, *state_->velnp_, 0.0);
+    state_->velnm_->update(1.0, *state_->velnp_, 0.0);
 
-    state_->accnp_->PutScalar(0.0);
-    state_->accn_->PutScalar(0.0);
+    state_->accnp_->put_scalar(0.0);
+    state_->accn_->put_scalar(0.0);
   }
   // special initial function: Beltrami flow (3-D)
   else if (initfield == Inpar::FLUID::initfield_beltrami_flow)
   {
-    const Epetra_Map* dofrowmap = discret_->dof_row_map();
+    const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
     int err = 0;
 
@@ -4558,17 +4543,17 @@ void FLD::XFluid::set_initial_flow_field(
       {
         const int gid = nodedofset[nveldof];
         int lid = dofrowmap->LID(gid);
-        err += state_->velnp_->ReplaceMyValues(1, &(u[nveldof]), &lid);
-        err += state_->veln_->ReplaceMyValues(1, &(u[nveldof]), &lid);
-        err += state_->velnm_->ReplaceMyValues(1, &(u[nveldof]), &lid);
+        err += state_->velnp_->replace_local_values(1, &(u[nveldof]), &lid);
+        err += state_->veln_->replace_local_values(1, &(u[nveldof]), &lid);
+        err += state_->velnm_->replace_local_values(1, &(u[nveldof]), &lid);
       }
 
       // set initial pressure
       const int gid = nodedofset[npredof];
       int lid = dofrowmap->LID(gid);
-      err += state_->velnp_->ReplaceMyValues(1, &p, &lid);
-      err += state_->veln_->ReplaceMyValues(1, &p, &lid);
-      err += state_->velnm_->ReplaceMyValues(1, &p, &lid);
+      err += state_->velnp_->replace_local_values(1, &p, &lid);
+      err += state_->veln_->replace_local_values(1, &p, &lid);
+      err += state_->velnm_->replace_local_values(1, &p, &lid);
     }  // end loop nodes lnodeid
 
     if (err != 0) FOUR_C_THROW("dof not on proc");
@@ -4595,7 +4580,7 @@ void FLD::XFluid::set_initial_flow_field(
 
     const std::shared_ptr<Cut::CutWizard>& wizard = state_->wizard();
     const std::shared_ptr<XFEM::XFEMDofSet>& dofset = state_->dof_set();
-    const Epetra_Map* dofrowmap = dofset->dof_row_map();
+    const Core::LinAlg::Map* dofrowmap = dofset->dof_row_map();
 
     //------------------------
     // get material parameters
@@ -4646,11 +4631,11 @@ void FLD::XFluid::set_initial_flow_field(
 
     // define vectors for velocity field, node coordinates and coordinates of left and right
     // vortices
-    Core::LinAlg::Matrix<nsd, 1> vel(true);
+    Core::LinAlg::Matrix<nsd, 1> vel(Core::LinAlg::Initialization::zero);
     double pres = 0.0;
-    Core::LinAlg::Matrix<nsd, 1> xyz(true);
-    Core::LinAlg::Matrix<nsd, 1> xyz0_left(true);
-    Core::LinAlg::Matrix<nsd, 1> xyz0_right(true);
+    Core::LinAlg::Matrix<nsd, 1> xyz(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<nsd, 1> xyz0_left(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<nsd, 1> xyz0_right(Core::LinAlg::Initialization::zero);
 
     // set initial locations of vortices
     xyz0_left(0) = 37.5;   // 87.5+0.78125; //37.5; // x-coordinate left vortex
@@ -4727,11 +4712,11 @@ void FLD::XFluid::set_initial_flow_field(
           int lid = dofrowmap->LID(gid);
           if (idim == 3)
           {  // pressure dof
-            err += state_->velnp_->ReplaceMyValues(1, &pres, &lid);
+            err += state_->velnp_->replace_local_values(1, &pres, &lid);
           }
           else
           {  // velocity dof
-            err += state_->velnp_->ReplaceMyValues(1, &vel(idim), &lid);
+            err += state_->velnp_->replace_local_values(1, &vel(idim), &lid);
           }
 
           // set Dirichlet BC for ghost penalty reconstruction
@@ -4755,8 +4740,8 @@ void FLD::XFluid::set_initial_flow_field(
 
     // set also veln and velnm
     // initialize veln_ and velnm_ as well.
-    state_->veln_->Update(1.0, *state_->velnp_, 0.0);
-    state_->velnm_->Update(1.0, *state_->velnp_, 0.0);
+    state_->veln_->update(1.0, *state_->velnp_, 0.0);
+    state_->velnm_->update(1.0, *state_->velnp_, 0.0);
   }
   else
   {
@@ -4788,7 +4773,7 @@ void FLD::XFluid::set_dirichlet_neumann_bc()
 
   // set vector values needed by elements
   discret_->clear_state();
-  discret_->set_state("velaf", state_->velnp_);
+  discret_->set_state("velaf", *state_->velnp_);
   // predicted dirichlet values
   // velnp then also holds prescribed new dirichlet values
   discret_->evaluate_dirichlet(
@@ -4798,14 +4783,14 @@ void FLD::XFluid::set_dirichlet_neumann_bc()
 
   if (alefluid_)
   {
-    discret_->set_state("dispnp", state_->dispnp_);
+    discret_->set_state("dispnp", *state_->dispnp_);
   }
 
   // set thermodynamic pressure
   eleparams.set("thermodynamic pressure", thermpressaf_);
 
-  state_->neumann_loads_->PutScalar(0.0);
-  discret_->set_state("scaaf", state_->scaaf_);
+  state_->neumann_loads_->put_scalar(0.0);
+  discret_->set_state("scaaf", *state_->scaaf_);
 
   XFEM::evaluate_neumann(eleparams, discret_, *state_->neumann_loads_);
 
@@ -4857,12 +4842,12 @@ void FLD::XFluid::explicit_predictor()
     //      p    = p
     //       (0)
     //
-    state_->velnp_->Update(1.0, *state_->veln_, 0.0);
+    state_->velnp_->update(1.0, *state_->veln_, 0.0);
 
     // split between acceleration and pressure
     std::shared_ptr<Core::LinAlg::Vector<double>> inc =
         state_->velpressplitter_->extract_other_vector(*state_->accn_);
-    inc->Scale((1.0 - theta_) * dta_);
+    inc->scale((1.0 - theta_) * dta_);
 
     state_->velpressplitter_->add_other_vector(*inc, *state_->velnp_);
   }
@@ -4880,11 +4865,11 @@ void FLD::XFluid::explicit_predictor()
     //      p    = p
     //       (0)
     //
-    state_->velnp_->Update(1.0, *state_->veln_, 0.0);
+    state_->velnp_->update(1.0, *state_->veln_, 0.0);
 
     std::shared_ptr<Core::LinAlg::Vector<double>> inc =
         state_->velpressplitter_->extract_other_vector(*state_->accn_);
-    inc->Scale(dta_);
+    inc->scale(dta_);
 
     state_->velpressplitter_->add_other_vector(*inc, *state_->velnp_);
   }
@@ -4906,13 +4891,13 @@ void FLD::XFluid::explicit_predictor()
     //      p    = p
     //       (0)
     //
-    state_->velnp_->Update(1.0, *state_->veln_, 0.0);
+    state_->velnp_->update(1.0, *state_->veln_, 0.0);
 
     std::shared_ptr<Core::LinAlg::Vector<double>> un =
         state_->velpressplitter_->extract_other_vector(*state_->veln_);
     std::shared_ptr<Core::LinAlg::Vector<double>> unm =
         state_->velpressplitter_->extract_other_vector(*state_->velnm_);
-    unm->Scale(-1.0);
+    unm->scale(-1.0);
 
     state_->velpressplitter_->add_other_vector(*un, *state_->velnp_);
     state_->velpressplitter_->add_other_vector(*unm, *state_->velnp_);
@@ -4939,7 +4924,7 @@ void FLD::XFluid::explicit_predictor()
     //      p    = p
     //       (0)
     */
-    state_->velnp_->Update(1.0, *state_->veln_, 0.0);
+    state_->velnp_->update(1.0, *state_->veln_, 0.0);
 
     // split between acceleration and pressure
     std::shared_ptr<Core::LinAlg::Vector<double>> unm =
@@ -4947,12 +4932,12 @@ void FLD::XFluid::explicit_predictor()
     std::shared_ptr<Core::LinAlg::Vector<double>> an =
         state_->velpressplitter_->extract_other_vector(*state_->accn_);
 
-    unm->Update(2.0 * dta_, *an, 1.0);
+    unm->update(2.0 * dta_, *an, 1.0);
 
     state_->velpressplitter_->insert_other_vector(*unm, *state_->velnp_);
   }
   else
-    FOUR_C_THROW("Unknown fluid predictor %s", predictor_.c_str());
+    FOUR_C_THROW("Unknown fluid predictor {}", predictor_);
 
   if (Core::Communication::my_mpi_rank(discret_->get_comm()) == 0)
   {
@@ -4981,21 +4966,21 @@ void FLD::XFluid::predict_tang_vel_consist_acc()
       "function_manager", &Global::Problem::instance()->function_manager());
 
   // initialize
-  state_->velnp_->Update(1.0, *state_->veln_, 0.0);
-  state_->accnp_->Update(1.0, *state_->accn_, 0.0);
-  state_->incvel_->PutScalar(0.0);
+  state_->velnp_->update(1.0, *state_->veln_, 0.0);
+  state_->accnp_->update(1.0, *state_->accn_, 0.0);
+  state_->incvel_->put_scalar(0.0);
 
   // for solution increments on Dirichlet boundary
   std::shared_ptr<Core::LinAlg::Vector<double>> dbcinc =
       Core::LinAlg::create_vector(*(discret_->dof_row_map()), true);
 
   // copy last converged solution
-  dbcinc->Update(1.0, *state_->veln_, 0.0);
+  dbcinc->update(1.0, *state_->veln_, 0.0);
 
   // get Dirichlet values at t_{n+1}
   // set vector values needed by elements
   discret_->clear_state();
-  discret_->set_state("velnp", state_->velnp_);
+  discret_->set_state("velnp", *state_->velnp_);
 
   // predicted Dirichlet values
   // velnp_ then also holds prescribed new dirichlet values
@@ -5004,7 +4989,7 @@ void FLD::XFluid::predict_tang_vel_consist_acc()
   // subtract the displacements of the last converged step
   // DBC-DOFs hold increments of current step
   // free-DOFs hold zeros
-  dbcinc->Update(-1.0, *state_->veln_, 1.0);
+  dbcinc->update(-1.0, *state_->veln_, 1.0);
 
   // -------------------------------------------------------------------
   // compute residual forces residual_ and stiffness sysmat_
@@ -5031,10 +5016,10 @@ void FLD::XFluid::predict_tang_vel_consist_acc()
   state_->sysmat_->multiply(false, *dbcinc, *freact);
 
   // add linear reaction forces due to prescribed Dirichlet BCs
-  state_->residual_->Update(1.0, *freact, 1.0);
+  state_->residual_->update(1.0, *freact, 1.0);
 
   // extract reaction forces
-  freact->Update(1.0, *state_->residual_, 0.0);
+  freact->update(1.0, *state_->residual_, 0.0);
   state_->dbcmaps_->insert_other_vector(
       *state_->dbcmaps_->extract_other_vector(*state_->zeros_), *freact);
 
@@ -5043,7 +5028,7 @@ void FLD::XFluid::predict_tang_vel_consist_acc()
       *state_->dbcmaps_->extract_cond_vector(*state_->zeros_), *state_->residual_);
 
   // apply Dirichlet BCs to system of equations
-  state_->incvel_->PutScalar(0.0);
+  state_->incvel_->put_scalar(0.0);
   state_->sysmat_->complete();
   Core::LinAlg::apply_dirichlet_to_system(*state_->sysmat_, *state_->incvel_, *state_->residual_,
       *state_->zeros_, *(state_->dbcmaps_->cond_map()));
@@ -5056,7 +5041,7 @@ void FLD::XFluid::predict_tang_vel_consist_acc()
       state_->sysmat_->epetra_operator(), state_->incvel_, state_->residual_, solver_params);
 
   // set Dirichlet increments in solution increments
-  state_->incvel_->Update(1.0, *dbcinc, 1.0);
+  state_->incvel_->update(1.0, *dbcinc, 1.0);
 
   // update end-point velocities and pressure
   update_iter_incrementally(state_->incvel_);
@@ -5068,7 +5053,7 @@ void FLD::XFluid::predict_tang_vel_consist_acc()
   // Note: accelerations on Dirichlet DOFs are not set.
 
   // reset to zero
-  state_->incvel_->PutScalar(0.0);
+  state_->incvel_->put_scalar(0.0);
 
   // free the system matrix to get the matrix deleted
   solver_->reset();
@@ -5088,7 +5073,7 @@ void FLD::XFluid::update_iter_incrementally(std::shared_ptr<const Core::LinAlg::
     // values.
     std::shared_ptr<Core::LinAlg::Vector<double>> aux =
         Core::LinAlg::create_vector(*(discret_->dof_row_map(0)), true);
-    aux->Update(1.0, *state_->velnp_, 1.0, *vel, 0.0);
+    aux->update(1.0, *state_->velnp_, 1.0, *vel, 0.0);
     //    dbcmaps_->insert_other_vector(dbcmaps_->extract_other_vector(aux), velnp_);
     state_->dbcmaps_->insert_cond_vector(
         *state_->dbcmaps_->extract_cond_vector(*state_->velnp_), *aux);
@@ -5154,11 +5139,11 @@ void FLD::XFluid::read_restart(int step)
   // that was used when the restart data was written. Especially
   // in case of multiphysics problems & periodic boundary conditions
   // it is better to check the consistency of the maps here:
-  if (not(discret_->dof_row_map())->SameAs(state_->velnp_->Map()))
+  if (not(discret_->dof_row_map())->SameAs(state_->velnp_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
-  if (not(discret_->dof_row_map())->SameAs(state_->veln_->Map()))
+  if (not(discret_->dof_row_map())->SameAs(state_->veln_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
-  if (not(discret_->dof_row_map())->SameAs(state_->accn_->Map()))
+  if (not(discret_->dof_row_map())->SameAs(state_->accn_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
 
 
@@ -5233,9 +5218,9 @@ void FLD::XFluid::gen_alpha_intermediate_values()
     std::shared_ptr<Core::LinAlg::Vector<double>> onlyaccnp =
         state_->velpressplitter_->extract_other_vector(*state_->accnp_);
 
-    Core::LinAlg::Vector<double> onlyaccam(onlyaccnp->Map());
+    Core::LinAlg::Vector<double> onlyaccam(onlyaccnp->get_block_map());
 
-    onlyaccam.Update((alphaM_), *onlyaccnp, (1.0 - alphaM_), *onlyaccn, 0.0);
+    onlyaccam.update((alphaM_), *onlyaccnp, (1.0 - alphaM_), *onlyaccn, 0.0);
 
     // copy back into global vector
     Core::LinAlg::export_to(onlyaccam, *state_->accam_);
@@ -5255,7 +5240,7 @@ void FLD::XFluid::gen_alpha_intermediate_values()
   //
   // note that its af-genalpha with mid-point treatment of the pressure,
   // not implicit treatment as for the genalpha according to Whiting
-  state_->velaf_->Update((alphaF_), *state_->velnp_, (1.0 - alphaF_), *state_->veln_, 0.0);
+  state_->velaf_->update((alphaF_), *state_->velnp_, (1.0 - alphaF_), *state_->veln_, 0.0);
 }
 
 void FLD::XFluid::gen_alpha_update_acceleration()
@@ -5278,12 +5263,12 @@ void FLD::XFluid::gen_alpha_update_acceleration()
   std::shared_ptr<Core::LinAlg::Vector<double>> onlyvelnp =
       state_->velpressplitter_->extract_other_vector(*state_->velnp_);
 
-  Core::LinAlg::Vector<double> onlyaccnp(onlyaccn->Map());
+  Core::LinAlg::Vector<double> onlyaccnp(onlyaccn->get_block_map());
 
   const double fact1 = 1.0 / (gamma_ * dta_);
   const double fact2 = 1.0 - (1.0 / gamma_);
-  onlyaccnp.Update(fact2, *onlyaccn, 0.0);
-  onlyaccnp.Update(fact1, *onlyvelnp, -fact1, *onlyveln, 1.0);
+  onlyaccnp.update(fact2, *onlyaccn, 0.0);
+  onlyaccnp.update(fact1, *onlyvelnp, -fact1, *onlyveln, 1.0);
 
   // copy back into global vector
   Core::LinAlg::export_to(onlyaccnp, *state_->accnp_);
@@ -5300,7 +5285,7 @@ void FLD::XFluid::update_gridv()
       Global::Problem::instance()->fluid_dynamic_params();
   const auto order = Teuchos::getIntegralValue<Inpar::FLUID::Gridvel>(fluiddynparams, "GRIDVEL");
 
-  Core::LinAlg::Vector<double> gridv(dispnp_->Map(), true);
+  Core::LinAlg::Vector<double> gridv(dispnp_->get_block_map(), true);
 
   switch (order)
   {
@@ -5313,23 +5298,23 @@ void FLD::XFluid::update_gridv()
                   x^n+1 - x^n
              uG = -----------
                     Delta t                        */
-      gridvnp_->Update(1 / dta_, *dispnp_, -1 / dta_, *dispn_, 0.0);
+      gridvnp_->update(1 / dta_, *dispnp_, -1 / dta_, *dispn_, 0.0);
       break;
     case Inpar::FLUID::BDF2:
       /* get gridvelocity from BDF2 time discretisation of mesh motion:
            -> requires one more previous mesh position or displacement
            -> somewhat more complicated
            -> allows second order accuracy for the overall flow solution  */
-      gridvnp_->Update(1.5 / dta_, *dispnp_, -2.0 / dta_, *dispn_, 0.0);
-      gridvnp_->Update(0.5 / dta_, *dispnm_, 1.0);
+      gridvnp_->update(1.5 / dta_, *dispnp_, -2.0 / dta_, *dispn_, 0.0);
+      gridvnp_->update(0.5 / dta_, *dispnm_, 1.0);
       break;
     case Inpar::FLUID::OST:
     {
       /* get gridvelocity from OST time discretisation of mesh motion:
          -> needed to allow consistent linearization of FPSI problem  */
       const double theta = fluiddynparams.get<double>("THETA");
-      gridvnp_->Update(1 / (theta * dta_), *dispnp_, -1 / (theta * dta_), *dispn_, 0.0);
-      gridvnp_->Update(-((1.0 / theta) - 1.0), *gridvn_, 1.0);
+      gridvnp_->update(1 / (theta * dta_), *dispnp_, -1 / (theta * dta_), *dispn_, 0.0);
+      gridvnp_->update(-((1.0 / theta) - 1.0), *gridvn_, 1.0);
     }
     break;
     default:
@@ -5344,9 +5329,9 @@ void FLD::XFluid::update_gridv()
  *----------------------------------------------------------------------*/
 void FLD::XFluid::update_by_increment()
 {
-  state_->velnp()->Update(1.0, *state_->inc_vel(), 1.0);
+  state_->velnp()->update(1.0, *state_->inc_vel(), 1.0);
   double f_norm = 0;
-  state_->velnp()->Norm2(&f_norm);
+  state_->velnp()->norm_2(&f_norm);
   //  std::cout << std::setprecision(14) << f_norm << std::endl;
 }
 
@@ -5394,15 +5379,15 @@ void FLD::XFluid::set_old_part_of_righthandside(Core::LinAlg::Vector<double>& ve
     case Inpar::FLUID::timeint_stationary: /* Stationary algorithm */
     case Inpar::FLUID::timeint_afgenalpha: /* Af-generalized-alpha time integration */
     case Inpar::FLUID::timeint_npgenalpha:
-      hist.PutScalar(0.0);
+      hist.put_scalar(0.0);
       break;
 
     case Inpar::FLUID::timeint_one_step_theta: /* One step Theta time integration */
-      hist.Update(1.0, veln, dta * (1.0 - theta), accn, 0.0);
+      hist.update(1.0, veln, dta * (1.0 - theta), accn, 0.0);
       break;
 
     case Inpar::FLUID::timeint_bdf2: /* 2nd order backward differencing BDF2 */
-      hist.Update(4. / 3., veln, -1. / 3., velnm, 0.0);
+      hist.update(4. / 3., veln, -1. / 3., velnm, 0.0);
       break;
 
     default:
@@ -5440,9 +5425,9 @@ void FLD::XFluid::set_state_tim_int()
 {
   // set scheme-specific element parameters and vector values
   if (timealgo_ == Inpar::FLUID::timeint_afgenalpha)
-    discret_->set_state("velaf", state_->velaf_);
+    discret_->set_state("velaf", *state_->velaf_);
   else
-    discret_->set_state("velaf", state_->velnp_);
+    discret_->set_state("velaf", *state_->velnp_);
 }
 
 /*----------------------------------------------------------------------*
@@ -5480,7 +5465,7 @@ void FLD::XFluid::calculate_acceleration(
   {
     case Inpar::FLUID::timeint_stationary: /* no accelerations for stationary problems*/
     {
-      accnp->PutScalar(0.0);
+      accnp->put_scalar(0.0);
       break;
     }
     case Inpar::FLUID::timeint_one_step_theta: /* One-step-theta time integration */
@@ -5488,9 +5473,9 @@ void FLD::XFluid::calculate_acceleration(
       const double fact1 = 1.0 / (theta_ * dta_);
       const double fact2 = -1.0 / theta_ + 1.0; /* = -1/Theta + 1 */
 
-      accnp->Update(fact1, *velnp, 0.0);
-      accnp->Update(-fact1, *veln, 1.0);
-      accnp->Update(fact2, *accn, 1.0);
+      accnp->update(fact1, *velnp, 0.0);
+      accnp->update(-fact1, *veln, 1.0);
+      accnp->update(fact2, *accn, 1.0);
       break;
     }
     case Inpar::FLUID::timeint_bdf2: /* 2nd order backward differencing BDF2 */
@@ -5499,8 +5484,8 @@ void FLD::XFluid::calculate_acceleration(
       if (dta_ * dtp_ < 1e-15) FOUR_C_THROW("Zero time step size!!!!!");
       const double sum = dta_ + dtp_;
 
-      accnp->Update((2.0 * dta_ + dtp_) / (dta_ * sum), *velnp, -sum / (dta_ * dtp_), *veln, 0.0);
-      accnp->Update(dta_ / (dtp_ * sum), *velnm, 1.0);
+      accnp->update((2.0 * dta_ + dtp_) / (dta_ * sum), *velnp, -sum / (dta_ * dtp_), *veln, 0.0);
+      accnp->update(dta_ / (dtp_ * sum), *velnm, 1.0);
       break;
     }
     case Inpar::FLUID::timeint_afgenalpha: /* Af-generalized-alpha time integration */

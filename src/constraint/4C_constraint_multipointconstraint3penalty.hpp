@@ -16,13 +16,13 @@ FOUR_C_NAMESPACE_OPEN
 
 
 
-namespace CONSTRAINTS
+namespace Constraints
 {
   /*!
   \brief This class can handle multi point constraints in 3D.
   It is derived from the basic multipointconstraint class.
   */
-  class MPConstraint3Penalty : public CONSTRAINTS::MPConstraint
+  class MPConstraint3Penalty : public Constraints::MPConstraint
   {
    public:
     /*!
@@ -129,14 +129,14 @@ namespace CONSTRAINTS
     std::map<int, double> penalties_;  ///< maps condition ID to penalty factor
     std::shared_ptr<Epetra_Export> errorexport_;
     std::shared_ptr<Epetra_Import> errorimport_;
-    std::shared_ptr<Epetra_Map> rederrormap_;
-    std::shared_ptr<Epetra_Map> errormap_;
+    std::shared_ptr<Core::LinAlg::Map> rederrormap_;
+    std::shared_ptr<Core::LinAlg::Map> errormap_;
     std::shared_ptr<Core::LinAlg::Vector<double>> initerror_;
     std::shared_ptr<Core::LinAlg::Vector<double>> acterror_;
 
 
   };  // class
-}  // namespace CONSTRAINTS
+}  // namespace Constraints
 FOUR_C_NAMESPACE_CLOSE
 
 #endif

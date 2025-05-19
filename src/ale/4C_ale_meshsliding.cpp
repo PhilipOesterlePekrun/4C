@@ -264,14 +264,14 @@ void ALE::Meshsliding::condensation_operation_block_matrix(
   // export and add r_m subvector to residual
   Core::LinAlg::Vector<double> rm_modexp(*dofrowmap_);
   Core::LinAlg::export_to(rm_mod, rm_modexp);
-  residual->Update(1.0, rm_modexp, 1.0);
+  residual->update(1.0, rm_modexp, 1.0);
 
   //----------------------------------------------------------- THIRD LINE
 
   // r_s: * 0
   Core::LinAlg::Vector<double> rs_delete(*dofrowmap_);
   Core::LinAlg::export_to(*(splitres[2]), rs_delete);
-  residual->Update(-1.0, rs_delete, 1.0);
+  residual->update(-1.0, rs_delete, 1.0);
 
   // r_s: add - T*D^(-1)*r_s
   Core::LinAlg::Vector<double> rs_mod_intermediate(*gsdofrowmap_, true);
@@ -282,12 +282,12 @@ void ALE::Meshsliding::condensation_operation_block_matrix(
   // export and subtract rs_mod from residual
   Core::LinAlg::Vector<double> rs_modexp(*dofrowmap_);
   Core::LinAlg::export_to(rs_mod, rs_modexp);
-  residual->Update(-1.0, rs_modexp, 1.0);
+  residual->update(-1.0, rs_modexp, 1.0);
 
   // r_s: add gap
   Core::LinAlg::Vector<double> g_exp(*dofrowmap_);
   Core::LinAlg::export_to(*gap, g_exp);
-  residual->Update(1.0, g_exp, 1.0);
+  residual->update(1.0, g_exp, 1.0);
 
   return;
 }
@@ -320,17 +320,20 @@ void ALE::Meshsliding::split_mortar_matrix(
     std::shared_ptr<Core::LinAlg::SparseMatrix>& MortarMatrix,
     std::shared_ptr<Core::LinAlg::SparseMatrix>& MasterMatrix,
     std::shared_ptr<Core::LinAlg::SparseMatrix>& SlaveMatrix,
-    std::shared_ptr<const Epetra_Map>& dofrowmapconst)
+    std::shared_ptr<const Core::LinAlg::Map>& dofrowmapconst)
 {
   // dummy Matrices for second row and dummy map
   std::shared_ptr<Core::LinAlg::SparseMatrix> temp21;
   std::shared_ptr<Core::LinAlg::SparseMatrix> temp22;
-  std::shared_ptr<Epetra_Map> dummy;
+  std::shared_ptr<Core::LinAlg::Map> dummy;
 
   // const casts
-  std::shared_ptr<Epetra_Map> gmdofrowmap = std::const_pointer_cast<Epetra_Map>(gmdofrowmap_);
-  std::shared_ptr<Epetra_Map> gsdofrowmap = std::const_pointer_cast<Epetra_Map>(gsdofrowmap_);
-  std::shared_ptr<Epetra_Map> dofrowmap = std::const_pointer_cast<Epetra_Map>(dofrowmapconst);
+  std::shared_ptr<Core::LinAlg::Map> gmdofrowmap =
+      std::const_pointer_cast<Core::LinAlg::Map>(gmdofrowmap_);
+  std::shared_ptr<Core::LinAlg::Map> gsdofrowmap =
+      std::const_pointer_cast<Core::LinAlg::Map>(gsdofrowmap_);
+  std::shared_ptr<Core::LinAlg::Map> dofrowmap =
+      std::const_pointer_cast<Core::LinAlg::Map>(dofrowmapconst);
 
   // split matrix operation
   bool suc = Core::LinAlg::split_matrix2x2(MortarMatrix, dofrowmap, dummy, gmdofrowmap, gsdofrowmap,
@@ -362,23 +365,23 @@ void ALE::Meshsliding::recover(std::shared_ptr<Core::LinAlg::Vector<double>>& in
   Core::LinAlg::Vector<double> mod(*gsdofrowmap_, true);
 
   // r_s
-  lm_temp.Update(1.0, *rs_, 1.0);
+  lm_temp.update(1.0, *rs_, 1.0);
 
   // + A_ss*d_s
   a_ss_->multiply(false, *(splitinc[2]), mod);
-  lm_temp.Update(1.0, mod, 1.0);
+  lm_temp.update(1.0, mod, 1.0);
 
   // + A_sm*d_m
   a_sm_->multiply(false, *(splitinc[1]), mod);
-  lm_temp.Update(1.0, mod, 1.0);
+  lm_temp.update(1.0, mod, 1.0);
 
   // + A_sn*d_n
   a_sn_->multiply(false, *(splitinc[0]), mod);
-  lm_temp.Update(1.0, mod, 1.0);
+  lm_temp.update(1.0, mod, 1.0);
 
   // - D^(-1) *
   d_inv_->multiply(false, lm_temp, *lm_);
-  lm_->Scale(-1.0);
+  lm_->scale(-1.0);
 }
 
 /*-------------------------------------------------------*/

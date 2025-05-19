@@ -10,8 +10,8 @@
 
 #include "4C_config.hpp"
 
+#include "4C_contact_input.hpp"
 #include "4C_fem_general_utils_local_connectivity_matrices.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_inpar_mortar.hpp"
 #include "4C_utils_singleton_owner.hpp"
 
@@ -113,10 +113,10 @@ namespace Mortar
         Core::Utils::SingletonAction action, const Teuchos::ParameterList& params);
 
     //! ns_: number of slave element nodes
-    static constexpr int ns_ = Core::FE::num_nodes<distype_s>;
+    static constexpr int ns_ = Core::FE::num_nodes(distype_s);
 
     //! nm_: number of master element nodes
-    static constexpr int nm_ = Core::FE::num_nodes<distype_m>;
+    static constexpr int nm_ = Core::FE::num_nodes(distype_m);
 
     //! number of space dimensions ("+1" due to considering only interface elements)
     static constexpr int ndim_ = Core::FE::dim<distype_s> + 1;

@@ -90,8 +90,8 @@ Discret::Elements::FluidEleInterface* Discret::Elements::FluidFactory::provide_i
     }
     // no 1D elements
     default:
-      FOUR_C_THROW("Element shape %s not activated. Just do it.",
-          Core::FE::cell_type_to_string(distype).c_str());
+      FOUR_C_THROW(
+          "Element shape {} not activated. Just do it.", Core::FE::cell_type_to_string(distype));
       break;
   }
   return nullptr;
@@ -180,8 +180,8 @@ Discret::Elements::FluidEleInterface* Discret::Elements::FluidFactory::provide_i
       //      return define_problem_type_xfem<Core::FE::CellType::pyramid5>(problem);
       //    }
     default:
-      FOUR_C_THROW("Element shape %s not activated for XFEM problems. Just do it.",
-          Core::FE::cell_type_to_string(distype).c_str());
+      FOUR_C_THROW("Element shape {} not activated for XFEM problems. Just do it.",
+          Core::FE::cell_type_to_string(distype));
       break;
   }
   return nullptr;

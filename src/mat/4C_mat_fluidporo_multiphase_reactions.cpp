@@ -11,6 +11,7 @@
 #include "4C_global_data.hpp"
 #include "4C_mat_fluidporo_multiphase_singlereaction.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <vector>
 
@@ -27,7 +28,7 @@ Mat::PAR::FluidPoroMultiPhaseReactions::FluidPoroMultiPhaseReactions(
 {
   // check if sizes fit
   if (numreac_ != (int)reacids_.size())
-    FOUR_C_THROW("number of materials %d does not fit to size of material vector %d", nummat_,
+    FOUR_C_THROW("number of materials {} does not fit to size of material vector {}", nummat_,
         reacids_.size());
 
   if (numreac_ < 1)
@@ -175,7 +176,7 @@ void Mat::FluidPoroMultiPhaseReactions::unpack(Core::Communication::UnpackBuffer
         paramsreac_ = dynamic_cast<Mat::PAR::FluidPoroMultiPhaseReactions*>(mat);
       }
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
 

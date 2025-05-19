@@ -24,6 +24,7 @@
 #include "4C_mat_scatra_chemotaxis.hpp"
 #include "4C_mat_scatra_reaction.hpp"
 #include "4C_scatra_ele_calc_utils.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_exceptions.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -95,150 +96,150 @@ void Discret::Elements::TransportType::setup_element_definition(
   using namespace Core::IO::InputSpecBuilders;
 
   defs["HEX8"] = all_of({
-      entry<std::vector<int>>("HEX8", {.size = 8}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("HEX8", {.size = 8}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["HEX20"] = all_of({
-      entry<std::vector<int>>("HEX20", {.size = 20}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("HEX20", {.size = 20}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["HEX27"] = all_of({
-      entry<std::vector<int>>("HEX27", {.size = 27}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("HEX27", {.size = 27}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["NURBS27"] = all_of({
-      entry<std::vector<int>>("NURBS27", {.size = 27}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("NURBS27", {.size = 27}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["NURBS8"] = all_of({
-      entry<std::vector<int>>("NURBS8", {.size = 8}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("NURBS8", {.size = 8}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["TET4"] = all_of({
-      entry<std::vector<int>>("TET4", {.size = 4}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("TET4", {.size = 4}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["TET10"] = all_of({
-      entry<std::vector<int>>("TET10", {.size = 10}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("TET10", {.size = 10}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["WEDGE6"] = all_of({
-      entry<std::vector<int>>("WEDGE6", {.size = 6}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("WEDGE6", {.size = 6}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["WEDGE15"] = all_of({
-      entry<std::vector<int>>("WEDGE15", {.size = 15}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("WEDGE15", {.size = 15}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["PYRAMID5"] = all_of({
-      entry<std::vector<int>>("PYRAMID5", {.size = 5}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("PYRAMID5", {.size = 5}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["QUAD4"] = all_of({
-      entry<std::vector<int>>("QUAD4", {.size = 4}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("QUAD4", {.size = 4}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["QUAD8"] = all_of({
-      entry<std::vector<int>>("QUAD8", {.size = 8}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("QUAD8", {.size = 8}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["QUAD9"] = all_of({
-      entry<std::vector<int>>("QUAD9", {.size = 9}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("QUAD9", {.size = 9}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["TRI3"] = all_of({
-      entry<std::vector<int>>("TRI3", {.size = 3}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("TRI3", {.size = 3}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["TRI6"] = all_of({
-      entry<std::vector<int>>("TRI6", {.size = 6}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("TRI6", {.size = 6}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["NURBS4"] = all_of({
-      entry<std::vector<int>>("NURBS4", {.size = 4}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("NURBS4", {.size = 4}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["NURBS9"] = all_of({
-      entry<std::vector<int>>("NURBS9", {.size = 9}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("NURBS9", {.size = 9}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["LINE2"] = all_of({
-      entry<std::vector<int>>("LINE2", {.size = 2}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("LINE2", {.size = 2}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["LINE3"] = all_of({
-      entry<std::vector<int>>("LINE3", {.size = 3}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("LINE3", {.size = 3}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["NURBS2"] = all_of({
-      entry<std::vector<int>>("NURBS2", {.size = 2}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("NURBS2", {.size = 2}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 
   defs["NURBS3"] = all_of({
-      entry<std::vector<int>>("NURBS3", {.size = 3}),
-      entry<int>("MAT"),
-      entry<std::string>("TYPE"),
-      entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
+      parameter<std::vector<int>>("NURBS3", {.size = 3}),
+      parameter<int>("MAT"),
+      parameter<std::string>("TYPE"),
+      parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
   });
 }
 
@@ -403,7 +404,7 @@ void Discret::Elements::Transport::set_material(
       const int stoichlength = reacmat->num_scal();
       if (stoichlength != numdofpernode_)
         FOUR_C_THROW(
-            "The number of scalars in your MAT_scatra_reaction material with ID %i does not fit to "
+            "The number of scalars in your MAT_scatra_reaction material with ID {} does not fit to "
             "the number of scalars!",
             actmat->reac_id(jj));
     }
@@ -442,7 +443,7 @@ void Discret::Elements::Transport::set_material(
       const int pairlength = reacmat->pair()->size();
       if (pairlength != numdofpernode_)
         FOUR_C_THROW(
-            "The number of scalars in your MAT_scatra_chemotaxis material with ID %i does not fit "
+            "The number of scalars in your MAT_scatra_chemotaxis material with ID {} does not fit "
             "to the number of scalars!",
             actmat->pair_id(jj));
     }
@@ -482,7 +483,7 @@ void Discret::Elements::Transport::set_material(
       const int stoichlength = reacmat->num_scal();
       if (stoichlength != numdofpernode_)
         FOUR_C_THROW(
-            "The number of scalars in your MAT_scatra_reaction material with ID %i does not fit to "
+            "The number of scalars in your MAT_scatra_reaction material with ID {} does not fit to "
             "the number of scalars!",
             actmat->reac_id(jj));
     }
@@ -505,7 +506,7 @@ void Discret::Elements::Transport::set_material(
       const int pairlength = reacmat->pair()->size();
       if (pairlength != numdofpernode_)
         FOUR_C_THROW(
-            "The number of scalars in your MAT_scatra_chemotaxis material with ID %i does not fit "
+            "The number of scalars in your MAT_scatra_chemotaxis material with ID {} does not fit "
             "to the number of scalars!",
             actmat->pair_id(jj));
     }
@@ -517,7 +518,7 @@ void Discret::Elements::Transport::set_material(
     numdofpernode_ = actmat->num_dof();
   }
   else
-    FOUR_C_THROW("Transport element got unsupported material type %d", mat->material_type());
+    FOUR_C_THROW("Transport element got unsupported material type {}", mat->material_type());
 
   return;
 }
@@ -691,7 +692,7 @@ int Discret::Elements::Transport::initialize()
     else
       deg = 3 * this->degree();
     std::shared_ptr<Core::FE::GaussPoints> quadrature(
-        Core::FE::GaussPointCache::instance().create(this->shape(), deg));
+        Core::FE::create_gauss_points(this->shape(), deg));
     int gp = quadrature->num_points();
     if (actmat->parameter() != nullptr and
         !actmat->myocard_mat())  // in case we are not in post-process mode

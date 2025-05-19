@@ -94,7 +94,7 @@ void Discret::Elements::ScaTraEleCalcHDGCardiacMonodomain<distype, probdim>::pre
   if (actmat->diffusion_at_ele_center())
   {
     // get diffusivity at ele center
-    Core::LinAlg::Matrix<probdim, probdim> diff(true);
+    Core::LinAlg::Matrix<probdim, probdim> diff(Core::LinAlg::Initialization::zero);
     actmat->diffusivity(diff, 0);
     Core::LinAlg::SerialDenseMatrix difftensortmp(this->nsd_, this->nsd_);
     for (unsigned int i = 0; i < this->nsd_; ++i)
@@ -112,7 +112,7 @@ void Discret::Elements::ScaTraEleCalcHDGCardiacMonodomain<distype, probdim>::pre
 
     shapes->evaluate(*ele);
 
-    std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes<distype>, 1>> shapefcns(shapes->nqpoints_);
+    std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes(distype), 1>> shapefcns(shapes->nqpoints_);
 
     for (std::size_t q = 0; q < shapes->nqpoints_; ++q)
     {
@@ -133,7 +133,7 @@ void Discret::Elements::ScaTraEleCalcHDGCardiacMonodomain<distype, probdim>::pre
     for (unsigned int q = 0; q < shapes->nqpoints_; ++q)
     {
       Core::LinAlg::SerialDenseMatrix difftensortmp(this->nsd_, this->nsd_);
-      Core::LinAlg::Matrix<probdim, probdim> diff(true);
+      Core::LinAlg::Matrix<probdim, probdim> diff(Core::LinAlg::Initialization::zero);
       actmat->diffusivity(diff, q);
       for (unsigned int i = 0; i < this->nsd_; ++i)
         for (unsigned int j = 0; j < this->nsd_; ++j) difftensortmp(i, j) = diff(i, j);
@@ -180,7 +180,7 @@ void Discret::Elements::ScaTraEleCalcHDGCardiacMonodomain<distype, probdim>::pre
   if (actmat->diffusion_at_ele_center())
   {
     // get diffusivity at ele center
-    Core::LinAlg::Matrix<probdim, probdim> diff(true);
+    Core::LinAlg::Matrix<probdim, probdim> diff(Core::LinAlg::Initialization::zero);
     actmat->diffusivity(diff, 0);
     Core::LinAlg::SerialDenseMatrix difftensortmp(this->nsd_, this->nsd_);
     for (unsigned int i = 0; i < this->nsd_; ++i)
@@ -197,9 +197,9 @@ void Discret::Elements::ScaTraEleCalcHDGCardiacMonodomain<distype, probdim>::pre
         ScaTra::DisTypeToMatGaussRule<distype>::get_gauss_rule(2 * hdgele->degree()));
     const std::size_t numgp = intpoints.ip().nquad;
 
-    std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes<distype>, 1>> shapefcns(numgp);
+    std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes(distype), 1>> shapefcns(numgp);
 
-    Core::LinAlg::Matrix<probdim, 1> gp_coord(true);
+    Core::LinAlg::Matrix<probdim, 1> gp_coord(Core::LinAlg::Initialization::zero);
     for (std::size_t q = 0; q < numgp; ++q)
     {
       // gaussian points coordinates
@@ -220,7 +220,7 @@ void Discret::Elements::ScaTraEleCalcHDGCardiacMonodomain<distype, probdim>::pre
     for (unsigned int q = 0; q < numgp; ++q)
     {
       Core::LinAlg::SerialDenseMatrix difftensortmp(this->nsd_, this->nsd_);
-      Core::LinAlg::Matrix<probdim, probdim> diff(true);
+      Core::LinAlg::Matrix<probdim, probdim> diff(Core::LinAlg::Initialization::zero);
       actmat->diffusivity(diff, q);
       for (unsigned int i = 0; i < this->nsd_; ++i)
         for (unsigned int j = 0; j < this->nsd_; ++j) difftensortmp(i, j) = diff(i, j);
@@ -265,7 +265,7 @@ void Discret::Elements::ScaTraEleCalcHDGCardiacMonodomain<distype, probdim>::mat
       std::dynamic_pointer_cast<const Mat::Myocard>(material);
 
   // coordinate of material gauss points
-  Core::LinAlg::Matrix<probdim, 1> mat_gp_coord(true);
+  Core::LinAlg::Matrix<probdim, 1> mat_gp_coord(Core::LinAlg::Initialization::zero);
   // values of shape function at material gauss points
   Core::LinAlg::SerialDenseVector values_mat_gp(this->shapes_->ndofs_);
 
@@ -296,7 +296,7 @@ void Discret::Elements::ScaTraEleCalcHDGCardiacMonodomain<distype, probdim>::mat
 
     if (nqpoints != actmat->get_number_of_gp())
       FOUR_C_THROW(
-          "Number of quadrature points (%d) does not match number of points in material (%d)!",
+          "Number of quadrature points ({}) does not match number of points in material ({})!",
           nqpoints, actmat->get_number_of_gp());
 
     if (values_mat_gp_all_.empty() or
@@ -329,13 +329,12 @@ void Discret::Elements::ScaTraEleCalcHDGCardiacMonodomain<distype, probdim>::mat
     else
       deg = 3 * this->shapes_->degree_;
 
-    std::shared_ptr<Core::FE::GaussPoints> quadrature_(
-        Core::FE::GaussPointCache::instance().create(distype, deg));
+    std::shared_ptr<Core::FE::GaussPoints> quadrature_(Core::FE::create_gauss_points(distype, deg));
     nqpoints = quadrature_->num_points();
 
     if (nqpoints != actmat->get_number_of_gp())
       FOUR_C_THROW(
-          "Number of quadrature points (%d) does not match number of points in material (%d)!",
+          "Number of quadrature points ({}) does not match number of points in material ({})!",
           nqpoints, actmat->get_number_of_gp());
 
     if (values_mat_gp_all_.empty() or
@@ -486,7 +485,7 @@ void Discret::Elements::ScaTraEleCalcHDGCardiacMonodomain<distype,
         }
         int err =
             material_internal_state->ReplaceGlobalValue(ele->id(), k, material_state / nqpoints);
-        if (err != 0) FOUR_C_THROW("%i", err);
+        if (err != 0) FOUR_C_THROW("{}", err);
       }
     }
 
@@ -631,7 +630,7 @@ int Discret::Elements::ScaTraEleCalcHDGCardiacMonodomain<distype,
   inverseMat.factorWithEquilibration(true);
   int err2 = inverseMat.factor();
   int err = inverseMat.solve();
-  if (err != 0 || err2 != 0) FOUR_C_THROW("Inversion of matrix failed with errorcode %d", err);
+  if (err != 0 || err2 != 0) FOUR_C_THROW("Inversion of matrix failed with errorcode {}", err);
 
   Core::LinAlg::SerialDenseMatrix tempMat2(
       shapes->nqpoints_, actmat->get_number_of_internal_state_variables());
@@ -692,7 +691,7 @@ int Discret::Elements::ScaTraEleCalcHDGCardiacMonodomain<distype,
   std::vector<Core::LinAlg::SerialDenseVector> shape_gp(intpoints.ip().nquad);
 
   // coordinate of material gauss points
-  Core::LinAlg::Matrix<probdim, 1> mat_gp_coord(true);
+  Core::LinAlg::Matrix<probdim, 1> mat_gp_coord(Core::LinAlg::Initialization::zero);
 
   for (int q = 0; q < intpoints_old.ip().nquad; ++q)
   {
@@ -761,7 +760,7 @@ int Discret::Elements::ScaTraEleCalcHDGCardiacMonodomain<distype,
   inverseMat.factorWithEquilibration(true);
   int err2 = inverseMat.factor();
   int err = inverseMat.solve();
-  if (err != 0 || err2 != 0) FOUR_C_THROW("Inversion of matrix failed with errorcode %d", err);
+  if (err != 0 || err2 != 0) FOUR_C_THROW("Inversion of matrix failed with errorcode {}", err);
 
   Core::LinAlg::SerialDenseMatrix tempMat2(
       shape_gp.size(), actmat->get_number_of_internal_state_variables());
@@ -814,7 +813,7 @@ void Discret::Elements::ScaTraEleCalcHDGCardiacMonodomain<distype, probdim>::set
     double deg2rad = M_PI / 180.;
     for (unsigned int gp = 0; gp < cir.size(); ++gp)
     {
-      Core::LinAlg::Matrix<3, 1> rad(false);
+      Core::LinAlg::Matrix<3, 1> rad(Core::LinAlg::Initialization::uninitialized);
       rad.cross_product(cir[gp], tan[gp]);
 
       double tmp1 = cos(helix[gp] * deg2rad) * cos(transverse[gp] * deg2rad);

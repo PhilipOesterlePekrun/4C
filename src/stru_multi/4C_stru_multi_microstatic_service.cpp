@@ -34,7 +34,7 @@ void MultiScale::MicroStatic::determine_toggle()
       // do only nodes in my row map
       if (!discret_->node_row_map()->MyGID(i)) continue;
       Core::Nodes::Node* actnode = discret_->g_node(i);
-      if (!actnode) FOUR_C_THROW("Cannot find global node %d", i);
+      if (!actnode) FOUR_C_THROW("Cannot find global node {}", i);
       std::vector<int> dofs = discret_->dof(actnode);
       const unsigned numdf = dofs.size();
 
@@ -42,8 +42,8 @@ void MultiScale::MicroStatic::determine_toggle()
       {
         const int gid = dofs[j];
 
-        const int lid = disn_->Map().LID(gid);
-        if (lid < 0) FOUR_C_THROW("Global id %d not on this proc in system vector", gid);
+        const int lid = disn_->get_block_map().LID(gid);
+        if (lid < 0) FOUR_C_THROW("Global id {} not on this proc in system vector", gid);
 
         if ((*dirichtoggle_)[lid] != 1.0)  // be careful not to count dofs more
                                            // than once since nodes belong to
@@ -89,14 +89,16 @@ void MultiScale::MicroStatic::set_up_homogenization()
   }
 
   // create map based on the determined dofs of prescribed and free nodes
-  pdof_ = std::make_shared<Epetra_Map>(
+  pdof_ = std::make_shared<Core::LinAlg::Map>(
       -1, np_, pdof.data(), 0, Core::Communication::as_epetra_comm(discret_->get_comm()));
-  fdof_ = std::make_shared<Epetra_Map>(
+  fdof_ = std::make_shared<Core::LinAlg::Map>(
       -1, ndof_ - np_, fdof.data(), 0, Core::Communication::as_epetra_comm(discret_->get_comm()));
 
   // create importer
-  importp_ = std::make_shared<Epetra_Import>(*pdof_, *(discret_->dof_row_map()));
-  importf_ = std::make_shared<Epetra_Import>(*fdof_, *(discret_->dof_row_map()));
+  importp_ = std::make_shared<Epetra_Import>(
+      pdof_->get_epetra_map(), (discret_->dof_row_map())->get_epetra_map());
+  importf_ = std::make_shared<Epetra_Import>(
+      fdof_->get_epetra_map(), (discret_->dof_row_map())->get_epetra_map());
 
   // create vector containing material coordinates of prescribed nodes
   Core::LinAlg::Vector<double> Xp_temp(*pdof_);
@@ -112,7 +114,7 @@ void MultiScale::MicroStatic::set_up_homogenization()
       // do only nodes in my row map
       if (!discret_->node_row_map()->MyGID(i)) continue;
       Core::Nodes::Node* actnode = discret_->g_node(i);
-      if (!actnode) FOUR_C_THROW("Cannot find global node %d", i);
+      if (!actnode) FOUR_C_THROW("Cannot find global node {}", i);
 
       // nodal coordinates
       const auto& x = actnode->x();
@@ -123,8 +125,8 @@ void MultiScale::MicroStatic::set_up_homogenization()
       {
         const int gid = dofs[k];
 
-        const int lid = disn_->Map().LID(gid);
-        if (lid < 0) FOUR_C_THROW("Global id %d not on this proc in system vector", gid);
+        const int lid = disn_->get_block_map().LID(gid);
+        if (lid < 0) FOUR_C_THROW("Global id {} not on this proc in system vector", gid);
 
         for (int l = 0; l < np_; ++l)
         {
@@ -176,7 +178,7 @@ void MultiScale::MicroStatic::set_up_homogenization()
 
   for (int i = 0; i < 9; ++i)
   {
-    ((*rhs_)(i)).Export((DT(i)), *importp_, Insert);
+    ((*rhs_)(i)).export_to((DT(i)), *importp_, Insert);
   }
 }
 

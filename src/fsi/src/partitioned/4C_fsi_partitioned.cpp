@@ -27,9 +27,9 @@
 #include "4C_fsi_utils.hpp"
 #include "4C_global_data.hpp"
 #include "4C_inpar_fsi.hpp"
-#include "4C_inpar_validparameters.hpp"
 #include "4C_io_control.hpp"
 #include "4C_structure_aux.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 #include <Teuchos_Time.hpp>
@@ -100,8 +100,9 @@ void FSI::Partitioned::setup_coupling(const Teuchos::ParameterList& fsidyn, MPI_
            (Global::Problem::instance()->get_problem_type() == Core::ProblemType::fsi_xfem) and
            (Global::Problem::instance()->get_problem_type() != Core::ProblemType::fbi))
   {
-    matchingnodes_ = true;  // matching between structure and boundary dis! non-matching between
-                            // boundary dis and fluid is handled bei XFluid itself
+    // matching between structure and boundary dis! non-matching between boundary dis and fluid is
+    // handled bei XFluid itself
+    matchingnodes_ = true;
     const int ndim = Global::Problem::instance()->n_dim();
 
     std::shared_ptr<Adapter::FluidXFEM> x_movingboundary =
@@ -356,8 +357,8 @@ void FSI::Partitioned::set_default_parameters(
     }
     default:
     {
-      FOUR_C_THROW("coupling method type '%s' unsupported",
-          Teuchos::getStringValue<FsiCoupling>(fsidyn, "COUPALGO").c_str());
+      FOUR_C_THROW("Coupling method type {} unsupported",
+          Teuchos::getIntegralValue<FsiCoupling>(fsidyn, "COUPALGO"));
     }
   }
 
@@ -451,7 +452,7 @@ void FSI::Partitioned::timeloop(const Teuchos::RCP<::NOX::Epetra::Interface::Req
     std::shared_ptr<Core::LinAlg::Vector<double>> soln = initial_guess();
 
     ::NOX::Epetra::Vector noxSoln(
-        Teuchos::rcpFromRef(*soln->get_ptr_of_Epetra_Vector()), ::NOX::Epetra::Vector::CreateView);
+        Teuchos::rcpFromRef(*soln->get_ptr_of_epetra_vector()), ::NOX::Epetra::Vector::CreateView);
 
     // Create the linear system
     Teuchos::RCP<::NOX::Epetra::LinearSystem> linSys =
@@ -628,19 +629,18 @@ Teuchos::RCP<::NOX::Epetra::LinearSystem> FSI::Partitioned::create_linear_system
     else if (dt == "Centered")
       dtype = ::NOX::Epetra::FiniteDifference::Centered;
     else
-      FOUR_C_THROW("unsupported difference type '%s'", dt.c_str());
+      FOUR_C_THROW("unsupported difference type '{}'", dt);
 
-    FD = Teuchos::make_rcp<::NOX::Epetra::FiniteDifference>(
-        printParams, interface, noxSoln, Teuchos::rcpFromRef(*raw_graph_), beta, alpha);
+    FD = Teuchos::make_rcp<::NOX::Epetra::FiniteDifference>(printParams, interface, noxSoln,
+        Teuchos::rcpFromRef(raw_graph_->get_epetra_crs_graph()), beta, alpha);
     FD->setDifferenceMethod(dtype);
 
     iJac = FD;
     J = FD;
   }
-
   else
   {
-    FOUR_C_THROW("unsupported Jacobian '%s'", jacobian.c_str());
+    FOUR_C_THROW("unsupported Jacobian '{}'", jacobian);
   }
 
   // ==================================================================
@@ -667,7 +667,6 @@ Teuchos::RCP<::NOX::Epetra::LinearSystem> FSI::Partitioned::create_linear_system
           printParams, lsParams, interface, iJac, J, noxSoln);
     }
   }
-
   else if (preconditioner == "Dump Finite Difference")
   {
     if (lsParams.get("Preconditioner", "None") == "None")
@@ -682,18 +681,17 @@ Teuchos::RCP<::NOX::Epetra::LinearSystem> FSI::Partitioned::create_linear_system
     double beta = fdParams.get("beta", 1.0e-6);
 
     Teuchos::RCP<::NOX::Epetra::FiniteDifference> precFD =
-        Teuchos::make_rcp<::NOX::Epetra::FiniteDifference>(
-            printParams, interface, noxSoln, Teuchos::rcpFromRef(*raw_graph_), beta, alpha);
+        Teuchos::make_rcp<::NOX::Epetra::FiniteDifference>(printParams, interface, noxSoln,
+            Teuchos::rcpFromRef(raw_graph_->get_epetra_crs_graph()), beta, alpha);
     iPrec = precFD;
     M = precFD;
 
     linSys = Teuchos::make_rcp<::NOX::Epetra::LinearSystemAztecOO>(
         printParams, lsParams, iJac, J, iPrec, M, noxSoln);
   }
-
   else
   {
-    FOUR_C_THROW("unsupported preconditioner '%s'", preconditioner.c_str());
+    FOUR_C_THROW("unsupported preconditioner '{}'", preconditioner);
   }
 
   return linSys;
@@ -865,12 +863,12 @@ std::shared_ptr<Core::LinAlg::Vector<double>> FSI::Partitioned::interface_veloci
   if (fsidyn.get<bool>("SECONDORDER"))
   {
     ivel = std::make_shared<Core::LinAlg::Vector<double>>(*iveln_);
-    ivel->Update(2. / dt(), idispnp, -2. / dt(), *idispn_, -1.);
+    ivel->update(2. / dt(), idispnp, -2. / dt(), *idispn_, -1.);
   }
   else
   {
     ivel = std::make_shared<Core::LinAlg::Vector<double>>(*idispn_);
-    ivel->Update(1. / dt(), idispnp, -1. / dt());
+    ivel->update(1. / dt(), idispnp, -1. / dt());
   }
   return ivel;
 }
@@ -908,9 +906,9 @@ std::shared_ptr<Core::LinAlg::Vector<double>> FSI::Partitioned::fluid_to_struct(
     // Translate consistent nodal forces to interface loads
     const std::shared_ptr<Core::LinAlg::Vector<double>> ishape =
         mb_fluid_field()->integrate_interface_shape();
-    Core::LinAlg::Vector<double> iforce(iv->Map());
+    Core::LinAlg::Vector<double> iforce(iv->get_block_map());
 
-    if (iforce.ReciprocalMultiply(1.0, *ishape, *iv, 0.0))
+    if (iforce.reciprocal_multiply(1.0, *ishape, *iv, 0.0))
       FOUR_C_THROW("ReciprocalMultiply failed");
 
     return coupsfm_->slave_to_master(iforce);

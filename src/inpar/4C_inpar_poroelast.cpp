@@ -8,144 +8,184 @@
 #include "4C_inpar_poroelast.hpp"
 
 #include "4C_inpar_fluid.hpp"
+#include "4C_io_input_spec_builders.hpp"
 #include "4C_linalg_equilibrate.hpp"
-#include "4C_utils_parameter_list.hpp"
-
 FOUR_C_NAMESPACE_OPEN
 
 
-void Inpar::PoroElast::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::PoroElast::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
-  using Teuchos::tuple;
+  using namespace Core::IO::InputSpecBuilders;
 
-  Teuchos::ParameterList& poroelastdyn =
-      list.sublist("POROELASTICITY DYNAMIC", false, "Poroelasticity");
+  list["POROELASTICITY DYNAMIC"] = group("POROELASTICITY DYNAMIC",
+      {
 
-  // Coupling strategy for (monolithic) porous media solvers
-  setStringToIntegralParameter<Inpar::PoroElast::SolutionSchemeOverFields>("COUPALGO",
-      "poro_monolithic", "Coupling strategies for poroelasticity solvers",
-      tuple<std::string>("poro_partitioned", "poro_monolithic", "poro_monolithicstructuresplit",
-          "poro_monolithicfluidsplit", "poro_monolithicnopenetrationsplit",
-          "poro_monolithicmeshtying"),
-      tuple<Inpar::PoroElast::SolutionSchemeOverFields>(Partitioned, Monolithic,
-          Monolithic_structuresplit, Monolithic_fluidsplit, Monolithic_nopenetrationsplit,
-          Monolithic_meshtying),
-      &poroelastdyn);
+          // Coupling strategy for (monolithic) porous media solvers
+          deprecated_selection<Inpar::PoroElast::SolutionSchemeOverFields>("COUPALGO",
+              {
+                  {"poro_partitioned", Partitioned},
+                  {"poro_monolithic", Monolithic},
+                  {"poro_monolithicstructuresplit", Monolithic_structuresplit},
+                  {"poro_monolithicfluidsplit", Monolithic_fluidsplit},
+                  {"poro_monolithicnopenetrationsplit", Monolithic_nopenetrationsplit},
+                  {"poro_monolithicmeshtying", Monolithic_meshtying},
+              },
+              {.description = "Coupling strategies for poroelasticity solvers",
+                  .default_value = Monolithic}),
 
-  // physical type of poro fluid flow (incompressible, varying density, loma, Boussinesq
-  // approximation)
-  setStringToIntegralParameter<Inpar::FLUID::PhysicalType>("PHYSICAL_TYPE", "Poro",
-      "Physical Type of Porofluid", tuple<std::string>("Poro", "Poro_P1"),
-      tuple<Inpar::FLUID::PhysicalType>(Inpar::FLUID::poro, Inpar::FLUID::poro_p1), &poroelastdyn);
+          // physical type of poro fluid flow (incompressible, varying density, loma, Boussinesq
+          // approximation)
+          deprecated_selection<Inpar::FLUID::PhysicalType>("PHYSICAL_TYPE",
+              {
+                  {"Poro", Inpar::FLUID::poro},
+                  {"Poro_P1", Inpar::FLUID::poro_p1},
+              },
+              {.description = "Physical Type of Porofluid", .default_value = Inpar::FLUID::poro}),
 
-  // physical type of poro fluid flow (incompressible, varying density, loma, Boussinesq
-  // approximation)
-  setStringToIntegralParameter<Inpar::PoroElast::TransientEquationsOfPoroFluid>("TRANSIENT_TERMS",
-      "all", "which equation includes transient terms",
-      tuple<std::string>("none", "momentum", "continuity", "all"),
-      tuple<Inpar::PoroElast::TransientEquationsOfPoroFluid>(
-          transient_none, transient_momentum_only, transient_continuity_only, transient_all),
-      &poroelastdyn);
+          // physical type of poro fluid flow (incompressible, varying density, loma, Boussinesq
+          // approximation)
+          deprecated_selection<Inpar::PoroElast::TransientEquationsOfPoroFluid>("TRANSIENT_TERMS",
+              {
+                  {"none", transient_none},
+                  {"momentum", transient_momentum_only},
+                  {"continuity", transient_continuity_only},
+                  {"all", transient_all},
+              },
+              {.description = "which equation includes transient terms",
+                  .default_value = transient_all}),
 
-  // Output type
-  Core::Utils::int_parameter(
-      "RESTARTEVERY", 1, "write restart possibility every RESTARTEVERY steps", &poroelastdyn);
+          // Output type
+          parameter<int>(
+              "RESTARTEVERY", {.description = "write restart possibility every RESTARTEVERY steps",
+                                  .default_value = 1}),
 
-  // Time loop control
-  Core::Utils::int_parameter("NUMSTEP", 200, "maximum number of Timesteps", &poroelastdyn);
-  Core::Utils::double_parameter("MAXTIME", 1000.0, "total simulation time", &poroelastdyn);
-  Core::Utils::double_parameter("TIMESTEP", 0.05, "time step size dt", &poroelastdyn);
-  Core::Utils::int_parameter(
-      "ITEMAX", 10, "maximum number of iterations over fields", &poroelastdyn);
-  Core::Utils::int_parameter(
-      "ITEMIN", 1, "minimal number of iterations over fields", &poroelastdyn);
-  Core::Utils::int_parameter("RESULTSEVERY", 1, "increment for writing solution", &poroelastdyn);
+          // Time loop control
+          parameter<int>(
+              "NUMSTEP", {.description = "maximum number of Timesteps", .default_value = 200}),
+          parameter<double>(
+              "MAXTIME", {.description = "total simulation time", .default_value = 1000.0}),
 
-  // Iterationparameters
-  Core::Utils::double_parameter("TOLRES_GLOBAL", 1e-8,
-      "tolerance in the residual norm for the Newton iteration", &poroelastdyn);
-  Core::Utils::double_parameter("TOLINC_GLOBAL", 1e-8,
-      "tolerance in the increment norm for the Newton iteration", &poroelastdyn);
-  Core::Utils::double_parameter("TOLRES_DISP", 1e-8,
-      "tolerance in the residual norm for the Newton iteration", &poroelastdyn);
-  Core::Utils::double_parameter("TOLINC_DISP", 1e-8,
-      "tolerance in the increment norm for the Newton iteration", &poroelastdyn);
-  Core::Utils::double_parameter("TOLRES_PORO", 1e-8,
-      "tolerance in the residual norm for the Newton iteration", &poroelastdyn);
-  Core::Utils::double_parameter("TOLINC_PORO", 1e-8,
-      "tolerance in the increment norm for the Newton iteration", &poroelastdyn);
-  Core::Utils::double_parameter(
-      "TOLRES_VEL", 1e-8, "tolerance in the residual norm for the Newton iteration", &poroelastdyn);
-  Core::Utils::double_parameter("TOLINC_VEL", 1e-8,
-      "tolerance in the increment norm for the Newton iteration", &poroelastdyn);
-  Core::Utils::double_parameter("TOLRES_PRES", 1e-8,
-      "tolerance in the residual norm for the Newton iteration", &poroelastdyn);
-  Core::Utils::double_parameter("TOLINC_PRES", 1e-8,
-      "tolerance in the increment norm for the Newton iteration", &poroelastdyn);
-  Core::Utils::double_parameter("TOLRES_NCOUP", 1e-8,
-      "tolerance in the residual norm for the Newton iteration", &poroelastdyn);
+          parameter<double>(
+              "TIMESTEP", {.description = "time step size dt", .default_value = 0.05}),
+          parameter<int>("ITEMAX",
+              {.description = "maximum number of iterations over fields", .default_value = 10}),
+          parameter<int>("ITEMIN",
+              {.description = "minimal number of iterations over fields", .default_value = 1}),
+          parameter<int>("RESULTSEVERY",
+              {.description = "increment for writing solution", .default_value = 1}),
 
-  setStringToIntegralParameter<Inpar::PoroElast::ConvNorm>("NORM_INC", "AbsSingleFields",
-      "type of norm for primary variables convergence check",
-      tuple<std::string>("AbsGlobal", "AbsSingleFields"),
-      tuple<Inpar::PoroElast::ConvNorm>(convnorm_abs_global, convnorm_abs_singlefields),
-      &poroelastdyn);
+          // Iterationparameters
+          parameter<double>("TOLRES_GLOBAL",
+              {.description = "tolerance in the residual norm for the Newton iteration",
+                  .default_value = 1e-8}),
+          parameter<double>("TOLINC_GLOBAL",
+              {.description = "tolerance in the increment norm for the Newton iteration",
+                  .default_value = 1e-8}),
+          parameter<double>("TOLRES_DISP",
+              {.description = "tolerance in the residual norm for the Newton iteration",
+                  .default_value = 1e-8}),
+          parameter<double>("TOLINC_DISP",
+              {.description = "tolerance in the increment norm for the Newton iteration",
+                  .default_value = 1e-8}),
+          parameter<double>("TOLRES_PORO",
+              {.description = "tolerance in the residual norm for the Newton iteration",
+                  .default_value = 1e-8}),
+          parameter<double>("TOLINC_PORO",
+              {.description = "tolerance in the increment norm for the Newton iteration",
+                  .default_value = 1e-8}),
+          parameter<double>("TOLRES_VEL",
+              {.description = "tolerance in the residual norm for the Newton iteration",
+                  .default_value = 1e-8}),
+          parameter<double>("TOLINC_VEL",
+              {.description = "tolerance in the increment norm for the Newton iteration",
+                  .default_value = 1e-8}),
+          parameter<double>("TOLRES_PRES",
+              {.description = "tolerance in the residual norm for the Newton iteration",
+                  .default_value = 1e-8}),
+          parameter<double>("TOLINC_PRES",
+              {.description = "tolerance in the increment norm for the Newton iteration",
+                  .default_value = 1e-8}),
+          parameter<double>("TOLRES_NCOUP",
+              {.description = "tolerance in the residual norm for the Newton iteration",
+                  .default_value = 1e-8}),
 
-  setStringToIntegralParameter<Inpar::PoroElast::ConvNorm>("NORM_RESF", "AbsSingleFields",
-      "type of norm for residual convergence check",
-      tuple<std::string>("AbsGlobal", "AbsSingleFields"),
-      tuple<Inpar::PoroElast::ConvNorm>(convnorm_abs_global, convnorm_abs_singlefields),
-      &poroelastdyn);
+          deprecated_selection<Inpar::PoroElast::ConvNorm>("NORM_INC",
+              {
+                  {"AbsGlobal", convnorm_abs_global},
+                  {"AbsSingleFields", convnorm_abs_singlefields},
+              },
+              {.description = "type of norm for primary variables convergence check",
+                  .default_value = convnorm_abs_singlefields}),
 
-  setStringToIntegralParameter<Inpar::PoroElast::BinaryOp>("NORMCOMBI_RESFINC", "And",
-      "binary operator to combine primary variables and residual force values",
-      tuple<std::string>("And", "Or"), tuple<Inpar::PoroElast::BinaryOp>(bop_and, bop_or),
-      &poroelastdyn);
+          deprecated_selection<Inpar::PoroElast::ConvNorm>("NORM_RESF",
+              {
+                  {"AbsGlobal", convnorm_abs_global},
+                  {"AbsSingleFields", convnorm_abs_singlefields},
+              },
+              {.description = "type of norm for residual convergence check",
+                  .default_value = convnorm_abs_singlefields}),
 
-  setStringToIntegralParameter<Inpar::PoroElast::VectorNorm>("VECTORNORM_RESF", "L2",
-      "type of norm to be applied to residuals",
-      tuple<std::string>("L1", "L1_Scaled", "L2", "Rms", "Inf"),
-      tuple<Inpar::PoroElast::VectorNorm>(norm_l1, norm_l1_scaled, norm_l2, norm_rms, norm_inf),
-      &poroelastdyn);
 
-  setStringToIntegralParameter<Inpar::PoroElast::VectorNorm>("VECTORNORM_INC", "L2",
-      "type of norm to be applied to residuals",
-      tuple<std::string>("L1", "L1_Scaled", "L2", "Rms", "Inf"),
-      tuple<Inpar::PoroElast::VectorNorm>(norm_l1, norm_l1_scaled, norm_l2, norm_rms, norm_inf),
-      &poroelastdyn);
+          deprecated_selection<Inpar::PoroElast::BinaryOp>("NORMCOMBI_RESFINC",
+              {
+                  {"And", bop_and},
+                  {"Or", bop_or},
+              },
+              {.description =
+                      "binary operator to combine primary variables and residual force values",
+                  .default_value = bop_and}),
 
-  Core::Utils::bool_parameter(
-      "SECONDORDER", "Yes", "Second order coupling at the interface.", &poroelastdyn);
 
-  Core::Utils::bool_parameter("CONTIPARTINT", "No",
-      "Partial integration of porosity gradient in continuity equation", &poroelastdyn);
+          deprecated_selection<Inpar::PoroElast::VectorNorm>("VECTORNORM_RESF",
+              {
+                  {"L1", norm_l1},
+                  {"L1_Scaled", norm_l1_scaled},
+                  {"L2", norm_l2},
+                  {"Rms", norm_rms},
+                  {"Inf", norm_inf},
+              },
+              {.description = "type of norm to be applied to residuals", .default_value = norm_l2}),
 
-  Core::Utils::bool_parameter("CONTACTNOPEN", "No",
-      "No-Penetration Condition on active contact surface in case of poro contact problem!",
-      &poroelastdyn);
 
-  Core::Utils::bool_parameter("MATCHINGGRID", "Yes", "is matching grid", &poroelastdyn);
+          deprecated_selection<Inpar::PoroElast::VectorNorm>("VECTORNORM_INC",
+              {
+                  {"L1", norm_l1},
+                  {"L1_Scaled", norm_l1_scaled},
+                  {"L2", norm_l2},
+                  {"Rms", norm_rms},
+                  {"Inf", norm_inf},
+              },
+              {.description = "type of norm to be applied to residuals", .default_value = norm_l2}),
 
-  Core::Utils::bool_parameter("CONVECTIVE_TERM", "No", "convective term ", &poroelastdyn);
+          parameter<bool>("SECONDORDER",
+              {.description = "Second order coupling at the interface.", .default_value = true}),
 
-  // number of linear solver used for poroelasticity
-  Core::Utils::int_parameter("LINEAR_SOLVER", -1,
-      "number of linear solver used for poroelasticity problems", &poroelastdyn);
+          parameter<bool>("CONTIPARTINT",
+              {.description = "Partial integration of porosity gradient in continuity equation",
+                  .default_value = false}),
 
-  // flag for equilibration of global system of equations
-  setStringToIntegralParameter<Core::LinAlg::EquilibrationMethod>("EQUILIBRATION", "none",
-      "flag for equilibration of global system of equations",
-      tuple<std::string>("none", "rows_full", "rows_maindiag", "columns_full", "columns_maindiag",
-          "rowsandcolumns_full", "rowsandcolumns_maindiag"),
-      tuple<Core::LinAlg::EquilibrationMethod>(Core::LinAlg::EquilibrationMethod::none,
-          Core::LinAlg::EquilibrationMethod::rows_full,
-          Core::LinAlg::EquilibrationMethod::rows_maindiag,
-          Core::LinAlg::EquilibrationMethod::columns_full,
-          Core::LinAlg::EquilibrationMethod::columns_maindiag,
-          Core::LinAlg::EquilibrationMethod::rowsandcolumns_full,
-          Core::LinAlg::EquilibrationMethod::rowsandcolumns_maindiag),
-      &poroelastdyn);
+          parameter<bool>("CONTACT_NO_PENETRATION",
+              {.description = "No-Penetration Condition on active contact "
+                              "surface in case of poro contact problem!",
+                  .default_value = false}),
+
+
+          parameter<bool>(
+              "MATCHINGGRID", {.description = "is matching grid", .default_value = true}),
+
+          parameter<bool>(
+              "CONVECTIVE_TERM", {.description = "convective term ", .default_value = false}),
+
+          // number of linear solver used for poroelasticity
+          parameter<int>("LINEAR_SOLVER",
+              {.description = "number of linear solver used for poroelasticity problems",
+                  .default_value = -1}),
+
+          // flag for equilibration of global system of equations
+          parameter<Core::LinAlg::EquilibrationMethod>("EQUILIBRATION",
+              {.description = "flag for equilibration of global system of equations",
+                  .default_value = Core::LinAlg::EquilibrationMethod::none})},
+      {.defaultable = true});
 }
 
 FOUR_C_NAMESPACE_CLOSE

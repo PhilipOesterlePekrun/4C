@@ -7,7 +7,7 @@
 
 #include "4C_pre_exodus_readbc.hpp"
 
-#include "4C_pre_exodus_reader.hpp"
+#include "4C_io_exodus.hpp"
 
 #include <fstream>
 
@@ -75,7 +75,7 @@ void EXODUS::read_bc_file(const std::string& bcfile, std::vector<EXODUS::ElemDef
   const std::string marker("*");
 
   // necessary counters
-  int E_id = 0;  // the 'E num -' in the datfile
+  int E_id = 0;  // the 'E num -' in the outfile
   int ndp = 0;
   int ndl = 0;
   int nds = 0;
@@ -270,7 +270,7 @@ void EXODUS::read_bc_file(const std::string& bcfile, std::vector<EXODUS::ElemDef
     }
     else
       FOUR_C_THROW(
-          "Cannot identify marker '%s'. Use *el (element block), *ns (nodeset) or *ss (sideset)",
+          "Cannot identify marker '{}'. Use *el (element block), *ns (nodeset) or *ss (sideset)",
           mesh_entity.c_str());
   }
 
@@ -422,7 +422,7 @@ bool EXODUS::periodic_boundary_conditions_found(std::vector<EXODUS::CondDef> con
  * periodic boundary conditions are defined                 u.may 02/10 *
  *----------------------------------------------------------------------*/
 void EXODUS::correct_nodal_coordinates_for_periodic_boundary_conditions(
-    EXODUS::Mesh& mesh, std::vector<EXODUS::CondDef> condefs)
+    Core::IO::Exodus::Mesh& mesh, std::vector<EXODUS::CondDef> condefs)
 {
   correct_yz_plane_for_periodic_boundary_conditions(mesh, condefs);
   correct_xz_plane_for_periodic_boundary_conditions(mesh, condefs);
@@ -437,7 +437,7 @@ void EXODUS::correct_nodal_coordinates_for_periodic_boundary_conditions(
  * periodic boundary conditions are defined                 u.may 02/10 *
  *----------------------------------------------------------------------*/
 void EXODUS::correct_yz_plane_for_periodic_boundary_conditions(
-    EXODUS::Mesh& mesh, const std::vector<EXODUS::CondDef>& condefs)
+    Core::IO::Exodus::Mesh& mesh, const std::vector<EXODUS::CondDef>& condefs)
 {
   // loop over all conditions
   for (unsigned int i = 0; i < condefs.size(); i++)
@@ -498,8 +498,8 @@ void EXODUS::correct_yz_plane_for_periodic_boundary_conditions(
       string_tolstream >> abstol;
 
       const int slave_nodeset_id = slave_con.id;
-      const EXODUS::NodeSet master_nodeset = mesh.get_node_set(master_nodeset_id);
-      const EXODUS::NodeSet slave_nodeset = mesh.get_node_set(slave_nodeset_id);
+      const Core::IO::Exodus::NodeSet master_nodeset = mesh.get_node_set(master_nodeset_id);
+      const Core::IO::Exodus::NodeSet slave_nodeset = mesh.get_node_set(slave_nodeset_id);
 
       if (slave_nodeset.get_num_nodes() != master_nodeset.get_num_nodes())
       {
@@ -539,7 +539,7 @@ void EXODUS::correct_yz_plane_for_periodic_boundary_conditions(
             equal = true;
 
           if ((count_slavenodes == (int)slave_nodeset_ids.size()) && !equal)
-            FOUR_C_THROW("no matching slave node %d found, adjust your tolerance", *m_node_id);
+            FOUR_C_THROW("no matching slave node {} found, adjust your tolerance", *m_node_id);
 
           if (!equal)
             continue;
@@ -574,7 +574,7 @@ void EXODUS::correct_yz_plane_for_periodic_boundary_conditions(
  * periodic boundary conditions are defined                 u.may 02/10 *
  *----------------------------------------------------------------------*/
 void EXODUS::correct_xz_plane_for_periodic_boundary_conditions(
-    EXODUS::Mesh& mesh, const std::vector<EXODUS::CondDef>& condefs)
+    Core::IO::Exodus::Mesh& mesh, const std::vector<EXODUS::CondDef>& condefs)
 {
   // loop over all conditions
   for (unsigned int i = 0; i < condefs.size(); i++)
@@ -636,8 +636,8 @@ void EXODUS::correct_xz_plane_for_periodic_boundary_conditions(
       string_tolstream >> abstol;
 
       const int slave_nodeset_id = slave_con.id;
-      const EXODUS::NodeSet master_nodeset = mesh.get_node_set(master_nodeset_id);
-      const EXODUS::NodeSet slave_nodeset = mesh.get_node_set(slave_nodeset_id);
+      const Core::IO::Exodus::NodeSet master_nodeset = mesh.get_node_set(master_nodeset_id);
+      const Core::IO::Exodus::NodeSet slave_nodeset = mesh.get_node_set(slave_nodeset_id);
 
       if (slave_nodeset.get_num_nodes() != master_nodeset.get_num_nodes())
       {
@@ -677,7 +677,7 @@ void EXODUS::correct_xz_plane_for_periodic_boundary_conditions(
             equal = true;
 
           if ((count_slavenodes == (int)slave_nodeset_ids.size()) && !equal)
-            FOUR_C_THROW("no matching slave node %d found, adjust your tolerance", *m_node_id);
+            FOUR_C_THROW("no matching slave node {} found, adjust your tolerance", *m_node_id);
 
           if (!equal)
             continue;
@@ -712,7 +712,7 @@ void EXODUS::correct_xz_plane_for_periodic_boundary_conditions(
  * periodic boundary conditions are defined                 u.may 02/10 *
  *----------------------------------------------------------------------*/
 void EXODUS::correct_xy_plane_for_periodic_boundary_conditions(
-    EXODUS::Mesh& mesh, const std::vector<EXODUS::CondDef>& condefs)
+    Core::IO::Exodus::Mesh& mesh, const std::vector<EXODUS::CondDef>& condefs)
 {
   // loop over all conditions
   for (unsigned int i = 0; i < condefs.size(); i++)
@@ -773,8 +773,8 @@ void EXODUS::correct_xy_plane_for_periodic_boundary_conditions(
       string_tolstream >> abstol;
 
       const int slave_nodeset_id = slave_con.id;
-      const EXODUS::NodeSet master_nodeset = mesh.get_node_set(master_nodeset_id);
-      const EXODUS::NodeSet slave_nodeset = mesh.get_node_set(slave_nodeset_id);
+      const Core::IO::Exodus::NodeSet master_nodeset = mesh.get_node_set(master_nodeset_id);
+      const Core::IO::Exodus::NodeSet slave_nodeset = mesh.get_node_set(slave_nodeset_id);
 
       if (slave_nodeset.get_num_nodes() != master_nodeset.get_num_nodes())
       {
@@ -814,7 +814,7 @@ void EXODUS::correct_xy_plane_for_periodic_boundary_conditions(
             equal = true;
 
           if ((count_slavenodes == (int)slave_nodeset_ids.size()) && !equal)
-            FOUR_C_THROW("no matching slave node %d found, adjust your tolerance", *m_node_id);
+            FOUR_C_THROW("no matching slave node {} found, adjust your tolerance", *m_node_id);
 
           if (!equal)
             continue;

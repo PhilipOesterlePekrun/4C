@@ -41,8 +41,6 @@ namespace Discret
      This a calculation class implemented as a singleton, like all calc classes in fluid
      (see comments on base classes for more details). In short this means that on instance
      exists for every discretization type of the boundary element (because of the template).
-
-     \author vuong 10/14
      */
 
     template <Core::FE::CellType distype>
@@ -71,23 +69,21 @@ namespace Discret
         \param lm               (i) location matrix of element
         \param params           (i) element parameter list
         \param mat              (i) material
-        \param elemat1_epetra   (o) element matrix to calculate
-        \param elemat2_epetra   (o) element matrix to calculate
-        \param elevec1_epetra   (o) element vector to calculate
-        \param elevec2_epetra   (o) element vector to calculate
-        \param elevec3_epetra   (o) element vector to calculate
+        \param elemat1          (o) element matrix to calculate
+        \param elemat2          (o) element matrix to calculate
+        \param elevec1          (o) element vector to calculate
+        \param elevec2          (o) element vector to calculate
+        \param elevec3          (o) element vector to calculate
         \param offdiag          (i) flag indicating whether diagonal or off diagonal blocks are to
         be calculated
 
        */
       int evaluate(Discret::Elements::Fluid* ele, Core::FE::Discretization& discretization,
           const std::vector<int>& lm, Teuchos::ParameterList& params,
-          std::shared_ptr<Core::Mat::Material>& mat,
-          Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec3_epetra, bool offdiag = false) override;
+          std::shared_ptr<Core::Mat::Material>& mat, Core::LinAlg::SerialDenseMatrix& elemat1,
+          Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+          Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3,
+          bool offdiag = false) override;
 
       /*!
         \brief calculate element matrix and rhs for porous flow (2)
@@ -97,22 +93,19 @@ namespace Discret
         \param lm               (i) location matrix of element
         \param params           (i) element parameter list
         \param mat              (i) material
-        \param elemat1_epetra   (o) element matrix to calculate
-        \param elemat2_epetra   (o) element matrix to calculate
-        \param elevec1_epetra   (o) element vector to calculate
-        \param elevec2_epetra   (o) element vector to calculate
-        \param elevec3_epetra   (o) element vector to calculate
+        \param elemat1          (o) element matrix to calculate
+        \param elemat2          (o) element matrix to calculate
+        \param elevec1          (o) element vector to calculate
+        \param elevec2          (o) element vector to calculate
+        \param elevec3          (o) element vector to calculate
         \param intpoints        (i) Gaussian integration points
 
        */
       virtual int evaluate(Discret::Elements::Fluid* ele, Core::FE::Discretization& discretization,
           const std::vector<int>& lm, Teuchos::ParameterList& params,
-          std::shared_ptr<Core::Mat::Material>& mat,
-          Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec3_epetra,
+          std::shared_ptr<Core::Mat::Material>& mat, Core::LinAlg::SerialDenseMatrix& elemat1,
+          Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+          Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3,
           const Core::FE::GaussIntegration& intpoints);
 
       /*!
@@ -124,23 +117,20 @@ namespace Discret
         \param lm               (i) location matrix of element
         \param params           (i) element parameter list
         \param mat              (i) material
-        \param elemat1_epetra   (o) element matrix to calculate
-        \param elemat2_epetra   (o) element matrix to calculate
-        \param elevec1_epetra   (o) element vector to calculate
-        \param elevec2_epetra   (o) element vector to calculate
-        \param elevec3_epetra   (o) element vector to calculate
+        \param elemat1          (o) element matrix to calculate
+        \param elemat2          (o) element matrix to calculate
+        \param elevec1          (o) element vector to calculate
+        \param elevec2          (o) element vector to calculate
+        \param elevec3          (o) element vector to calculate
         \param intpoints        (i) Gaussian integration points
 
        */
       virtual int evaluate_od(Discret::Elements::Fluid* ele,
           Core::FE::Discretization& discretization, const std::vector<int>& lm,
           Teuchos::ParameterList& params, std::shared_ptr<Core::Mat::Material>& mat,
-          Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec3_epetra,
-          const Core::FE::GaussIntegration& intpoints);
+          Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+          Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+          Core::LinAlg::SerialDenseVector& elevec3, const Core::FE::GaussIntegration& intpoints);
 
 
       //! Evaluate supporting methods of the element
@@ -901,14 +891,6 @@ namespace Discret
           const Core::LinAlg::Matrix<nsd_, nen_ * nsd_>& lin_resM_Dus,
           const Core::LinAlg::Matrix<nsd_, nen_ * nsd_>& lin_resM_Dus_gridvel,
           Core::LinAlg::Matrix<nen_, nen_ * nsd_>& ecoupl_p);
-
-      //! do some evaluation before actual element matrix assembly
-      void pre_evaluate(
-          Teuchos::ParameterList&
-              params,  //!< ParameterList for communication between control routine and elements
-          Discret::Elements::Fluid* ele,            //!< fluid element
-          Core::FE::Discretization& discretization  //!< pointer to discretization for de-assembly
-      );
 
       //! computation of material derivatives
       double setup_material_derivatives();

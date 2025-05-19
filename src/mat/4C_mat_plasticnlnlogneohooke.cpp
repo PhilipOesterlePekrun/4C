@@ -13,6 +13,7 @@
 #include "4C_linalg_utils_densematrix_eigen.hpp"
 #include "4C_mat_par_bundle.hpp"
 #include "4C_mat_service.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 #include "4C_utils_local_newton.hpp"
 
@@ -141,7 +142,6 @@ namespace
 
     return {Dgamma, dy_d_dgamma};
   }
-
 }  // namespace
 
 
@@ -161,9 +161,9 @@ Mat::PAR::PlasticNlnLogNeoHooke::PlasticNlnLogNeoHooke(
       hardexp_(matdata.parameters.get<double>("HARDEXPO")),
       visc_(matdata.parameters.get<double>("VISC")),
       rate_dependency_(matdata.parameters.get<double>("RATE_DEPENDENCY")),
+      tolerance_nr_(matdata.parameters.get<double>("TOL")),
       functionID_hardening_(matdata.parameters.get<int>("HARDENING_FUNC")),
-      max_iterations_(10),
-      tolerance_nr_(1.e-12)
+      max_iterations_(50)
 {
   if (yield_ == 0 && functionID_hardening_ == 0)
     FOUR_C_THROW(
@@ -244,8 +244,6 @@ void Mat::PlasticNlnLogNeoHooke::pack(Core::Communication::PackBuffer& data) con
     add_to_pack(data, accplstrainlast_.at(var));
     add_to_pack(data, invplrcglast_.at(var));
   }
-
-  return;
 }  // pack()
 
 
@@ -255,7 +253,6 @@ void Mat::PlasticNlnLogNeoHooke::pack(Core::Communication::PackBuffer& data) con
 void Mat::PlasticNlnLogNeoHooke::unpack(Core::Communication::UnpackBuffer& buffer)
 {
   isinit_ = true;
-
 
   Core::Communication::extract_and_assert_id(buffer, unique_par_object_id());
 
@@ -272,8 +269,18 @@ void Mat::PlasticNlnLogNeoHooke::unpack(Core::Communication::UnpackBuffer& buffe
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::PlasticNlnLogNeoHooke*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
+
+      // Extract the function for hardening again for unpack.
+      const int functionID_hardening =
+          params_->functionID_hardening_;  // function number for isotropic hardening
+      if (functionID_hardening != 0)
+      {
+        hardening_function_ =
+            &Global::Problem::instance()->function_by_id<Core::Utils::FunctionOfAnything>(
+                functionID_hardening);
+      }
     }
 
   // history data
@@ -290,7 +297,7 @@ void Mat::PlasticNlnLogNeoHooke::unpack(Core::Communication::UnpackBuffer& buffe
     extract_from_pack(buffer, tmp1);
     accplstrainlast_.push_back(tmp1);
 
-    Core::LinAlg::Matrix<3, 3> tmp(true);
+    Core::LinAlg::Matrix<3, 3> tmp(Core::LinAlg::Initialization::zero);
     // vectors of last converged state are unpacked
     extract_from_pack(buffer, tmp);
     invplrcglast_.push_back(tmp);
@@ -299,11 +306,6 @@ void Mat::PlasticNlnLogNeoHooke::unpack(Core::Communication::UnpackBuffer& buffe
     accplstraincurr_.push_back(tmp1);
     invplrcgcurr_.push_back(tmp);
   }
-
-
-
-  return;
-
 }  // unpack()
 
 
@@ -329,7 +331,7 @@ void Mat::PlasticNlnLogNeoHooke::setup(
   accplstrainlast_.resize(numgp);
   accplstraincurr_.resize(numgp);
 
-  Core::LinAlg::Matrix<3, 3> emptymat(true);
+  Core::LinAlg::Matrix<3, 3> emptymat(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; i++) emptymat(i, i) = 1.0;
 
   for (int i = 0; i < numgp; i++)
@@ -363,7 +365,7 @@ void Mat::PlasticNlnLogNeoHooke::update()
   invplrcgcurr_.resize(histsize);
   accplstraincurr_.resize(histsize);
 
-  Core::LinAlg::Matrix<3, 3> emptymat(true);
+  Core::LinAlg::Matrix<3, 3> emptymat(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; i++) emptymat(i, i) = 1.0;
 
   for (int i = 0; i < histsize; i++)
@@ -371,7 +373,6 @@ void Mat::PlasticNlnLogNeoHooke::update()
     invplrcgcurr_.at(i) = emptymat;
     accplstraincurr_.at(i) = 0.0;
   }
-  return;
 }  // update()
 
 
@@ -399,6 +400,11 @@ void Mat::PlasticNlnLogNeoHooke::evaluate(const Core::LinAlg::Matrix<3, 3>* defg
   const double eps = params_->rate_dependency_;  // rate dependency
 
   const double detF = defgrd->determinant();
+  if (detF < 0.0)
+  {
+    params.set<bool>("eval_error", true);
+    return;
+  }
 
   const double dt = params.get<double>("delta time");
   // check, if errors are tolerated or should throw a FOUR_C_THROW
@@ -417,7 +423,7 @@ void Mat::PlasticNlnLogNeoHooke::evaluate(const Core::LinAlg::Matrix<3, 3>* defg
   Core::LinAlg::Matrix<3, 3> tmp2;
 
   // 3x3 2nd-order identity matrix
-  Core::LinAlg::Matrix<3, 3> id2(true);
+  Core::LinAlg::Matrix<3, 3> id2(Core::LinAlg::Initialization::zero);
   // 3x3 2nd-order deviatoric identity matrix in principal directions
   Core::LinAlg::Matrix<3, 3> Idev;
   for (int i = 0; i < 3; i++)
@@ -452,13 +458,12 @@ void Mat::PlasticNlnLogNeoHooke::evaluate(const Core::LinAlg::Matrix<3, 3>* defg
   // Here we start the principal stress based algorithm
   // ***************************************************
 
-  // convert to epetra format and solve eigenvalue problem
+  // convert and solve eigenvalue problem
   // this matrix contains spatial eigen directions (the second
   // index corresponds to the eigenvalue)
   Core::LinAlg::SerialDenseMatrix n(3, 3);
   Core::LinAlg::SerialDenseVector lambda_trial_square(3);
 
-  // convert Input Matrix in Epetra format
   for (int i = 0; i < 3; i++)
     for (int j = 0; j < 3; j++) n(i, j) = Be_trial(i, j);
 
@@ -576,7 +581,7 @@ void Mat::PlasticNlnLogNeoHooke::evaluate(const Core::LinAlg::Matrix<3, 3>* defg
   // or tau_ij = tau'_ii + kappa ln(J)
   // S_ij   = F^-1 tau_ij F^-T
   //        = tau_ij (F^-1 n_i) \otimes (F^-1 n_i)
-  Core::LinAlg::Matrix<3, 3> PK2(true);
+  Core::LinAlg::Matrix<3, 3> PK2(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; i++)
   {
     tmp1.multiply_nt(material_principal_directions.at(i), material_principal_directions.at(i));
@@ -633,7 +638,6 @@ void Mat::PlasticNlnLogNeoHooke::evaluate(const Core::LinAlg::Matrix<3, 3>* defg
             *cmat, fac, tmp1, tmp1, 1.0);  // N_{abab}
         Core::LinAlg::Tensor::add_elasticity_tensor_product(
             *cmat, fac, tmp1, tmp2, 1.0);  // N_{abba}
-
       }  // end if (a!=b)
     }  // end loop b
   }  // end loop a
@@ -649,9 +653,6 @@ void Mat::PlasticNlnLogNeoHooke::evaluate(const Core::LinAlg::Matrix<3, 3>* defg
   // Green-Lagrange plastic strains can be easily calculated, in contrast
   // Euler-Almansi requires special treatment, which is not yet considered in the
   // element formulation
-
-  return;
-
 }  // evaluate()
 
 
@@ -729,7 +730,6 @@ bool Mat::PlasticNlnLogNeoHooke::evaluate_output_data(
   }
   return false;
 }
-
 
 /*----------------------------------------------------------------------*/
 

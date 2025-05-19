@@ -22,7 +22,7 @@ VERSION=${2:-develop}
 
 
 # Location of script to apply patches later
-SCRIPT_DIR="`dirname "$0"`"
+SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 CMAKE_COMMAND=cmake
 
 git clone https://github.com/trilinos/Trilinos.git
@@ -60,8 +60,6 @@ $CMAKE_COMMAND \
     -D Epetra_SHOW_DEPRECATED_WARNINGS:BOOL=OFF \
   -D Trilinos_ENABLE_EpetraExt:BOOL=ON \
     -D EpetraExt_SHOW_DEPRECATED_WARNINGS:BOOL=OFF \
-  -D Trilinos_ENABLE_Intrepid:BOOL=ON \
-    -D Intrepid_SHOW_DEPRECATED_WARNINGS:BOOL=OFF \
   -D Trilinos_ENABLE_Intrepid2:BOOL=ON \
   -D Trilinos_ENABLE_Ifpack:BOOL=ON \
     -D Ifpack_SHOW_DEPRECATED_WARNINGS:BOOL=OFF \
@@ -111,3 +109,4 @@ $CMAKE_COMMAND \
 
 make -j${NPROCS} install
 cd ..
+rm -rf Trilinos trilinos_build

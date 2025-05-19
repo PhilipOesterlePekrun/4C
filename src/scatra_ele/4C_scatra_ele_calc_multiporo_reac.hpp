@@ -17,14 +17,15 @@
 #include "4C_mat_fluidporo_multiphase_reactions.hpp"
 #include "4C_mat_fluidporo_singlephase.hpp"
 #include "4C_mat_scatra_multiporo.hpp"
-#include "4C_porofluidmultiphase_ele_action.hpp"
-#include "4C_porofluidmultiphase_ele_calc.hpp"
-#include "4C_porofluidmultiphase_ele_calc_utils.hpp"
-#include "4C_porofluidmultiphase_ele_evaluator.hpp"
-#include "4C_porofluidmultiphase_ele_parameter.hpp"
-#include "4C_porofluidmultiphase_ele_phasemanager.hpp"
-#include "4C_porofluidmultiphase_ele_variablemanager.hpp"
+#include "4C_porofluid_pressure_based_ele_action.hpp"
+#include "4C_porofluid_pressure_based_ele_calc.hpp"
+#include "4C_porofluid_pressure_based_ele_calc_utils.hpp"
+#include "4C_porofluid_pressure_based_ele_evaluator.hpp"
+#include "4C_porofluid_pressure_based_ele_parameter.hpp"
+#include "4C_porofluid_pressure_based_ele_phasemanager.hpp"
+#include "4C_porofluid_pressure_based_ele_variablemanager.hpp"
 #include "4C_scatra_ele_calc_poro_reac.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -50,10 +51,10 @@ namespace Discret
       ScaTraEleCalcMultiPoroReac(
           const int numdofpernode, const int numscal, const std::string& disname);
 
-      typedef ScaTraEleCalc<distype> my;
-      typedef ScaTraEleCalcPoroReac<distype> pororeac;
-      typedef ScaTraEleCalcPoro<distype> poro;
-      typedef ScaTraEleCalcAdvReac<distype> advreac;
+      using my = ScaTraEleCalc<distype>;
+      using pororeac = ScaTraEleCalcPoroReac<distype>;
+      using poro = ScaTraEleCalcPoro<distype>;
+      using advreac = ScaTraEleCalcAdvReac<distype>;
       using my::nen_;
       using my::nsd_;
 
@@ -382,7 +383,7 @@ namespace Discret
     class ScaTraEleInternalVariableManagerMultiPoro
         : public ScaTraEleInternalVariableManager<nsd, nen>
     {
-      typedef ScaTraEleInternalVariableManager<nsd, nen> my;
+      using my = ScaTraEleInternalVariableManager<nsd, nen>;
 
      public:
       ScaTraEleInternalVariableManagerMultiPoro(int numscal)
@@ -424,7 +425,7 @@ namespace Discret
       )
       {
         // call base class (scatra) with dummy variable
-        const Core::LinAlg::Matrix<nsd, nen> dummy_econv(true);
+        const Core::LinAlg::Matrix<nsd, nen> dummy_econv(Core::LinAlg::Initialization::zero);
         my::set_internal_variables(funct, derxy, ephinp, ephin, dummy_econv, ehist, dummy_econv);
 
         // velocity due to the external force
@@ -482,9 +483,9 @@ namespace Discret
         phase_fluid_velocity_conv.resize(numfluidphases + numvolfrac);
 
         //! temperature convective velocity
-        Core::LinAlg::Matrix<nsd, 1> temperatureconvelint(true);
+        Core::LinAlg::Matrix<nsd, 1> temperatureconvelint(Core::LinAlg::Initialization::zero);
         //! temperature convective part in convective form
-        Core::LinAlg::Matrix<nen, 1> temperatureconv(true);
+        Core::LinAlg::Matrix<nen, 1> temperatureconv(Core::LinAlg::Initialization::zero);
 
         for (int i_phase = 0; i_phase < numfluidphases; ++i_phase)
         {
@@ -580,8 +581,8 @@ namespace Discret
               break;
 
             case Mat::ScaTraMatMultiPoro::SpeciesType::species_in_solid:
-              my::convelint_[k] = Core::LinAlg::Matrix<nsd, 1>(0.0);
-              my::conv_[k] = Core::LinAlg::Matrix<nen, 1>(0.0);
+              my::convelint_[k] = Core::LinAlg::Matrix<nsd, 1>(Core::LinAlg::Initialization::zero);
+              my::conv_[k] = Core::LinAlg::Matrix<nen, 1>(Core::LinAlg::Initialization::zero);
               my::conv_phi_[k] = 0;
               break;
 
@@ -593,7 +594,7 @@ namespace Discret
 
             default:
               FOUR_C_THROW(
-                  "unknown species type %i for species %i!", scalartophasemap_[k].species_type, k);
+                  "unknown species type {} for species {}!", scalartophasemap_[k].species_type, k);
               break;
           }
           // set flag if we actually have to evaluate the species
@@ -628,7 +629,7 @@ namespace Discret
         for (auto& k : scalartophasemap_)
         {
           if (k.phaseID < 0 or k.phaseID >= numfluidphases)
-            FOUR_C_THROW("Invalid phase ID %i", k.phaseID);
+            FOUR_C_THROW("Invalid phase ID {}", k.phaseID);
         }
 
         // set convective term
@@ -648,7 +649,7 @@ namespace Discret
 
             default:
               FOUR_C_THROW(
-                  "unknown species type %i for species %i!", scalartophasemap_[k].species_type, k);
+                  "unknown species type {} for species {}!", scalartophasemap_[k].species_type, k);
               break;
           }
         }
@@ -682,7 +683,7 @@ namespace Discret
             return pressure_[scalartophasemap_[k].phaseID];
 
           default:
-            FOUR_C_THROW("ScalartophaseID = %i for species %i", scalartophasemap_[k].phaseID, k);
+            FOUR_C_THROW("ScalartophaseID = {} for species {}", scalartophasemap_[k].phaseID, k);
             return 0;
         }
       };
@@ -699,7 +700,7 @@ namespace Discret
             return saturation_[scalartophasemap_[k].phaseID];
 
           default:
-            FOUR_C_THROW("ScalartophaseID = %i for species %i", scalartophasemap_[k].phaseID, k);
+            FOUR_C_THROW("ScalartophaseID = {} for species {}", scalartophasemap_[k].phaseID, k);
             return 0;
         }
       };
@@ -725,7 +726,7 @@ namespace Discret
 
           default:
             FOUR_C_THROW(
-                "unknown species type %i for species %i!", scalartophasemap_[k].species_type, k);
+                "unknown species type {} for species {}!", scalartophasemap_[k].species_type, k);
             return 0;
         }
       };
@@ -746,7 +747,7 @@ namespace Discret
             return volfrac_[get_phase_id(k) - phasemanager_->num_fluid_phases()];
 
           default:
-            FOUR_C_THROW("ScalartophaseID = %i for species %i", scalartophasemap_[k].phaseID, k);
+            FOUR_C_THROW("ScalartophaseID = {} for species {}", scalartophasemap_[k].phaseID, k);
             return 0;
         }
       };
@@ -770,7 +771,7 @@ namespace Discret
       {
         if (scalartophasemap_[scalarID].phaseID < 0)
           FOUR_C_THROW(
-              "ScalartophaseID = %i for species %i", scalartophasemap_[scalarID].phaseID, scalarID);
+              "ScalartophaseID = {} for species {}", scalartophasemap_[scalarID].phaseID, scalarID);
 
         return scalartophasemap_[scalarID].phaseID;
       };
@@ -897,7 +898,7 @@ namespace Discret
           }
           default:
             FOUR_C_THROW(
-                "unknown species type %i for species %i!", scalartophasemap_[k].species_type, k);
+                "unknown species type {} for species {}!", scalartophasemap_[k].species_type, k);
             break;
         }  // switch(species type)
 
@@ -987,7 +988,7 @@ namespace Discret
           default:
           {
             FOUR_C_THROW(
-                "unknown species type %i for species %i!", scalartophasemap_[k].species_type, k);
+                "unknown species type {} for species {}!", scalartophasemap_[k].species_type, k);
             break;
           }
         }  // switch(species type)
@@ -1051,12 +1052,13 @@ namespace Discret
             const Core::LinAlg::Matrix<nsd, 1> gradpres = pressure_gradient(phase);
             const double abspressgrad = abs_pressure_gradient(phase);
 
-            static Core::LinAlg::Matrix<nsd, nsd> difftensor(true);
+            static Core::LinAlg::Matrix<nsd, nsd> difftensor(Core::LinAlg::Initialization::zero);
             phasemanager_->permeability_tensor(phase, difftensor);
             difftensor.scale(phasemanager_->rel_permeability_deriv(phase) /
                              phasemanager_->dyn_viscosity(phase, abspressgrad, 2));
 
-            static Core::LinAlg::Matrix<1, nsd> gradphiTdifftensor(true);
+            static Core::LinAlg::Matrix<1, nsd> gradphiTdifftensor(
+                Core::LinAlg::Initialization::zero);
             gradphiTdifftensor.multiply_tn(gradphi, difftensor);
 
             double laplawf(0.0);
@@ -1074,7 +1076,7 @@ namespace Discret
           (*prefaclinconvodfluid)[phase + numvolfrac] += laplawf;
         }
         else
-          FOUR_C_THROW("get_pre_fac_lin_conv_od_fluid has been called with phase %i", phase);
+          FOUR_C_THROW("get_pre_fac_lin_conv_od_fluid has been called with phase {}", phase);
 
         return;
       };
@@ -1158,7 +1160,7 @@ namespace Discret
           }
           default:
             FOUR_C_THROW(
-                "unknown species type %i for species %i!", scalartophasemap_[k].species_type, k);
+                "unknown species type {} for species {}!", scalartophasemap_[k].species_type, k);
             break;
         }  // switch(species type)
 
@@ -1260,7 +1262,7 @@ namespace Discret
           default:
           {
             FOUR_C_THROW(
-                "unknown species type %i for species %i!", scalartophasemap_[k].species_type, k);
+                "unknown species type {} for species {}!", scalartophasemap_[k].species_type, k);
             break;
           }
         }  // switch(species type)
@@ -1284,7 +1286,7 @@ namespace Discret
           case Mat::ScaTraMatMultiPoro::SpeciesType::species_in_solid:
           default:
             FOUR_C_THROW(
-                "unknown species type %i for species %i!", scalartophasemap_[k].species_type, k);
+                "unknown species type {} for species {}!", scalartophasemap_[k].species_type, k);
             break;
         }  // switch(species type)
 
@@ -1308,7 +1310,7 @@ namespace Discret
 
           // gradient of phi w.r.t. reference coordinates
           std::vector<Core::LinAlg::Matrix<nsd, 1>> reffluidgradphi(
-              numfluidphases, Core::LinAlg::Matrix<nsd, 1>(true));
+              numfluidphases, Core::LinAlg::Matrix<nsd, 1>(Core::LinAlg::Initialization::zero));
           for (int idof = 0; idof < numfluidphases; ++idof)
             reffluidgradphi[idof].multiply(xjm, fluidgradphi[idof]);
 
@@ -1323,7 +1325,7 @@ namespace Discret
           refgradpres.multiply(xjm, pressuregrad_[phase]);
         }
         else
-          FOUR_C_THROW("GetRefGradPres has been called with phase %i", phase);
+          FOUR_C_THROW("GetRefGradPres has been called with phase {}", phase);
 
         return;
       }
@@ -1362,7 +1364,7 @@ namespace Discret
           default:
           {
             FOUR_C_THROW(
-                "unknown species type %i for species %i!", scalartophasemap_[k].species_type, k);
+                "unknown species type {} for species {}!", scalartophasemap_[k].species_type, k);
             break;
           }
         }  // switch(species type)
@@ -1438,7 +1440,7 @@ namespace Discret
 
           default:
             FOUR_C_THROW(
-                "unknown species type %i for species %i!", scalartophasemap_[k].species_type, k);
+                "unknown species type {} for species {}!", scalartophasemap_[k].species_type, k);
             break;
         }  // switch(species type)
 
@@ -1483,7 +1485,7 @@ namespace Discret
         phasemanager_ =
             Discret::Elements::PoroFluidManager::PhaseManagerInterface::create_phase_manager(*para,
                 nsd, multiphase_mat()->material_type(),
-                POROFLUIDMULTIPHASE::Action::get_access_from_scatra, totalnummultiphasedofpernode,
+                PoroPressureBased::Action::get_access_from_scatra, totalnummultiphasedofpernode,
                 numfluidphases);
 
         // access from outside to the phasemanager: scatra-discretization has fluid-dis on dofset 2
@@ -1491,9 +1493,8 @@ namespace Discret
 
         // create variablemanager
         variablemanager_ = Discret::Elements::PoroFluidManager::VariableManagerInterface<nsd,
-            nen>::create_variable_manager(*para,
-            POROFLUIDMULTIPHASE::Action::get_access_from_scatra, multiphase_mat(),
-            totalnummultiphasedofpernode, numfluidphases);
+            nen>::create_variable_manager(*para, PoroPressureBased::Action::get_access_from_scatra,
+            multiphase_mat(), totalnummultiphasedofpernode, numfluidphases);
 
         return;
       }

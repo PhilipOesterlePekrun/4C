@@ -64,7 +64,6 @@
 #include "4C_mat_elchmat.hpp"
 #include "4C_mat_elchphase.hpp"
 #include "4C_mat_electrode.hpp"
-#include "4C_mat_electromagnetic.hpp"
 #include "4C_mat_fluid_linear_density_viscosity.hpp"
 #include "4C_mat_fluid_murnaghantait.hpp"
 #include "4C_mat_fluid_weakly_compressible.hpp"
@@ -167,6 +166,7 @@
 #include "4C_mixture_rule_growthremodel.hpp"
 #include "4C_mixture_rule_map.hpp"
 #include "4C_mixture_rule_simple.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -997,10 +997,6 @@ std::unique_ptr<Core::Mat::PAR::Parameter> Mat::make_parameter(
     {
       return make_parameter_impl<Mat::PAR::ParticleWallMaterialDEM>(id, type, input_data);
     }
-    case Core::Materials::m_electromagneticmat:
-    {
-      return make_parameter_impl<Mat::PAR::ElectromagneticMat>(id, type, input_data);
-    }
     case Core::Materials::m_superelast:
     {
       return make_parameter_impl<Mat::PAR::SuperElasticSMA>(id, type, input_data);
@@ -1014,7 +1010,7 @@ std::unique_ptr<Core::Mat::PAR::Parameter> Mat::make_parameter(
       return make_parameter_impl<Mat::PAR::LinElast1DGrowth>(id, type, input_data);
     }
     default:
-      FOUR_C_THROW("unknown material type %d", type);
+      FOUR_C_THROW("unknown material type {}", type);
   }
 }
 

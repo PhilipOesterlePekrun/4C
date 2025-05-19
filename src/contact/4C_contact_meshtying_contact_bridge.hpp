@@ -10,8 +10,8 @@
 
 #include "4C_config.hpp"
 
+#include "4C_contact_input.hpp"
 #include "4C_fem_condition.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_utils_exceptions.hpp"
 
@@ -160,12 +160,6 @@ namespace CONTACT
 
     */
     void update(std::shared_ptr<Core::LinAlg::Vector<double>> dis);
-
-    /*!
-    \brief visualize stuff with gmsh
-
-    */
-    void visualize_gmsh(const int istep, const int iter = -1);
 
     /*!
     \brief write restart

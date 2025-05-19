@@ -124,6 +124,7 @@ endfunction()
 #                         If two files are provided the second input file is restarted based on the results of the first input file.
 
 # optional:
+# CONVERT_TO_YAML:                If set, convert the input file to YAML format before running the test
 # NP:                             Number of processors the test should use. Fallback to 1 if not specified.
 #                                 For two input files two NP's are required.
 # RESTART_STEP:                   Number of restart step; not defined indicates no restart
@@ -138,7 +139,7 @@ endfunction()
 
 function(four_c_test)
 
-  set(options "")
+  set(options CONVERT_TO_YAML)
   set(oneValueArgs RESTART_STEP TIMEOUT OMP_THREADS POST_ENSIGHT_STRUCTURE)
   set(multiValueArgs
       TEST_FILE
@@ -279,9 +280,25 @@ function(four_c_test)
     set(test_directory ${PROJECT_BINARY_DIR}/framework_test_output/${name_of_test})
   endif()
 
-  set(test_command
-      "mkdir -p ${test_directory} && ${MPIEXEC_EXECUTABLE} ${MPIEXEC_EXTRA_OPTS_FOR_TESTING} -np ${base_NP} $<TARGET_FILE:${FOUR_C_EXECUTABLE_NAME}> ${base_test_file} ${test_directory}/xxx"
-      )
+  if(_parsed_CONVERT_TO_YAML)
+    if(num_TEST_FILE GREATER 1)
+      message(FATAL_ERROR "Conversion to YAML is only supported for single test files!")
+    endif()
+    # update test name and directory
+    set(name_of_test ${name_of_test}-converted-to-yaml)
+    set(test_directory ${PROJECT_BINARY_DIR}/framework_test_output/${name_of_test})
+
+    set(test_command
+        "mkdir -p ${test_directory} \
+                && ${FOUR_C_ENABLE_ADDRESS_SANITIZER_TEST_OPTIONS} $<TARGET_FILE:${FOUR_C_EXECUTABLE_NAME}> --to-yaml ${base_test_file} ${test_directory}/converted_input.yaml \
+                && ${MPIEXEC_EXECUTABLE} ${_mpiexec_all_args_for_testing} -np ${base_NP} $<TARGET_FILE:${FOUR_C_EXECUTABLE_NAME}> ${test_directory}/converted_input.yaml ${test_directory}/xxx"
+        )
+  else()
+    set(test_command
+        "mkdir -p ${test_directory} \
+                && ${MPIEXEC_EXECUTABLE} ${_mpiexec_all_args_for_testing} -np ${base_NP} $<TARGET_FILE:${FOUR_C_EXECUTABLE_NAME}> ${base_test_file} ${test_directory}/xxx"
+        )
+  endif()
 
   # Optional timeout
   if(NOT "${_parsed_TIMEOUT}" STREQUAL "")
@@ -294,7 +311,7 @@ function(four_c_test)
   if(${_parsed_OMP_THREADS})
     set(name_of_test ${name_of_test}-OMP${_parsed_OMP_THREADS})
     set(test_command
-        "export OMP_NUM_THREADS=${_parsed_OMP_THREADS}; ${test_command}; unset OMP_NUM_THREADS"
+        "export OMP_NUM_THREADS=${_parsed_OMP_THREADS} && ${test_command} && unset OMP_NUM_THREADS"
         )
     math(EXPR total_procs "${_parsed_NP}*${_parsed_OMP_THREADS}")
   endif()
@@ -345,7 +362,7 @@ function(four_c_test)
         )
     set(restart_test_directory ${PROJECT_BINARY_DIR}/framework_test_output/${name_of_test})
     set(test_command
-        "mkdir -p ${restart_test_directory} && ${MPIEXEC_EXECUTABLE} ${MPIEXEC_EXTRA_OPTS_FOR_TESTING} -np ${restart_NP} $<TARGET_FILE:${FOUR_C_EXECUTABLE_NAME}> ${restart_test_file} ${restart_test_directory}/xxx restartfrom=${test_directory}/xxx restart=${_parsed_RESTART_STEP}"
+        "mkdir -p ${restart_test_directory} && ${MPIEXEC_EXECUTABLE} ${_mpiexec_all_args_for_testing} -np ${restart_NP} $<TARGET_FILE:${FOUR_C_EXECUTABLE_NAME}> ${restart_test_file} ${restart_test_directory}/xxx restartfrom=${test_directory}/xxx restart=${_parsed_RESTART_STEP}"
         )
 
     # Optional OpenMP threads per processor
@@ -353,7 +370,7 @@ function(four_c_test)
     if(${_parsed_OMP_THREADS})
       set(name_of_test ${name_of_test}-OMP${_parsed_OMP_THREADS})
       set(test_command
-          "export OMP_NUM_THREADS=${_parsed_OMP_THREADS}; ${test_command}; unset OMP_NUM_THREADS"
+          "export OMP_NUM_THREADS=${_parsed_OMP_THREADS} && ${test_command} && unset OMP_NUM_THREADS"
           )
       math(EXPR total_procs "${_parsed_NP}*${_parsed_OMP_THREADS}")
     endif()
@@ -402,7 +419,7 @@ function(four_c_test)
     # parallel run
     set(name_of_ensight_test "${name_of_test}-post_ensight_parallel")
     set(ensight_command
-        "${MPIEXEC_EXECUTABLE}\ ${MPIEXEC_EXTRA_OPTS_FOR_TESTING}\ -np\ ${_parsed_NP}\ ./post_ensight\ --file=${test_directory}/xxx\ --output=${test_directory}/xxx_parallel --outputtype=bin\ --stress=ndxyz && ${FOUR_C_PYTHON_VENV_BUILD}/bin/python3 ${PROJECT_SOURCE_DIR}/tests/post_processing_test/ensight_comparison.py ${source_file} ${test_directory}/xxx_parallel_structure.case"
+        "${MPIEXEC_EXECUTABLE}\ ${_mpiexec_all_args_for_testing}\ -np\ ${_parsed_NP}\ ./post_ensight\ --file=${test_directory}/xxx\ --output=${test_directory}/xxx_parallel --outputtype=bin\ --stress=ndxyz && ${FOUR_C_PYTHON_VENV_BUILD}/bin/python3 ${PROJECT_SOURCE_DIR}/tests/post_processing_test/ensight_comparison.py ${source_file} ${test_directory}/xxx_parallel_structure.case"
         )
     _add_test_with_options(
       NAME_OF_TEST
@@ -467,7 +484,7 @@ function(four_c_test_nested_parallelism name_of_input_file_1 name_of_input_file_
     NAME ${name_of_input_file_1}-nestedPar
     COMMAND
       bash -c
-      "mkdir -p ${test_directory} &&  ${MPIEXEC_EXECUTABLE} ${MPIEXEC_EXTRA_OPTS_FOR_TESTING} -np 3 $<TARGET_FILE:${FOUR_C_EXECUTABLE_NAME}> -ngroup=2 -glayout=1,2 -nptype=separateDatFiles ${PROJECT_SOURCE_DIR}/tests/input_files/${name_of_input_file_1} ${test_directory}/xxx ${PROJECT_SOURCE_DIR}/tests/input_files/${name_of_input_file_2} ${test_directory}/xxxAdditional"
+      "mkdir -p ${test_directory} &&  ${MPIEXEC_EXECUTABLE} ${_mpiexec_all_args_for_testing} -np 3 $<TARGET_FILE:${FOUR_C_EXECUTABLE_NAME}> -ngroup=2 -glayout=1,2 -nptype=separateDatFiles ${PROJECT_SOURCE_DIR}/tests/input_files/${name_of_input_file_1} ${test_directory}/xxx ${PROJECT_SOURCE_DIR}/tests/input_files/${name_of_input_file_2} ${test_directory}/xxxAdditional"
     )
 
   require_fixture(${name_of_input_file_1}-nestedPar test_cleanup)
@@ -480,7 +497,7 @@ function(four_c_test_nested_parallelism name_of_input_file_1 name_of_input_file_
       NAME ${name_of_input_file_1}-nestedPar-restart
       COMMAND
         bash -c
-        "${MPIEXEC_EXECUTABLE} ${MPIEXEC_EXTRA_OPTS_FOR_TESTING} -np 3 $<TARGET_FILE:${FOUR_C_EXECUTABLE_NAME}> -ngroup=2 -glayout=1,2 -nptype=separateDatFiles ${PROJECT_SOURCE_DIR}/tests/input_files/${name_of_input_file_1} ${test_directory}/xxx restart=${restart_step} ${PROJECT_SOURCE_DIR}/tests/input_files/${name_of_input_file_2} ${test_directory}/xxxAdditional restart=${restart_step}"
+        "${MPIEXEC_EXECUTABLE} ${_mpiexec_all_args_for_testing} -np 3 $<TARGET_FILE:${FOUR_C_EXECUTABLE_NAME}> -ngroup=2 -glayout=1,2 -nptype=separateDatFiles ${PROJECT_SOURCE_DIR}/tests/input_files/${name_of_input_file_1} ${test_directory}/xxx restart=${restart_step} ${PROJECT_SOURCE_DIR}/tests/input_files/${name_of_input_file_2} ${test_directory}/xxxAdditional restart=${restart_step}"
       )
 
     require_fixture(
@@ -491,38 +508,73 @@ function(four_c_test_nested_parallelism name_of_input_file_1 name_of_input_file_
 endfunction()
 
 ###------------------------------------------------------------------ Framework Tests
-# Testing the whole framework: pre_exodus, 4C, and post-filter
-# Usage in tests/lists_of_tests.cmake: "four_c_test_framework(<name_of_input_file> <num_proc> <xml_filename>)"
-# <name_of_input_file>: must equal the name of a .e/.bc/.head file in directory tests/framework-test
-# <num_proc>: number of processors the test should use
-# <xml_filename>: copy any xml-file to the build directory. May also be ""
-function(four_c_test_framework name_of_input_file num_proc xml_filename)
+# Testing the whole framework: pre_exodus (optional), 4C, and post-filter
+#
+# Usage in tests/lists_of_tests.cmake:
+#
+#  four_c_test_framework(PREFIX <prefix> NP <NP> [USE_PRE_EXODUS] [COPY_FILES <file1> <file2> ...])"
+#
+#  USE_PRE_EXODUS:  option (the framework can be run with or without pre_exodus)
+#  PREFIX: must equal the name of a .e/.bc/.head file in directory tests/framework-test
+#  NP: number of MPI ranks for this test
+#  COPY_FILES: copy any additional files to the test directory
+function(four_c_test_framework)
+  set(options USE_PRE_EXODUS)
+  set(oneValueArgs PREFIX NP)
+  set(multiValueArgs COPY_FILES)
+  cmake_parse_arguments(
+    _parsed
+    "${options}"
+    "${oneValueArgs}"
+    "${multiValueArgs}"
+    ${ARGN}
+    )
+
+  # validate input arguments
+  if(DEFINED _parsed_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "There are unparsed arguments: ${_parsed_UNPARSED_ARGUMENTS}!")
+  endif()
+
+  set(name_of_input_file ${_parsed_PREFIX})
+  set(num_proc ${_parsed_NP})
   set(name_of_test ${name_of_input_file}-p${num_proc}-fw)
   set(test_directory framework_test_output/${name_of_input_file})
 
-  set(RUNPREEXODUS
-      ${FOUR_C_ENABLE_ADDRESS_SANITIZER_TEST_OPTIONS}\ ./pre_exodus\ --exo=${PROJECT_SOURCE_DIR}/tests/framework-test/${name_of_input_file}.e\ --bc=${PROJECT_SOURCE_DIR}/tests/framework-test/${name_of_input_file}.bc\ --head=${PROJECT_SOURCE_DIR}/tests/framework-test/${name_of_input_file}.head\ --dat=${test_directory}/xxx.dat
-      ) # pre_exodus is run to generate a Dat file
-
-  if(NOT ${xml_filename} STREQUAL "")
-    # if a XML file name is given, it is copied from the 4C input directory to the build directory
-    set(RUNCOPYXML
-        "cp ${PROJECT_SOURCE_DIR}/tests/input_files/${xml_filename} ./${test_directory}/"
-        )
+  if(${_parsed_USE_PRE_EXODUS})
+    set(_optional_pre_exodus
+        " && ${FOUR_C_ENABLE_ADDRESS_SANITIZER_TEST_OPTIONS} ./pre_exodus --exo=${PROJECT_SOURCE_DIR}/tests/framework-test/${name_of_input_file}.e --bc=${PROJECT_SOURCE_DIR}/tests/framework-test/${name_of_input_file}.bc --head=${PROJECT_SOURCE_DIR}/tests/framework-test/${name_of_input_file}.head --out=${test_directory}/xxx.4C.yaml"
+        ) # pre_exodus is run to generate an input file
   else()
-    # no-op command to do nothing
-    set(RUNCOPYXML :)
+    list(
+      APPEND
+      _run_copy_files
+      "cp ${PROJECT_SOURCE_DIR}/tests/framework-test/${name_of_input_file}.4C.yaml ${test_directory}/xxx.4C.yaml"
+      )
   endif()
 
-  set(RUNFOURC
-      ${MPIEXEC_EXECUTABLE}\ ${MPIEXEC_EXTRA_OPTS_FOR_TESTING}\ -np\ ${num_proc}\ $<TARGET_FILE:${FOUR_C_EXECUTABLE_NAME}>\ ${test_directory}/xxx.dat\ ${test_directory}/xxx
-      ) # 4C is run using the generated dat file
+  # copy additional files to the test directory
+  if(_parsed_COPY_FILES)
+    foreach(_file_name IN LISTS _parsed_COPY_FILES)
+      if(NOT EXISTS ${_file_name})
+        message(FATAL_ERROR "File ${_file_name} does not exist!")
+      endif()
+      list(APPEND _run_copy_files "cp ${_file_name} ${test_directory}")
+    endforeach()
+    list(JOIN _run_copy_files " && " _run_copy_files)
+  else()
+    # no-op command to do nothing
+    set(_run_copy_files ":")
+  endif()
+
+  set(_run_4C
+      ${MPIEXEC_EXECUTABLE}\ ${_mpiexec_all_args_for_testing}\ -np\ ${num_proc}\ $<TARGET_FILE:${FOUR_C_EXECUTABLE_NAME}>\ ${test_directory}/xxx.4C.yaml\ ${test_directory}/xxx
+      ) # 4C is run using the generated input file
 
   add_test(
     NAME ${name_of_test}
     COMMAND
       bash -c
-      "mkdir -p ${PROJECT_BINARY_DIR}/${test_directory} && ${RUNCOPYXML} && ${RUNPREEXODUS} && ${RUNFOURC}"
+      "mkdir -p ${PROJECT_BINARY_DIR}/${test_directory} && ${_run_copy_files} ${_optional_pre_exodus} && ${_run_4C}"
     )
 
   require_fixture(${name_of_test} test_cleanup)
@@ -541,7 +593,7 @@ function(four_c_test_cut_test num_proc)
 
   set(RUNTESTS
       # Run all the cuttests with num_proc except from alex53
-      ${MPIEXEC_EXECUTABLE}\ ${MPIEXEC_EXTRA_OPTS_FOR_TESTING}\ -np\ ${num_proc}\ ${PROJECT_BINARY_DIR}/cut_test\ --ignore_test=alex53
+      ${MPIEXEC_EXECUTABLE}\ ${_mpiexec_all_args_for_testing}\ -np\ ${num_proc}\ ${PROJECT_BINARY_DIR}/cut_test\ --ignore_test=alex53
       # Run alex53 serially
       ${FOUR_C_ENABLE_ADDRESS_SANITIZER_TEST_OPTIONS}\ ${PROJECT_BINARY_DIR}/cut_test\ --test=alex53
       )
@@ -552,35 +604,6 @@ function(four_c_test_cut_test num_proc)
     )
 
   require_fixture(${name_of_test} test_cleanup)
-  set_fail_expression(${name_of_test})
-  set_processors(${name_of_test} ${num_proc})
-  set_timeout(${name_of_test})
-endfunction()
-
-###------------------------------------------------------------------ Preprocessing Test
-# Generate default header file and test pre_exo with it
-# Usage in tests/lists_of_tests.cmake: "four_c_test_pre_processing(<name_of_input_file> <num_proc>)"
-# <name_of_input_file>: must equal the name of .e/.bc/.head file in tests/pre_processing_test
-# <num_proc>: number of processors the test should use
-function(four_c_test_pre_processing name_of_input_file num_proc)
-  set(name_of_test ${name_of_input_file}-p${num_proc}-pre_processing)
-  set(test_directory ${PROJECT_BINARY_DIR}/framework_test_output/${name_of_input_file}-p${num_proc})
-
-  set(RUNPREEXODUS_NOHEAD
-      ${FOUR_C_ENABLE_ADDRESS_SANITIZER_TEST_OPTIONS}\ ./pre_exodus\ --exo=${PROJECT_SOURCE_DIR}/tests/pre_processing_test/${name_of_input_file}.e
-      ) # run pre_exodus to generate default head and bc file
-  set(RUNPREEXODUS_DEFAULTHEAD
-      ${FOUR_C_ENABLE_ADDRESS_SANITIZER_TEST_OPTIONS}\ ./pre_exodus\ --exo=${PROJECT_SOURCE_DIR}/tests/pre_processing_test/${name_of_input_file}.e\ --bc=${PROJECT_SOURCE_DIR}/tests/pre_processing_test/${name_of_input_file}.bc\ --head=default.head\ --dat=${test_directory}/xxx.dat
-      ) # run pre_exodus to generate dat file using the default head file
-
-  add_test(
-    NAME ${name_of_test}
-    COMMAND
-      bash -c "mkdir -p ${test_directory} && ${RUNPREEXODUS_NOHEAD} && ${RUNPREEXODUS_DEFAULTHEAD}"
-    )
-
-  require_fixture(${name_of_test} test_cleanup)
-  set_environment(${name_of_test})
   set_fail_expression(${name_of_test})
   set_processors(${name_of_test} ${num_proc})
   set_timeout(${name_of_test})
@@ -631,7 +654,7 @@ function(
       ${FOUR_C_ENABLE_ADDRESS_SANITIZER_TEST_OPTIONS}\ ./post_ensight\ --file=${test_directory}/xxx${IDENTIFIER}\ --output=${test_directory}/xxx${IDENTIFIER}_SER_${name_of_input_file}\ --stress=${stresstype}\ --strain=${straintype}\ --start=${startstep}
       )
   set(RUNPOSTFILTER_PAR
-      ${MPIEXEC_EXECUTABLE}\ ${MPIEXEC_EXTRA_OPTS_FOR_TESTING}\ -np\ ${num_proc}\ ./post_ensight\ --file=${test_directory}/xxx${IDENTIFIER}\ --output=${test_directory}/xxx${IDENTIFIER}_PAR_${name_of_input_file}\ --stress=${stresstype}\ --strain=${straintype}\ --start=${startstep}
+      ${MPIEXEC_EXECUTABLE}\ ${_mpiexec_all_args_for_testing}\ -np\ ${num_proc}\ ./post_ensight\ --file=${test_directory}/xxx${IDENTIFIER}\ --output=${test_directory}/xxx${IDENTIFIER}_PAR_${name_of_input_file}\ --stress=${stresstype}\ --strain=${straintype}\ --start=${startstep}
       )
 
   # remove file ending of input file for reference file

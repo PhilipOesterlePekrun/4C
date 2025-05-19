@@ -23,7 +23,7 @@
 #include "4C_fluid_ele.hpp"
 #include "4C_mat_newtonianfluid.hpp"
 #include "4C_mortar_element.hpp"
-#include "4C_so3_surface.hpp"
+#include "4C_solid_3D_ele_surface.hpp"
 #include "4C_xfem_condition_manager.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -117,7 +117,7 @@ void XFEM::XFluidContactComm::initialize_fluid_state(std::shared_ptr<Cut::CutWiz
 
   last_ele_h_ = std::pair<int, double>(-1, -1);
 
-  create_new_gmsh_files();
+  print_summary_contact_gps();
 }
 
 double XFEM::XFluidContactComm::get_fsi_traction(Mortar::Element* ele,
@@ -139,7 +139,7 @@ double XFEM::XFluidContactComm::get_fsi_traction(Mortar::Element* ele,
     }
   }
 
-  Discret::Elements::StructuralSurface* sele = get_surf_ele(ele->id());
+  Discret::Elements::SolidSurface* sele = get_surf_ele(ele->id());
   mcidx_ = get_surf_mc(ele->id());
 
   if (std::dynamic_pointer_cast<XFEM::MeshCouplingFPI>(mc_[mcidx_]) != nullptr)
@@ -155,8 +155,8 @@ double XFEM::XFluidContactComm::get_fsi_traction(Mortar::Element* ele,
   int eleid;
 
   Cut::VolumeCell* volumecell = nullptr;
-  static Core::LinAlg::Matrix<3, 1> elenormal(true);
-  static Core::LinAlg::Matrix<3, 1> x(false);
+  static Core::LinAlg::Matrix<3, 1> elenormal(Core::LinAlg::Initialization::zero);
+  static Core::LinAlg::Matrix<3, 1> x(Core::LinAlg::Initialization::uninitialized);
   Core::LinAlg::Matrix<2, 1> new_xsi(xsi_boundary.data(), false);
   double distance = 0.0;
   if (!get_volumecell(sele, new_xsi, sidehandle, nds, eleid, volumecell, elenormal, x,
@@ -287,7 +287,7 @@ bool XFEM::XFluidContactComm::get_contact_state(int sid,        // Solid Surface
 }
 
 void XFEM::XFluidContactComm::get_states(const int fluidele_id, const std::vector<int>& fluid_nds,
-    const Discret::Elements::StructuralSurface* sele, const Core::LinAlg::Matrix<2, 1>& selexsi,
+    const Discret::Elements::SolidSurface* sele, const Core::LinAlg::Matrix<2, 1>& selexsi,
     const Core::LinAlg::Matrix<3, 1>& x, Core::Elements::Element*& fluidele,
     Core::LinAlg::SerialDenseMatrix& ele_xyze, std::vector<double>& velpres,
     std::vector<double>& disp, std::vector<double>& ivel, double& pres_m,
@@ -299,10 +299,10 @@ void XFEM::XFluidContactComm::get_states(const int fluidele_id, const std::vecto
   // 1 // get element states
   {
     Core::Elements::LocationArray la_f(1);
-    fluidele->location_vector(*fluiddis_, fluid_nds, la_f, false);
+    fluidele->location_vector(*fluiddis_, fluid_nds, la_f);
     std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state =
         fluiddis_->get_state("velaf");
-    Core::FE::extract_my_values(*matrix_state, velpres, la_f[0].lm_);
+    velpres = Core::FE::extract_values(*matrix_state, la_f[0].lm_);
 
     std::vector<int> lmdisp;
     lmdisp.resize(fluid_nds.size() * 3);
@@ -313,28 +313,28 @@ void XFEM::XFluidContactComm::get_states(const int fluidele_id, const std::vecto
         for (int dof = 0; dof < 3; ++dof) lmdisp[n * 3 + dof] = la_f[0].lm_[n * 4 + dof];
       std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state_disp =
           fluiddis_->get_state("dispnp");
-      Core::FE::extract_my_values(*matrix_state_disp, disp, lmdisp);
+      disp = Core::FE::extract_values(*matrix_state_disp, lmdisp);
     }
   }
   {
     Core::Elements::LocationArray la_s(1);
-    sele->location_vector(*mc_[mcidx_]->get_cutter_dis(), la_s, false);
+    sele->location_vector(*mc_[mcidx_]->get_cutter_dis(), la_s);
     std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state =
         mc_[mcidx_]->get_cutter_dis()->get_state("ivelnp");
-    Core::FE::extract_my_values(*matrix_state, ivel, la_s[0].lm_);
+    ivel = Core::FE::extract_values(*matrix_state, la_s[0].lm_);
   }
   static std::vector<double> ipfvel;
   if (isporo_)
   {
     Core::Elements::LocationArray la_s(1);
-    sele->location_vector(*mcfpi_ps_pf_->get_cutter_dis(), la_s, false);
+    sele->location_vector(*mcfpi_ps_pf_->get_cutter_dis(), la_s);
     std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state =
         mcfpi_ps_pf_->get_cutter_dis()->get_state("ivelnp");
-    Core::FE::extract_my_values(*matrix_state, ipfvel, la_s[0].lm_);
+    ipfvel = Core::FE::extract_values(*matrix_state, la_s[0].lm_);
   }
 
   // 2 // get element xyze
-  /// element coordinates in EpetraMatrix
+  /// element coordinates in matrix
   ele_xyze.shape(3, fluidele->num_node());
   for (int i = 0; i < fluidele->num_node(); ++i)
   {
@@ -349,7 +349,7 @@ void XFEM::XFluidContactComm::get_states(const int fluidele_id, const std::vecto
 
   // 3 // get quantities in gp
   {
-    Core::LinAlg::Matrix<3, 1> fluidele_xsi(true);
+    Core::LinAlg::Matrix<3, 1> fluidele_xsi(Core::LinAlg::Initialization::zero);
     if (fluidele->shape() == Core::FE::CellType::hex8)
     {
       Core::LinAlg::Matrix<3, 8> xyze(ele_xyze.values(), true);
@@ -358,18 +358,7 @@ void XFEM::XFluidContactComm::get_states(const int fluidele_id, const std::vecto
           Cut::PositionFactory::build_position<3, Core::FE::CellType::hex8>(xyze, x);
       if (!pos->compute(1e-1))  // if we are a little bit outside of the element we don't care ...
       {
-        pos->local_coordinates(fluidele_xsi);
-        std::cout << "fluidele_xsi: " << fluidele_xsi << std::endl;
-        std::ofstream file("DEBUG_OUT_D007.pos");
-        Cut::Output::gmsh_new_section(file, "The point");
-        Cut::Output::gmsh_coord_dump(file, x, -1);
-        Cut::Output::gmsh_new_section(file, "The Element", true);
-        file << "SH(";
-        for (int i = 0; i < 7; ++i)
-          for (int j = 0; j < 3; ++j) file << xyze(j, i) << ", ";
-        file << xyze(0, 7) << ", " << xyze(1, 7) << ", " << xyze(2, 7) << "){1,2,3,4,5,6,7,8};";
-        Cut::Output::gmsh_end_section(file, true);
-        FOUR_C_THROW("Couldn'd compute local coordinate for fluid element (DEBUG_OUT_D007.pos)!");
+        FOUR_C_THROW("Couldn't compute local coordinate for fluid element!");
       }
       pos->local_coordinates(fluidele_xsi);
 
@@ -388,7 +377,7 @@ void XFEM::XFluidContactComm::get_states(const int fluidele_id, const std::vecto
       // double det = xji.invert(xjm); //if we need this at some point
       xji.invert(xjm);
 
-      // compute global first derivates
+      // compute global first derivatives
       derxy.multiply(xji, deriv);
 
       static Core::LinAlg::Matrix<3, 8> vel;
@@ -423,8 +412,8 @@ void XFEM::XFluidContactComm::get_states(const int fluidele_id, const std::vecto
       }
     }
 
-    const int numnodes = Core::FE::num_nodes<Core::FE::CellType::quad4>;
-    static Core::LinAlg::Matrix<numnodes, 1> funct(false);
+    const int numnodes = Core::FE::num_nodes(Core::FE::CellType::quad4);
+    static Core::LinAlg::Matrix<numnodes, 1> funct(Core::LinAlg::Initialization::uninitialized);
     Core::FE::shape_function_2d(funct, selexsi(0), selexsi(1), Core::FE::CellType::quad4);
     vel_s.multiply(vels, funct);
     if (isporo_) velpf_s.multiply(velpfs, funct);
@@ -450,7 +439,7 @@ void XFEM::XFluidContactComm::get_penalty_param(Core::Elements::Element* fluidel
     std::map<int, std::vector<Core::FE::GaussIntegration>> bintpoints;
 
     Cut::ElementHandle* cele = cutwizard_->get_element(fluidele);
-    if (cele == nullptr) FOUR_C_THROW("Couldn't find cut element for ele %d", fluidele->id());
+    if (cele == nullptr) FOUR_C_THROW("Couldn't find cut element for ele {}", fluidele->id());
 
     std::vector<Cut::plain_volumecell_set> cell_sets;
     {
@@ -549,7 +538,7 @@ void XFEM::XFluidContactComm::get_penalty_param(Core::Elements::Element* fluidel
 }
 
 void XFEM::XFluidContactComm::get_penalty_param(
-    Discret::Elements::StructuralSurface* sele, double& penalty_fac)
+    Discret::Elements::SolidSurface* sele, double& penalty_fac)
 {
   penalty_fac = nit_stab_gamma_ *
                 std::dynamic_pointer_cast<XFEM::MeshCouplingFSI>(mc_[mcidx_])->get_time_fac() *
@@ -609,9 +598,8 @@ void XFEM::XFluidContactComm::setup_surf_ele_ptrs(Core::FE::Discretization& cont
       {
         int startgid = condition_manager_->get_mesh_coupling_start_gid(
             condition_manager_->get_coupling_index(mc_[mc]->get_name()));
-        Discret::Elements::StructuralSurface* fele =
-            dynamic_cast<Discret::Elements::StructuralSurface*>(
-                mc_[mc]->get_cutter_dis()->l_col_element(j));
+        Discret::Elements::SolidSurface* fele = dynamic_cast<Discret::Elements::SolidSurface*>(
+            mc_[mc]->get_cutter_dis()->l_col_element(j));
         if (!fele) FOUR_C_THROW("no face element or no element at all");
         const int f_parent_id = fele->parent_element_id();
         const int f_parent_surf = fele->face_parent_number();
@@ -631,9 +619,8 @@ void XFEM::XFluidContactComm::setup_surf_ele_ptrs(Core::FE::Discretization& cont
       {
         int startgid = condition_manager_->get_mesh_coupling_start_gid(
             condition_manager_->get_coupling_index(mcfpi_ps_pf_->get_name()));
-        Discret::Elements::StructuralSurface* fele =
-            dynamic_cast<Discret::Elements::StructuralSurface*>(
-                mcfpi_ps_pf_->get_cutter_dis()->l_col_element(j));
+        Discret::Elements::SolidSurface* fele = dynamic_cast<Discret::Elements::SolidSurface*>(
+            mcfpi_ps_pf_->get_cutter_dis()->l_col_element(j));
         if (!fele) FOUR_C_THROW("no face element or no element at all");
         const int f_parent_id = fele->parent_element_id();
         const int f_parent_surf = fele->face_parent_number();
@@ -655,7 +642,7 @@ void XFEM::XFluidContactComm::setup_surf_ele_ptrs(Core::FE::Discretization& cont
       dynamic_cast<CONTACT::NitscheStrategyFpi*>(&contact_strategy_);  // might be nullptr
 }
 
-bool XFEM::XFluidContactComm::get_volumecell(Discret::Elements::StructuralSurface*& sele,
+bool XFEM::XFluidContactComm::get_volumecell(Discret::Elements::SolidSurface*& sele,
     Core::LinAlg::Matrix<2, 1>& xsi, Cut::SideHandle*& sidehandle, std::vector<int>& nds,
     int& eleid, Cut::VolumeCell*& volumecell, Core::LinAlg::Matrix<3, 1>& elenormal,
     Core::LinAlg::Matrix<3, 1>& x, bool& FSI_integrated, double& distance)
@@ -666,10 +653,10 @@ bool XFEM::XFluidContactComm::get_volumecell(Discret::Elements::StructuralSurfac
   volumecell = nullptr;
   if (sele->shape() == Core::FE::CellType::quad4)
   {
-    const int numnodes = Core::FE::num_nodes<Core::FE::CellType::quad4>;
+    const int numnodes = Core::FE::num_nodes(Core::FE::CellType::quad4);
 
     Core::LinAlg::SerialDenseMatrix xyze_m;
-    Core::LinAlg::Matrix<numnodes, 1> funct(false);
+    Core::LinAlg::Matrix<numnodes, 1> funct(Core::LinAlg::Initialization::uninitialized);
 
     sidehandle->coordinates(xyze_m);
     Core::LinAlg::Matrix<3, numnodes> xyze(xyze_m.values(), true);
@@ -685,8 +672,8 @@ bool XFEM::XFluidContactComm::get_volumecell(Discret::Elements::StructuralSurfac
   Cut::plain_side_set subsides;
   sidehandle->collect_sides(subsides);
   int found_side = -1;
-  static Core::LinAlg::Matrix<3, 1> tmpxsi(true);
-  static Core::LinAlg::Matrix<3, 1> tmpxsi_tmp(true);
+  static Core::LinAlg::Matrix<3, 1> tmpxsi(Core::LinAlg::Initialization::zero);
+  static Core::LinAlg::Matrix<3, 1> tmpxsi_tmp(Core::LinAlg::Initialization::zero);
   for (std::size_t ss = 0; ss < subsides.size(); ++ss)
   {
     Cut::Side* s = subsides[ss];
@@ -720,12 +707,7 @@ bool XFEM::XFluidContactComm::get_volumecell(Discret::Elements::StructuralSurfac
   }
   if (found_side == -1)
   {
-    std::ofstream file("DEBUG_OUT_D001.pos");
-    Cut::Output::gmsh_new_section(file, "The point to identity");
-    Cut::Output::gmsh_coord_dump(file, x, -1);
-    Cut::Output::gmsh_end_section(file);
-    Cut::Output::gmsh_write_section(file, "All subsides", subsides, true);
-    FOUR_C_THROW("Coundn't identify side (DEBUG_OUT_D001.pos)!");
+    FOUR_C_THROW("Couldn't identify side!");
   }
   else
   {
@@ -741,9 +723,9 @@ bool XFEM::XFluidContactComm::get_volumecell(Discret::Elements::StructuralSurfac
       side = findnext_physical_side(x, subsides[found_side], sidehandle, xsi, distance);
       side->normal(xsi, elenormal, true);
       elenormal.scale(-1.0);  // flip direction
-      sele = dynamic_cast<Discret::Elements::StructuralSurface*>(
-          condition_manager_->get_side(side->id()));
-      if (!sele) FOUR_C_THROW("Couldn't Identify new sele %d", side->id());
+      sele =
+          dynamic_cast<Discret::Elements::SolidSurface*>(condition_manager_->get_side(side->id()));
+      if (!sele) FOUR_C_THROW("Couldn't Identify new sele {}", side->id());
       facets = side->facets();
     }
 
@@ -793,22 +775,15 @@ bool XFEM::XFluidContactComm::get_volumecell(Discret::Elements::StructuralSurfac
             triangulation.push_back(afacet->points());
           else
           {
-            std::ofstream file("DEBUG_OUT_D003.pos");
-            Cut::Output::gmsh_new_section(file, "The point to identity");
-            Cut::Output::gmsh_coord_dump(file, x, -1);
-            Cut::Output::gmsh_new_section(file, "facet", true);
-            Cut::Output::gmsh_facet_dump(file, afacet, "sides", true);
-            Cut::Output::gmsh_end_section(file);
-            Cut::Output::gmsh_write_section(file, "ALLFACETS", facets, true);
             std::cout << "==| Warning from of your friendly XFluidContactComm: I have untriagled "
-                         "faces (DEBUG_OUT_D003.pos)! |=="
+                         "faces |=="
                       << std::endl;
           }
 
           for (std::size_t tri = 0; tri < triangulation.size(); ++tri)
           {
             if (triangulation[tri].size() != 3)
-              FOUR_C_THROW("Triangulation with another number of points than 3 (%d)?",
+              FOUR_C_THROW("Triangulation with another number of points than 3 ({})?",
                   triangulation[tri].size());
 
             // Compute local coords and take first possible facet ...
@@ -824,7 +799,7 @@ bool XFEM::XFluidContactComm::get_volumecell(Discret::Elements::StructuralSurfac
             {
               pos->local_coordinates(tmpxsi);
               if (fabs(tmpxsi(2, 0)) > 1e-3)
-                FOUR_C_THROW("To far away from this facet %f!", tmpxsi(2, 0));
+                FOUR_C_THROW("To far away from this facet {}!", tmpxsi(2, 0));
               facet = afacet;
               break;
             }
@@ -838,25 +813,7 @@ bool XFEM::XFluidContactComm::get_volumecell(Discret::Elements::StructuralSurfac
         }
         else if (!facet)
         {
-          std::ofstream file("DEBUG_OUT_D004.pos");
-          Cut::Output::gmsh_new_section(file, "The point to identity");
-          Cut::Output::gmsh_coord_dump(file, x, -1);
-          Cut::Output::gmsh_new_section(file, "The selected subside", true);
-          Cut::Output::gmsh_side_dump(file, subsides[found_side]);
-          Cut::Output::gmsh_end_section(file);
-          Cut::Output::gmsh_write_section(file, "All facets", facets);
-          for (std::size_t f = 0; f < facets.size(); ++f)
-          {
-            std::stringstream strf;
-            strf << "Facet (" << f << ")";
-            std::stringstream strv;
-            strv << "Volumecell of facet (" << f << ")";
-            Cut::Output::gmsh_write_section(file, strf.str(), facets[f]);
-            Cut::Output::gmsh_write_section(file, strv.str(), facets[f]->cells());
-          }
-          file.close();
-
-          FOUR_C_THROW("Couldn't identify facet (DEBUG_OUT_D004.pos)!");
+          FOUR_C_THROW("Couldn't identify facet!");
         }
       }
     }
@@ -866,14 +823,7 @@ bool XFEM::XFluidContactComm::get_volumecell(Discret::Elements::StructuralSurfac
       {
         return false;  // in parallel this is ok
       }
-
-      std::ofstream file("DEBUG_OUT_D005.pos");
-      Cut::Output::gmsh_new_section(file, "The point to identity");
-      Cut::Output::gmsh_coord_dump(file, x, -1);
-      Cut::Output::gmsh_new_section(file, "The selected subside", true);
-      Cut::Output::gmsh_side_dump(file, side);
-      Cut::Output::gmsh_end_section(file, true);
-      FOUR_C_THROW("Side has no facets but is physical (DEBUG_OUT_D005.pos)!");
+      FOUR_C_THROW("Side has no facets but is physical!");
     }
   }
 
@@ -886,18 +836,7 @@ bool XFEM::XFluidContactComm::get_volumecell(Discret::Elements::StructuralSurfac
       {
         if (volumecell)
         {
-          std::ofstream file("DEBUG_OUT_D006.pos");
-          Cut::Output::gmsh_new_section(file, "The point to identity");
-          Cut::Output::gmsh_coord_dump(file, x, -1);
-          Cut::Output::gmsh_new_section(file, "The selected subside", true);
-          Cut::Output::gmsh_side_dump(file, subsides[found_side]);
-          Cut::Output::gmsh_new_section(file, "VC1", true);
-          Cut::Output::gmsh_volumecell_dump(file, volumecell, "sides", true);
-          Cut::Output::gmsh_new_section(file, "VC2", true);
-          Cut::Output::gmsh_volumecell_dump(file, facet->cells()[vc], "sides", true);
-          file.close();
-          FOUR_C_THROW(
-              "Facet has at least two volumecells which are outside (DEBUG_OUT_D006.pos)!");
+          FOUR_C_THROW("Facet has at least two volumecells which are outside!");
         }
         volumecell = facet->cells()[vc];
         if (parallel_)
@@ -934,13 +873,13 @@ Cut::Side* XFEM::XFluidContactComm::findnext_physical_side(Core::LinAlg::Matrix<
     physical_sides = last_physical_sides_.second;
 
   distance = 1e200;
-  Core::LinAlg::Matrix<3, 1> newx(true);
+  Core::LinAlg::Matrix<3, 1> newx(Core::LinAlg::Initialization::zero);
   Cut::Side* newSide = nullptr;
 
   for (std::set<Cut::Side*>::iterator psit = physical_sides.begin(); psit != physical_sides.end();
       ++psit)
   {
-    static Core::LinAlg::Matrix<3, 1> tmpx(true);
+    static Core::LinAlg::Matrix<3, 1> tmpx(Core::LinAlg::Initialization::zero);
     double tmpdistance = distanceto_side(x, *psit, tmpx);
     if (distance > tmpdistance)
     {
@@ -952,12 +891,7 @@ Cut::Side* XFEM::XFluidContactComm::findnext_physical_side(Core::LinAlg::Matrix<
 
   if (!newSide)
   {
-    std::stringstream str;
-    str << "CINS_" << Core::Communication::my_mpi_rank(fluiddis_->get_comm()) << ".pos";
-    std::ofstream file(str.str().c_str());
-    Cut::Output::gmsh_write_section(file, "InitSide", initSide);
-    Cut::Output::gmsh_write_section(file, "PerFormedSides", performed_sides, true);
-    FOUR_C_THROW("Couldn't identify a new side (number of identified physical sides: %d)!",
+    FOUR_C_THROW("Couldn't identify a new side (number of identified physical sides: {})!",
         physical_sides.size());
   }
 
@@ -971,7 +905,7 @@ Cut::Side* XFEM::XFluidContactComm::findnext_physical_side(Core::LinAlg::Matrix<
     std::cout << "The Side pointer is " << newSide << std::endl;
     std::cout << "Couldn't get Sidehandle for side " << newSide->id() << std::endl;
     // newSide->print();
-    FOUR_C_THROW("Couldn't get Sidehandle for side %f", newSide->id());
+    FOUR_C_THROW("Couldn't get Sidehandle for side {}", newSide->id());
   }
 
   Core::LinAlg::SerialDenseMatrix xyzs;
@@ -1047,13 +981,13 @@ void XFEM::XFluidContactComm::update_physical_sides(
   {
     performed_sides.insert(neibs[sid]);
     Cut::SideHandle* sh = cutwizard_->get_cut_side(neibs[sid]->id());
-    if (!sh) FOUR_C_THROW("Couldn't Get Sidehandle %d!", neibs[sid]->id());
+    if (!sh) FOUR_C_THROW("Couldn't Get Sidehandle {}!", neibs[sid]->id());
     if (sh->isunphysical_sub_side(neibs[sid]))
       update_physical_sides(neibs[sid], performed_sides, physical_sides);
     else
     {
       Core::LinAlg::Matrix<3, 1> normal;
-      Core::LinAlg::Matrix<2, 1> center(true);
+      Core::LinAlg::Matrix<2, 1> center(Core::LinAlg::Initialization::zero);
       neibs[sid]->normal(center, normal, false);
       double norm = normal.norm2();
       if (norm > 1e-10)
@@ -1196,13 +1130,13 @@ void XFEM::XFluidContactComm::get_cut_side_integration_points(
   Cut::SideHandle* sh = cutwizard_->get_cut_side(get_surf_sid(sid));
   if (!sh) FOUR_C_THROW("Couldn't get SideHandle!");
   if (sh->shape() != Core::FE::CellType::quad4) FOUR_C_THROW("Not a quad4!");
-  const int numnodes_sh = Core::FE::num_nodes<Core::FE::CellType::quad4>;
+  const int numnodes_sh = Core::FE::num_nodes(Core::FE::CellType::quad4);
   Core::LinAlg::SerialDenseMatrix xquad;
   sh->coordinates(xquad);
-  Core::LinAlg::Matrix<2, numnodes_sh> deriv(false);
-  Core::LinAlg::Matrix<2, 2> metrictensor(false);
-  Core::LinAlg::Matrix<3, 1> normal_side(true);
-  Core::LinAlg::Matrix<3, 1> normal_bc(true);
+  Core::LinAlg::Matrix<2, numnodes_sh> deriv(Core::LinAlg::Initialization::uninitialized);
+  Core::LinAlg::Matrix<2, 2> metrictensor(Core::LinAlg::Initialization::uninitialized);
+  Core::LinAlg::Matrix<3, 1> normal_side(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1> normal_bc(Core::LinAlg::Initialization::zero);
 
   Cut::plain_side_set subsides;
   sh->collect_sides(subsides);
@@ -1212,7 +1146,7 @@ void XFEM::XFluidContactComm::get_cut_side_integration_points(
   for (Cut::plain_side_set::iterator sit = subsides.begin(); sit != subsides.end(); ++sit)
   {
     Cut::Side* side = *sit;
-    side->normal(Core::LinAlg::Matrix<2, 1>(true), normal_side, true);
+    side->normal(Core::LinAlg::Matrix<2, 1>(Core::LinAlg::Initialization::zero), normal_side, true);
     for (std::vector<Cut::Facet*>::const_iterator fit = side->facets().begin();
         fit != side->facets().end(); ++fit)
     {
@@ -1232,7 +1166,7 @@ void XFEM::XFluidContactComm::get_cut_side_integration_points(
           }
           std::shared_ptr<Cut::Tri3BoundaryCell> tmp_bc = std::make_shared<Cut::Tri3BoundaryCell>(
               tcoords, facet, facet->triangulation()[triangle]);
-          tmp_bc->normal(Core::LinAlg::Matrix<2, 1>(true), normal_bc);
+          tmp_bc->normal(Core::LinAlg::Matrix<2, 1>(Core::LinAlg::Initialization::zero), normal_bc);
           if (normal_bc.dot(normal_side) < 0.0)
             bcs.push_back(tmp_bc);
           else
@@ -1259,7 +1193,7 @@ void XFEM::XFluidContactComm::get_cut_side_integration_points(
         facet->coordinates(tcoords.values());
         std::shared_ptr<Cut::Tri3BoundaryCell> tmp_bc =
             std::make_shared<Cut::Tri3BoundaryCell>(tcoords, facet, facet->points());
-        tmp_bc->normal(Core::LinAlg::Matrix<2, 1>(true), normal_bc);
+        tmp_bc->normal(Core::LinAlg::Matrix<2, 1>(Core::LinAlg::Initialization::zero), normal_bc);
         if (normal_bc.dot(normal_side) < 0.0)
           bcs.push_back(tmp_bc);
         else
@@ -1305,7 +1239,7 @@ void XFEM::XFluidContactComm::get_cut_side_integration_points(
           points.push_back(side->nodes()[p]->point());
         std::shared_ptr<Cut::Tri3BoundaryCell> tmp_bc =
             std::make_shared<Cut::Tri3BoundaryCell>(tcoords, nullptr, points);
-        tmp_bc->normal(Core::LinAlg::Matrix<2, 1>(true), normal_bc);
+        tmp_bc->normal(Core::LinAlg::Matrix<2, 1>(Core::LinAlg::Initialization::zero), normal_bc);
         if (normal_bc.dot(normal_side) < 0.0)
           bcs.push_back(tmp_bc);
         else
@@ -1332,9 +1266,10 @@ void XFEM::XFluidContactComm::get_cut_side_integration_points(
   }
 
   weights.clear();
-  Core::LinAlg::Matrix<3, 1> x_gp_lin(true);
-  Core::LinAlg::Matrix<3, 1> normal(true);
-  Core::LinAlg::Matrix<2, 1> rst(true);  // local coordinates w.r.t side
+  Core::LinAlg::Matrix<3, 1> x_gp_lin(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1> normal(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<2, 1> rst(
+      Core::LinAlg::Initialization::zero);  // local coordinates w.r.t side
   double drs = 0;
   double drs_sh = 0;
   for (std::size_t bc = 0; bc < bcs.size(); ++bc)
@@ -1384,7 +1319,7 @@ void XFEM::XFluidContactComm::fill_complete_sele_map()
     if (mortar_id_to_sosid_[i] == -1) continue;  // this entry is not set!
     Cut::SideHandle* sh = cutwizard_->get_cut_side(mortar_id_to_sosid_[i]);
     if (!sh)
-      FOUR_C_THROW("Couldn't get Sidhandle for mortarId %d, soid %d!", i + min_mortar_id_,
+      FOUR_C_THROW("Couldn't get Sidhandle for mortarId {}, soid {}!", i + min_mortar_id_,
           mortar_id_to_sosid_[i]);
     if (cutwizard_->get_cut_side(mortar_id_to_sosid_[i])->hasunphysical_sub_side())
     {
@@ -1392,7 +1327,7 @@ void XFEM::XFluidContactComm::fill_complete_sele_map()
     }
   }
   std::vector<int> my_sele_ids(my_sele_ids_.begin(), my_sele_ids_.end());
-  contact_ele_rowmap_fluidownerbased_ = std::make_shared<Epetra_Map>(-1, my_sele_ids.size(),
+  contact_ele_rowmap_fluidownerbased_ = std::make_shared<Core::LinAlg::Map>(-1, my_sele_ids.size(),
       my_sele_ids.data(), 0, Core::Communication::as_epetra_comm(fluiddis_->get_comm()));
 }
 
@@ -1434,48 +1369,8 @@ double XFEM::XFluidContactComm::get_fpi_pcontact_fullfraction()
   return mcfpi_ps_pf_->get_fpi_pcontact_fullfraction();
 }
 
-void XFEM::XFluidContactComm::create_new_gmsh_files()
+void XFEM::XFluidContactComm::print_summary_contact_gps()
 {
-#ifdef WRITE_GMSH
-  std::vector<std::string> sections;
-  sections.push_back("Contact_Traction");           // 0
-  sections.push_back("FSI_Traction");               // 1
-  sections.push_back("Contact_Active");             // 2
-  sections.push_back("FSI_Active");                 // 3
-  sections.push_back("Contact_Traction_Solid");     // 4
-  sections.push_back("Contact_Traction_Fluid");     // 5
-  sections.push_back("FSI_sliplenth");              // 6
-  sections.push_back("All_GPs_Contact");            // 7
-  sections.push_back("Contact_PoroFlow_Active");    // 8
-  sections.push_back("Contact_PoroFlow_Inactive");  // 9
-  sections.push_back("FPI_PoroFlow_Ffac");          // 10
-
-  static int counter = 0;
-  if (counter)
-  {
-    std::stringstream str;
-    str << "FSCI_" << counter << "_" << Core::Communication::my_mpi_rank(fluiddis_->Comm())
-        << ".pos";
-    std::ofstream file(str.str().c_str());
-    for (std::size_t section = 0; section < sections.size(); ++section)
-    {
-      Cut::Output::gmsh_new_section(file, sections[section], false);
-      for (std::size_t entry = 0; entry < (plot_data_[section]).size(); ++entry)
-      {
-        Cut::Output::gmsh_coord_dump(
-            file, (plot_data_[section])[entry].first, (plot_data_[section])[entry].second);
-      }
-      Cut::Output::gmsh_end_section(file, false);
-    }
-    file.close();
-  }
-  ++counter;
-  if (counter > 100) counter = 1;
-
-  plot_data_.clear();
-  plot_data_.resize(sections.size());
-#endif
-
   sum_gps_.resize(5);
   std::vector<int> g_sum_gps(5);
   Core::Communication::sum_all(sum_gps_.data(), g_sum_gps.data(), 5, fluiddis_->get_comm());
@@ -1495,13 +1390,6 @@ void XFEM::XFluidContactComm::create_new_gmsh_files()
   }
   sum_gps_.clear();
   sum_gps_.resize(5);
-}
-
-void XFEM::XFluidContactComm::gmsh_write(Core::LinAlg::Matrix<3, 1> x, double val, int section)
-{
-#ifdef WRITE_GMSH
-  plot_data_[section].push_back(std::pair<Core::LinAlg::Matrix<3, 1>, double>(x, val));
-#endif
 }
 
 FOUR_C_NAMESPACE_CLOSE

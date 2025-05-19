@@ -23,7 +23,7 @@
 
 FOUR_C_NAMESPACE_OPEN
 
-namespace GEOMETRYPAIR
+namespace GeometryPair
 {
   /**
    * \brief Geometry discretization type of element.
@@ -41,7 +41,9 @@ namespace GEOMETRYPAIR
     //! hexahedron
     hexahedron,
     //! tetraeder
-    tetraeder
+    tetraeder,
+    //! wedge
+    wedge
   };
 
   /**
@@ -54,86 +56,92 @@ namespace GEOMETRYPAIR
   template <Core::FE::CellType discretization>
   struct ElementDiscretizationToGeometryType
   {
-    static constexpr GEOMETRYPAIR::DiscretizationTypeGeometry geometry_type_ =
-        GEOMETRYPAIR::DiscretizationTypeGeometry::none;
+    static constexpr GeometryPair::DiscretizationTypeGeometry geometry_type_ =
+        GeometryPair::DiscretizationTypeGeometry::none;
   };
   template <>
   struct ElementDiscretizationToGeometryType<Core::FE::CellType::line2>
   {
-    static constexpr GEOMETRYPAIR::DiscretizationTypeGeometry geometry_type_ =
-        GEOMETRYPAIR::DiscretizationTypeGeometry::line;
+    static constexpr GeometryPair::DiscretizationTypeGeometry geometry_type_ =
+        GeometryPair::DiscretizationTypeGeometry::line;
   };
   template <>
   struct ElementDiscretizationToGeometryType<Core::FE::CellType::tri3>
   {
-    static constexpr GEOMETRYPAIR::DiscretizationTypeGeometry geometry_type_ =
-        GEOMETRYPAIR::DiscretizationTypeGeometry::triangle;
+    static constexpr GeometryPair::DiscretizationTypeGeometry geometry_type_ =
+        GeometryPair::DiscretizationTypeGeometry::triangle;
   };
   template <>
   struct ElementDiscretizationToGeometryType<Core::FE::CellType::tri6>
   {
-    static constexpr GEOMETRYPAIR::DiscretizationTypeGeometry geometry_type_ =
-        GEOMETRYPAIR::DiscretizationTypeGeometry::triangle;
+    static constexpr GeometryPair::DiscretizationTypeGeometry geometry_type_ =
+        GeometryPair::DiscretizationTypeGeometry::triangle;
   };
   template <>
   struct ElementDiscretizationToGeometryType<Core::FE::CellType::quad4>
   {
-    static constexpr GEOMETRYPAIR::DiscretizationTypeGeometry geometry_type_ =
-        GEOMETRYPAIR::DiscretizationTypeGeometry::quad;
+    static constexpr GeometryPair::DiscretizationTypeGeometry geometry_type_ =
+        GeometryPair::DiscretizationTypeGeometry::quad;
   };
   template <>
   struct ElementDiscretizationToGeometryType<Core::FE::CellType::quad8>
   {
-    static constexpr GEOMETRYPAIR::DiscretizationTypeGeometry geometry_type_ =
-        GEOMETRYPAIR::DiscretizationTypeGeometry::quad;
+    static constexpr GeometryPair::DiscretizationTypeGeometry geometry_type_ =
+        GeometryPair::DiscretizationTypeGeometry::quad;
   };
   template <>
   struct ElementDiscretizationToGeometryType<Core::FE::CellType::quad9>
   {
-    static constexpr GEOMETRYPAIR::DiscretizationTypeGeometry geometry_type_ =
-        GEOMETRYPAIR::DiscretizationTypeGeometry::quad;
+    static constexpr GeometryPair::DiscretizationTypeGeometry geometry_type_ =
+        GeometryPair::DiscretizationTypeGeometry::quad;
   };
   template <>
   struct ElementDiscretizationToGeometryType<Core::FE::CellType::nurbs9>
   {
-    static constexpr GEOMETRYPAIR::DiscretizationTypeGeometry geometry_type_ =
-        GEOMETRYPAIR::DiscretizationTypeGeometry::quad;
+    static constexpr GeometryPair::DiscretizationTypeGeometry geometry_type_ =
+        GeometryPair::DiscretizationTypeGeometry::quad;
   };
   template <>
   struct ElementDiscretizationToGeometryType<Core::FE::CellType::hex8>
   {
-    static constexpr GEOMETRYPAIR::DiscretizationTypeGeometry geometry_type_ =
-        GEOMETRYPAIR::DiscretizationTypeGeometry::hexahedron;
+    static constexpr GeometryPair::DiscretizationTypeGeometry geometry_type_ =
+        GeometryPair::DiscretizationTypeGeometry::hexahedron;
   };
   template <>
   struct ElementDiscretizationToGeometryType<Core::FE::CellType::hex20>
   {
-    static constexpr GEOMETRYPAIR::DiscretizationTypeGeometry geometry_type_ =
-        GEOMETRYPAIR::DiscretizationTypeGeometry::hexahedron;
+    static constexpr GeometryPair::DiscretizationTypeGeometry geometry_type_ =
+        GeometryPair::DiscretizationTypeGeometry::hexahedron;
   };
   template <>
   struct ElementDiscretizationToGeometryType<Core::FE::CellType::hex27>
   {
-    static constexpr GEOMETRYPAIR::DiscretizationTypeGeometry geometry_type_ =
-        GEOMETRYPAIR::DiscretizationTypeGeometry::hexahedron;
+    static constexpr GeometryPair::DiscretizationTypeGeometry geometry_type_ =
+        GeometryPair::DiscretizationTypeGeometry::hexahedron;
   };
   template <>
   struct ElementDiscretizationToGeometryType<Core::FE::CellType::tet4>
   {
-    static constexpr GEOMETRYPAIR::DiscretizationTypeGeometry geometry_type_ =
-        GEOMETRYPAIR::DiscretizationTypeGeometry::tetraeder;
+    static constexpr GeometryPair::DiscretizationTypeGeometry geometry_type_ =
+        GeometryPair::DiscretizationTypeGeometry::tetraeder;
   };
   template <>
   struct ElementDiscretizationToGeometryType<Core::FE::CellType::tet10>
   {
-    static constexpr GEOMETRYPAIR::DiscretizationTypeGeometry geometry_type_ =
-        GEOMETRYPAIR::DiscretizationTypeGeometry::tetraeder;
+    static constexpr GeometryPair::DiscretizationTypeGeometry geometry_type_ =
+        GeometryPair::DiscretizationTypeGeometry::tetraeder;
   };
   template <>
   struct ElementDiscretizationToGeometryType<Core::FE::CellType::nurbs27>
   {
-    static constexpr GEOMETRYPAIR::DiscretizationTypeGeometry geometry_type_ =
-        GEOMETRYPAIR::DiscretizationTypeGeometry::hexahedron;
+    static constexpr GeometryPair::DiscretizationTypeGeometry geometry_type_ =
+        GeometryPair::DiscretizationTypeGeometry::hexahedron;
+  };
+  template <>
+  struct ElementDiscretizationToGeometryType<Core::FE::CellType::wedge6>
+  {
+    static constexpr GeometryPair::DiscretizationTypeGeometry geometry_type_ =
+        GeometryPair::DiscretizationTypeGeometry::wedge;
   };
 
   /**
@@ -160,7 +168,7 @@ namespace GEOMETRYPAIR
     static constexpr unsigned int n_val_ = values_per_node;
 
     //! Number of nodes for this element.
-    static constexpr unsigned int n_nodes_ = Core::FE::num_nodes<discretization_>;
+    static constexpr unsigned int n_nodes_ = Core::FE::num_nodes(discretization_);
 
     //! Number of spatial dimensions.
     static const unsigned int spatial_dim_ = spatial_dim;
@@ -169,7 +177,7 @@ namespace GEOMETRYPAIR
     static constexpr unsigned int n_dof_ = spatial_dim_ * n_val_ * n_nodes_;
 
     //! Geometry type of the element.
-    static constexpr GEOMETRYPAIR::DiscretizationTypeGeometry geometry_type_ =
+    static constexpr GeometryPair::DiscretizationTypeGeometry geometry_type_ =
         ElementDiscretizationToGeometryType<discretization_>::geometry_type_;
   };
 
@@ -200,6 +208,7 @@ namespace GEOMETRYPAIR
   using t_tet4 = ElementDiscretizationBase<Core::FE::CellType::tet4, 1>;
   using t_tet10 = ElementDiscretizationBase<Core::FE::CellType::tet10, 1>;
   using t_nurbs27 = ElementDiscretizationBase<Core::FE::CellType::nurbs27, 1>;
+  using t_wedge6 = ElementDiscretizationBase<Core::FE::CellType::wedge6, 1>;
 
 
   /**
@@ -261,6 +270,12 @@ namespace GEOMETRYPAIR
 
   template <>
   struct IsLagrangeElement<t_tet10>
+  {
+    static const bool value_ = true;
+  };
+
+  template <>
+  struct IsLagrangeElement<t_wedge6>
   {
     static const bool value_ = true;
   };
@@ -477,10 +492,10 @@ namespace GEOMETRYPAIR
   template <typename ElementType, typename ScalarType>
   struct InitializeElementData
   {
-    static GEOMETRYPAIR::ElementData<ElementType, ScalarType> initialize(
+    static GeometryPair::ElementData<ElementType, ScalarType> initialize(
         const Core::Elements::Element* element)
     {
-      GEOMETRYPAIR::ElementData<ElementType, ScalarType> element_data;
+      GeometryPair::ElementData<ElementType, ScalarType> element_data;
       SetShapeFunctionData<ElementType>::set(element_data.shape_function_data_, element);
       return element_data;
     }
@@ -494,8 +509,8 @@ namespace GEOMETRYPAIR
   struct ElementDataToDouble
   {
     template <typename ScalarType>
-    static GEOMETRYPAIR::ElementData<ElementType, double> to_double(
-        const GEOMETRYPAIR::ElementData<ElementType, ScalarType>& element_data)
+    static GeometryPair::ElementData<ElementType, double> to_double(
+        const GeometryPair::ElementData<ElementType, ScalarType>& element_data)
     {
       auto element_data_double = ElementData<ElementType, double>();
       element_data_double.shape_function_data_ = element_data.shape_function_data_;
@@ -513,8 +528,8 @@ namespace GEOMETRYPAIR
       typename std::enable_if<IsSurfaceAveragedNormalsElement<ElementType>::value_>::type>
   {
     template <typename ScalarType>
-    static GEOMETRYPAIR::ElementData<ElementType, double> to_double(
-        const GEOMETRYPAIR::ElementData<ElementType, ScalarType>& element_data)
+    static GeometryPair::ElementData<ElementType, double> to_double(
+        const GeometryPair::ElementData<ElementType, ScalarType>& element_data)
     {
       auto element_data_double = ElementData<ElementType, double>();
       element_data_double.shape_function_data_ = element_data.shape_function_data_;
@@ -598,7 +613,7 @@ namespace GEOMETRYPAIR
       element_data.nodal_normals_.print(out);
     }
   };
-}  // namespace GEOMETRYPAIR
+}  // namespace GeometryPair
 
 FOUR_C_NAMESPACE_CLOSE
 

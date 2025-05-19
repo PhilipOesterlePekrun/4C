@@ -48,7 +48,7 @@ bool Cut::IntegrationCell::contains(Core::LinAlg::Matrix<3, 1>& x)
 template <unsigned probdim, Core::FE::CellType celltype>
 bool Cut::IntegrationCell::contains(Core::LinAlg::Matrix<probdim, 1>& x)
 {
-  const int n_corner_nodes = Core::FE::num_nodes<celltype>;
+  const int n_corner_nodes = Core::FE::num_nodes(celltype);
 
   Core::LinAlg::Matrix<probdim, n_corner_nodes> coords(xyz_);
 
@@ -109,7 +109,6 @@ int Cut::Hex8IntegrationCell::cubature_degree(Core::FE::CellType elementshape) c
       return 6;
     default:
       FOUR_C_THROW("no rule defined for this element type");
-      exit(EXIT_FAILURE);
   }
 }
 
@@ -137,7 +136,6 @@ int Cut::Tet4IntegrationCell::cubature_degree(Core::FE::CellType elementshape) c
       return 6;
     default:
       FOUR_C_THROW("no rule defined for this element type");
-      exit(EXIT_FAILURE);
   }
 }
 

@@ -24,7 +24,6 @@ STRUCT_DISP                     Yes
 STRUCT_PLASTIC_STRAIN           No
 STRUCT_STRAIN                   GL
 STRUCT_STRESS                   2PK
-STRUCT_VEL_ACC                  No
 THERM_HEATFLUX                  Current
 THERM_TEMPERATURE               Yes
 THERM_TEMPGRAD                  Current
@@ -35,7 +34,7 @@ RANDSEED                        -1
 RESTART                         0
 -------------------------------------------------STRUCTURAL DYNAMIC
 INT_STRATEGY                    Standard
-DAMPING                         No
+DAMPING                         None
 DIVERCONT                       stop
 DYNAMICTYPE                      GenAlpha
 ITERNORM                        L2
@@ -43,7 +42,7 @@ K_DAMP                          -1
 LINEAR_SOLVER                   1
 LOADLIN                         no
 LUMPMASS                        No
-MASSLIN                         no
+MASSLIN                         none
 MAXITER                         50
 MAXTIME                         5
 MINITER                         0
@@ -66,7 +65,7 @@ RESEVERYERGY                     0
 RESTARTEVERY                     1
 RESULTSEVERY                     1
 STC_LAYER                       1
-STC_SCALING                     no
+STC_SCALING                     Inactive
 TIMESTEP                        1
 TOLCONSTR                       1e-08
 TOLDISP                         1e-10
@@ -93,7 +92,6 @@ NORM_RESF                       Rel
 NORM_TEMP                       Abs
 NUMSTEP                         200
 PREDICT                         ConstTemp
-RESEVERYERGY                     0
 RESULTSEVERY                     1
 RESTARTEVERY                     1
 TIMESTEP                        0.05
@@ -148,41 +146,35 @@ SYMBOLIC_FUNCTION_OF_SPACE_TIME t*1000/5
 -------------------------------------------------------------FUNCT3
 SYMBOLIC_FUNCTION_OF_SPACE_TIME t*1e8/5
 ------------------------------------DESIGN SURF NEUMANN CONDITIONS
-DSURF  1
 // right_surf
-E 5 - NUMDOF 6 ONOFF 1 0 0 0 0 0 VAL 20.0 0.0 0.0 0.0 0.0 0.0 FUNCT 3 3 3 3 3 3 TYPE Live
+E 5 NUMDOF 6 ONOFF 1 0 0 0 0 0 VAL 20.0 0.0 0.0 0.0 0.0 0.0 FUNCT 3 3 3 3 3 3 TYPE Live
 -----------------------------DESIGN SURF THERMO NEUMANN CONDITIONS
-DSURF  1
 // left_surf_temperature
-E 4 - NUMDOF 6 ONOFF 1 0 0 0 0 0 VAL 10.0 0.0 0.0 0.0 0.0 0.0 FUNCT 2 2 2 2 2 2  TYPE Live
+E 4 NUMDOF 6 ONOFF 1 0 0 0 0 0 VAL 10.0 0.0 0.0 0.0 0.0 0.0 FUNCT 2 2 2 2 2 2  TYPE Live
 ------------------------------------DESIGN POINT DIRICH CONDITIONS
-DPOINT 2
 // left_edge_nodes_fixed_xyz
-E 1 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
+E 1 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
 // right_edge_nodes_fixed_yz
-E 2 - NUMDOF 3 ONOFF 0 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
+E 2 NUMDOF 3 ONOFF 0 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
 -------------------------------------DESIGN LINE DIRICH CONDITIONS
-DLINE  5
 // left_line_normal_z_fixed_xyz
-E 1 - NUMDOF 3  ONOFF 1 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
+E 1 NUMDOF 3  ONOFF 1 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
 // left_line_normal_y_fixed_xyz
-E 2 - NUMDOF 3  ONOFF 1 1 1  VAL 0.0 0.0 0.0  FUNCT 0 0 0
+E 2 NUMDOF 3  ONOFF 1 1 1  VAL 0.0 0.0 0.0  FUNCT 0 0 0
 // right_line_normal_z_fixed_yz
-E 3 - NUMDOF 3  ONOFF 0 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
+E 3 NUMDOF 3  ONOFF 0 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
 // right_line_normal_y_fixed_yz
-E 4 - NUMDOF 3  ONOFF 0 1 1  VAL 0.0 0.0 0.0  FUNCT 0 0 0
+E 4 NUMDOF 3  ONOFF 0 1 1  VAL 0.0 0.0 0.0  FUNCT 0 0 0
 // line_lengths_fixed_yz
-E 5 - NUMDOF 3  ONOFF 0 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
+E 5 NUMDOF 3  ONOFF 0 1 1 VAL 0.0 0.0 0.0  FUNCT 0 0 0
 -------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF  3
 // left_surf_fixed_xyz
-E 1 - NUMDOF 3  ONOFF 1 1 1  VAL 0.0 0.0 0.0  FUNCT 0 0 0
+E 1 NUMDOF 3  ONOFF 1 1 1  VAL 0.0 0.0 0.0  FUNCT 0 0 0
 // top_bottom_surf_normal_y_fixed_y
-E 2 - NUMDOF 3  ONOFF 0 1 0  VAL 0.0 0.0 0.0  FUNCT 0 0 0
+E 2 NUMDOF 3  ONOFF 0 1 0  VAL 0.0 0.0 0.0  FUNCT 0 0 0
 // le/ri_surf_normal_z_fixed
-E 3 - NUMDOF 3  ONOFF 0 0 1  VAL 0.0 0.0 0.0  FUNCT 0 0 0
+E 3 NUMDOF 3  ONOFF 0 0 1  VAL 0.0 0.0 0.0  FUNCT 0 0 0
 ------------------------------DESIGN SURF THERMO DIRICH CONDITIONS
-DSURF  0
 // left_surf_temperature
 //E 4 - NUMDOF 1  ONOFF 1  VAL 0.0  FUNCT 0
 -----------------------------------------------DNODE-NODE TOPOLOGY

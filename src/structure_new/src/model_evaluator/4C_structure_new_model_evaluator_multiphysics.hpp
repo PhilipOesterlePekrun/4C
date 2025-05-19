@@ -16,7 +16,7 @@
 #include <map>
 
 // forward declaration
-class Epetra_Map;
+class Map;
 #include "4C_utils_parameter_list.fwd.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -63,8 +63,8 @@ namespace Solid
      *  This class summarizes the functionality which all model multiphysics model
      *  evaluators share.
      *
-     *  \date 11/16
-     *  \author rauch */
+
+     *  */
     class Multiphysics : public Generic
     {
      public:
@@ -179,7 +179,7 @@ namespace Solid
       //! @{
 
       //! Returns a pointer to the model specific dof row map
-      std::shared_ptr<const Epetra_Map> get_block_dof_row_map_ptr() const override
+      std::shared_ptr<const Core::LinAlg::Map> get_block_dof_row_map_ptr() const override
       {
         return nullptr;
       };

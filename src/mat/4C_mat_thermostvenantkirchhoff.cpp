@@ -11,6 +11,7 @@
 #include "4C_global_data.hpp"
 #include "4C_mat_par_bundle.hpp"
 #include "4C_mat_stvenantkirchhoff.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -81,7 +82,7 @@ void Mat::ThermoStVenantKirchhoff::create_thermo_material_if_set()
   if (thermoMatId != -1)
   {
     auto mat = Mat::factory(thermoMatId);
-    if (mat == nullptr) FOUR_C_THROW("Failed to create thermo material, id=%d", thermoMatId);
+    if (mat == nullptr) FOUR_C_THROW("Failed to create thermo material, id={}", thermoMatId);
     thermo_ = std::dynamic_pointer_cast<Mat::Trait::Thermo>(mat);
   }
 }
@@ -123,7 +124,7 @@ void Mat::ThermoStVenantKirchhoff::unpack(Core::Communication::UnpackBuffer& buf
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::ThermoStVenantKirchhoff*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
 
       create_thermo_material_if_set();
@@ -264,11 +265,11 @@ Core::LinAlg::Matrix<6, 1> Mat::ThermoStVenantKirchhoff::evaluate_d_stress_d_sca
 
   reinit(&defgrad, &glstrain, temperature, gp);  // fixme call this before
 
-  Core::LinAlg::Matrix<6, 1> dS_dT(true);
+  Core::LinAlg::Matrix<6, 1> dS_dT(Core::LinAlg::Initialization::zero);
 
   // total derivative of stress (mechanical + thermal part) wrt. temperature
   // calculate derivative of cmat w.r.t. T_{n+1}
-  Core::LinAlg::Matrix<6, 6> cmat_T(false);
+  Core::LinAlg::Matrix<6, 6> cmat_T(Core::LinAlg::Initialization::uninitialized);
   get_cmat_at_tempnp_t(cmat_T);
 
   // evaluate mechanical stress part
@@ -280,7 +281,7 @@ Core::LinAlg::Matrix<6, 1> Mat::ThermoStVenantKirchhoff::evaluate_d_stress_d_sca
   const double deltaT = current_temperature_ - params_->thetainit_;
 
   // calculate derivative of ctemp w.r.t. T_{n+1}
-  Core::LinAlg::Matrix<6, 1> ctemp_T(false);
+  Core::LinAlg::Matrix<6, 1> ctemp_T(Core::LinAlg::Initialization::uninitialized);
   get_cthermo_at_tempnp_t(ctemp_T);
 
   // temperature dependent stress part

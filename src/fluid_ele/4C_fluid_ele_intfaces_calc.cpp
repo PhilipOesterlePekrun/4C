@@ -14,6 +14,7 @@
 #include "4C_fluid_ele_parameter_std.hpp"
 #include "4C_fluid_ele_parameter_timint.hpp"
 #include "4C_linalg_utils_sparse_algebra_assemble.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <Teuchos_TimeMonitor.hpp>
 
@@ -56,7 +57,7 @@ Discret::Elements::FluidIntFaceImplInterface* Discret::Elements::FluidIntFaceImp
     }
     default:
       FOUR_C_THROW(
-          "Element shape %d (%d nodes) not activated. Just do it.", ele->shape(), ele->num_node());
+          "Element shape {} ({} nodes) not activated. Just do it.", ele->shape(), ele->num_node());
       break;
   }
   return nullptr;
@@ -197,7 +198,7 @@ void Discret::Elements::FluidIntFaceImpl<distype>::assemble_internal_faces_using
 #ifdef FOUR_C_ENABLE_ASSERTIONS
   for (int isd = 0; isd < numdofpernode; isd++)
     if ((int)(patch_components_lm[isd].size()) != numnodeinpatch)
-      FOUR_C_THROW("patch_components_lm[%d] has wrong size: size is %i but expected %i", isd,
+      FOUR_C_THROW("patch_components_lm[{}] has wrong size: size is {} but expected {}", isd,
           (int)(patch_components_lm[isd].size()), numnodeinpatch);
 #endif
 
@@ -273,8 +274,7 @@ void Discret::Elements::FluidIntFaceImpl<distype>::assemble_internal_faces_using
   {
     TEUCHOS_FUNC_TIME_MONITOR("XFEM::Edgestab EOS: assemble FE matrix");
 
-    // calls the Assemble function for EpetraFECrs matrices including communication of non-row
-    // entries
+    // calls the Assemble function for matrices including communication of non-row entries
     if (assemblemat)
     {
       if (eos_gp_pattern == Inpar::FLUID::EOS_GP_Pattern_uvwp)

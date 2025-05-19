@@ -40,8 +40,6 @@ namespace Core::FE
     \return an Core::LinAlg::MultiVector<double> based on the discret's node row map containing
     numvec vectors with the projected state
 
-    \author Georg Hammerl
-    \date 06/14
    */
   std::shared_ptr<Core::LinAlg::MultiVector<double>> compute_nodal_l2_projection(
       Core::FE::Discretization& dis,   ///< underlying discretization
@@ -55,16 +53,17 @@ namespace Core::FE
   );
 
   std::shared_ptr<Core::LinAlg::MultiVector<double>> evaluate_and_solve_nodal_l2_projection(
-      Core::FE::Discretization& dis, const Epetra_Map& noderowmap, const std::string& statename,
-      const int& numvec, Teuchos::ParameterList& params, const Teuchos::ParameterList& solverparams,
+      Core::FE::Discretization& dis, const Core::LinAlg::Map& noderowmap,
+      const std::string& statename, const int& numvec, Teuchos::ParameterList& params,
+      const Teuchos::ParameterList& solverparams,
       const std::function<const Teuchos::ParameterList&(int)> get_solver_params,
-      const Epetra_Map& fullnoderowmap, const std::map<int, int>& slavetomastercolnodesmap);
+      const Core::LinAlg::Map& fullnoderowmap, const std::map<int, int>& slavetomastercolnodesmap);
 
   std::shared_ptr<Core::LinAlg::MultiVector<double>> solve_nodal_l2_projection(
       Core::LinAlg::SparseMatrix& massmatrix, Core::LinAlg::MultiVector<double>& rhs, MPI_Comm comm,
       const int& numvec, const Teuchos::ParameterList& solverparams,
       const std::function<const Teuchos::ParameterList&(int)> get_solver_params,
-      const Epetra_Map& noderowmap, const Epetra_Map& fullnoderowmap,
+      const Core::LinAlg::Map& noderowmap, const Core::LinAlg::Map& fullnoderowmap,
       const std::map<int, int>& slavetomastercolnodesmap);
 
 }  // namespace Core::FE

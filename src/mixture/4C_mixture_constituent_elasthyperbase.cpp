@@ -13,6 +13,7 @@
 #include "4C_mat_multiplicative_split_defgrad_elasthyper_service.hpp"
 #include "4C_mat_par_bundle.hpp"
 #include "4C_mixture_prestress_strategy.hpp"
+#include "4C_utils_enum.hpp"
 
 
 
@@ -30,8 +31,8 @@ Mixture::PAR::MixtureConstituentElastHyperBase::MixtureConstituentElastHyperBase
   if (nummat_ != (int)matids_.size())
   {
     FOUR_C_THROW(
-        "number of summands %d does not fit to the size of the summands vector"
-        " %d",
+        "number of summands {} does not fit to the size of the summands vector"
+        " {}",
         nummat_, matids_.size());
   }
 }
@@ -116,7 +117,7 @@ void Mixture::MixtureConstituentElastHyperBase::unpack_constituent(
       }
       else
       {
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
       }
     }
@@ -240,7 +241,7 @@ bool Mixture::MixtureConstituentElastHyperBase::evaluate_output_data(
   {
     for (int gp = 0; gp < num_gp(); ++gp)
     {
-      static Core::LinAlg::Matrix<9, 1> tmp(false);
+      static Core::LinAlg::Matrix<9, 1> tmp(Core::LinAlg::Initialization::uninitialized);
       tmp.clear();
       Core::LinAlg::Voigt::matrix_3x3_to_9x1(prestretch_[gp], tmp);
 

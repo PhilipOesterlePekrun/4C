@@ -64,7 +64,7 @@ Tauw_Type                       between_steps
 Tauw_Calc_Type                  gradient_to_residual
 Switch_Step                     2
 Min_Tauw                        0.085
-Projection                      onlyl2projection
+Projection                      only_l2_projection
 Blending_Type                   ramp_function
 GP_Wall_Normal                  12
 GP_Wall_Normal_Off_Wall         12
@@ -88,7 +88,7 @@ NAME                            Projection_Solver
 SOLVER                          Belos
 AZSOLVE                         CG
 AZPREC                          ILU
-IFPACKGFILL                     20
+IFPACK_XML_FILE                 xml/preconditioner/ifpack.xml
 AZTOL                           1.0E-12
 AZCONV                          AZ_r0
 AZREUSE                         5
@@ -121,34 +121,29 @@ FLUID DIS fluid NODE 237 QUANTITY vely VALUE 1.81752032436197233e-05 TOLERANCE 1
 FLUID DIS fluid NODE 237 QUANTITY velz VALUE 4.69205601811892359e-01 TOLERANCE 1e-9
 FLUID DIS fluid NODE 237 QUANTITY pressure VALUE 3.32724933396693874e-04 TOLERANCE 1e-9
 -------------------------------------DESIGN VOL NEUMANN CONDITIONS
-DVOL   1
 // volume1
-E 2 - NUMDOF 6 ONOFF 1 0 0 0 0 0 VAL 1.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 TYPE Dead
+E 2 NUMDOF 6 ONOFF 1 0 0 0 0 0 VAL 1.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 TYPE Dead
 -------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF  2
 // wall_top
-E 1 - NUMDOF 8 ONOFF 1 1 1 0 0 0 0 0 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0
+E 1 NUMDOF 8 ONOFF 1 1 1 0 0 0 0 0 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0
 // wall_bottom
-E 2 - NUMDOF 8 ONOFF 1 1 1 0 0 0 0 0 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0
+E 2 NUMDOF 8 ONOFF 1 1 1 0 0 0 0 0 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0
 -------------------------------------DESIGN FLUID STRESS CALC SURF CONDITIONS
-DSURF  2
 // wall_top
-E 1 -
+E 1
 // wall_bottom
-E 2 -
+E 2
 --------------------------DESIGN SURF PERIODIC BOUNDARY CONDITIONS
-DSURF  4
 // master_stream
-E 3 - ID 1 MASTER_OR_SLAVE Master PLANE yz LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
+E 3 ID 1 MASTER_OR_SLAVE Master PLANE yz LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
 // slave_stream
-E 4 - ID 1 MASTER_OR_SLAVE Slave PLANE yz LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
+E 4 ID 1 MASTER_OR_SLAVE Slave PLANE yz LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
 // slave_span
-E 5 - ID 2 MASTER_OR_SLAVE Slave PLANE  xy LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
+E 5 ID 2 MASTER_OR_SLAVE Slave PLANE  xy LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
 // master_span
-E 6 - ID 2 MASTER_OR_SLAVE Master PLANE xy LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
+E 6 ID 2 MASTER_OR_SLAVE Master PLANE xy LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
 -----------------------DESIGN VOL MODE FOR KRYLOV SPACE PROJECTION
-DVOL   1
-E 1 - DIS fluid NUMMODES 4 ONOFF 0 0 0 1 WEIGHTVECDEF integration
+E 1 DIS fluid NUMMODES 4 ONOFF 0 0 0 1 WEIGHTVECDEF integration
 -----------------------------------------------DNODE-NODE TOPOLOGY
 NODE    420 DNODE 1
 -----------------------------------------------DSURF-NODE TOPOLOGY

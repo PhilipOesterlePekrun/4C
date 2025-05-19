@@ -10,6 +10,7 @@
 #include "4C_comm_pack_helpers.hpp"
 #include "4C_global_data.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <vector>
 
@@ -25,7 +26,7 @@ Mat::PAR::MatList::MatList(const Core::Mat::PAR::Parameter::Data& matdata)
 {
   // check if sizes fit
   if (nummat_ != (int)matids_.size())
-    FOUR_C_THROW("number of materials %d does not fit to size of material vector %d", nummat_,
+    FOUR_C_THROW("number of materials {} does not fit to size of material vector {}", nummat_,
         matids_.size());
 
   if (not local_)
@@ -54,7 +55,7 @@ std::shared_ptr<Core::Mat::Material> Mat::PAR::MatList::material_by_id(const int
 
     if (m == mat_.end())
     {
-      FOUR_C_THROW("Material %d could not be found", id);
+      FOUR_C_THROW("Material {} could not be found", id);
       return nullptr;
     }
     else
@@ -180,7 +181,7 @@ void Mat::MatList::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::MatList*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
 
@@ -236,7 +237,7 @@ std::shared_ptr<Core::Mat::Material> Mat::MatList::material_by_id(const int id) 
         material_map_read()->find(id);
     if (m == mat_.end())
     {
-      FOUR_C_THROW("Material %d could not be found", id);
+      FOUR_C_THROW("Material {} could not be found", id);
       return nullptr;
     }
     else

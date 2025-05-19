@@ -107,9 +107,9 @@ void FLD::Utils::DbcHdgFluid::read_dirichlet_condition(const Teuchos::ParameterL
         // get global id
         const int gid = dofs[j];
         // get corresponding local id
-        const int lid = info.toggle.Map().LID(gid);
+        const int lid = info.toggle.get_block_map().LID(gid);
         if (lid < 0)
-          FOUR_C_THROW("Global id %d not on this proc %d in system vector", dofs[j],
+          FOUR_C_THROW("Global id {} not on this proc {} in system vector", dofs[j],
               Core::Communication::my_mpi_rank(discret.get_comm()));
         // get position of label for this dof in condition line
         int onesetj = j / dofpercomponent;
@@ -171,7 +171,7 @@ void FLD::Utils::DbcHdgFluid::do_dirichlet_condition(const Teuchos::ParameterLis
   if (!nodeids) FOUR_C_THROW("Dirichlet condition does not have nodal cloud");
 
   // get curves, functs, vals, and onoff toggles from the condition
-  const auto funct = cond.parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+  const auto funct = cond.parameters().get<std::vector<std::optional<int>>>("FUNCT");
   const auto val = cond.parameters().get<std::vector<double>>("VAL");
   const auto onoff = cond.parameters().get<std::vector<int>>("ONOFF");
 
@@ -203,8 +203,7 @@ void FLD::Utils::DbcHdgFluid::do_dirichlet_condition(const Teuchos::ParameterLis
     Core::LinAlg::SerialDenseMatrix elemat1, elemat2;
     Core::Elements::LocationArray dummy(1);
     Teuchos::ParameterList initParams;
-    if (Global::Problem::instance(0)->get_problem_type() == Core::ProblemType::elemag or
-        Global::Problem::instance(0)->get_problem_type() == Core::ProblemType::scatra)
+    if (Global::Problem::instance(0)->get_problem_type() == Core::ProblemType::scatra)
       Core::Utils::add_enum_class_to_parameter_list<Core::FE::HDGAction>(
           "action", Core::FE::HDGAction::project_dirich_field, initParams);
     else
@@ -264,10 +263,9 @@ void FLD::Utils::DbcHdgFluid::do_dirichlet_condition(const Teuchos::ParameterLis
           Teuchos::ParameterList params = Global::Problem::instance()->fluid_dynamic_params();
 
           // check whether the imposition of the average pressure is requested
-          const auto dopressavgbc =
-              Teuchos::getIntegralValue<Inpar::FLUID::PressAvgBc>(params, "PRESSAVGBC");
+          const auto dopressavgbc = Teuchos::get<bool>(params, "PRESSAVGBC");
 
-          if (dopressavgbc == Inpar::FLUID::yes_pressure_average_bc)
+          if (dopressavgbc)
           {
             double pressureavgBC = 0.0;
 
@@ -357,9 +355,9 @@ void FLD::Utils::DbcHdgFluid::do_dirichlet_condition(const Teuchos::ParameterLis
         // get global id
         const int gid = dofs[j];
         // get corresponding local id
-        const int lid = toggle.Map().LID(gid);
+        const int lid = toggle.get_block_map().LID(gid);
         if (lid < 0)
-          FOUR_C_THROW("Global id %d not on this proc %d in system vector", dofs[j],
+          FOUR_C_THROW("Global id {} not on this proc {} in system vector", dofs[j],
               Core::Communication::my_mpi_rank(discret.get_comm()));
         // get position of label for this dof in condition line
         int onesetj = j / dofpercomponent;

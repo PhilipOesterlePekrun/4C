@@ -316,7 +316,7 @@ namespace Coupling::VolMortar
     double jacobian(const double* xi, const Core::Elements::Element& ele)
     {
       //! nn_: number of master element nodes
-      static constexpr int nn = Core::FE::num_nodes<distype>;
+      static constexpr int nn = Core::FE::num_nodes(distype);
 
       //! number of space dimensions ("+1" due to considering only interface elements)
       static constexpr int ndim = Core::FE::dim<distype>;
@@ -432,7 +432,7 @@ namespace Coupling::VolMortar
 
           invJ.multiply(derivs, xrefe);
           jac = invJ.invert();
-          if (jac <= 0.0) FOUR_C_THROW("Element Jacobian mapping %10.5e <= 0.0", jac);
+          if (jac <= 0.0) FOUR_C_THROW("Element Jacobian mapping {:10.5e} <= 0.0", jac);
 
           break;
         }
@@ -456,7 +456,7 @@ namespace Coupling::VolMortar
     )
     {
       //! nn_: number of master element nodes
-      static constexpr int nn = Core::FE::num_nodes<distype>;
+      static constexpr int nn = Core::FE::num_nodes(distype);
 
       //! number of space dimensions ("+1" due to considering only interface elements)
       static constexpr int ndim = Core::FE::dim<distype>;
@@ -538,7 +538,7 @@ namespace Coupling::VolMortar
 
           invJ.Multiply(deriv, xrefe);
           jac = invJ.invert();
-          if (jac <= 0.0) FOUR_C_THROW("Element Jacobian mapping %10.5e <= 0.0", jac);
+          if (jac <= 0.0) FOUR_C_THROW("Element Jacobian mapping {:10.5e} <= 0.0", jac);
 
           break;
         }
@@ -1062,15 +1062,15 @@ namespace Coupling::VolMortar
           static constexpr int ndim = Core::FE::dim<distype>;
 
           //! number of element nodes
-          static constexpr int nnodes = Core::FE::num_nodes<distype>;
+          static constexpr int nnodes = Core::FE::num_nodes(distype);
 
           // get gauss rule
           const Core::FE::IntPointsAndWeights<ndim> intpoints(DisTypeToOptGaussRule<distype>::rule);
 
           double detg = 0.0;
 
-          Core::LinAlg::Matrix<nnodes, nnodes> me(true);
-          Core::LinAlg::Matrix<nnodes, nnodes> de(true);
+          Core::LinAlg::Matrix<nnodes, nnodes> me(Core::LinAlg::Initialization::zero);
+          Core::LinAlg::Matrix<nnodes, nnodes> de(Core::LinAlg::Initialization::zero);
           Core::LinAlg::Matrix<nnodes, nnodes> ae;
 
           Core::LinAlg::Matrix<nnodes, 1> stdval;
@@ -1138,7 +1138,7 @@ namespace Coupling::VolMortar
           static constexpr int ndim = Core::FE::dim<distype>;
 
           //! number of element nodes
-          static constexpr int nnodes = Core::FE::num_nodes<distype>;
+          static constexpr int nnodes = Core::FE::num_nodes(distype);
 
           // get gauss rule
           const Core::FE::IntPointsAndWeights<ndim> intpoints(DisTypeToOptGaussRule<distype>::rule);
@@ -1151,8 +1151,8 @@ namespace Coupling::VolMortar
           double detg = 0.0;
 
           // compute entries to bi-ortho matrices me/de with Gauss quadrature
-          Core::LinAlg::Matrix<nnodes, nnodes> me(true);
-          Core::LinAlg::Matrix<nnodes, nnodes> de(true);
+          Core::LinAlg::Matrix<nnodes, nnodes> me(Core::LinAlg::Initialization::zero);
+          Core::LinAlg::Matrix<nnodes, nnodes> de(Core::LinAlg::Initialization::zero);
           Core::LinAlg::Matrix<nnodes, nnodes> ae;
 
           for (int i = 0; i < intpoints.ip().nquad; ++i)
@@ -1234,7 +1234,7 @@ namespace Coupling::VolMortar
           static constexpr int ndim = Core::FE::dim<distype>;
 
           //! number of element nodes
-          static constexpr int nnodes = Core::FE::num_nodes<distype>;
+          static constexpr int nnodes = Core::FE::num_nodes(distype);
 
           // get gauss rule
           const Core::FE::IntPointsAndWeights<ndim> intpoints(DisTypeToOptGaussRule<distype>::rule);
@@ -1244,8 +1244,8 @@ namespace Coupling::VolMortar
 
           // establish fundamental data
           double detg = 0.0;
-          Core::LinAlg::Matrix<nnodes, nnodes> me(true);
-          Core::LinAlg::Matrix<nnodes, nnodes> de(true);
+          Core::LinAlg::Matrix<nnodes, nnodes> me(Core::LinAlg::Initialization::zero);
+          Core::LinAlg::Matrix<nnodes, nnodes> de(Core::LinAlg::Initialization::zero);
           Core::LinAlg::Matrix<nnodes, nnodes> ae;
 
           for (int i = 0; i < intpoints.ip().nquad; ++i)
@@ -1308,7 +1308,7 @@ namespace Coupling::VolMortar
           static constexpr int ndim = Core::FE::dim<distype>;
 
           //! number of element nodes
-          static constexpr int nnodes = Core::FE::num_nodes<distype>;
+          static constexpr int nnodes = Core::FE::num_nodes(distype);
 
           // get gauss rule
           const Core::FE::IntPointsAndWeights<ndim> intpoints(DisTypeToOptGaussRule<distype>::rule);
@@ -1321,8 +1321,8 @@ namespace Coupling::VolMortar
           double detg = 0.0;
 
           // compute entries to bi-ortho matrices me/de with Gauss quadrature
-          Core::LinAlg::Matrix<nnodes, nnodes> me(true);
-          Core::LinAlg::Matrix<nnodes, nnodes> de(true);
+          Core::LinAlg::Matrix<nnodes, nnodes> me(Core::LinAlg::Initialization::zero);
+          Core::LinAlg::Matrix<nnodes, nnodes> de(Core::LinAlg::Initialization::zero);
           Core::LinAlg::Matrix<nnodes, nnodes> ae;
 
           for (int i = 0; i < intpoints.ip().nquad; ++i)
@@ -1394,7 +1394,7 @@ namespace Coupling::VolMortar
           static constexpr int ndim = Core::FE::dim<distype>;
 
           //! number of element nodes
-          static constexpr int nnodes = Core::FE::num_nodes<distype>;
+          static constexpr int nnodes = Core::FE::num_nodes(distype);
 
           // get gauss rule
           const Core::FE::IntPointsAndWeights<ndim> intpoints(DisTypeToOptGaussRule<distype>::rule);
@@ -1406,8 +1406,8 @@ namespace Coupling::VolMortar
           double detg = 0.0;
 
           // compute entries to bi-ortho matrices me/de with Gauss quadrature
-          Core::LinAlg::Matrix<nnodes, nnodes> me(true);
-          Core::LinAlg::Matrix<nnodes, nnodes> de(true);
+          Core::LinAlg::Matrix<nnodes, nnodes> me(Core::LinAlg::Initialization::zero);
+          Core::LinAlg::Matrix<nnodes, nnodes> de(Core::LinAlg::Initialization::zero);
           Core::LinAlg::Matrix<nnodes, nnodes> ae;
 
           for (int i = 0; i < intpoints.ip().nquad; ++i)
@@ -1483,7 +1483,7 @@ namespace Coupling::VolMortar
           static constexpr int ndim = Core::FE::dim<distype>;
 
           //! number of element nodes
-          static constexpr int nnodes = Core::FE::num_nodes<distype>;
+          static constexpr int nnodes = Core::FE::num_nodes(distype);
 
           // get gauss rule
           const Core::FE::IntPointsAndWeights<ndim> intpoints(DisTypeToOptGaussRule<distype>::rule);
@@ -1496,8 +1496,8 @@ namespace Coupling::VolMortar
           double detg = 0.0;
 
           // compute entries to bi-ortho matrices me/de with Gauss quadrature
-          Core::LinAlg::Matrix<nnodes, nnodes> me(true);
-          Core::LinAlg::Matrix<nnodes, nnodes> de(true);
+          Core::LinAlg::Matrix<nnodes, nnodes> me(Core::LinAlg::Initialization::zero);
+          Core::LinAlg::Matrix<nnodes, nnodes> de(Core::LinAlg::Initialization::zero);
           Core::LinAlg::Matrix<nnodes, nnodes> ae;
 
           for (int i = 0; i < intpoints.ip().nquad; ++i)
@@ -1770,7 +1770,7 @@ namespace Coupling::VolMortar
       if (Core::FE::is_nurbs<distype>)
         FOUR_C_THROW("ERROR: Lagr. local_to_global called for NURBS!");
 
-      static constexpr int n = Core::FE::num_nodes<distype>;
+      static constexpr int n = Core::FE::num_nodes(distype);
       static constexpr int ndim = Core::FE::dim<distype>;
 
       const Core::Nodes::Node* const* mynodes = ele.nodes();

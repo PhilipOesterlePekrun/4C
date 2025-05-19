@@ -9,15 +9,17 @@
 
 #include "4C_comm_utils_factory.hpp"
 #include "4C_fem_general_utils_local_connectivity_matrices.hpp"
+#include "4C_inpar_scatra.hpp"
+#include "4C_inpar_structure.hpp"
 #include "4C_io_input_spec_builders.hpp"
 #include "4C_mat_fluidporo.hpp"
 #include "4C_mat_fluidporo_multiphase.hpp"
 #include "4C_mat_structporo.hpp"
-#include "4C_so3_line.hpp"
-#include "4C_so3_nullspace.hpp"
-#include "4C_so3_surface.hpp"
 #include "4C_solid_3D_ele_factory.hpp"
 #include "4C_solid_3D_ele_interface_serializable.hpp"
+#include "4C_solid_3D_ele_line.hpp"
+#include "4C_solid_3D_ele_nullspace.hpp"
+#include "4C_solid_3D_ele_surface.hpp"
 #include "4C_solid_3D_ele_utils.hpp"
 #include "4C_solid_poro_3D_ele_factory.hpp"
 #include "4C_solid_poro_3D_ele_utils.hpp"
@@ -36,11 +38,22 @@ namespace Discret::Elements::SolidPoroPressureBasedInternal
     auto get_default_input_spec()
     {
       return all_of({
-          entry<std::vector<int>>(
-              Core::FE::cell_type_to_string(celltype), {.size = Core::FE::num_nodes<celltype>}),
-          entry<int>("MAT"),
-          entry<std::string>("KINEM"),
-          entry<std::string>("TYPE", {.required = false}),
+          parameter<std::vector<int>>(
+              Core::FE::cell_type_to_string(celltype), {.size = Core::FE::num_nodes(celltype)}),
+          parameter<int>("MAT"),
+          deprecated_selection<Inpar::Solid::KinemType>("KINEM",
+              {
+                  {kinem_type_string(Inpar::Solid::KinemType::linear),
+                      Inpar::Solid::KinemType::linear},
+                  {kinem_type_string(Inpar::Solid::KinemType::nonlinearTotLag),
+                      Inpar::Solid::KinemType::nonlinearTotLag},
+              },
+              {.description = "Whether to use linear kinematics (small displacements) or nonlinear "
+                              "kinematics (large displacements)"}),
+          deprecated_selection<Inpar::ScaTra::ImplType>("TYPE",
+              Discret::Elements::get_impltype_inpar_map(),
+              {.description = "Scalar transport implementation type",
+                  .default_value = Inpar::ScaTra::ImplType::impltype_undefined}),
       });
     }
   }  // namespace
@@ -60,11 +73,9 @@ void Discret::Elements::SolidPoroPressureBasedType::setup_element_definition(
 {
   auto& defsgeneral = definitions["SOLIDPORO_PRESSURE_BASED"];
 
-  defsgeneral[Core::FE::cell_type_to_string(Core::FE::CellType::hex8)] = all_of({
-      Discret::Elements::SolidPoroPressureBasedInternal::get_default_input_spec<
-          Core::FE::CellType::hex8>(),
-      entry<std::string>("EAS", {.required = false}),
-  });
+  defsgeneral[Core::FE::cell_type_to_string(Core::FE::CellType::hex8)] =
+      all_of({Discret::Elements::SolidPoroPressureBasedInternal::get_default_input_spec<
+          Core::FE::CellType::hex8>()});
 
   defsgeneral[Core::FE::cell_type_to_string(Core::FE::CellType::hex27)] =
       Discret::Elements::SolidPoroPressureBasedInternal::get_default_input_spec<
@@ -110,7 +121,7 @@ void Discret::Elements::SolidPoroPressureBasedType::nodal_block_information(
 Core::LinAlg::SerialDenseMatrix Discret::Elements::SolidPoroPressureBasedType::compute_null_space(
     Core::Nodes::Node& node, const double* x0, const int numdof, const int dimnsp)
 {
-  return compute_solid_3d_null_space(node, x0);
+  return compute_solid_null_space<3>(node.x(), x0);
 }
 
 Discret::Elements::SolidPoroPressureBased::SolidPoroPressureBased(int id, int owner)
@@ -141,14 +152,13 @@ int Discret::Elements::SolidPoroPressureBased::num_volume() const
 std::vector<std::shared_ptr<Core::Elements::Element>>
 Discret::Elements::SolidPoroPressureBased::lines()
 {
-  return Core::Communication::get_element_lines<StructuralLine, SolidPoroPressureBased>(*this);
+  return Core::Communication::get_element_lines<SolidLine<3>, SolidPoroPressureBased>(*this);
 }
 
 std::vector<std::shared_ptr<Core::Elements::Element>>
 Discret::Elements::SolidPoroPressureBased::surfaces()
 {
-  return Core::Communication::get_element_surfaces<StructuralSurface, SolidPoroPressureBased>(
-      *this);
+  return Core::Communication::get_element_surfaces<SolidSurface, SolidPoroPressureBased>(*this);
 }
 
 void Discret::Elements::SolidPoroPressureBased::set_params_interface_ptr(
@@ -178,16 +188,11 @@ bool Discret::Elements::SolidPoroPressureBased::read_element(const std::string& 
   set_material(0, Mat::factory(FourC::Solid::Utils::ReadElement::read_element_material(container)));
 
   // read kinematic type
-  solid_ele_property_.kintype =
-      FourC::Solid::Utils::ReadElement::read_element_kinematic_type(container);
-
-  // check element technology
-  if (FourC::Solid::Utils::ReadElement::read_element_technology(container) !=
-      ElementTechnology::none)
-    FOUR_C_THROW("SOLIDPORO elements do not support any element technology!");
+  solid_ele_property_.kintype = container.get<Inpar::Solid::KinemType>("KINEM");
 
   // read scalar transport implementation type
-  poro_ele_property_.impltype = FourC::Solid::Utils::ReadElement::read_type(container);
+  poro_ele_property_.impltype = container.get<Inpar::ScaTra::ImplType>("TYPE");
+
 
   solid_calc_variant_ = create_solid_calculation_interface(celltype_, solid_ele_property_);
   solidporo_press_based_calc_variant_ =
@@ -288,7 +293,7 @@ Mat::FluidPoroMultiPhase& Discret::Elements::SolidPoroPressureBased::fluid_poro_
 {
   if (this->num_material() <= 1)
   {
-    FOUR_C_THROW("No second material defined for SolidPoroPressureBased element %i", id());
+    FOUR_C_THROW("No second material defined for SolidPoroPressureBased element {}", id());
   }
 
   auto fluidmulti_mat =

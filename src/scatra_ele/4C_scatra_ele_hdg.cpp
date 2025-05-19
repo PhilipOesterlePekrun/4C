@@ -22,8 +22,8 @@
 #include "4C_scatra_ele_action.hpp"
 #include "4C_scatra_ele_factory.hpp"
 #include "4C_scatra_ele_hdg_boundary_calc.hpp"
-#include "4C_scatra_ele_hdg_intfaces_calc.hpp"
 #include "4C_scatra_ele_interface.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 
@@ -137,8 +137,8 @@ void Discret::Elements::ScaTraHDGType ::setup_element_definition(
   {
     defs[key] = all_of({
         scatra_line_def,
-        entry<int>("DEG"),
-        entry<int>("SPC", {.required = false}),
+        parameter<int>("DEG"),
+        parameter<std::optional<bool>>("SPC"),
     });
   }
 }
@@ -315,7 +315,7 @@ int Discret::Elements::ScaTraHDG::initialize()
         default:
           FOUR_C_THROW(
               "Integration rule for TET elements only until polynomial order 5 for TET defined. "
-              "You specified a degree of %d ",
+              "You specified a degree of {} ",
               degree_old_);
           gp = 0;
           break;
@@ -324,7 +324,7 @@ int Discret::Elements::ScaTraHDG::initialize()
     else
     {
       std::shared_ptr<Core::FE::GaussPoints> quadrature_(
-          Core::FE::GaussPointCache::instance().create(this->shape(), deg));
+          Core::FE::create_gauss_points(this->shape(), deg));
       gp = quadrature_->num_points();
     }
     if (actmat->parameter() != nullptr and
@@ -348,7 +348,7 @@ bool Discret::Elements::ScaTraHDG::read_element(const std::string& eletype,
   degree_ = container.get<int>("DEG");
   degree_old_ = degree_;
 
-  completepol_ = container.get_or<int>("SPC", false);
+  completepol_ = container.get<std::optional<bool>>("SPC").value_or(false);
 
   return success;
 }
@@ -479,14 +479,10 @@ int Discret::Elements::ScaTraHDG::evaluate(Teuchos::ParameterList& params,
     }
 
     case ScaTra::Action::calc_initial_time_deriv:
-    case ScaTra::Action::set_general_scatra_parameter:
-    case ScaTra::Action::set_nodeset_parameter:
-    case ScaTra::Action::set_time_parameter:
-    case ScaTra::Action::set_turbulence_scatra_parameter:
       break;
 
     default:
-      FOUR_C_THROW("Unknown type of action '%i' for ScaTraHDG", act);
+      FOUR_C_THROW("Unknown type of action '{}' for ScaTraHDG", act);
       break;
   }  // switch(action)
 
@@ -673,11 +669,11 @@ int Discret::Elements::ScaTraHDGBoundary::evaluate_neumann(Teuchos::ParameterLis
  |  Get degrees of freedom used by this element (public) hoermann 09/15 |
  *----------------------------------------------------------------------*/
 void Discret::Elements::ScaTraHDGBoundary::location_vector(const Core::FE::Discretization& dis,
-    Core::Elements::LocationArray& la, bool doDirichlet, const std::string& condstring,
+    Core::Elements::LocationArray& la, const std::string& condstring,
     Teuchos::ParameterList& params) const
 {
   // we have to do it this way
-  parent_master_element()->location_vector(dis, la, false);
+  parent_master_element()->location_vector(dis, la);
   return;
 }
 
@@ -949,7 +945,7 @@ void Discret::Elements::ScaTraHDGIntFace::patch_location_vector(
       }
 
       if (offset % size != 0)
-        FOUR_C_THROW("there was at least one node with not %d dofs per node", size);
+        FOUR_C_THROW("there was at least one node with not {} dofs per node", size);
       int patchnode_index = offset / size;
 
       lm_slaveNodeToPatch.push_back(patchnode_index);
@@ -1028,14 +1024,7 @@ int Discret::Elements::ScaTraHDGIntFace::evaluate(Teuchos::ParameterList& params
     Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
     Core::LinAlg::SerialDenseVector& elevec3)
 {
-  // REMARK: this line ensures that the static
-  // Discret::Elements::ScaTraHDGIntFaceImplInterface::Impl is created
-  //         this line avoids linker errors
-  Discret::Elements::ScaTraHDGIntFaceImplInterface::impl(this);
-
   FOUR_C_THROW("not available");
-
-  return 0;
 }
 
 
@@ -1048,8 +1037,6 @@ int Discret::Elements::ScaTraHDGIntFace::evaluate_neumann(Teuchos::ParameterList
     Core::LinAlg::SerialDenseMatrix* elemat1)
 {
   FOUR_C_THROW("not available");
-
-  return 0;
 }
 
 FOUR_C_NAMESPACE_CLOSE

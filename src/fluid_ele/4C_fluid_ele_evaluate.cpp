@@ -18,6 +18,7 @@
 #include "4C_fluid_ele_parameter_xfem.hpp"
 #include "4C_fluid_ele_tds.hpp"
 #include "4C_fluid_ele_xwall.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -27,58 +28,6 @@ FOUR_C_NAMESPACE_OPEN
   the elements allocate common static arrays.
 
   */
-
-/*---------------------------------------------------------------------*
-|  Call the element to set all basic parameter                         |
-*----------------------------------------------------------------------*/
-void Discret::Elements::FluidType::pre_evaluate(Core::FE::Discretization& dis,
-    Teuchos::ParameterList& p, std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix1,
-    std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix2,
-    std::shared_ptr<Core::LinAlg::Vector<double>> systemvector1,
-    std::shared_ptr<Core::LinAlg::Vector<double>> systemvector2,
-    std::shared_ptr<Core::LinAlg::Vector<double>> systemvector3)
-{
-  const auto action = Teuchos::getIntegralValue<FLD::Action>(p, "action");
-
-  if (action == FLD::set_general_fluid_parameter)
-  {
-    Discret::Elements::FluidEleParameterStd* fldpara =
-        Discret::Elements::FluidEleParameterStd::instance();
-    fldpara->set_element_general_fluid_parameter(
-        p, Core::Communication::my_mpi_rank(dis.get_comm()));
-  }
-  else if (action == FLD::set_time_parameter)
-  {
-    Discret::Elements::FluidEleParameterTimInt* fldpara =
-        Discret::Elements::FluidEleParameterTimInt::instance();
-    fldpara->set_element_time_parameter(p);
-  }
-  else if (action == FLD::set_turbulence_parameter)
-  {
-    Discret::Elements::FluidEleParameterStd* fldpara =
-        Discret::Elements::FluidEleParameterStd::instance();
-    fldpara->set_element_turbulence_parameters(p);
-  }
-  else if (action == FLD::set_loma_parameter)
-  {
-    Discret::Elements::FluidEleParameterStd* fldpara =
-        Discret::Elements::FluidEleParameterStd::instance();
-    fldpara->set_element_loma_parameter(p);
-  }
-  else if (action == FLD::set_general_fluid_xfem_parameter)
-  {
-    Discret::Elements::FluidEleParameterXFEM* fldpara =
-        Discret::Elements::FluidEleParameterXFEM::instance();
-
-    fldpara->set_element_general_fluid_parameter(
-        p, Core::Communication::my_mpi_rank(dis.get_comm()));
-    fldpara->set_element_turbulence_parameters(p);
-    fldpara->set_element_xfem_parameter(p, Core::Communication::my_mpi_rank(dis.get_comm()));
-  }
-
-  return;
-}
-
 
 /*----------------------------------------------------------------------*
 |  evaluate the element (public)                            g.bau 03/07|
@@ -163,10 +112,8 @@ int Discret::Elements::Fluid::evaluate(Teuchos::ParameterList& params,
             FOUR_C_THROW("Cannot get state vectors 'velnp' and/or 'scanp'");
 
           // extract local values from the global vectors
-          std::vector<double> myvelpre(lm.size());
-          std::vector<double> mysca(lm.size());
-          Core::FE::extract_my_values(*velnp, myvelpre, lm);
-          Core::FE::extract_my_values(*scanp, mysca, lm);
+          std::vector<double> myvelpre = Core::FE::extract_values(*velnp, lm);
+          std::vector<double> mysca = Core::FE::extract_values(*scanp, lm);
 
           // integrate mean values
           const Core::FE::CellType distype = this->shape();
@@ -222,8 +169,8 @@ int Discret::Elements::Fluid::evaluate(Teuchos::ParameterList& params,
           // extract local values from global vectors
           std::vector<double> myvelpre(lm.size());
           std::vector<double> mysca(lm.size());
-          Core::FE::extract_my_values(*velnp, myvelpre, lm);
-          Core::FE::extract_my_values(*scanp, mysca, lm);
+          myvelpre = Core::FE::extract_values(*velnp, lm);
+          mysca = Core::FE::extract_values(*scanp, lm);
 
           // get factor for equation of state
           const double eosfac = params.get<double>("eos factor", 100000.0 / 287.0);
@@ -283,8 +230,7 @@ int Discret::Elements::Fluid::evaluate(Teuchos::ParameterList& params,
             discretization.get_state("u and p (trial)");
         if (vel == nullptr) FOUR_C_THROW("Cannot get state vectors 'vel'");
         // extract local values from the global vectors
-        std::vector<double> myvel(lm.size());
-        Core::FE::extract_my_values(*vel, myvel, lm);
+        std::vector<double> myvel = Core::FE::extract_values(*vel, lm);
 
         std::vector<double> tmp_temp(lm.size());
         std::vector<double> mytemp(nen);
@@ -297,7 +243,7 @@ int Discret::Elements::Fluid::evaluate(Teuchos::ParameterList& params,
           std::shared_ptr<const Core::LinAlg::Vector<double>> temp =
               discretization.get_state("T (trial)");
           if (temp == nullptr) FOUR_C_THROW("Cannot get state vectors 'temp'");
-          Core::FE::extract_my_values(*temp, tmp_temp, lm);
+          tmp_temp = Core::FE::extract_values(*temp, lm);
 
           for (int i = 0; i < nen; i++) mytemp[i] = tmp_temp[nsd + (i * (nsd + 1))];
 
@@ -543,10 +489,8 @@ int Discret::Elements::Fluid::evaluate(Teuchos::ParameterList& params,
         }
 
         // extract local values from the global vectors
-        std::vector<double> myvel(lm.size());
-        Core::FE::extract_my_values(*velnp, myvel, lm);
-        std::vector<double> myfsvel(lm.size());
-        Core::FE::extract_my_values(*fsvelnp, myfsvel, lm);
+        std::vector<double> myvel = Core::FE::extract_values(*velnp, lm);
+        std::vector<double> myfsvel = Core::FE::extract_values(*fsvelnp, lm);
 
         // pointer to class FluidEleParameter (access to the general parameter)
         Discret::Elements::FluidEleParameterStd* fldpara =
@@ -572,7 +516,7 @@ int Discret::Elements::Fluid::evaluate(Teuchos::ParameterList& params,
         }
       }
       else
-        FOUR_C_THROW("%i D elements does not support calculation of model parameters", nsd);
+        FOUR_C_THROW("{} D elements does not support calculation of model parameters", nsd);
     }
     break;
     case FLD::calc_mean_Cai:
@@ -597,11 +541,10 @@ int Discret::Elements::Fluid::evaluate(Teuchos::ParameterList& params,
           FOUR_C_THROW("Cannot get state vectors");
         }
         // extract local values from the global vectors
-        std::vector<double> myvel(lm.size());
-        Core::FE::extract_my_values(*vel, myvel, lm);
+        std::vector<double> myvel = Core::FE::extract_values(*vel, lm);
         std::vector<double> tmp_sca(lm.size());
         std::vector<double> mysca(nen);
-        Core::FE::extract_my_values(*sca, tmp_sca, lm);
+        tmp_sca = Core::FE::extract_values(*sca, lm);
         for (int i = 0; i < nen; i++) mysca[i] = tmp_sca[nsd + (i * (nsd + 1))];
         // get thermodynamic pressure
         double thermpress = params.get<double>("thermpress at n+alpha_F/n+1", 0.0);
@@ -646,15 +589,7 @@ int Discret::Elements::Fluid::evaluate(Teuchos::ParameterList& params,
         params.set<double>("ele_vol", vol);
       }
       else
-        FOUR_C_THROW("%i D elements does not support calculation of mean Cai", nsd);
-    }
-    break;
-    case FLD::set_mean_Cai:
-    {
-      // pointer to class FluidEleParameter
-      Discret::Elements::FluidEleParameterStd* fldpara =
-          Discret::Elements::FluidEleParameterStd::instance();
-      fldpara->set_csgs_phi(params.get<double>("meanCai"));
+        FOUR_C_THROW("{} D elements does not support calculation of mean Cai", nsd);
     }
     break;
     case FLD::calc_node_normal:
@@ -727,18 +662,8 @@ int Discret::Elements::Fluid::evaluate(Teuchos::ParameterList& params,
               this, params, mat, discretization, lm, elemat1, elemat2, elevec1, elevec2, elevec3);
       break;
     }
-    case FLD::set_general_fluid_parameter:
-    case FLD::set_time_parameter:
-    case FLD::set_turbulence_parameter:
-    case FLD::set_loma_parameter:
-      //    case FLD::calc_adjoint_neumann: // this is done by the surface elements
-      break;
-    //-----------------------------------------------------------------------
-    // adjoint implementation enabling time-integration schemes such as
-    // one-step-theta, BDF2, and generalized-alpha (n+alpha_F and n+1)
-    //-----------------------------------------------------------------------
     default:
-      FOUR_C_THROW("Unknown type of action '%i' for Fluid", act);
+      FOUR_C_THROW("Unknown type of action '{}' for Fluid", act);
       break;
   }  // end of switch(act)
 
@@ -759,39 +684,6 @@ int Discret::Elements::Fluid::evaluate_neumann(Teuchos::ParameterList& params,
     Core::LinAlg::SerialDenseMatrix* elemat1)
 {
   return 0;
-}
-
-
-/*----------------------------------------------------------------------*
- | pre-evaluation of FluidIntFaceType class (public)        schott Jun14|
- *----------------------------------------------------------------------*/
-void Discret::Elements::FluidIntFaceType::pre_evaluate(Core::FE::Discretization& dis,
-    Teuchos::ParameterList& p, std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix1,
-    std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix2,
-    std::shared_ptr<Core::LinAlg::Vector<double>> systemvector1,
-    std::shared_ptr<Core::LinAlg::Vector<double>> systemvector2,
-    std::shared_ptr<Core::LinAlg::Vector<double>> systemvector3)
-{
-  const auto action = Teuchos::getIntegralValue<FLD::Action>(p, "action");
-
-  if (action == FLD::set_general_face_fluid_parameter)
-  {
-    Discret::Elements::FluidEleParameterIntFace* fldintfacepara =
-        Discret::Elements::FluidEleParameterIntFace::instance();
-    fldintfacepara->set_face_general_fluid_parameter(
-        p, Core::Communication::my_mpi_rank(dis.get_comm()));
-  }
-  else if (action == FLD::set_general_face_xfem_parameter)
-  {
-    Discret::Elements::FluidEleParameterIntFace* fldintfacepara =
-        Discret::Elements::FluidEleParameterIntFace::instance();
-    fldintfacepara->set_face_general_xfem_parameter(
-        p, Core::Communication::my_mpi_rank(dis.get_comm()));
-  }
-  else
-    FOUR_C_THROW("unknown action type for FluidIntFaceType::pre_evaluate");
-
-  return;
 }
 
 FOUR_C_NAMESPACE_CLOSE

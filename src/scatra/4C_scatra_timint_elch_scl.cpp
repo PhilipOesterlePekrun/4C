@@ -73,23 +73,13 @@ void ScaTra::ScaTraTimIntElchSCL::setup()
   auto sdyn_micro =
       std::make_shared<Teuchos::ParameterList>(problem->scalar_transport_dynamic_params());
 
-  std::string initial_field_type;
-  switch (Teuchos::getIntegralValue<Inpar::ScaTra::InitialField>(
-      elchparams_->sublist("SCL"), "INITIALFIELD"))
-  {
-    case Inpar::ScaTra::initfield_zero_field:
-      initial_field_type = "zero_field";
-      break;
-    case Inpar::ScaTra::initfield_field_by_function:
-      initial_field_type = "field_by_function";
-      break;
-    case Inpar::ScaTra::initfield_field_by_condition:
-      initial_field_type = "field_by_condition";
-      break;
-    default:
-      FOUR_C_THROW("input type not supported");
-      break;
-  }
+  auto initial_field_type = Teuchos::getIntegralValue<Inpar::ScaTra::InitialField>(
+      elchparams_->sublist("SCL"), "INITIALFIELD");
+  if (!(initial_field_type == Inpar::ScaTra::initfield_zero_field ||
+          initial_field_type == Inpar::ScaTra::initfield_field_by_function ||
+          initial_field_type == Inpar::ScaTra::initfield_field_by_condition))
+    FOUR_C_THROW("input type not supported");
+
   sdyn_micro->set("INITIALFIELD", initial_field_type);
   sdyn_micro->set("INITFUNCNO", elchparams_->sublist("SCL").get<int>("INITFUNCNO"));
 
@@ -107,7 +97,7 @@ void ScaTra::ScaTraTimIntElchSCL::setup()
 
   redistribute_micro_discretization();
 
-  micro_scatra_field()->set_velocity_field();
+  micro_scatra_field()->set_velocity_field_from_function();
 
   micro_timint_->setup();
 
@@ -116,7 +106,7 @@ void ScaTra::ScaTraTimIntElchSCL::setup()
 
   // setup maps for coupled problem
   full_map_elch_scl_ = Core::LinAlg::merge_map(dof_row_map(), micro_scatra_field()->dof_row_map());
-  std::vector<std::shared_ptr<const Epetra_Map>> block_map_vec_scl;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> block_map_vec_scl;
   switch (matrixtype_elch_scl_)
   {
     case Core::LinAlg::MatrixType::sparse:
@@ -284,7 +274,7 @@ void ScaTra::ScaTraTimIntElchSCL::nonlinear_solve()
     iternum_++;
 
     // prepare load vector
-    neumann_loads_->PutScalar(0.0);
+    neumann_loads_->put_scalar(0.0);
 
     {
       TEUCHOS_FUNC_TIME_MONITOR("SCL: evaluate");
@@ -307,7 +297,7 @@ void ScaTra::ScaTraTimIntElchSCL::nonlinear_solve()
       if (break_newton_loop_and_print_convergence()) break;
     }
 
-    increment_elch_scl_->PutScalar(0.0);
+    increment_elch_scl_->put_scalar(0.0);
 
     {
       TEUCHOS_FUNC_TIME_MONITOR("SCL: solve");
@@ -348,7 +338,7 @@ void ScaTra::ScaTraTimIntElchSCL::add_problem_specific_parameters_and_vectors(
 {
   ScaTra::ScaTraTimIntElch::add_problem_specific_parameters_and_vectors(params);
 
-  discret_->set_state("phinp", phinp());
+  discret_->set_state("phinp", *phinp());
 }
 
 /*----------------------------------------------------------------------------*
@@ -496,14 +486,14 @@ bool ScaTra::ScaTraTimIntElchSCL::break_newton_loop_and_print_convergence()
 
   double residual_L2, micro_residual_L2, macro_residual_L2, increment_L2, micro_increment_L2,
       macro_increment_L2, micro_state_L2, macro_state_L2;
-  residual_elch_scl_->Norm2(&residual_L2);
-  micro_residual->Norm2(&micro_residual_L2);
-  macro_residual->Norm2(&macro_residual_L2);
-  increment_elch_scl_->Norm2(&increment_L2);
-  micro_increment->Norm2(&micro_increment_L2);
-  macro_increment->Norm2(&macro_increment_L2);
-  micro_scatra_field()->phinp()->Norm2(&micro_state_L2);
-  phinp()->Norm2(&macro_state_L2);
+  residual_elch_scl_->norm_2(&residual_L2);
+  micro_residual->norm_2(&micro_residual_L2);
+  macro_residual->norm_2(&macro_residual_L2);
+  increment_elch_scl_->norm_2(&increment_L2);
+  micro_increment->norm_2(&micro_increment_L2);
+  macro_increment->norm_2(&macro_increment_L2);
+  micro_scatra_field()->phinp()->norm_2(&micro_state_L2);
+  phinp()->norm_2(&macro_state_L2);
 
   // safety checks
   if (std::isnan(residual_L2) or std::isnan(micro_residual_L2) or std::isnan(macro_residual_L2) or
@@ -614,7 +604,7 @@ void ScaTra::ScaTraTimIntElchSCL::setup_coupling()
       // is this node owned by this proc?
       if (!Core::Communication::is_node_gid_on_this_proc(*discret_, coupling_node_gid)) continue;
 
-      switch (coupling_condition->parameters().get<int>("INTERFACE_SIDE"))
+      switch (coupling_condition->parameters().get<Inpar::S2I::InterfaceSides>("INTERFACE_SIDE"))
       {
         case Inpar::S2I::side_slave:
           my_macro_slave_node_gids.emplace_back(coupling_node_gid);
@@ -753,12 +743,12 @@ void ScaTra::ScaTraTimIntElchSCL::setup_coupling()
     write_coupling_to_csv(
         glob_macro_micro_coupled_node_gids, glob_macro_slave_node_master_node_gids);
 
-  // setup Epetra maps for coupled nodes
-  Epetra_Map master_node_map(-1, static_cast<int>(my_macro_node_gids.size()),
+  // setup maps for coupled nodes
+  Core::LinAlg::Map master_node_map(-1, static_cast<int>(my_macro_node_gids.size()),
       &my_macro_node_gids[0], 0, Core::Communication::as_epetra_comm(comm));
-  Epetra_Map slave_node_map(-1, static_cast<int>(my_micro_node_gids.size()), &my_micro_node_gids[0],
-      0, Core::Communication::as_epetra_comm(comm));
-  Epetra_Map perm_slave_node_map(-1, static_cast<int>(my_micro_permuted_node_gids.size()),
+  Core::LinAlg::Map slave_node_map(-1, static_cast<int>(my_micro_node_gids.size()),
+      &my_micro_node_gids[0], 0, Core::Communication::as_epetra_comm(comm));
+  Core::LinAlg::Map perm_slave_node_map(-1, static_cast<int>(my_micro_permuted_node_gids.size()),
       &my_micro_permuted_node_gids[0], 0, Core::Communication::as_epetra_comm(comm));
 
   // setup coupling adapter between micro (slave) and macro (master) for all dof of the nodes
@@ -806,15 +796,17 @@ void ScaTra::ScaTraTimIntElchSCL::setup_coupling()
     }
   }
 
-  auto slave_dof_map = std::make_shared<Epetra_Map>(-1, static_cast<int>(my_slave_dofs.size()),
-      &my_slave_dofs[0], 0, Core::Communication::as_epetra_comm(comm));
+  auto slave_dof_map =
+      std::make_shared<Core::LinAlg::Map>(-1, static_cast<int>(my_slave_dofs.size()),
+          &my_slave_dofs[0], 0, Core::Communication::as_epetra_comm(comm));
   auto perm_slave_dof_map =
-      std::make_shared<Epetra_Map>(-1, static_cast<int>(my_perm_slave_dofs.size()),
+      std::make_shared<Core::LinAlg::Map>(-1, static_cast<int>(my_perm_slave_dofs.size()),
           &my_perm_slave_dofs[0], 0, Core::Communication::as_epetra_comm(comm));
-  auto master_dof_map = std::make_shared<Epetra_Map>(-1, static_cast<int>(my_master_dofs.size()),
-      &my_master_dofs[0], 0, Core::Communication::as_epetra_comm(comm));
+  auto master_dof_map =
+      std::make_shared<Core::LinAlg::Map>(-1, static_cast<int>(my_master_dofs.size()),
+          &my_master_dofs[0], 0, Core::Communication::as_epetra_comm(comm));
   auto perm_master_dof_map =
-      std::make_shared<Epetra_Map>(-1, static_cast<int>(my_perm_master_dofs.size()),
+      std::make_shared<Core::LinAlg::Map>(-1, static_cast<int>(my_perm_master_dofs.size()),
           &my_perm_master_dofs[0], 0, Core::Communication::as_epetra_comm(comm));
 
 
@@ -925,7 +917,7 @@ void ScaTra::ScaTraTimIntElchSCL::assemble_and_apply_mesh_tying()
   auto full_macro_vector = Core::LinAlg::create_vector(*dof_row_map(), true);
   macro_coupling_dofs_->insert_cond_vector(*micro_residual_on_macro_side, *full_macro_vector);
 
-  residual_elch_scl_->PutScalar(0.0);
+  residual_elch_scl_->put_scalar(0.0);
   system_matrix_elch_scl_->zero();
 
   macro_micro_dofs_->add_other_vector(*full_macro_vector, *residual_elch_scl_);
@@ -1028,7 +1020,7 @@ void ScaTra::ScaTraTimIntElchSCL::assemble_and_apply_mesh_tying()
     {
       const int rowlid_slave = micromatrix.row_map().LID(dofgid_slave);
       if (rowlid_slave < 0) FOUR_C_THROW("Global ID not found!");
-      if (micromatrix.epetra_matrix()->ReplaceMyValues(rowlid_slave, 1, &one, &rowlid_slave))
+      if (micromatrix.replace_my_values(rowlid_slave, 1, &one, &rowlid_slave))
         FOUR_C_THROW("ReplaceMyValues failed!");
     }
 
@@ -1036,7 +1028,7 @@ void ScaTra::ScaTraTimIntElchSCL::assemble_and_apply_mesh_tying()
     // indices
     else
     {
-      micromatrix.epetra_matrix()->InsertGlobalValues(dofgid_slave, 1, &one, &dofgid_slave);
+      micromatrix.insert_global_values(dofgid_slave, 1, &one, &dofgid_slave);
     }
   }
 }
@@ -1079,10 +1071,10 @@ void ScaTra::ScaTraTimIntElchSCL::redistribute_micro_discretization()
   if (myPID > 0) my_col_nodes.emplace_back(my_row_nodes[0] - 1);
   if (myPID < num_proc - 1) my_col_nodes.emplace_back(my_row_nodes.back() + 1);
 
-  Epetra_Map new_node_row_map(num_nodes, static_cast<int>(my_row_nodes.size()), &my_row_nodes[0], 0,
-      Core::Communication::as_epetra_comm(micro_dis->get_comm()));
+  Core::LinAlg::Map new_node_row_map(num_nodes, static_cast<int>(my_row_nodes.size()),
+      &my_row_nodes[0], 0, Core::Communication::as_epetra_comm(micro_dis->get_comm()));
 
-  Epetra_Map new_node_col_map(-1, static_cast<int>(my_col_nodes.size()), &my_col_nodes[0], 0,
+  Core::LinAlg::Map new_node_col_map(-1, static_cast<int>(my_col_nodes.size()), &my_col_nodes[0], 0,
       Core::Communication::as_epetra_comm(micro_dis->get_comm()));
 
   micro_dis->redistribute(new_node_row_map, new_node_col_map);
@@ -1139,7 +1131,7 @@ void ScaTra::ScaTraTimIntElchSCL::calc_initial_potential_field()
     iternum_++;
 
     // prepare load vector
-    neumann_loads_->PutScalar(0.0);
+    neumann_loads_->put_scalar(0.0);
 
     // assemble sub problems
     assemble_mat_and_rhs();
@@ -1168,16 +1160,16 @@ void ScaTra::ScaTraTimIntElchSCL::calc_initial_potential_field()
 
     // compute L2 norm of state vector
     double state_L2_macro, state_L2_micro;
-    phinp()->Norm2(&state_L2_macro);
-    micro_scatra_field()->phinp()->Norm2(&state_L2_micro);
+    phinp()->norm_2(&state_L2_macro);
+    micro_scatra_field()->phinp()->norm_2(&state_L2_micro);
     double state_L2 = std::sqrt(std::pow(state_L2_macro, 2) + std::pow(state_L2_micro, 2));
 
     // compute L2 residual vector
     double res_L2, inc_L2;
-    residual_elch_scl_->Norm2(&res_L2);
+    residual_elch_scl_->norm_2(&res_L2);
 
     // compute L2 norm of increment vector
-    increment_elch_scl_->Norm2(&inc_L2);
+    increment_elch_scl_->norm_2(&inc_L2);
 
     // safety checks
     if (std::isnan(inc_L2) or std::isnan(res_L2)) FOUR_C_THROW("calculated vector norm is NaN.");
@@ -1246,7 +1238,7 @@ void ScaTra::ScaTraTimIntElchSCL::calc_initial_potential_field()
     }
 
     // zero out increment vector
-    increment_elch_scl_->PutScalar(0.0);
+    increment_elch_scl_->put_scalar(0.0);
 
     Core::LinAlg::SolverParams solver_params;
     solver_params.refactor = true;
@@ -1257,8 +1249,8 @@ void ScaTra::ScaTraTimIntElchSCL::calc_initial_potential_field()
     update_iter_micro_macro();
 
     // copy initial state vector
-    phin_->Update(1., *phinp_, 0.);
-    micro_scatra_field()->phin()->Update(1.0, *micro_scatra_field()->phinp(), 0.0);
+    phin_->update(1., *phinp_, 0.);
+    micro_scatra_field()->phin()->update(1.0, *micro_scatra_field()->phinp(), 0.0);
 
     // update state vectors for intermediate time steps (only for generalized alpha)
     compute_intermediate_values();

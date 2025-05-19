@@ -17,7 +17,7 @@
 #include <memory>
 
 // forward declarations
-class Epetra_Map;
+class Map;
 
 #include "4C_utils_parameter_list.fwd.hpp"
 
@@ -126,10 +126,10 @@ namespace Solid
     //!@}
 
     //! Allows to expand dbc map with provided maptoadd
-    void add_dirich_dofs(const std::shared_ptr<const Epetra_Map> maptoadd);
+    void add_dirich_dofs(const std::shared_ptr<const Core::LinAlg::Map> maptoadd);
 
     //! Allows to contract dbc map with provided maptoremove
-    void remove_dirich_dofs(const std::shared_ptr<const Epetra_Map> maptoremove);
+    void remove_dirich_dofs(const std::shared_ptr<const Core::LinAlg::Map> maptoremove);
 
     /*! \brief Rotate the system matrix from a global to a local coordinate system
      *
@@ -268,7 +268,7 @@ namespace NOX
          * matrix only once, if locSys is defined and to apply possible modifications to the linear
          * system at different places without the need to re-apply the DBC (see PTC for an example).
          *
-         * \author Hiermeier */
+         * */
         class Dbc : public NOX::Nln::Abstract::PrePostOperator
         {
          public:

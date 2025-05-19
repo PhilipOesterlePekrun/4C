@@ -56,8 +56,8 @@ void ParticleRigidBody::set_initial_fields(const Teuchos::ParameterList& params,
     // safety check
     if (static_cast<std::size_t>(statedim) != function.number_components())
     {
-      FOUR_C_ASSERT(
-          "dimensions of function defining initial field and of state of rigid bodies '%s' not "
+      FOUR_C_THROW(
+          "dimensions of function defining initial field and of state of rigid bodies '{}' not "
           "matching!",
           PARTICLEENGINE::enum_to_state_name(particleState).c_str());
     }
@@ -113,8 +113,8 @@ namespace
     for (const auto& iter : statetotypetofunctidmap)
     {
       if (iter.first == PARTICLEENGINE::Temperature and not iter.second.empty())
-        FOUR_C_THROW("initial temperature cannot be specified for rigid bodies '%s' !",
-            PARTICLEENGINE::enum_to_state_name(iter.first).c_str());
+        FOUR_C_THROW("initial temperature cannot be specified for rigid bodies '{}' !",
+            PARTICLEENGINE::enum_to_state_name(iter.first));
     }
 #endif
 
@@ -136,8 +136,8 @@ namespace
         return rigidbodydatastates.get_ref_angular_acceleration();
 
       default:
-        FOUR_C_THROW("unsupported state vector '%s' for initialization of rigid body!",
-            PARTICLEENGINE::enum_to_state_name(particleState).c_str());
+        FOUR_C_THROW("unsupported state vector '{}' for initialization of rigid body!",
+            PARTICLEENGINE::enum_to_state_name(particleState));
     }
   }
 }  // namespace

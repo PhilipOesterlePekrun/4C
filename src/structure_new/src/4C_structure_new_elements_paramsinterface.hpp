@@ -10,8 +10,8 @@
 
 #include "4C_config.hpp"
 
+#include "4C_browniandyn_input.hpp"                     // enums
 #include "4C_fem_general_elements_paramsinterface.hpp"  // base class
-#include "4C_inpar_browniandyn.hpp"                     // enums
 #include "4C_inpar_structure.hpp"                       // enums
 #include "4C_linalg_multi_vector.hpp"
 #include "4C_solver_nonlin_nox_enum_lists.hpp"  // enums
@@ -88,8 +88,8 @@ namespace Solid
      *  ToDo Currently we set the interface in the elements via the Teuchos::ParameterList.
      *  Theoretically, the Teuchos::ParameterList can be replaced by the interface itself!
      *
-     *  \date 03/2016
-     *  \author hiermeier */
+
+     *  */
     class ParamsInterface : public Core::Elements::ParamsInterface
     {
      public:
@@ -157,7 +157,7 @@ namespace Solid
 
       virtual std::shared_ptr<std::vector<char>>& coupling_stress_data_ptr() = 0;
 
-      virtual std::shared_ptr<std::vector<char>>& opt_quantity_data_ptr() = 0;
+      virtual std::shared_ptr<std::vector<char>> opt_quantity_data_ptr() = 0;
 
       //! get the current stress type
       virtual enum Inpar::Solid::StressType get_stress_output_type() const = 0;
@@ -192,7 +192,7 @@ namespace Solid
 
 
     /*! \brief Parameter interface for the data exchange between beam elements and the
-     * Solid::Integrator \author grill */
+     * Solid::Integrator */
     class BeamParamsInterface
     {
      public:
@@ -215,7 +215,7 @@ namespace Solid
 namespace BrownianDynamics
 {
   /*! \brief Parameter interface for brownian dynamic data exchange between integrator and
-   * structure (beam) elements \author eichinger */
+   * structure (beam) elements */
   class ParamsInterface
   {
    public:
@@ -226,7 +226,7 @@ namespace BrownianDynamics
     virtual double const& get_viscosity() const = 0;
 
     /// the way how damping coefficient values for beams are specified
-    virtual Inpar::BrownianDynamics::BeamDampingCoefficientSpecificationType
+    virtual BrownianDynamics::BeamDampingCoefficientSpecificationType
     how_beam_damping_coefficients_are_specified() const = 0;
 
     /// get prefactors for damping coefficients of beams if they are specified via input file

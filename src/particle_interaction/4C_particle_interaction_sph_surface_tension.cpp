@@ -22,6 +22,7 @@
 #include "4C_utils_exceptions.hpp"
 #include "4C_utils_function_of_time.hpp"
 
+#include <Teuchos_StandardParameterEntryValidators.hpp>
 #include <Teuchos_TimeMonitor.hpp>
 
 FOUR_C_NAMESPACE_OPEN
@@ -133,8 +134,8 @@ void ParticleInteraction::SPHSurfaceTension::setup(
   // safety check
   for (const auto& type_i : fluidtypes_)
     if (not particlecontainerbundle_->get_particle_types().count(type_i))
-      FOUR_C_THROW("no particle container for particle type '%s' found!",
-          PARTICLEENGINE::enum_to_type_name(type_i).c_str());
+      FOUR_C_THROW("no particle container for particle type '{}' found!",
+          PARTICLEENGINE::enum_to_type_name(type_i));
 
   // update with actual boundary particle types
   const auto boundarytypes = boundarytypes_;

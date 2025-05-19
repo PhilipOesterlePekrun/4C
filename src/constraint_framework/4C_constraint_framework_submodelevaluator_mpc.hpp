@@ -16,7 +16,6 @@
 #include "4C_io_pstream.hpp"
 #include "4C_structure_new_model_evaluator_generic.hpp"
 
-#include <boost/algorithm/string.hpp>
 #include <Teuchos_ParameterList.hpp>
 
 #include <map>
@@ -24,7 +23,7 @@
 FOUR_C_NAMESPACE_OPEN
 
 
-namespace CONSTRAINTS::SUBMODELEVALUATOR
+namespace Constraints::SubmodelEvaluator
 {
   class MultiPointConstraintEquationBase;
 
@@ -67,7 +66,7 @@ namespace CONSTRAINTS::SUBMODELEVALUATOR
         line_periodic_rve_conditions_, surface_periodic_rve_conditions_;
 
     //! Tolerance for the opposing edge node search
-    double node_search_toler_ = 0.25;  // #ToDo: Add .dat parameter
+    double node_search_toler_ = 0.25;  // #ToDo: Add input parameter
 
     //! Parameter List for the rveType
     Teuchos::ParameterList mpc_parameter_list_;
@@ -112,6 +111,6 @@ namespace CONSTRAINTS::SUBMODELEVALUATOR
         std::map<std::string, const std::vector<int>*>& rveBoundaryNodeIdMap_);
     //@}
   };
-}  // namespace CONSTRAINTS::SUBMODELEVALUATOR
+}  // namespace Constraints::SubmodelEvaluator
 FOUR_C_NAMESPACE_CLOSE
 #endif

@@ -34,7 +34,7 @@ namespace Discret
       //! private constructor for singletons
       ScaTraEleCalcLsReinit(const int numdofpernode, const int numscal, const std::string& disname);
 
-      typedef ScaTraEleCalc<distype, prob_dim> my;
+      using my = ScaTraEleCalc<distype, prob_dim>;
       using my::nen_;
       using my::nsd_;
       using my::nsd_ele_;
@@ -55,19 +55,16 @@ namespace Discret
       //! evaluate the element
       int evaluate(Core::Elements::Element* ele, Teuchos::ParameterList& params,
           Core::FE::Discretization& discretization, Core::Elements::LocationArray& la,
-          Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec3_epetra) override;
+          Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+          Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+          Core::LinAlg::SerialDenseVector& elevec3) override;
 
       int evaluate_action(Core::Elements::Element* ele, Teuchos::ParameterList& params,
           Core::FE::Discretization& discretization, const ScaTra::Action& action,
-          Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec3_epetra) override;
+          Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1,
+          Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+          Core::LinAlg::SerialDenseVector& elevec2,
+          Core::LinAlg::SerialDenseVector& elevec3) override;
 
      protected:
       //! calculate matrix and rhs. Here the whole thing is hidden. Hyperbolic reinit.
@@ -91,7 +88,7 @@ namespace Discret
        *  \param erhs  (out) : element right-hand-side vector (part of the residual vector)
        *  \param bcell (in)  : boundary integration cell (necessary for the penalty term)
        *
-       *  \author hiermeier \date 12/16 */
+       *  */
       void elliptic_newton_system(Core::LinAlg::SerialDenseMatrix* emat,
           Core::LinAlg::SerialDenseVector* erhs,
           const Core::LinAlg::Matrix<nen_, 1>& el2sysmat_diag_inv,
@@ -104,18 +101,17 @@ namespace Discret
 
       void eval_reinitialization(const Core::LinAlg::Vector<double>& phinp,
           const std::vector<int>& lm, Core::Elements::Element* ele, Teuchos::ParameterList& params,
-          Core::FE::Discretization& discretization, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra);
+          Core::FE::Discretization& discretization, Core::LinAlg::SerialDenseMatrix& elemat1,
+          Core::LinAlg::SerialDenseVector& elevec1);
 
       void eval_reinitialization_embedded(const std::vector<int>& lm, Core::Elements::Element* ele,
           Teuchos::ParameterList& params, Core::FE::Discretization& discretization,
-          Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra);
+          Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseVector& elevec1);
 
       void eval_reinitialization_std(const Core::LinAlg::Vector<double>& phinp,
           const std::vector<int>& lm, Core::Elements::Element* ele, Teuchos::ParameterList& params,
-          Core::FE::Discretization& discretization, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra);
+          Core::FE::Discretization& discretization, Core::LinAlg::SerialDenseMatrix& elemat1,
+          Core::LinAlg::SerialDenseVector& elevec1);
 
       /*========================================================================*/
       //! @name overloaded methods for evaluation of individual terms
@@ -203,7 +199,7 @@ namespace Discret
        *  \param erhs (out) : element vector to calculate
        *  \param cell (in)  : interface boundary integration cell
        *
-       *  \author hiermeier \date 11/16 */
+       *  */
       void calc_penalty_term_0_d(Core::LinAlg::SerialDenseMatrix* emat,
           Core::LinAlg::SerialDenseVector* erhs, const Core::Geo::BoundaryIntCell& cell);
 
@@ -253,7 +249,9 @@ namespace Discret
     {
      public:
       ScaTraEleDiffManagerLsReinit(int numscal)
-          : ScaTraEleDiffManager(numscal), diffdirectiontensor_(true), have_cross_wind_diff_(false)
+          : ScaTraEleDiffManager(numscal),
+            diffdirectiontensor_(Core::LinAlg::Initialization::zero),
+            have_cross_wind_diff_(false)
       {
         return;
       }
@@ -333,7 +331,7 @@ namespace Discret
     class ScaTraEleInternalVariableManagerLsReinit
         : public ScaTraEleInternalVariableManager<nsd, nen>
     {
-      typedef ScaTraEleInternalVariableManager<nsd, nen> my;
+      using my = ScaTraEleInternalVariableManager<nsd, nen>;
 
      public:
       ScaTraEleInternalVariableManagerLsReinit(int numscal)

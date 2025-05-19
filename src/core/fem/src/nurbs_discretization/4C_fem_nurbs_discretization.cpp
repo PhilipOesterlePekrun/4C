@@ -49,7 +49,7 @@ void Core::FE::Nurbs::NurbsDiscretization::set_knot_vector(
     FOUR_C_THROW(
         "You're trying to set an invalid knotvector in the "
         "Core::FE::Nurbs::NurbsDiscretization "
-        "'%s'. The given know vector is a null vector and can't be set as such.",
+        "'{}'. The given know vector is a null vector and can't be set as such.",
         (this->name()).c_str());
   }
 
@@ -68,7 +68,7 @@ std::shared_ptr<Core::FE::Nurbs::Knotvector> Core::FE::Nurbs::NurbsDiscretizatio
     FOUR_C_THROW(
         "You're trying to access the NURBS knot vector in the "
         "Core::FE::Nurbs::NurbsDiscretization "
-        "'%s'. The required knot vector is a null vector and can't be accessed as such.",
+        "'{}'. The required knot vector is a null vector and can't be accessed as such.",
         (this->name()).c_str());
   }
   return knots_;
@@ -87,7 +87,7 @@ Core::FE::Nurbs::NurbsDiscretization::get_knot_vector() const
     FOUR_C_THROW(
         "You're trying to access the NURBS knot vector in the "
         "Core::FE::Nurbs::NurbsDiscretization "
-        "'%s'. The required knot vector is a null vector and can't be accessed as such.",
+        "'{}'. The required knot vector is a null vector and can't be accessed as such.",
         (this->name()).c_str());
   }
   return knots_;
@@ -119,7 +119,7 @@ void Core::FE::Utils::DbcNurbs::evaluate(const Teuchos::ParameterList& params,
     std::copy(curr_conds.begin(), curr_conds.end(), std::back_inserter(conds));
   }
 
-  Core::FE::Utils::Dbc::DbcInfo info2(info.toggle.Map());
+  Core::FE::Utils::Dbc::DbcInfo info2(info.toggle.get_block_map());
   read_dirichlet_condition(params, discret, conds, time, info2, dbcgids);
 
   // --------------------------- Step 3 ---------------------------------------
@@ -136,7 +136,7 @@ void Core::FE::Utils::DbcNurbs::evaluate(const Teuchos::ParameterList& params,
   if (not discret_nurbs) FOUR_C_THROW("Dynamic cast failed!");
 
   // build dummy column toggle vector and auxiliary vectors
-  Core::FE::Utils::Dbc::DbcInfo info_col(*discret_nurbs->dof_col_map());
+  Core::FE::Utils::Dbc::DbcInfo info_col(discret_nurbs->dof_col_map()->get_epetra_map());
   read_dirichlet_condition(params, discret, conds, time, info_col, dbcgids_nurbs);
 
   // --------------------------- Step 4 ---------------------------------------
@@ -182,14 +182,15 @@ void Core::FE::Utils::DbcNurbs::do_dirichlet_condition(const Teuchos::ParameterL
       nummyelements = dbcgidsv.size();
       myglobalelements = dbcgidsv.data();
     }
-    std::shared_ptr<Epetra_Map> dbcmap = std::make_shared<Epetra_Map>(-1, nummyelements,
-        myglobalelements, discret.dof_row_map()->IndexBase(), discret.dof_row_map()->Comm());
+    std::shared_ptr<Core::LinAlg::Map> dbcmap =
+        std::make_shared<Core::LinAlg::Map>(-1, nummyelements, myglobalelements,
+            discret.dof_row_map()->IndexBase(), discret.dof_row_map()->Comm());
     // build the map extractor of Dirichlet-conditioned and free DOFs
     auxdbcmapextractor = Core::LinAlg::MapExtractor(*(discret.dof_row_map()), dbcmap);
   }
 
   // column map of all DOFs subjected to a least squares Dirichlet condition
-  std::shared_ptr<Epetra_Map> dbccolmap = nullptr;
+  std::shared_ptr<Core::LinAlg::Map> dbccolmap = nullptr;
   {
     // build map of Dirichlet DOFs
     int nummyelements = 0;
@@ -202,7 +203,7 @@ void Core::FE::Utils::DbcNurbs::do_dirichlet_condition(const Teuchos::ParameterL
       nummyelements = dbcgidsv.size();
       myglobalelements = dbcgidsv.data();
     }
-    dbccolmap = std::make_shared<Epetra_Map>(-1, nummyelements, myglobalelements,
+    dbccolmap = std::make_shared<Core::LinAlg::Map>(-1, nummyelements, myglobalelements,
         nurbs_dis.dof_col_map()->IndexBase(), discret.dof_row_map()->Comm());
   }
 
@@ -211,7 +212,7 @@ void Core::FE::Utils::DbcNurbs::do_dirichlet_condition(const Teuchos::ParameterL
   // vectors and matrices
   //                 local <-> global dof numbering
   // -------------------------------------------------------------------
-  const std::shared_ptr<const Epetra_Map> dofrowmap = auxdbcmapextractor.cond_map();
+  const std::shared_ptr<const Core::LinAlg::Map> dofrowmap = auxdbcmapextractor.cond_map();
 
   if (dofrowmap->NumGlobalElements() == 0) return;  // no dbc gids ->leave
 
@@ -219,7 +220,7 @@ void Core::FE::Utils::DbcNurbs::do_dirichlet_condition(const Teuchos::ParameterL
   const std::vector<int>* nodeids = cond.get_nodes();
   if (!nodeids) FOUR_C_THROW("Dirichlet condition does not have nodal cloud");
 
-  const auto funct = cond.parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+  const auto funct = cond.parameters().get<std::vector<std::optional<int>>>("FUNCT");
   const auto val = cond.parameters().get<std::vector<double>>("VAL");
 
 
@@ -414,8 +415,8 @@ void Core::FE::Utils::DbcNurbs::do_dirichlet_condition(const Teuchos::ParameterL
                 *params.get<const Core::Utils::FunctionManager*>("function_manager"));
             break;
           default:
-            FOUR_C_THROW("invalid element shape for least squares dirichlet evaluation: %s",
-                Core::FE::cell_type_to_string(distype).c_str());
+            FOUR_C_THROW("invalid element shape for least squares dirichlet evaluation: {}",
+                Core::FE::cell_type_to_string(distype));
             break;
         }
       else
@@ -452,8 +453,8 @@ void Core::FE::Utils::DbcNurbs::do_dirichlet_condition(const Teuchos::ParameterL
                 *params.get<const Core::Utils::FunctionManager*>("function_manager"));
             break;
           default:
-            FOUR_C_THROW("invalid element shape for least squares dirichlet evaluation: %s",
-                Core::FE::cell_type_to_string(distype).c_str());
+            FOUR_C_THROW("invalid element shape for least squares dirichlet evaluation: {}",
+                Core::FE::cell_type_to_string(distype));
             break;
         }
 
@@ -514,7 +515,7 @@ void Core::FE::Utils::DbcNurbs::do_dirichlet_condition(const Teuchos::ParameterL
 template <Core::FE::CellType distype>
 void Core::FE::Utils::DbcNurbs::fill_matrix_and_rhs_for_ls_dirichlet_boundary(
     Core::Elements::Element& actele, const std::vector<Core::LinAlg::SerialDenseVector>* knots,
-    const std::vector<int>& lm, const std::vector<Core::IO::Noneable<int>>& funct,
+    const std::vector<int>& lm, const std::vector<std::optional<int>>& funct,
     const std::vector<double>& val, const unsigned deg, const double time,
     Core::LinAlg::SerialDenseMatrix& elemass, std::vector<Core::LinAlg::SerialDenseVector>& elerhs,
     const Core::Utils::FunctionManager& function_manager) const
@@ -527,7 +528,7 @@ void Core::FE::Utils::DbcNurbs::fill_matrix_and_rhs_for_ls_dirichlet_boundary(
   const int ndbcdofs = (int)lm.size();
 
   // set element data
-  static const int nen = Core::FE::num_nodes<distype>;
+  static const int nen = Core::FE::num_nodes(distype);
 
   // dofblocks (number of DOFs with Dirichlet condition per node)
   const int dofblock = ndbcdofs / nen;
@@ -655,7 +656,7 @@ void Core::FE::Utils::DbcNurbs::fill_matrix_and_rhs_for_ls_dirichlet_boundary(
 template <Core::FE::CellType distype>
 void Core::FE::Utils::DbcNurbs::fill_matrix_and_rhs_for_ls_dirichlet_domain(
     Core::Elements::Element& actele, const std::vector<Core::LinAlg::SerialDenseVector>* knots,
-    const std::vector<int>& lm, const std::vector<Core::IO::Noneable<int>>& funct,
+    const std::vector<int>& lm, const std::vector<std::optional<int>>& funct,
     const std::vector<double>& val, const unsigned deg, const double time,
     Core::LinAlg::SerialDenseMatrix& elemass, std::vector<Core::LinAlg::SerialDenseVector>& elerhs,
     const Core::Utils::FunctionManager& function_manager) const
@@ -667,7 +668,7 @@ void Core::FE::Utils::DbcNurbs::fill_matrix_and_rhs_for_ls_dirichlet_domain(
   const int ndbcdofs = (int)lm.size();
 
   // set element data
-  static const int nen = Core::FE::num_nodes<distype>;
+  static const int nen = Core::FE::num_nodes(distype);
 
   // dofblocks (number of DOFs with Dirichlet condition per node)
   const int dofblock = ndbcdofs / nen;
@@ -728,7 +729,7 @@ void Core::FE::Utils::DbcNurbs::fill_matrix_and_rhs_for_ls_dirichlet_domain(
 
     if (det < 1E-16)
       FOUR_C_THROW(
-          "GLOBAL ELEMENT NO.%i\nZERO OR NEGATIVE JACOBIAN DETERMINANT: %f", actele.id(), det);
+          "GLOBAL ELEMENT NO.{}\nZERO OR NEGATIVE JACOBIAN DETERMINANT: {}", actele.id(), det);
 
     // compute integration factor
     double fac = intpoints.ip().qwgt[iquad] * det;

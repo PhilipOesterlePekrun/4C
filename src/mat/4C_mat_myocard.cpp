@@ -15,6 +15,7 @@
 #include "4C_mat_myocard_san_garny.hpp"
 #include "4C_mat_myocard_tentusscher.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <Teuchos_ENull.hpp>
 
@@ -153,7 +154,7 @@ void Mat::Myocard::unpack(Core::Communication::UnpackBuffer& buffer)
         params_ = static_cast<Mat::PAR::Myocard*>(mat);
       }
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
 
       // Set number of Gauss points
@@ -213,7 +214,7 @@ void Mat::Myocard::unpack_material(Core::Communication::UnpackBuffer& buffer)
         params_ = static_cast<Mat::PAR::Myocard*>(mat);
       }
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
 
       // Set number of Gauss points
@@ -247,13 +248,11 @@ void Mat::Myocard::setup(const Core::LinAlg::Matrix<2, 1>& fiber1)
 
 void Mat::Myocard::setup(const Core::IO::InputParameterContainer& container)
 {
-  std::vector<double> fiber1(3);
-  if (container.get_if<std::vector<double>>("FIBER1") != nullptr)
+  if (const auto& fiber1 = container.get<std::optional<std::vector<double>>>("FIBER1");
+      fiber1.has_value())
   {
     diff_at_ele_center_ = true;
-    fiber1 = container.get<std::vector<double>>("FIBER1");
-
-    setup_diffusion_tensor(fiber1);
+    setup_diffusion_tensor(*fiber1);
   }
 }
 

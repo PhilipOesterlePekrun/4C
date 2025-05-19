@@ -10,8 +10,10 @@
 
 #include "4C_config.hpp"
 
-#include "4C_utils_parameter_list.fwd.hpp"
+#include "4C_io_input_spec.hpp"
 
+#include <map>
+#include <utility>
 #include <vector>
 
 FOUR_C_NAMESPACE_OPEN
@@ -196,12 +198,10 @@ namespace Inpar
       impltype_levelset,
       impltype_poro,
       impltype_advreac,
-      impltype_refconcreac,
       impltype_multipororeac,
       impltype_pororeac,
       impltype_pororeacECM,
       impltype_aniso,
-      impltype_std_meshfree,
       impltype_cardiac_monodomain,
       impltype_chemo,
       impltype_chemoreac,
@@ -253,11 +253,14 @@ namespace Inpar
     };
 
     /// set the scatra parameters
-    void set_valid_parameters(Teuchos::ParameterList& list);
+    void set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list);
 
     /// set additional scatra conditions
     void set_valid_conditions(std::vector<Core::Conditions::ConditionDefinition>& condlist);
 
+    std::string impltype_to_string(ImplType impltype);
+
+    Core::IO::InputSpec all_specs_for_scatra_stabilization();
   }  // namespace ScaTra
 }  // namespace Inpar
 

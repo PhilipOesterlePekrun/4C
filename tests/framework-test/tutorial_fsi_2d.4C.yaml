@@ -1,0 +1,219 @@
+PROBLEM SIZE:
+  DIM: 2
+PROBLEM TYPE:
+  PROBLEMTYPE: Fluid_Structure_Interaction
+ALE DYNAMIC:
+  ALE_TYPE: springs_spatial
+  MAXITER: 4
+  TOLRES: 0.0001
+  TOLDISP: 0.0001
+  RESULTSEVERY: 1
+  LINEAR_SOLVER: 1
+FLUID DYNAMIC:
+  LINEAR_SOLVER: 2
+  TIMEINTEGR: "Np_Gen_Alpha"
+  GRIDVEL: BDF2
+  ADAPTCONV: true
+  ITEMAX: 50
+FLUID DYNAMIC/NONLINEAR SOLVER TOLERANCES:
+  TOL_VEL_RES: 1e-12
+  TOL_VEL_INC: 1e-12
+  TOL_PRES_RES: 1e-12
+  TOL_PRES_INC: 1e-12
+FLUID DYNAMIC/RESIDUAL-BASED STABILIZATION:
+  CHARELELENGTH_PC: "root_of_volume"
+FSI DYNAMIC:
+  MAXTIME: 3
+  NUMSTEP: 3
+  SECONDORDER: true
+FSI DYNAMIC/MONOLITHIC SOLVER:
+  SHAPEDERIVATIVES: true
+FSI DYNAMIC/PARTITIONED SOLVER:
+  CONVTOL: 1e-10
+SOLVER 1:
+  SOLVER: "UMFPACK"
+  AZSUB: 300
+  NAME: "ALE solver"
+SOLVER 2:
+  SOLVER: "Belos"
+  AZTOL: 1e-12
+  AZSUB: 300
+  NAME: "Fluid solver"
+SOLVER 3:
+  SOLVER: "UMFPACK"
+  AZSUB: 300
+  NAME: "Structure solver"
+STRUCTURAL DYNAMIC:
+  INT_STRATEGY: "Standard"
+  M_DAMP: 0.5
+  K_DAMP: 0.5
+  TOLDISP: 1e-12
+  TOLRES: 1e-12
+  TOLPRE: 1e-10
+  TOLINCO: 1e-10
+  PREDICT: "ConstDisVelAcc"
+  LINEAR_SOLVER: 3
+STRUCTURAL DYNAMIC/GENALPHA:
+  BETA: 0.25
+  GAMMA: 0.5
+  ALPHA_M: 0.5
+  ALPHA_F: 0.5
+  RHO_INF: -1
+MATERIALS:
+  - MAT: 1
+    MAT_fluid:
+      DYNVISCOSITY: 0.01
+      DENSITY: 1
+  - MAT: 2
+    MAT_ElastHyper:
+      NUMMAT: 1
+      MATIDS: [3]
+      DENS: 500
+  - MAT: 3
+    ELAST_CoupNeoHooke:
+      YOUNG: 250
+  - MAT: 4
+    MAT_Struct_StVenantKirchhoff:
+      YOUNG: 1
+      NUE: 0
+      DENS: 1
+CLONING MATERIAL MAP:
+  - SRC_FIELD: "fluid"
+    SRC_MAT: 1
+    TAR_FIELD: "ale"
+    TAR_MAT: 4
+FUNCT1:
+  - SYMBOLIC_FUNCTION_OF_SPACE_TIME: "(1-cos(2*t*pi/5))"
+FUNCT2:
+  - SYMBOLIC_FUNCTION_OF_SPACE_TIME: "10*(y-1)*(1-cos(2*t*pi/5))"
+FUNCT3: []
+FUNCT4: []
+RESULT DESCRIPTION:
+  - STRUCTURE:
+      DIS: "structure"
+      NODE: 22
+      QUANTITY: "dispx"
+      VALUE: 3.24268e-07
+      TOLERANCE: 1e-12
+  - STRUCTURE:
+      DIS: "structure"
+      NODE: 22
+      QUANTITY: "dispy"
+      VALUE: -7.1401827e-05
+      TOLERANCE: 1e-12
+  - FLUID:
+      DIS: "fluid"
+      NODE: 500
+      QUANTITY: "pressure"
+      VALUE: 0.004989189739
+      TOLERANCE: 1e-12
+  - FLUID:
+      DIS: "fluid"
+      NODE: 500
+      QUANTITY: "velx"
+      VALUE: 7.4145703e-05
+      TOLERANCE: 1e-12
+  - FLUID:
+      DIS: "fluid"
+      NODE: 500
+      QUANTITY: "vely"
+      VALUE: -0.000352272982
+      TOLERANCE: 1e-12
+
+STRUCTURE GEOMETRY:
+  FILE: tutorial_fsi_2d.e
+  ELEMENT_BLOCKS:
+    - ID: 1
+      ELEMENT_NAME: WALL
+      ELEMENT_DATA: "MAT 2 KINEM nonlinear EAS none THICK 1.0 STRESS_STRAIN plane_strain GP 2 2"
+
+FLUID GEOMETRY:
+  FILE: tutorial_fsi_2d.e
+  ELEMENT_BLOCKS:
+    - ID: 2
+      ELEMENT_NAME: FLUID
+      ELEMENT_DATA: "MAT 1 NA ALE"
+
+DESIGN POINT DIRICH CONDITIONS:
+  - E: 3
+    ENTITY_TYPE: node_set_id
+    NUMDOF: 2
+    ONOFF: [1, 1]
+    VAL: [0, 0]
+    FUNCT: [0, 0]
+  - E: 4
+    ENTITY_TYPE: node_set_id
+    NUMDOF: 2
+    ONOFF: [1, 1]
+    VAL: [0, 0]
+    FUNCT: [0, 0]
+  - E: 10
+    ENTITY_TYPE: node_set_id
+    NUMDOF: 3
+    ONOFF: [1, 1, 0]
+    VAL: [1, 0, 0]
+    FUNCT: [1, 0, 0]
+  - E: 11
+    ENTITY_TYPE: node_set_id
+    NUMDOF: 3
+    ONOFF: [1, 1, 0]
+    VAL: [0, 0, 0]
+    FUNCT: [0, 0, 0]
+  - E: 12
+    ENTITY_TYPE: node_set_id
+    NUMDOF: 3
+    ONOFF: [1, 1, 0]
+    VAL: [0, 0, 0]
+    FUNCT: [0, 0, 0]
+DESIGN LINE DIRICH CONDITIONS:
+  - E: 1
+    ENTITY_TYPE: node_set_id
+    NUMDOF: 2
+    ONOFF: [1, 1]
+    VAL: [0, 0]
+    FUNCT: [0, 0]
+  - E: 5
+    ENTITY_TYPE: node_set_id
+    NUMDOF: 3
+    ONOFF: [1, 1, 0]
+    VAL: [0, 0, 0]
+    FUNCT: [0, 0, 0]
+  - E: 6
+    ENTITY_TYPE: node_set_id
+    NUMDOF: 3
+    ONOFF: [1, 1, 0]
+    VAL: [1, 0, 0]
+    FUNCT: [1, 0, 0]
+  - E: 7
+    ENTITY_TYPE: node_set_id
+    NUMDOF: 3
+    ONOFF: [1, 1, 0]
+    VAL: [1, 0, 0]
+    FUNCT: [2, 0, 0]
+DESIGN POINT ALE DIRICH CONDITIONS:
+  - E: 13
+    ENTITY_TYPE: node_set_id
+    NUMDOF: 2
+    ONOFF: [1, 1]
+    VAL: [0, 0]
+    FUNCT: [0, 0]
+DESIGN LINE ALE DIRICH CONDITIONS:
+  - E: 6
+    ENTITY_TYPE: node_set_id
+    NUMDOF: 2
+    ONOFF: [1, 1]
+    VAL: [0, 0]
+    FUNCT: [0, 0]
+  - E: 8
+    ENTITY_TYPE: node_set_id
+    NUMDOF: 2
+    ONOFF: [1, 1]
+    VAL: [0, 0]
+    FUNCT: [0, 0]
+DESIGN FSI COUPLING LINE CONDITIONS:
+  - E: 2
+    ENTITY_TYPE: node_set_id
+    coupling_id: 1
+  - E: 9
+    ENTITY_TYPE: node_set_id
+    coupling_id: 1

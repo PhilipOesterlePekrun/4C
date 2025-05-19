@@ -148,9 +148,9 @@ int Core::FE::DiscretizationHDG::fill_complete(
 
 
 /*----------------------------------------------------------------------*
- | assign_global_i_ds                                        schoeder 06/14|
+ | assign_global_ids                                        schoeder 06/14|
  *----------------------------------------------------------------------*/
-void Core::FE::DiscretizationHDG::assign_global_i_ds(MPI_Comm comm,
+void Core::FE::DiscretizationHDG::assign_global_ids(MPI_Comm comm,
     const std::map<std::vector<int>, std::shared_ptr<Core::Elements::Element>>& elementmap,
     std::map<int, std::shared_ptr<Core::Elements::Element>>& finalelements)
 {
@@ -374,9 +374,9 @@ void Core::FE::Utils::DbcHDG::read_dirichlet_condition(const Teuchos::ParameterL
         // get global id
         const int gid = dofs[j];
         // get corresponding local id
-        const int lid = info.toggle.Map().LID(gid);
+        const int lid = info.toggle.get_block_map().LID(gid);
         if (lid < 0)
-          FOUR_C_THROW("Global id %d not on this proc %d in system vector", dofs[j],
+          FOUR_C_THROW("Global id {} not on this proc {} in system vector", dofs[j],
               Core::Communication::my_mpi_rank(discret.get_comm()));
         // get position of label for this dof in condition line
         int onesetj = j / dofpercomponent;
@@ -439,7 +439,7 @@ void Core::FE::Utils::DbcHDG::do_dirichlet_condition(const Teuchos::ParameterLis
   if (!nodeids) FOUR_C_THROW("Dirichlet condition does not have nodal cloud");
 
   // get curves, functs, vals, and onoff toggles from the condition
-  const auto funct = cond.parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+  const auto funct = cond.parameters().get<std::vector<std::optional<int>>>("FUNCT");
   const auto val = cond.parameters().get<std::vector<double>>("VAL");
   const auto onoff = cond.parameters().get<std::vector<int>>("ONOFF");
 
@@ -473,7 +473,7 @@ void Core::FE::Utils::DbcHDG::do_dirichlet_condition(const Teuchos::ParameterLis
     Teuchos::ParameterList initParams;
 
     const auto problem_type = *params.get<const Core::ProblemType*>("problem_type");
-    if (problem_type == Core::ProblemType::elemag or problem_type == Core::ProblemType::scatra)
+    if (problem_type == Core::ProblemType::scatra)
     {
       initParams.set("hdg_action", true);
       Core::Utils::add_enum_class_to_parameter_list<Core::FE::HDGAction>(
@@ -572,9 +572,9 @@ void Core::FE::Utils::DbcHDG::do_dirichlet_condition(const Teuchos::ParameterLis
         // get global id
         const int gid = dofs[j];
         // get corresponding local id
-        const int lid = toggle.Map().LID(gid);
+        const int lid = toggle.get_block_map().LID(gid);
         if (lid < 0)
-          FOUR_C_THROW("Global id %d not on this proc %d in system vector", dofs[j],
+          FOUR_C_THROW("Global id {} not on this proc {} in system vector", dofs[j],
               Core::Communication::my_mpi_rank(discret.get_comm()));
         // get position of label for this dof in condition line
         int onesetj = j / dofpercomponent;

@@ -12,10 +12,9 @@
 
 #include "4C_fem_dofset.hpp"
 
-#include <Epetra_Map.h>
-
 #include <map>
 #include <memory>
+#include <set>
 #include <vector>
 
 FOUR_C_NAMESPACE_OPEN
@@ -32,8 +31,6 @@ namespace Core::DOFSets
 
   /*!
   \brief A set of degrees of freedom
-
-  \author gammi
   */
   class PBCDofSet : virtual public DofSet
   {

@@ -93,18 +93,20 @@ namespace Core::IO
 
     // safety checks
     FOUR_C_ASSERT_ALWAYS(point_coordinates.size() == num_spatial_dimensions * pointcounter,
-        "Expected %i coordinate values, but got %i.", num_spatial_dimensions * pointcounter,
+        "Expected {} coordinate values, but got {}.", num_spatial_dimensions * pointcounter,
         point_coordinates.size());
 
     FOUR_C_ASSERT_ALWAYS(cell_types.size() == num_row_elements - num_skipped_eles,
-        "Expected %i cell type values, but got %i.", num_row_elements, cell_types.size());
+        "Expected {} cell type values, but got {}.", num_row_elements, cell_types.size());
 
     FOUR_C_ASSERT_ALWAYS(cell_offsets.size() == num_row_elements - num_skipped_eles,
-        "Expected %i cell offset values, but got %i.", num_row_elements, cell_offsets.size());
+        "Expected {} cell offset values, but got {}.", num_row_elements, cell_offsets.size());
 
     // store node row and col maps (needed to check for changed parallel distribution)
-    noderowmap_last_geometry_set_ = std::make_shared<Epetra_Map>(*discretization_->node_row_map());
-    nodecolmap_last_geometry_set_ = std::make_shared<Epetra_Map>(*discretization_->node_col_map());
+    noderowmap_last_geometry_set_ =
+        std::make_shared<Core::LinAlg::Map>(*discretization_->node_row_map());
+    nodecolmap_last_geometry_set_ =
+        std::make_shared<Core::LinAlg::Map>(*discretization_->node_col_map());
   }
 
   /*-----------------------------------------------------------------------------------------------*
@@ -201,11 +203,11 @@ namespace Core::IO
 
     auto convert_to_col_map_if_necessary = [&](const Core::LinAlg::Vector<double>& vector)
     {
-      if (discretization_->dof_col_map()->SameAs(vector.Map()))
+      if (discretization_->dof_col_map()->SameAs(vector.get_block_map()))
       {
         return vector;
       }
-      else if (discretization_->dof_row_map()->SameAs(vector.Map()))
+      else if (discretization_->dof_row_map()->SameAs(vector.get_block_map()))
       {
         auto vector_col_map = Core::LinAlg::Vector<double>(*discretization_->dof_col_map(), true);
         Core::LinAlg::export_to(vector, vector_col_map);
@@ -217,7 +219,8 @@ namespace Core::IO
     auto result_data_dofbased_col_map = convert_to_col_map_if_necessary(result_data_dofbased);
 
     // safety checks
-    FOUR_C_ASSERT(discretization_->dof_col_map()->SameAs(result_data_dofbased_col_map.Map()),
+    FOUR_C_ASSERT(
+        discretization_->dof_col_map()->SameAs(result_data_dofbased_col_map.get_block_map()),
         "Received map of dof-based result data vector does not match the discretization's dof "
         "col map.");
 
@@ -245,7 +248,7 @@ namespace Core::IO
 
     // sanity check
     FOUR_C_ASSERT_ALWAYS(point_result_data.size() == result_num_dofs_per_node * pointcounter,
-        "Expected %i result values, but got %i.", result_num_dofs_per_node * pointcounter,
+        "Expected {} result values, but got {}.", result_num_dofs_per_node * pointcounter,
         point_result_data.size());
 
     visualization_manager_->get_visualization_data().set_point_data_vector(
@@ -283,7 +286,7 @@ namespace Core::IO
     // safety checks
     FOUR_C_ASSERT(static_cast<unsigned int>(result_data_nodebased_col_map.NumVectors()) ==
                       result_num_components_per_node,
-        "Expected Core::LinAlg::MultiVector<double> with %i columns but got %i.",
+        "Expected Core::LinAlg::MultiVector<double> with {} columns but got {}.",
         result_num_components_per_node, result_data_nodebased_col_map.NumVectors());
 
     FOUR_C_ASSERT(discretization_->node_col_map()->SameAs(result_data_nodebased_col_map.Map()),
@@ -313,7 +316,7 @@ namespace Core::IO
 
     // sanity check
     FOUR_C_ASSERT_ALWAYS(point_result_data.size() == result_num_components_per_node * pointcounter,
-        "Expected %i result values, but got %i.", result_num_components_per_node * pointcounter,
+        "Expected {} result values, but got {}.", result_num_components_per_node * pointcounter,
         point_result_data.size());
 
     visualization_manager_->get_visualization_data().set_point_data_vector(
@@ -333,7 +336,7 @@ namespace Core::IO
     // safety check
     FOUR_C_ASSERT(static_cast<unsigned int>(result_data_elementbased.NumVectors()) ==
                       result_num_components_per_element,
-        "Expected Core::LinAlg::MultiVector<double> with %i columns but got %i.",
+        "Expected Core::LinAlg::MultiVector<double> with {} columns but got {}.",
         result_num_components_per_element, result_data_elementbased.NumVectors());
 
     FOUR_C_ASSERT(discretization_->element_row_map()->SameAs(result_data_elementbased.Map()),
@@ -366,7 +369,7 @@ namespace Core::IO
 
     // sanity check
     FOUR_C_ASSERT_ALWAYS(cell_result_data.size() == result_num_components_per_element * cellcounter,
-        "Expected %i result values, but got %i.", result_num_components_per_element * cellcounter,
+        "Expected {} result values, but got {}.", result_num_components_per_element * cellcounter,
         cell_result_data.size());
 
     visualization_manager_->get_visualization_data().set_cell_data_vector(
@@ -491,7 +494,8 @@ namespace Core::IO
     const int my_proc = Core::Communication::my_mpi_rank(comm);
 
     // Create Vectors to store the ghosting information.
-    Epetra_FEVector ghosting_information(*discretization.element_row_map(), n_proc);
+    Epetra_FEVector ghosting_information(
+        discretization.element_row_map()->get_epetra_map(), n_proc);
 
     // Get elements ghosted by this rank.
     std::vector<int> my_ghost_elements;

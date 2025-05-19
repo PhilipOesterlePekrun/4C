@@ -144,7 +144,7 @@ namespace Core::LinAlg
   void inverse(Core::LinAlg::Matrix<dim, dim, T>& A)
   {
     T det = determinant(A);
-    if (det == 0.0) FOUR_C_THROW("determinant of %dx%d matrix is exactly zero", dim, dim);
+    if (det == 0.0) FOUR_C_THROW("determinant of {}x{} matrix is exactly zero", dim, dim);
     inverse_reorder_matrix_entries(A);
     A.scale(1. / det);
   }
@@ -347,8 +347,8 @@ namespace Core::LinAlg
   template <const int n>
   void symmetric_positive_definite_inverse(Core::LinAlg::Matrix<n, n>& A)
   {
-    Core::LinAlg::Matrix<n, n> y(true);
-    Core::LinAlg::Matrix<n, n> ae(true);
+    Core::LinAlg::Matrix<n, n> y(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<n, n> ae(Core::LinAlg::Initialization::zero);
 
     // calc G with me=G*G^T
     for (int z = 0; z < n; ++z)

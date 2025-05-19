@@ -14,7 +14,6 @@
 #include "4C_inpar_fluid.hpp"
 #include "4C_linalg_blocksparsematrix.hpp"
 
-#include <Epetra_MpiComm.h>
 #include <Teuchos_TimeMonitor.hpp>
 
 FOUR_C_NAMESPACE_OPEN
@@ -93,14 +92,14 @@ namespace FLD
           if (!doit) return;
 
           // get the maps
-          const Epetra_Map& colmap00 = mat_.matrix(0, 0).col_map();
-          const Epetra_Map& colmap01 = mat_.matrix(0, 1).col_map();
-          const Epetra_Map& colmap10 = mat_.matrix(1, 0).col_map();
-          const Epetra_Map& colmap11 = mat_.matrix(1, 1).col_map();
-          const Epetra_Map& rowmap00 = mat_.matrix(0, 0).row_map();
-          const Epetra_Map& rowmap01 = mat_.matrix(0, 1).row_map();
-          const Epetra_Map& rowmap10 = mat_.matrix(1, 0).row_map();
-          const Epetra_Map& rowmap11 = mat_.matrix(1, 1).row_map();
+          const Core::LinAlg::Map& colmap00 = Core::LinAlg::Map(mat_.matrix(0, 0).col_map());
+          const Core::LinAlg::Map& colmap01 = Core::LinAlg::Map(mat_.matrix(0, 1).col_map());
+          const Core::LinAlg::Map& colmap10 = Core::LinAlg::Map(mat_.matrix(1, 0).col_map());
+          const Core::LinAlg::Map& colmap11 = Core::LinAlg::Map(mat_.matrix(1, 1).col_map());
+          const Core::LinAlg::Map& rowmap00 = Core::LinAlg::Map(mat_.matrix(0, 0).row_map());
+          const Core::LinAlg::Map& rowmap01 = Core::LinAlg::Map(mat_.matrix(0, 1).row_map());
+          const Core::LinAlg::Map& rowmap10 = Core::LinAlg::Map(mat_.matrix(1, 0).row_map());
+          const Core::LinAlg::Map& rowmap11 = Core::LinAlg::Map(mat_.matrix(1, 1).row_map());
 
           // prepare vectors for holding column local ids and the values to be assembled
           const int nnode = lcoldim / numdofpernode_;
@@ -153,8 +152,8 @@ namespace FLD
               rlid1 = rowmap11.LID(rgid);
             }
 #ifdef FOUR_C_ENABLE_ASSERTIONS
-            if (rlid0 < 0) FOUR_C_THROW("Sparse matrix A does not have global row %d", rgid);
-            if (rlid1 < 0) FOUR_C_THROW("Sparse matrix A does not have global row %d", rgid);
+            if (rlid0 < 0) FOUR_C_THROW("Sparse matrix A does not have global row {}", rgid);
+            if (rlid1 < 0) FOUR_C_THROW("Sparse matrix A does not have global row {}", rgid);
 #endif
             int errone = 0;
             // separate the values of the current row
@@ -178,25 +177,21 @@ namespace FLD
             // now assemble
             if (rowblock == 0)
             {  // rowblock 0
-              errone = matrix00_.epetra_matrix()->SumIntoMyValues(
+              errone = matrix00_.sum_into_my_values(
                   rlid0, nnode * numdim_, values0.data(), localcol00.data());
-              if (errone)
-                FOUR_C_THROW("Epetra_CrsMatrix::SumIntoMyValues returned error code %d", errone);
-              errone = matrix01_.epetra_matrix()->SumIntoMyValues(
-                  rlid1, nnode, values1.data(), localcol01.data());
-              if (errone)
-                FOUR_C_THROW("Epetra_CrsMatrix::SumIntoMyValues returned error code %d", errone);
+              if (errone) FOUR_C_THROW("sum_into_my_values() returned error code {}", errone);
+              errone =
+                  matrix01_.sum_into_my_values(rlid1, nnode, values1.data(), localcol01.data());
+              if (errone) FOUR_C_THROW("sum_into_my_values() returned error code {}", errone);
             }
             else
             {  // rowblock 1
-              errone = matrix10_.epetra_matrix()->SumIntoMyValues(
+              errone = matrix10_.sum_into_my_values(
                   rlid0, nnode * numdim_, values0.data(), localcol10.data());
-              if (errone)
-                FOUR_C_THROW("Epetra_CrsMatrix::SumIntoMyValues returned error code %d", errone);
-              errone = matrix11_.epetra_matrix()->SumIntoMyValues(
-                  rlid1, nnode, values1.data(), localcol11.data());
-              if (errone)
-                FOUR_C_THROW("Epetra_CrsMatrix::SumIntoMyValues returned error code %d", errone);
+              if (errone) FOUR_C_THROW("sum_into_my_values() returned error code {}", errone);
+              errone =
+                  matrix11_.sum_into_my_values(rlid1, nnode, values1.data(), localcol11.data());
+              if (errone) FOUR_C_THROW("sum_into_my_values() returned error code {}", errone);
             }
           }  // for (int lrow=0; lrow<ldim; ++lrow)
         }
@@ -411,7 +406,7 @@ namespace FLD
 
     void setup_fluid_fluid_vel_pres_split(const Core::FE::Discretization& fluiddis, int ndim,
         const Core::FE::Discretization& alefluiddis, Core::LinAlg::MapExtractor& extractor,
-        std::shared_ptr<Epetra_Map> fullmap);
+        std::shared_ptr<Core::LinAlg::Map> fullmap);
 
     /**
      * \brief Calculate lift and drag forces, and angular momenta.
@@ -429,7 +424,7 @@ namespace FLD
      *       initial configuration, meaning they are calculated using the coordinates X
      *       of a node in its initial state, not its current position.
      *
-     * \date November 2007
+
      *
      * \param dis          Fluid discretization, including node distribution and
      *                     boundary conditions.
@@ -453,7 +448,7 @@ namespace FLD
      * This function writes the computed lift and drag values to files, with one file being
      * generated per label. It is typically called by process 0.
      *
-     * \date February 2009
+
      *
      * \param time         The current real time at which the values are being written.
      * \param step         The current time step.
@@ -471,7 +466,7 @@ namespace FLD
      * with each condition ID. The flow rate's sign indicates net inflow (positive)
      * or outflow (negative).
      *
-     * \date October 2008
+
      *
      * \param dis         The discretization, including node distribution and conditions.
      * \param velnp       Solution vector containing velocities (and pressure).
@@ -520,8 +515,7 @@ namespace FLD
     /*!
      * \brief proc 0 writes the flow rate values for each condition ID to a file
      *
-     * \author mayer
-     * \date 01/10
+
      */
     void write_doubles_to_file(const double time, const int step, const std::map<int, double>& data,
         const std::string& name);

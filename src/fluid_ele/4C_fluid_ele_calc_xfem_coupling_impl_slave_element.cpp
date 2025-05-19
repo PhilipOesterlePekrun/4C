@@ -49,11 +49,10 @@ namespace Discret
         // get state of the global vector
         std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state =
             slavedis.get_state(disp_statename_);
-        if (matrix_state == nullptr)
-          FOUR_C_THROW("Cannot get state vector %s", disp_statename_.c_str());
+        if (matrix_state == nullptr) FOUR_C_THROW("Cannot get state vector {}", disp_statename_);
 
         // extract local values of the global vector
-        Core::FE::extract_my_values(*matrix_state, mymatrix, lm);
+        mymatrix = Core::FE::extract_values(*matrix_state, lm);
 
         for (unsigned inode = 0; inode < slave_nen_; ++inode)  // number of nodes
         {
@@ -89,12 +88,10 @@ namespace Discret
         // get state of the global vector
         std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state =
             slavedis.get_state(vel_statename_);
-        if (matrix_state == nullptr)
-          FOUR_C_THROW("Cannot get state vector %s", vel_statename_.c_str());
+        if (matrix_state == nullptr) FOUR_C_THROW("Cannot get state vector {}", vel_statename_);
 
         // extract local values of the global vectors
-        std::vector<double> mymatrix(lm.size());
-        Core::FE::extract_my_values(*matrix_state, mymatrix, lm);
+        std::vector<double> mymatrix = Core::FE::extract_values(*matrix_state, lm);
 
         for (unsigned inode = 0; inode < slave_nen_; ++inode)  // number of nodes
         {
@@ -123,12 +120,10 @@ namespace Discret
         // get state of the global vector
         std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state =
             slavedis.get_state(veln_statename_);
-        if (matrix_state == nullptr)
-          FOUR_C_THROW("Cannot get state vector %s", veln_statename_.c_str());
+        if (matrix_state == nullptr) FOUR_C_THROW("Cannot get state vector {}", veln_statename_);
 
         // extract local values of the global vectors
-        std::vector<double> mymatrix(lm.size());
-        Core::FE::extract_my_values(*matrix_state, mymatrix, lm);
+        std::vector<double> mymatrix = Core::FE::extract_values(*matrix_state, lm);
 
         for (unsigned inode = 0; inode < slave_nen_; ++inode)  // number of nodes
         {
@@ -242,11 +237,10 @@ namespace Discret
         // get state of the global vector
         std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state =
             cutterdis.get_state(state);
-        if (matrix_state == nullptr) FOUR_C_THROW("Cannot get state vector %s", state.c_str());
+        if (matrix_state == nullptr) FOUR_C_THROW("Cannot get state vector {}", state);
 
         // extract local values of the global vectors
-        std::vector<double> mymatrix(lm.size());
-        Core::FE::extract_my_values(*matrix_state, mymatrix, lm);
+        std::vector<double> mymatrix = Core::FE::extract_values(*matrix_state, lm);
 
         for (unsigned inode = 0; inode < slave_nen_; ++inode)  // number of nodes
         {
@@ -276,11 +270,10 @@ namespace Discret
         // get state of the global vector
         std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state =
             cutterdis.get_state(state);
-        if (matrix_state == nullptr) FOUR_C_THROW("Cannot get state vector %s", state.c_str());
+        if (matrix_state == nullptr) FOUR_C_THROW("Cannot get state vector {}", state);
 
         // extract local values of the global vectors
-        std::vector<double> mymatrix(lm.size());
-        Core::FE::extract_my_values(*matrix_state, mymatrix, lm);
+        std::vector<double> mymatrix = Core::FE::extract_values(*matrix_state, lm);
 
         for (unsigned inode = 0; inode < slave_nen_; ++inode)  // number of nodes
         {
@@ -330,7 +323,7 @@ namespace Discret
       void SlaveElementRepresentation<distype, slave_distype, slave_numdof>::evaluate(
           Core::LinAlg::Matrix<nsd_, 1>& xslave)
       {
-        Core::LinAlg::Matrix<3, 1> rst_slave(true);
+        Core::LinAlg::Matrix<3, 1> rst_slave(Core::LinAlg::Initialization::zero);
         evaluate(xslave, rst_slave);
       }
 
@@ -369,13 +362,13 @@ namespace Discret
           FOUR_C_THROW("Unsupported dimension clash!");
 
 
-        Core::LinAlg::Matrix<nsd_, nsd_> slave_xjm(true);
-        Core::LinAlg::Matrix<nsd_, nsd_> slave_xji(true);
+        Core::LinAlg::Matrix<nsd_, nsd_> slave_xjm(Core::LinAlg::Initialization::zero);
+        Core::LinAlg::Matrix<nsd_, nsd_> slave_xji(Core::LinAlg::Initialization::zero);
 
         slave_xjm.multiply_nt(slave_deriv_, slave_xyze_);
         slave_xji.invert(slave_xjm);
 
-        // compute global first derivates
+        // compute global first derivatives
         slave_derxy_.multiply(slave_xji, slave_deriv_);
 
         // get velocity derivatives at integration point

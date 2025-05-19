@@ -72,10 +72,10 @@ namespace Solid
       /*! \brief Initialize viscous and inertial matrices
        *
        *  This is the place where we calculate the default mass matrix and the
-       *  Rayleigh damping matrix only once during the equilibrate_initial_state routine.
+       *  Rayleigh damping matrix only once during the compute_mass_matrix_and_init_acc routine.
        *
-       *  \date 09/16
-       *  \author hiermeier */
+
+       *  */
       bool initialize_inertia_and_damping();
 
       //! derived
@@ -142,10 +142,7 @@ namespace Solid
       void determine_strain_energy(const Core::LinAlg::Vector<double>& disnp, const bool global);
 
       //! derived
-      void determine_optional_quantity() override;
-
-      bool determine_element_volumes(const Core::LinAlg::Vector<double>& x,
-          std::shared_ptr<Core::LinAlg::Vector<double>>& ele_vols);
+      void determine_optional_quantity() override {}
 
       //! derived
       void reset_step_state() override;
@@ -160,7 +157,7 @@ namespace Solid
       void runtime_output_step_state() const override;
 
       //! derived
-      std::shared_ptr<const Epetra_Map> get_block_dof_row_map_ptr() const override;
+      std::shared_ptr<const Core::LinAlg::Map> get_block_dof_row_map_ptr() const override;
 
       //! derived
       std::shared_ptr<const Core::LinAlg::Vector<double>> get_current_solution_ptr() const override;
@@ -215,7 +212,7 @@ namespace Solid
        *  \return TRUE, if the execution of apply_force_stiff_external shall be
        *  skipped. Otherwise FALSE will be returned.
        *
-       *  \author hiermeier \date 02/18 */
+       *  */
       bool pre_apply_force_stiff_external(
           Core::LinAlg::Vector<double>& fextnp, Core::LinAlg::SparseMatrix& stiff) const;
 
@@ -229,8 +226,8 @@ namespace Solid
        *  \param eval_vec (out) : external force vector
        *  \param eval_mat (out) : linearization of the external force (optional)
        *
-       *  \date 08/15
-       *  \author hiermeier */
+
+       *  */
       void evaluate_neumann(Teuchos::ParameterList& p, Core::LinAlg::Vector<double>& eval_vec,
           const std::shared_ptr<Core::LinAlg::SparseOperator>& eval_mat);
 
@@ -245,8 +242,8 @@ namespace Solid
        *  \param eval_vec (out) : array of different internal forces (f_int, f_inertial)
        *  \param eval_mat (out) : array of different matrices (stiffness, mass, damping)
        *
-       *  \date 08/15
-       *  \author hiermeier */
+
+       *  */
       void evaluate_internal(Teuchos::ParameterList& p,
           std::shared_ptr<Core::LinAlg::SparseOperator>* eval_mat,
           std::shared_ptr<Core::LinAlg::Vector<double>>* eval_vec);
@@ -256,16 +253,16 @@ namespace Solid
       void evaluate_internal_specified_elements(
           std::shared_ptr<Core::LinAlg::SparseOperator>* eval_mat,
           std::shared_ptr<Core::LinAlg::Vector<double>>* eval_vec,
-          const Epetra_Map* ele_map_to_be_evaluated);
+          const Core::LinAlg::Map* ele_map_to_be_evaluated);
 
       /*! \brief  Check if the given parameter list is valid and call the
        *  Evaluate routine for all elements specified in the element map
        *
-       *  \author grill */
+       *  */
       void evaluate_internal_specified_elements(Teuchos::ParameterList& p,
           std::shared_ptr<Core::LinAlg::SparseOperator>* eval_mat,
           std::shared_ptr<Core::LinAlg::Vector<double>>* eval_vec,
-          const Epetra_Map* ele_map_to_be_evaluated);
+          const Core::LinAlg::Map* ele_map_to_be_evaluated);
 
       /*! \brief Add static structural internal force and stiffness matrix to the
        *         evaluate call (default)
@@ -277,8 +274,8 @@ namespace Solid
        *  \param eval_vec (out): pointer to the evaluation vector array, which is
        *                         changed.
        *
-       *  \date 09/16
-       *  \author hiermeier */
+
+       *  */
       void static_contributions(std::shared_ptr<Core::LinAlg::SparseOperator>* eval_mat,
           std::shared_ptr<Core::LinAlg::Vector<double>>* eval_vec);
 
@@ -289,8 +286,8 @@ namespace Solid
        *  \param eval_vec (out): pointer to the evaluation vector array, which is
        *                         changed.
        *
-       *  \date 09/16
-       *  \author hiermeier */
+
+       *  */
       void static_contributions(std::shared_ptr<Core::LinAlg::Vector<double>>* eval_vec);
 
       /*! \brief Add material damping matrix  to the evaluate call (optional)
@@ -302,8 +299,8 @@ namespace Solid
        *  \warning Material damping and non-linear mass effects cannot be
        *  considered at the same time at the moment!
        *
-       *  \date 09/16
-       *  \author hiermeier */
+
+       *  */
       void material_damping_contributions(std::shared_ptr<Core::LinAlg::SparseOperator>* eval_mat);
 
       /*! \brief Add mass matrix and inertial force to the evaluate call (optional)
@@ -321,8 +318,8 @@ namespace Solid
        *  \warning Material damping and non-linear mass effects cannot be
        *  considered at the same time at the moment!
        *
-       *  \date 09/16
-       *  \author hiermeier */
+
+       *  */
       void inertial_contributions(std::shared_ptr<Core::LinAlg::SparseOperator>* eval_mat,
           std::shared_ptr<Core::LinAlg::Vector<double>>* eval_vec);
 
@@ -337,28 +334,28 @@ namespace Solid
        *  \warning Material damping and non-linear mass effects cannot be
        *  considered at the same time at the moment!
        *
-       *  \date 09/16
-       *  \author hiermeier */
+
+       *  */
       void inertial_contributions(std::shared_ptr<Core::LinAlg::Vector<double>>* eval_vec);
 
       /*! \brief Evaluate the inertial forces (for the standard case) and
        *         any viscous damping forces
        *
-       *  \date 09/16
-       *  \author hiermeier */
+
+       *  */
       void inertial_and_viscous_forces();
 
       /*! Check the fill_complete status of the stiffness and mass matrix
        *  and complete them, if necessary */
       void fill_complete();
 
-      /*! \biref Assemble the Rayleigh damping matrix
+      /*! \brief Assemble the Rayleigh damping matrix
        *
        *  Please note, that this has to been done only once during the
-       *  Solid::Integrator::equilibrate_initial_state routine!
+       *  Solid::Integrator::compute_mass_matrix_and_init_acc routine!
        *
-       *  \date 09/16
-       *  \author hiermeier */
+
+       *  */
       void rayleigh_damping_matrix();
 
       /*! \brief Returns the interial force vector for non-linear mass problems
@@ -367,14 +364,14 @@ namespace Solid
        *  if a non-linear mass problem is solved. Otherwise, a nullptr
        *  pointer is returned.
        *
-       *  \date 09/16
-       *  \author hiermeier */
+
+       *  */
       std::shared_ptr<Core::LinAlg::Vector<double>> get_inertial_force();
 
       /*! \brief writes output for discretization structure
        *
-       *  \date 04/17
-       *  \author eichinger */
+
+       *  */
       void init_output_runtime_structure();
 
       /*!
@@ -386,23 +383,25 @@ namespace Solid
 
       /*! \brief writes output for discretization structure at the end of a time step
        *
-       *  \date 04/17
-       *  \author grill */
+
+       *  */
       void write_time_step_output_runtime_structure() const;
 
       /*! \brief writes output for discretization structure
        *         at the end of a nonlinear iteration
        *
-       *  \date 10/17
-       *  \author grill */
+
+       *  */
       void write_iteration_output_runtime_structure() const;
 
       /*! \brief writes output for discretization structure
        *
-       *  \date 10/17
-       *  \author grill */
-      void write_output_runtime_structure(Core::LinAlg::Vector<double>& displacement_state_vector,
-          Core::LinAlg::Vector<double>& velocity_state_vector, int timestep_number,
+
+       *  */
+      void write_output_runtime_structure(
+          const Core::LinAlg::Vector<double>& displacement_state_vector,
+          const Core::LinAlg::Vector<double>& velocity_state_vector,
+          const Core::LinAlg::Vector<double>& acceleration_state_vector, int timestep_number,
           double time) const;
 
       /**
@@ -412,28 +411,30 @@ namespace Solid
 
       void output_runtime_structure_gauss_point_data();
 
+      void output_runtime_structure_postprocess_optional_data();
+
       /*! \brief writes special output for beam elements
        *
-       *  \date 04/17
-       *  \author eichinger */
+
+       *  */
       void init_output_runtime_beams();
 
       /*! \brief writes special output for beam elements at the end of a time step
        *
-       *  \date 04/17
-       *  \author grill */
+
+       *  */
       void write_time_step_output_runtime_beams() const;
 
       /*! \brief writes special output for beam elements at the end of a nonlinear iteration
        *
-       *  \date 10/17
-       *  \author grill */
+
+       *  */
       void write_iteration_output_runtime_beams() const;
 
       /*! \brief writes special output for beam elements
        *
-       *  \date 10/17
-       *  \author grill */
+
+       *  */
       void write_output_runtime_beams(Core::LinAlg::Vector<double>& displacement_state_vector,
           int timestep_number, double time) const;
 
@@ -446,8 +447,8 @@ namespace Solid
        *  integration is no longer supported and all elements use the data
        *  interface class.
        *
-       *  \date 12/16
-       *  \author seitz */
+
+       *  */
       void params_interface2_parameter_list(
           std::shared_ptr<Solid::ModelEvaluator::Data> interface_ptr,
           Teuchos::ParameterList& params);

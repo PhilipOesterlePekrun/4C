@@ -69,8 +69,6 @@ namespace Discret
       work. The non-virtual evaluate() method must be callable without an actual
       Fluid object.
 
-      \author u.kue
-      \date 07/07
     */
 
     template <Core::FE::CellType distype,
@@ -80,7 +78,7 @@ namespace Discret
      public:
       //! nen_: number of element nodes (T. Hughes: The Finite Element Method)
       static constexpr int nen_ =
-          Discret::Elements::MultipleNumNode<enrtype>::multipleNode * Core::FE::num_nodes<distype>;
+          Discret::Elements::MultipleNumNode<enrtype>::multipleNode * Core::FE::num_nodes(distype);
 
       //! number of space dimensions
       static constexpr int nsd_ = Core::FE::dim<distype>;
@@ -125,8 +123,7 @@ namespace Discret
        *   The vector valued operator \f$B\f$ is constructed such that
        *   \f$\int_\Omega div (u) \,\mathrm{d}\Omega = B^T u = 0\f$
        *
-       *   \author mayr.mt
-       *   \date   04/2012
+
        */
       virtual int calc_div_op(Discret::Elements::Fluid* ele,  //< current fluid element
           Core::FE::Discretization& discretization,           //< fluid discretization
@@ -136,18 +133,16 @@ namespace Discret
 
       /*! \brief Calculate element mass matrix
        *
-       *  \author mayr.mt \date 05/2014
        */
       virtual int calc_mass_matrix(Discret::Elements::Fluid* ele,
           //    Teuchos::ParameterList&              params,
           Core::FE::Discretization& discretization, const std::vector<int>& lm,
-          std::shared_ptr<Core::Mat::Material>& mat, Core::LinAlg::SerialDenseMatrix& elemat1_epetra
+          std::shared_ptr<Core::Mat::Material>& mat, Core::LinAlg::SerialDenseMatrix& elemat1
           //    const Core::FE::GaussIntegration & intpoints
       );
 
       /*! \brief Calculate coordinates and velocities and element center
        *
-       *  \author bk \date 01/2015
        */
       virtual int calc_vel_gradient_ele_center(Discret::Elements::Fluid* ele,
           Core::FE::Discretization& discretization, const std::vector<int>& lm,
@@ -156,7 +151,6 @@ namespace Discret
 
       /*! \brief Calculate properties for adaptive time step based on CFL number
        *
-       *  \author bk \date 08/2014
        */
       virtual int calc_time_step(Discret::Elements::Fluid* ele,
           Core::FE::Discretization& discretization, const std::vector<int>& lm,
@@ -164,7 +158,6 @@ namespace Discret
 
       /*! \brief Calculate channel statistics
        *
-       *  \author bk \date 05/2014
        */
       virtual int calc_channel_statistics(Discret::Elements::Fluid* ele,
           Teuchos::ParameterList& params, Core::FE::Discretization& discretization,
@@ -172,7 +165,6 @@ namespace Discret
 
       /*! \brief Calculate mass flow for periodic hill
        *
-       *  \author bk \date 12/2014
        */
       virtual int calc_mass_flow_periodic_hill(Discret::Elements::Fluid* ele,
           Teuchos::ParameterList& params, Core::FE::Discretization& discretization,
@@ -181,8 +173,7 @@ namespace Discret
 
       /*! \brief Project velocity gradient to nodal level
        *
-       *   \author ghamm
-       *   \date   06/2014
+
        */
       virtual int vel_gradient_projection(Discret::Elements::Fluid* ele,
           Teuchos::ParameterList& params, Core::FE::Discretization& discretization,
@@ -192,8 +183,7 @@ namespace Discret
 
       /*! \brief Project pressure gradient to nodal level
        *
-       *   \author mwinter
-       *   \date   09/2015
+
        */
       virtual int pres_gradient_projection(Discret::Elements::Fluid* ele,
           Teuchos::ParameterList& params, Core::FE::Discretization& discretization,
@@ -202,8 +192,7 @@ namespace Discret
 
       /*! \brief Calculate a divergence of velocity at the element center
        *
-       *   \author ehrl
-       *   \date   12/2012
+
        */
       virtual int compute_div_u(Discret::Elements::Fluid* ele,  //< current fluid element
           Core::FE::Discretization& discretization,             //< fluid discretization
@@ -239,22 +228,17 @@ namespace Discret
        */
       int evaluate(Discret::Elements::Fluid* ele, Core::FE::Discretization& discretization,
           const std::vector<int>& lm, Teuchos::ParameterList& params,
-          std::shared_ptr<Core::Mat::Material>& mat,
-          Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec3_epetra, bool offdiag = false) override;
+          std::shared_ptr<Core::Mat::Material>& mat, Core::LinAlg::SerialDenseMatrix& elemat1,
+          Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+          Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3,
+          bool offdiag = false) override;
 
       /// Evaluate the element at specified gauss points
       int evaluate(Discret::Elements::Fluid* ele, Core::FE::Discretization& discretization,
           const std::vector<int>& lm, Teuchos::ParameterList& params,
-          std::shared_ptr<Core::Mat::Material>& mat,
-          Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec3_epetra,
+          std::shared_ptr<Core::Mat::Material>& mat, Core::LinAlg::SerialDenseMatrix& elemat1,
+          Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+          Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3,
           const Core::FE::GaussIntegration& intpoints, bool offdiag = false) override;
 
       int compute_error_interface(Discret::Elements::Fluid* ele,  ///< fluid element
@@ -277,12 +261,9 @@ namespace Discret
       /// Evaluate the XFEM cut element
       int evaluate_xfem(Discret::Elements::Fluid* ele, Core::FE::Discretization& discretization,
           const std::vector<int>& lm, Teuchos::ParameterList& params,
-          std::shared_ptr<Core::Mat::Material>& mat,
-          Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec3_epetra,
+          std::shared_ptr<Core::Mat::Material>& mat, Core::LinAlg::SerialDenseMatrix& elemat1,
+          Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+          Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3,
           const std::vector<Core::FE::GaussIntegration>& intpoints,
           const Cut::plain_volumecell_set& cells, bool offdiag = false) override
       {
@@ -332,10 +313,9 @@ namespace Discret
               side_coupling,                          ///< side coupling matrices
           Teuchos::ParameterList& params,             ///< parameter list
           std::shared_ptr<Core::Mat::Material>& mat,  ///< material
-          Core::LinAlg::SerialDenseMatrix&
-              elemat1_epetra,  ///< local system matrix of intersected element
+          Core::LinAlg::SerialDenseMatrix& elemat1,  ///< local system matrix of intersected element
           Core::LinAlg::SerialDenseVector&
-              elevec1_epetra,                      ///< local element vector of intersected element
+              elevec1,                             ///< local element vector of intersected element
           Core::LinAlg::SerialDenseMatrix& Cuiui,  ///< coupling matrix of a side with itself
           const Cut::plain_volumecell_set& vcSet   ///< set of plain volume cells
           ) override
@@ -356,8 +336,8 @@ namespace Discret
           Teuchos::ParameterList& params,                    ///< parameter list
           std::shared_ptr<Core::Mat::Material>& mat_master,  ///< material for the coupled side
           std::shared_ptr<Core::Mat::Material>& mat_slave,   ///< material for the coupled side
-          Core::LinAlg::SerialDenseMatrix& elemat1_epetra,   ///< element matrix
-          Core::LinAlg::SerialDenseVector& elevec1_epetra,   ///< element vector
+          Core::LinAlg::SerialDenseMatrix& elemat1,          ///< element matrix
+          Core::LinAlg::SerialDenseVector& elevec1,          ///< element vector
           const Cut::plain_volumecell_set& vcSet,            ///< volumecell sets in this element
           std::map<int, std::vector<Core::LinAlg::SerialDenseMatrix>>&
               side_coupling,                       ///< side coupling matrices
@@ -370,7 +350,7 @@ namespace Discret
       }
 
       void calculate_continuity_xfem(Discret::Elements::Fluid* ele, Core::FE::Discretization& dis,
-          const std::vector<int>& lm, Core::LinAlg::SerialDenseVector& elevec1_epetra,
+          const std::vector<int>& lm, Core::LinAlg::SerialDenseVector& elevec1,
           const Core::FE::GaussIntegration& intpoints) override
       {
         FOUR_C_THROW("Implemented in derived xfem class!");
@@ -378,7 +358,7 @@ namespace Discret
       }
 
       void calculate_continuity_xfem(Discret::Elements::Fluid* ele, Core::FE::Discretization& dis,
-          const std::vector<int>& lm, Core::LinAlg::SerialDenseVector& elevec1_epetra) override
+          const std::vector<int>& lm, Core::LinAlg::SerialDenseVector& elevec1) override
       {
         FOUR_C_THROW("Implemented in derived xfem class!");
         return;
@@ -1174,39 +1154,6 @@ namespace Discret
 
       //! identify elements of inflow section
       void inflow_element(Core::Elements::Element* ele);
-
-      // FLD::RotationallySymmetricPeriodicBC<distype> & rotsymmpbc, ///<
-      //  {
-      //    // get state of the global vector
-      //    std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state =
-      //    discretization.GetState(state); if(matrix_state == nullptr)
-      //      FOUR_C_THROW("Cannot get state vector %s", state.c_str());
-      //
-      //    // extract local values of the global vectors
-      //    std::vector<double> mymatrix(lm.size());
-      //    Core::FE::extract_my_values(*matrix_state,mymatrix,lm);
-      //
-      //    // rotate the vector field in the case of rotationally symmetric boundary conditions
-      //    if(matrixtofill != nullptr)
-      //      rotsymmpbc.rotate_my_values_if_necessary(mymatrix);
-      //
-      //    for (int inode=0; inode<nen_; ++inode)  // number of nodes
-      //    {
-      //      // fill a vector field via a pointer
-      //      if (matrixtofill != nullptr)
-      //      {
-      //        for(int idim=0; idim<nsd_; ++idim) // number of dimensions
-      //        {
-      //          (*matrixtofill)(idim,inode) = mymatrix[idim+(inode*numdofpernode_)];
-      //        }  // end for(idim)
-      //      }
-      //      // fill a scalar field via a pointer
-      //      if (vectortofill != nullptr)
-      //        (*vectortofill)(inode,0) = mymatrix[nsd_+(inode*numdofpernode_)];
-      //    }
-      //  }
-
-
 
       //==================================================================================
       // OLD FLUID ELE CALC ROUTINES BEFORE OST-HIST MIGRATION.

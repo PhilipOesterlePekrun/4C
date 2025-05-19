@@ -63,7 +63,6 @@ namespace Cut
       default:
         return "Unknown IntersectionStatus";
     }
-    exit(EXIT_FAILURE);
   };
 
   inline IntersectionStatus intersection_status2_enum(unsigned num_cut_points)
@@ -77,13 +76,12 @@ namespace Cut
       default:
         return intersect_multiple_cut_points;
     }
-    exit(EXIT_FAILURE);
   }
 
   /*--------------------------------------------------------------------------*/
   /** \brief Base class to calculate the intersection of an edge with a side.
    *
-   *  \author ager, hiermeier*/
+   *  */
   class IntersectionBase
   {
    public:
@@ -119,7 +117,7 @@ namespace Cut
      *  \param useshifting         (in) : switch shifting on/off
      *  \param useboundingbox      (in) : switch the bounding box checks on/off
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     template <class T1, class T2>
     void init(T1& xyze_lineElement, T2& xyze_surfaceElement, bool usescaling, bool useshifting,
         bool useboundingbox, Options* options)
@@ -137,8 +135,8 @@ namespace Cut
           static_cast<unsigned>(xyze_lineElement.num_cols()) != get_num_nodes_edge())
         FOUR_C_THROW(
             "Dimension mismatch of xyze_lineElement! \n"
-            "expected input: %d x %d (rows x cols)\n"
-            "current input : %d x %d (rows x cols)",
+            "expected input: {} x {} (rows x cols)\n"
+            "current input : {} x {} (rows x cols)",
             n_prob_dim(), get_num_nodes_edge(), xyze_lineElement.num_rows(),
             xyze_lineElement.num_cols());
 
@@ -146,8 +144,8 @@ namespace Cut
           static_cast<unsigned>(xyze_surfaceElement.num_cols()) != get_num_nodes_side())
         FOUR_C_THROW(
             "Dimension mismatch of xyze_surfaceElement! \n"
-            "expected input: %d x %d (rows x cols)\n"
-            "current input : %d x %d (rows x cols)",
+            "expected input: {} x {} (rows x cols)\n"
+            "current input : {} x {} (rows x cols)",
             n_prob_dim(), get_num_nodes_side(), xyze_surfaceElement.num_rows(),
             xyze_surfaceElement.num_cols());
 
@@ -166,7 +164,7 @@ namespace Cut
      *  \param useshifting    (in) : switch shifting on/off
      *  \param useboundingbox (in) : switch the bounding box checks on/off
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     void init(Mesh* mesh_ptr, Edge* edge_ptr, Side* side_ptr, bool usescaling, bool useshifting,
         bool useboundingbox)
     {
@@ -192,7 +190,7 @@ namespace Cut
      *
      *  See derived class for more information.
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     virtual IntersectionStatus compute_edge_side_intersection(
         double& tolerance, bool check_inside = true, std::vector<int>* touched_edges = nullptr) = 0;
 
@@ -201,7 +199,7 @@ namespace Cut
      *
      *  See derived class for more information.
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     virtual bool intersect(PointSet& cuts) = 0;
 
     virtual ParallelIntersectionStatus handle_parallel_intersection(
@@ -215,7 +213,7 @@ namespace Cut
      *
      *  Only allowed if there was only one cut point!
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     virtual double* final_point() = 0;
 
     virtual double* final_point(unsigned cp_id) = 0;
@@ -226,13 +224,13 @@ namespace Cut
     /** Access the cut point local coordinates on the side element
      * ( also working for multiple cut points )
      *
-     *  \author hiermeier \date 01/17 */
+     *  */
     template <unsigned dimside>
     void local_side_coordinates(std::vector<Core::LinAlg::Matrix<dimside, 1>>& side_rs_cuts)
     {
       if (get_intersection_status() < intersect_single_cut_point)
-        FOUR_C_THROW("INVALID IntersectionStatus! ( istatus = \"%s\" )",
-            intersection_status_to_string(get_intersection_status()).c_str());
+        FOUR_C_THROW("INVALID IntersectionStatus! ( istatus = \"{}\" )",
+            intersection_status_to_string(get_intersection_status()));
 
       side_rs_cuts.clear();
       side_rs_cuts.reserve(num_cut_points());
@@ -244,13 +242,13 @@ namespace Cut
     /** Access the final cut point global coordinates
      * ( also working for multiple cut points )
      *
-     *  \author hiermeier \date 01/17 */
+     *  */
     template <unsigned probdim>
     void final_points(std::vector<Core::LinAlg::Matrix<probdim, 1>>& xyz_cuts)
     {
       if (get_intersection_status() < intersect_single_cut_point)
-        FOUR_C_THROW("INVALID IntersectionStatus! ( istatus = \"%s\" )",
-            intersection_status_to_string(get_intersection_status()).c_str());
+        FOUR_C_THROW("INVALID IntersectionStatus! ( istatus = \"{}\" )",
+            intersection_status_to_string(get_intersection_status()));
 
       xyz_cuts.clear();
       xyz_cuts.reserve(num_cut_points());
@@ -301,7 +299,6 @@ namespace Cut
     {
       if (mesh_ptr_ != nullptr) return *mesh_ptr_;
       FOUR_C_THROW("The mesh pointer is not yet initialized!");
-      exit(EXIT_FAILURE);
     }
 
     /// get a pointer to the mesh object
@@ -309,7 +306,6 @@ namespace Cut
     {
       if (mesh_ptr_ != nullptr) return mesh_ptr_;
       FOUR_C_THROW("The mesh pointer is not yet initialized!");
-      exit(EXIT_FAILURE);
     }
 
     /// get a reference to the edge object
@@ -317,7 +313,6 @@ namespace Cut
     {
       if (edge_ptr_ != nullptr) return *edge_ptr_;
       FOUR_C_THROW("The edge pointer is not yet initialized!");
-      exit(EXIT_FAILURE);
     }
 
     /// get a pointer to the edge object
@@ -325,7 +320,6 @@ namespace Cut
     {
       if (edge_ptr_ != nullptr) return edge_ptr_;
       FOUR_C_THROW("The edge pointer is not yet initialized!");
-      exit(EXIT_FAILURE);
     }
 
     /// get a reference to the side object
@@ -333,7 +327,6 @@ namespace Cut
     {
       if (side_ptr_ != nullptr) return *side_ptr_;
       FOUR_C_THROW("The side pointer is not yet initialized!");
-      exit(EXIT_FAILURE);
     }
 
     /// get a pointer to the side object
@@ -341,7 +334,6 @@ namespace Cut
     {
       if (side_ptr_ != nullptr) return side_ptr_;
       FOUR_C_THROW("The side pointer is not yet initialized!");
-      exit(EXIT_FAILURE);
     }
 
     /// get a pointer to the cut options object
@@ -349,7 +341,6 @@ namespace Cut
     {
       if (options_ptr_ != nullptr) return options_ptr_;
       FOUR_C_THROW("The option pointer is not yet initialized!");
-      exit(EXIT_FAILURE);
     }
 
    private:
@@ -387,12 +378,12 @@ namespace Cut
    *  also meaningful to use this class to calculate the intersection of two
    *  edges, if the related init() routine is used.
    *
-   *  \author ager, hiermeier */
+   *  */
   template <unsigned probdim, Core::FE::CellType edgetype, Core::FE::CellType sidetype,
       bool debug = false, unsigned dimedge = Core::FE::dim<edgetype>,
       unsigned dimside = Core::FE::dim<sidetype>,
-      unsigned num_nodes_edge = Core::FE::num_nodes<edgetype>,
-      unsigned num_nodes_side = Core::FE::num_nodes<sidetype>>
+      unsigned num_nodes_edge = Core::FE::num_nodes(edgetype),
+      unsigned num_nodes_side = Core::FE::num_nodes(sidetype)>
   class Intersection : public IntersectionBase
   {
    public:
@@ -406,9 +397,8 @@ namespace Cut
           num_cut_points_(0),
           istatus_(intersect_unevaluated),
           scale_(1.0),
-          shift_(0.0)
-    {
-      /* intentionally left blank */
+          shift_(Core::LinAlg::Initialization::zero)
+    { /* intentionally left blank */
     }
 
     // No public access to these methods! Use the base class accessors, instead.
@@ -434,7 +424,7 @@ namespace Cut
      *
      *  \param cp_id (in) : cut point id
      *
-     *  \author hiermeier \date 01/17 */
+     *  */
     double* local_side_coordinates(unsigned cp_id) override
     {
       if (num_cut_points() < 2) return xsi_side_.data();
@@ -447,7 +437,7 @@ namespace Cut
      *
      *  \param cp_id (in) : cut point id
      *
-     *  \author hiermeier \date 01/17 */
+     *  */
     const Core::LinAlg::Matrix<dimedge, 1>& local_edge_coordinates(const unsigned& cp_id) const
     {
       if (num_cut_points() < 2) return xsi_edge_;
@@ -548,7 +538,7 @@ namespace Cut
       if (istatus_ != intersect_single_cut_point)
         FOUR_C_THROW(
             "INVALID IntersectionStatus: This routine is restricted to one single "
-            "cut point only! ( istatus_ = \"%s\" )",
+            "cut point only! ( istatus_ = \"{}\" )",
             intersection_status_to_string(istatus_).c_str());
 
       final_point(xsi_edge_, x_);
@@ -626,7 +616,7 @@ namespace Cut
      *
      *  All feasible cut points are within the given element bounds.
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     IntersectionStatus compute_edge_side_intersection(double& tolerance, bool check_inside = true,
         std::vector<int>* touched_edges = nullptr) override
     {
@@ -728,7 +718,7 @@ namespace Cut
             err_msg << "Touching " << touched.size()
                     << " edges, but no intersection! This should not happen! ";
             generate_gmsh_dump();
-            FOUR_C_THROW(err_msg.str());
+            FOUR_C_THROW("{}", err_msg.str());
           }
         }
       }
@@ -773,7 +763,7 @@ namespace Cut
      *  there is still handling of some special cases missing in the code & it does not
      *  mean that there is no intersection point.
      *
-     *  \author ager */
+     *  */
     bool intersect(PointSet& cuts) override;
 
     // Try to find possible intersection points, if this intersection is between parallel size
@@ -835,8 +825,7 @@ namespace Cut
      *  makes the used tolerances more reliable. The same procedure is used for
      *  the position calculation.
      *
-     *  \author hiermeier
-     *  \date 08/16 */
+     */
     void scale_and_shift() override
     {
       // ---------------------------------------------------------------------
@@ -892,14 +881,14 @@ namespace Cut
      *
      *  Currently surface and line elements are supported.
      *
-     *  \author hiermeier \date 12/16 */
+     *  */
     bool check_parallelism(std::vector<Core::LinAlg::Matrix<dimside, 1>>& side_rs_intersect,
         std::vector<Core::LinAlg::Matrix<dimedge, 1>>& edge_r_intersect, double& tolerance);
 
     /** \brief Check if the two lines are collinear, end points are on the line, or
      *  the distance values imply that no intersection is possible
      *
-     *  \author hiermeier \date 12/16 */
+     *  */
     bool check_collinearity(std::vector<Core::LinAlg::Matrix<dimside, 1>>& side_rs_corner_intersect,
         std::vector<Core::LinAlg::Matrix<dimedge, 1>>& edge_r_corner_intersect, double& tolerance);
 
@@ -907,13 +896,13 @@ namespace Cut
      *
      *  This is a quick check to skip cases which are definitely not parallel.
      *
-     *  \author hiermeier \date 12/16 */
+     *  */
     bool check_angle_criterion_between_two_edges();
 
     /** ToDo This method is currently unused, since this case should be treated by
      *  the Intersect() method.
      *
-     *  \author hiermeier \date 12/16 */
+     *  */
     bool check_parallelism_between_side_and_edge(
         std::vector<Core::LinAlg::Matrix<dimside, 1>>& side_rs_intersect,
         std::vector<Core::LinAlg::Matrix<dimedge, 1>>& edge_r_intersect, double& tolerance);
@@ -922,7 +911,7 @@ namespace Cut
      *
      *  This is a quick check to skip cases which are definitely not parallel.
      *
-     *  \author hiermeier \date 12/16 */
+     *  */
     bool check_angle_criterion_between_side_normal_and_edge();
 
     /// find the local coordinate of a given edge end point ( i.e. -1 or +1 )
@@ -938,7 +927,7 @@ namespace Cut
      *  Returns TRUE if the calculation was successful. This does not imply, that the
      *  calculated intersection point is feasible!
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     bool compute_edge_tri3_intersection(int triangleid, Kernel::PointOnSurfaceLoc& location)
     {
       switch (get_options_ptr()->geom_intersect_floattype())
@@ -964,7 +953,7 @@ namespace Cut
       TEUCHOS_FUNC_TIME_MONITOR("compute_edge_tri3_intersection");
       Core::LinAlg::Matrix<3, 1> xsi;
       if (xsi_.m() != 3)
-        FOUR_C_THROW("xsi_ has the wrong dimension! (dimedge + 2 = %d + 2)", dimedge);
+        FOUR_C_THROW("xsi_ has the wrong dimension! (dimedge + 2 = {} + 2)", dimedge);
       else
         xsi.set_view(xsi_.data());
 
@@ -1013,7 +1002,7 @@ namespace Cut
       TEUCHOS_FUNC_TIME_MONITOR("compute_edge_tri3_intersection");
       Core::LinAlg::Matrix<3, 1> xsi;
       if (xsi_.m() != 3)
-        FOUR_C_THROW("xsi_ has the wrong dimension! (dimedge + 2 = %d + 2)", dimedge);
+        FOUR_C_THROW("xsi_ has the wrong dimension! (dimedge + 2 = {} + 2)", dimedge);
       else
         xsi.set_view(xsi_.data());
 
@@ -1203,14 +1192,14 @@ namespace Cut
         FOUR_C_THROW(
             "This compute_distance routine is only meaningful for "
             "QUAD4 side elements! But you passed in a side element "
-            "of type %i | %s.",
-            sidetype, Core::FE::cell_type_to_string(sidetype).c_str());
+            "of type {}.",
+            Core::FE::cell_type_to_string(sidetype));
 
       TEUCHOS_FUNC_TIME_MONITOR("compute_distance");
 
       // dimension of xsi: element dimension of 2 + 1 entry for the distance
       if (xsi_.m() != 3)
-        FOUR_C_THROW("xsi_ has the wrong dimension! (dimedge + 2 = %d + 2)", dimedge);
+        FOUR_C_THROW("xsi_ has the wrong dimension! (dimedge + 2 = {} + 2)", dimedge);
       Core::LinAlg::Matrix<3, 1> xsi(xsi_.data(), true);
 
       // Kernel::DebugComputeDistance<probdim,Core::FE::CellType::tri3, floattype>
@@ -1259,7 +1248,7 @@ namespace Cut
      *  \param tolerance     (out) : used internal adaptive tolerance
      *                           ( specified by the Cut::KERNEL )
      *
-     *  \author hiermeier \date 08/16 */
+     *  */
     bool compute_cut(
         Edge* sedge, Edge* eedge, Side* side, PointSet& ee_cut_points, double& tolerance);
 
@@ -1308,7 +1297,7 @@ namespace Cut
   /*--------------------------------------------------------------------------*/
   /** \brief Create a intersection object
    *
-   *  \author hiermeier \date 12/16 */
+   *  */
   class IntersectionFactory
   {
    public:
@@ -1336,11 +1325,9 @@ namespace Cut
         default:
           FOUR_C_THROW(
               "Unsupported SideType! If meaningful, add your sideType here. \n"
-              "Given SideType = %s",
+              "Given SideType = {}",
               Core::FE::cell_type_to_string(side_type).c_str());
-          exit(EXIT_FAILURE);
       }
-      exit(EXIT_FAILURE);
     }
 
     template <Core::FE::CellType edge_type, Core::FE::CellType side_type>
@@ -1356,8 +1343,7 @@ namespace Cut
           inter_ptr = new Cut::Intersection<3, edge_type, side_type>();
           break;
         default:
-          FOUR_C_THROW("Unsupported ProbDim! ( probdim = %d )", probdim);
-          exit(EXIT_FAILURE);
+          FOUR_C_THROW("Unsupported ProbDim! ( probdim = {} )", probdim);
       }
       return inter_ptr;
     };

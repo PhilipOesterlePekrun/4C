@@ -51,7 +51,7 @@ void ScaTra::TimIntCardiacMonodomain::setup()
   // get a vector layout from the discretization to construct matching
   // vectors and matrices: local <-> global dof numbering
   // -------------------------------------------------------------------
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   // Activation time at time n+1
   activation_time_np_ = Core::LinAlg::create_vector(*dofrowmap, true);
@@ -89,7 +89,7 @@ void ScaTra::TimIntCardiacMonodomain::collect_runtime_output_data()
   // Compute and write activation time
   if (activation_time_np_ != nullptr)
   {
-    for (int k = 0; k < phinp_->MyLength(); k++)
+    for (int k = 0; k < phinp_->local_length(); k++)
     {
       if ((*phinp_)[k] >= activation_threshold_ && (*activation_time_np_)[k] <= dta_ * 0.9)
         (*activation_time_np_)[k] = time_;
@@ -164,7 +164,7 @@ void ScaTra::TimIntCardiacMonodomain::element_material_time_update()
 
   // set vector values needed by elements
   discret_->clear_state();
-  discret_->set_state("phinp", phinp_);
+  discret_->set_state("phinp", *phinp_);
 
   // go to elements
   discret_->evaluate(p, nullptr, nullptr, nullptr, nullptr, nullptr);
@@ -199,7 +199,7 @@ void ScaTra::TimIntCardiacMonodomain::write_restart() const
   // Compute and write activation time
   if (activation_time_np_ != nullptr)
   {
-    for (int k = 0; k < phinp_->MyLength(); k++)
+    for (int k = 0; k < phinp_->local_length(); k++)
     {
       if ((*phinp_)[k] >= activation_threshold_ && (*activation_time_np_)[k] <= dta_ * 0.9)
         (*activation_time_np_)[k] = time_;

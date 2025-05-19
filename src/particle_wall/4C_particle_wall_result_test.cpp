@@ -10,6 +10,7 @@
 #include "4C_comm_mpi_utils.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_node.hpp"
+#include "4C_io_input_parameter_container.hpp"
 #include "4C_particle_wall_datastate.hpp"
 #include "4C_particle_wall_interface.hpp"
 
@@ -55,8 +56,8 @@ void PARTICLEWALL::WallResultTest::test_node(
 
   // safety check
   if (not havenodeonanyproc)
-    FOUR_C_THROW("node %d does not belong to discretization %s", node + 1,
-        walldiscretization_->name().c_str());
+    FOUR_C_THROW(
+        "node {} does not belong to discretization {}", node + 1, walldiscretization_->name());
 
 
   if (walldiscretization_->have_global_node(node))
@@ -97,11 +98,11 @@ void PARTICLEWALL::WallResultTest::test_node(
 
         if (disp != nullptr)
         {
-          const Epetra_BlockMap& disnpmap = disp->Map();
+          const Epetra_BlockMap& disnpmap = disp->get_block_map();
           int lid = disnpmap.LID(walldiscretization_->dof(0, actnode, idx));
           if (lid < 0)
-            FOUR_C_THROW("You tried to test %s on nonexistent dof %d on node %d", quantity.c_str(),
-                idx, actnode->id());
+            FOUR_C_THROW("You tried to test {} on nonexistent dof {} on node {}", quantity, idx,
+                actnode->id());
           actresult += (*disp)[lid];
         }
       }
@@ -124,16 +125,16 @@ void PARTICLEWALL::WallResultTest::test_node(
 
       if (idx >= 0)
       {
-        const Epetra_BlockMap& disnpmap = disp->Map();
+        const Epetra_BlockMap& disnpmap = disp->get_block_map();
         int lid = disnpmap.LID(walldiscretization_->dof(0, actnode, idx));
         if (lid < 0)
-          FOUR_C_THROW("You tried to test %s on nonexistent dof %d on node %d", quantity.c_str(),
-              idx, actnode->id());
+          FOUR_C_THROW("You tried to test {} on nonexistent dof {} on node {}", quantity, idx,
+              actnode->id());
         actresult = (*disp)[lid];
       }
     }
     else
-      FOUR_C_THROW("result check failed with unknown quantity '%s'!", quantity.c_str());
+      FOUR_C_THROW("result check failed with unknown quantity '{}'!", quantity);
 
     // compare values
     const int err = compare_values(actresult, "NODE", container);
@@ -164,7 +165,7 @@ void PARTICLEWALL::WallResultTest::test_special(
   else if (quantity == "nwallnodes")
     actresult = walldiscretization_->num_global_nodes();
   else
-    FOUR_C_THROW("result check failed with unknown quantity '%s'!", quantity.c_str());
+    FOUR_C_THROW("result check failed with unknown quantity '{}'!", quantity);
 
   // compare values
   const int err = compare_values(actresult, "SPECIAL", container);

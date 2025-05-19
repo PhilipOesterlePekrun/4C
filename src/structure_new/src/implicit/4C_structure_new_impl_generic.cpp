@@ -175,9 +175,8 @@ bool Solid::IMPLICIT::Generic::apply_correction_system(const enum NOX::Nln::Corr
     {
       FOUR_C_THROW(
           "No action defined for the given second order correction type: "
-          "\"%s\"",
+          "\"{}\"",
           NOX::Nln::correction_type_to_string(type).c_str());
-      exit(EXIT_FAILURE);
     }
   }
 
@@ -223,9 +222,8 @@ void NOX::Nln::PrePostOp::IMPLICIT::Generic::runPostIterate(const ::NOX::Solver:
 {
   double step = 0.0;
   const bool isdefaultstep = get_step(step, solver);
-  const int num_corrs = get_number_of_modified_newton_corrections(solver);
 
-  impl_.model_eval().run_post_iterate(solver, step, isdefaultstep, num_corrs);
+  impl_.model_eval().run_post_iterate(solver, step, isdefaultstep);
 }
 
 /*----------------------------------------------------------------------------*
@@ -244,7 +242,7 @@ void NOX::Nln::PrePostOp::IMPLICIT::Generic::run_pre_apply_jacobian_inverse(
     const ::NOX::Abstract::Vector& rhs, ::NOX::Abstract::Vector& result,
     const ::NOX::Abstract::Vector& xold, const NOX::Nln::Group& grp)
 {
-  Core::LinAlg::VectorView result_view(extract_epetra_vector(result));
+  Core::LinAlg::View result_view(extract_epetra_vector(result));
 
   // Some inherited classes break const-correctness. Thus, we need to provide something
   // that may be safely const_casted. fixme
@@ -262,7 +260,7 @@ void NOX::Nln::PrePostOp::IMPLICIT::Generic::run_post_apply_jacobian_inverse(
     const ::NOX::Abstract::Vector& rhs, ::NOX::Abstract::Vector& result,
     const ::NOX::Abstract::Vector& xold, const NOX::Nln::Group& grp)
 {
-  Core::LinAlg::VectorView result_view(extract_epetra_vector(result));
+  Core::LinAlg::View result_view(extract_epetra_vector(result));
   impl_.model_eval().run_post_apply_jacobian_inverse(
       copy_to_our_vector(rhs), result_view, copy_to_our_vector(xold), grp);
 
@@ -299,21 +297,6 @@ bool NOX::Nln::PrePostOp::IMPLICIT::Generic::get_step(
   }
 
   return isdefaultstep;
-}
-
-/*----------------------------------------------------------------------------*
- *----------------------------------------------------------------------------*/
-int NOX::Nln::PrePostOp::IMPLICIT::Generic::get_number_of_modified_newton_corrections(
-    const ::NOX::Solver::Generic& solver) const
-{
-  int number_of_corr = 0;
-  const Teuchos::ParameterList& pmod =
-      solver.getList().sublist("Direction").sublist("Newton").sublist("Modified");
-
-  if (pmod.isParameter("Number of Corrections"))
-    number_of_corr = pmod.get<int>("Number of Corrections");
-
-  return number_of_corr;
 }
 
 /*----------------------------------------------------------------------------*

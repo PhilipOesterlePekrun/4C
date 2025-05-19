@@ -34,8 +34,7 @@ namespace Solid
    * This object bridges the gap between the base time integator Solid::TimInt
    * and the specific implementation of explicit time integrators.
    *
-   * \author bborn
-   * \date 07/08
+
    */
   class TimIntExpl : public TimInt
   {
@@ -77,8 +76,8 @@ namespace Solid
 
     \warning none
     \return bool
-    \date 08/16
-    \author rauch  */
+
+    */
     void init(const Teuchos::ParameterList& timeparams, const Teuchos::ParameterList& sdynparams,
         const Teuchos::ParameterList& xparams, std::shared_ptr<Core::FE::Discretization> actdis,
         std::shared_ptr<Core::LinAlg::Solver> solver) override;
@@ -99,8 +98,8 @@ namespace Solid
 
     \warning none
     \return void
-    \date 08/16
-    \author rauch  */
+
+    */
     void setup() override;
 
     //@}
@@ -318,7 +317,7 @@ namespace Solid
     };
 
     //! Return Teuchos::rcp to ConstraintManager conman_
-    std::shared_ptr<CONSTRAINTS::ConstrManager> get_constraint_manager() override
+    std::shared_ptr<Constraints::ConstrManager> get_constraint_manager() override
     {
       FOUR_C_THROW("get_constraint_manager() has not been tested for explicit time integrators");
       return nullptr;
@@ -333,7 +332,7 @@ namespace Solid
     };
 
     //! Return Teuchos::rcp to SpringDashpotManager springman_
-    std::shared_ptr<CONSTRAINTS::SpringDashpotManager> get_spring_dashpot_manager() override
+    std::shared_ptr<Constraints::SpringDashpotManager> get_spring_dashpot_manager() override
     {
       FOUR_C_THROW(
           "get_spring_dashpot_manager() has not been tested for explicit time integrators");
@@ -343,15 +342,7 @@ namespace Solid
     //! Get type of thickness scaling for thin shell structures
     Inpar::Solid::StcScale get_stc_algo() override
     {
-      FOUR_C_THROW("get_stc_algo() has not been tested for explicit time integrators");
-      return Inpar::Solid::stc_none;
-    };
-
-    //! Access to scaling matrix for STC
-    std::shared_ptr<Core::LinAlg::SparseMatrix> get_stc_mat() override
-    {
-      FOUR_C_THROW("get_stc_mat() has not been tested for explicit time integrators");
-      return nullptr;
+      FOUR_C_THROW("STC is not supported in the old time integration framework!");
     };
 
     void update_iter_incr_constr(

@@ -14,14 +14,13 @@
 #include "4C_inpar_xfem.hpp"
 #include "4C_linalg_fixedsizematrix.hpp"
 #include "4C_linalg_vector.hpp"
+#include "4C_utils_parameter_list.fwd.hpp"
 
 #include <memory>
 #include <set>
 #include <vector>
 
 FOUR_C_NAMESPACE_OPEN
-
-// #define WRITE_GMSH
 
 namespace Mortar
 {
@@ -44,7 +43,7 @@ namespace Discret
 {
   namespace Elements
   {
-    class StructuralSurface;
+    class SolidSurface;
   }
 }  // namespace Discret
 
@@ -99,7 +98,7 @@ namespace XFEM
           min_surf_id_(-1),
           min_mortar_id_(-1),
           so_surf_id_to_mortar_ele_(std::vector<CONTACT::Element*>()),
-          mortar_id_to_so_surf_ele_(std::vector<Discret::Elements::StructuralSurface*>()),
+          mortar_id_to_so_surf_ele_(std::vector<Discret::Elements::SolidSurface*>()),
           mortar_id_to_somc_(std::vector<int>()),
           mortar_id_to_sosid_(std::vector<int>()),
           extrapolate_to_zero_(false),
@@ -169,7 +168,7 @@ namespace XFEM
       return so_surf_id_to_mortar_ele_.at(soSurfId - min_surf_id_);
     }
     /// Get the solid surface element for the contact element id
-    Discret::Elements::StructuralSurface* get_surf_ele(const int mortarId)
+    Discret::Elements::SolidSurface* get_surf_ele(const int mortarId)
     {
       return mortar_id_to_so_surf_ele_.at(mortarId - min_mortar_id_);
     }
@@ -200,7 +199,7 @@ namespace XFEM
     void fill_complete_sele_map();
 
     /// Rowmap of contact elements based on the fluid element owner
-    std::shared_ptr<Epetra_Map>& get_contact_ele_row_map_f_ownerbased()
+    std::shared_ptr<Core::LinAlg::Map>& get_contact_ele_row_map_f_ownerbased()
     {
       return contact_ele_rowmap_fluidownerbased_;
     }
@@ -223,11 +222,8 @@ namespace XFEM
       return (higher_contact_elements_comm_.find(cid) != higher_contact_elements_comm_.end());
     }
 
-    /// Initialize Gmsh files
-    void create_new_gmsh_files();
-
-    /// Write Gmsh files
-    void gmsh_write(Core::LinAlg::Matrix<3, 1> x, double val, int section);
+    /// Print a summary of contact GPs
+    void print_summary_contact_gps();
 
     /// Increment gausspoint counter
     void inc_gp(int state) { ++sum_gps_[state]; }
@@ -249,7 +245,7 @@ namespace XFEM
 
     /// Get the fluid states at specific selexi
     void get_states(const int fluidele_id, const std::vector<int>& fluid_nds,
-        const Discret::Elements::StructuralSurface* sele, const Core::LinAlg::Matrix<2, 1>& selexsi,
+        const Discret::Elements::SolidSurface* sele, const Core::LinAlg::Matrix<2, 1>& selexsi,
         const Core::LinAlg::Matrix<3, 1>& x, Core::Elements::Element*& fluidele,
         Core::LinAlg::SerialDenseMatrix& ele_xyze, std::vector<double>& velpres,
         std::vector<double>& disp, std::vector<double>& ivel, double& pres_m,
@@ -262,12 +258,12 @@ namespace XFEM
         double& penalty_fac, const Core::LinAlg::Matrix<3, 1>& vel_m);
 
     /// Get the Nitsche penalty parameter
-    void get_penalty_param(Discret::Elements::StructuralSurface* sele, double& penalty_fac);
+    void get_penalty_param(Discret::Elements::SolidSurface* sele, double& penalty_fac);
 
     /// Get the volumecell for local coord xsi on sele
-    bool get_volumecell(Discret::Elements::StructuralSurface*& sele,
-        Core::LinAlg::Matrix<2, 1>& xsi, Cut::SideHandle*& sidehandle, std::vector<int>& nds,
-        int& eleid, Cut::VolumeCell*& volumecell, Core::LinAlg::Matrix<3, 1>& elenormal,
+    bool get_volumecell(Discret::Elements::SolidSurface*& sele, Core::LinAlg::Matrix<2, 1>& xsi,
+        Cut::SideHandle*& sidehandle, std::vector<int>& nds, int& eleid,
+        Cut::VolumeCell*& volumecell, Core::LinAlg::Matrix<3, 1>& elenormal,
         Core::LinAlg::Matrix<3, 1>& x, bool& FSI_integrated, double& distance);
 
     /// Evaluate the distance of x the boundary of a side
@@ -339,7 +335,7 @@ namespace XFEM
     /// Vector for translation of Structural Surface Id to Contact Element
     std::vector<CONTACT::Element*> so_surf_id_to_mortar_ele_;
     /// Vector for translation of Mortar Element Id to Structural Surface
-    std::vector<Discret::Elements::StructuralSurface*> mortar_id_to_so_surf_ele_;
+    std::vector<Discret::Elements::SolidSurface*> mortar_id_to_so_surf_ele_;
     /// Vector for translation of Mortar Element Id to Mesh Coupling Object Id
     std::vector<int> mortar_id_to_somc_;
     /// Vector for translation of Mortar Element Id to Structural Surface Id
@@ -351,7 +347,7 @@ namespace XFEM
     // all sele which have a row fluid-element on this proc
     std::set<int> my_sele_ids_;
     /// contact ele romap - based on the background fluid element owners
-    std::shared_ptr<Epetra_Map> contact_ele_rowmap_fluidownerbased_;
+    std::shared_ptr<Core::LinAlg::Map> contact_ele_rowmap_fluidownerbased_;
 
     /// The Contact Strategy
     CONTACT::NitscheStrategy& contact_strategy_;
@@ -366,9 +362,6 @@ namespace XFEM
     std::set<int> higher_contact_elements_;
     /// Contact Elements with increased number of GPs synchronized
     std::set<int> higher_contact_elements_comm_;
-
-    /// For Gmsh Output
-    std::vector<std::vector<std::pair<Core::LinAlg::Matrix<3, 1>, double>>> plot_data_;
 
     /// Summarized Contact gps
     /// 0 ... Contact, 1 ... Contact_NoContactNoFSI, 2 ... Contact_NoContactFSI, 3 ...

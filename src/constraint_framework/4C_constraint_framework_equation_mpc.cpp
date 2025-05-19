@@ -15,7 +15,7 @@
 FOUR_C_NAMESPACE_OPEN
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-void CONSTRAINTS::SUBMODELEVALUATOR::LinearCoupledEquation::evaluate_equation(
+void Constraints::SubmodelEvaluator::LinearCoupledEquation::evaluate_equation(
     Core::LinAlg::SparseMatrix& Q_dd, Core::LinAlg::SparseMatrix& Q_dL,
     Core::LinAlg::SparseMatrix& Q_Ld, Core::LinAlg::Vector<double>& constraint_vector,
     const Core::LinAlg::Vector<double>& D_np1)
@@ -32,32 +32,32 @@ void CONSTRAINTS::SUBMODELEVALUATOR::LinearCoupledEquation::evaluate_equation(
     Q_Ld.assemble(coefficient, rowId, dofId);
 
     // force contribution
-    constraintViolation = D_np1.Values()[dofId] * coefficient;
-    constraint_vector.SumIntoGlobalValues(1, &constraintViolation, &rowId);
+    constraintViolation = D_np1.get_values()[dofId] * coefficient;
+    constraint_vector.sum_into_global_values(1, &constraintViolation, &rowId);
   }
 }
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-int CONSTRAINTS::SUBMODELEVALUATOR::MultiPointConstraintEquationBase::get_number_of_mp_cs() const
+int Constraints::SubmodelEvaluator::MultiPointConstraintEquationBase::get_number_of_mp_cs() const
 {
   return n_dof_coupled_;
 }
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-int CONSTRAINTS::SUBMODELEVALUATOR::MultiPointConstraintEquationBase::get_first_row_id() const
+int Constraints::SubmodelEvaluator::MultiPointConstraintEquationBase::get_first_row_id() const
 {
   return first_row_id_;
 }
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-void CONSTRAINTS::SUBMODELEVALUATOR::MultiPointConstraintEquationBase::set_first_row_id(
+void Constraints::SubmodelEvaluator::MultiPointConstraintEquationBase::set_first_row_id(
     int global_row_id)
 {
   first_row_id_ = global_row_id;
 }
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-CONSTRAINTS::SUBMODELEVALUATOR::LinearCoupledEquation::LinearCoupledEquation(
+Constraints::SubmodelEvaluator::LinearCoupledEquation::LinearCoupledEquation(
     int id, const std::vector<int>& dofs, std::vector<double> coefficients)
 {
   Core::IO::cout(Core::IO::debug) << "\nLinear coupled equation saved (ID: " << id << ")\n ";

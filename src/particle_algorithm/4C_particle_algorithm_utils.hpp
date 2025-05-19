@@ -14,7 +14,7 @@
 #include "4C_config.hpp"
 
 #include "4C_particle_engine_typedefs.hpp"
-#include "4C_utils_parameter_list.hpp"
+#include "4C_utils_parameter_list.fwd.hpp"
 
 #include <map>
 
@@ -29,7 +29,6 @@ namespace PARTICLEALGORITHM
      *
      * Read parameters relating particle types to specific values from the parameter list.
      *
-     * \author Sebastian Fuchs \date 07/2018
      *
      * \tparam valtype type of value
      *

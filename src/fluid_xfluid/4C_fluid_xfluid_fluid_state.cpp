@@ -25,9 +25,9 @@ FOUR_C_NAMESPACE_OPEN
 FLD::XFluidFluidState::XFluidFluidState(
     const std::shared_ptr<XFEM::ConditionManager>& condition_manager,
     const std::shared_ptr<Cut::CutWizard>& wizard, const std::shared_ptr<XFEM::XFEMDofSet>& dofset,
-    const std::shared_ptr<const Epetra_Map>& xfluiddofrowmap,
-    const std::shared_ptr<const Epetra_Map>& xfluiddofcolmap,
-    const std::shared_ptr<const Epetra_Map>& embfluiddofrowmap)
+    const std::shared_ptr<const Core::LinAlg::Map>& xfluiddofrowmap,
+    const std::shared_ptr<const Core::LinAlg::Map>& xfluiddofcolmap,
+    const std::shared_ptr<const Core::LinAlg::Map>& embfluiddofrowmap)
     : XFluidState(condition_manager, wizard, dofset, xfluiddofrowmap, xfluiddofcolmap),
       xffluiddofrowmap_(Core::LinAlg::merge_map(xfluiddofrowmap, embfluiddofrowmap, false)),
       xffluidsplitter_(std::make_shared<FLD::Utils::XFluidFluidMapExtractor>()),
@@ -100,17 +100,17 @@ void FLD::XFluidFluidState::create_merged_dbc_map_extractor(
     const Core::LinAlg::MapExtractor& embfluiddbcmaps)
 {
   // create merged dbc map from both fluids
-  std::vector<std::shared_ptr<const Epetra_Map>> dbcmaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> dbcmaps;
   dbcmaps.push_back(XFluidState::dbcmaps_->cond_map());
   dbcmaps.push_back(embfluiddbcmaps.cond_map());
 
-  std::shared_ptr<const Epetra_Map> xffluiddbcmap =
+  std::shared_ptr<const Core::LinAlg::Map> xffluiddbcmap =
       Core::LinAlg::MultiMapExtractor::merge_maps(dbcmaps);
 
-  std::vector<std::shared_ptr<const Epetra_Map>> othermaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> othermaps;
   othermaps.push_back(XFluidState::dbcmaps_->other_map());
   othermaps.push_back(embfluiddbcmaps.other_map());
-  std::shared_ptr<const Epetra_Map> xffluidothermap =
+  std::shared_ptr<const Core::LinAlg::Map> xffluidothermap =
       Core::LinAlg::MultiMapExtractor::merge_maps(othermaps);
 
   xffluiddbcmaps_ = std::make_shared<Core::LinAlg::MapExtractor>(
@@ -139,7 +139,7 @@ bool FLD::XFluidFluidState::destroy()
 {
   // destroy system matrix
   std::cout << "Destroying the xffluidsysmat_ is not possible at the moment. Internally more "
-               "strong RCPs point to the EpetraMatrix. This has to be checked!!!"
+               "strong RCPs point to the matrix. This has to be checked!!!"
             << std::endl;
 
   XFEM::destroy_rcp_object(xffluidvelnp_);
@@ -163,7 +163,7 @@ bool FLD::XFluidFluidState::destroy()
   // dof_row_map() in Xfluidfluid currently returns a strong RCP
   if (xffluiddofrowmap_.use_count() == 1)
     xffluiddofrowmap_ = nullptr;
-  else  // FOUR_C_THROW("could not destroy object: %i!=1 pointers",
+  else  //  FOUR_C_THROW("could not destroy object: {}!=1 pointers",
         // xffluiddofrowmap_.use_count());
     std::cout << "could not destroy xffluiddofrowmap_: number of pointers is "
               << xffluiddofrowmap_.use_count() << "!=1";

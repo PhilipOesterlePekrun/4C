@@ -27,25 +27,25 @@ FOUR_C_NAMESPACE_OPEN
 template <Core::FE::CellType distype, Discret::Elements::Fluid::EnrichmentType enrtype>
 Discret::Elements::FluidEleCalcXWall<distype, enrtype>::FluidEleCalcXWall()
     : Discret::Elements::FluidEleCalc<distype, enrtype>::FluidEleCalc(),
-      ewdist_(true),
-      etauw_(true),
-      einctauw_(true),
-      eramp_(true),
-      epsi_(true),
-      epsinew_(true),
-      epsiold_(true),
-      eincwdist_(true),
+      ewdist_(Core::LinAlg::Initialization::zero),
+      etauw_(Core::LinAlg::Initialization::zero),
+      einctauw_(Core::LinAlg::Initialization::zero),
+      eramp_(Core::LinAlg::Initialization::zero),
+      epsi_(Core::LinAlg::Initialization::zero),
+      epsinew_(Core::LinAlg::Initialization::zero),
+      epsiold_(Core::LinAlg::Initialization::zero),
+      eincwdist_(Core::LinAlg::Initialization::zero),
       visc_(0.0),
       viscinv_(0.0),
-      xyze_(true),
-      functenr_(true),
-      funct_(true),
-      derxyenr_(true),
-      derxy_(true),
-      derxyenr2_(true),
-      derxy2_(true),
-      deriv_(true),
-      deriv2_(true),
+      xyze_(Core::LinAlg::Initialization::zero),
+      functenr_(Core::LinAlg::Initialization::zero),
+      funct_(Core::LinAlg::Initialization::zero),
+      derxyenr_(Core::LinAlg::Initialization::zero),
+      derxy_(Core::LinAlg::Initialization::zero),
+      derxyenr2_(Core::LinAlg::Initialization::zero),
+      derxy2_(Core::LinAlg::Initialization::zero),
+      deriv_(Core::LinAlg::Initialization::zero),
+      deriv2_(Core::LinAlg::Initialization::zero),
       k_(0.41),
       b_(5.17),
       expmkmb_(exp(-k_ * b_)),
@@ -196,11 +196,9 @@ template <Core::FE::CellType distype, Discret::Elements::Fluid::EnrichmentType e
 int Discret::Elements::FluidEleCalcXWall<distype, enrtype>::evaluate(Discret::Elements::Fluid* ele,
     Core::FE::Discretization& discretization, const std::vector<int>& lm,
     Teuchos::ParameterList& params, std::shared_ptr<Core::Mat::Material>& mat,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra, bool offdiag)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3, bool offdiag)
 {
   calcoldandnewpsi_ = false;
 
@@ -229,8 +227,8 @@ int Discret::Elements::FluidEleCalcXWall<distype, enrtype>::evaluate(Discret::El
     if (nodecount != 0)
       FOUR_C_THROW("something is wrong in this element with the number of virtual nodes vs dofs");
 
-    int err = my::evaluate(ele, discretization, lm, params, mat, elemat1_epetra, elemat2_epetra,
-        elevec1_epetra, elevec2_epetra, elevec3_epetra, my::intpoints_);
+    int err = my::evaluate(ele, discretization, lm, params, mat, elemat1, elemat2, elevec1, elevec2,
+        elevec3, my::intpoints_);
 
     int row1 = 0;
     int col1 = 0;
@@ -243,9 +241,9 @@ int Discret::Elements::FluidEleCalcXWall<distype, enrtype>::evaluate(Discret::El
           ++j)
       {
         if (*i == 0 && *j == 0 && row1 == col1)
-          elemat1_epetra[col1][row1] = 1.0;
+          elemat1[col1][row1] = 1.0;
         else if (*i == 0 or *j == 0)
-          elemat1_epetra[col1][row1] = 0.0;
+          elemat1[col1][row1] = 0.0;
         ++row1;
       }
       ++col1;
@@ -256,7 +254,7 @@ int Discret::Elements::FluidEleCalcXWall<distype, enrtype>::evaluate(Discret::El
     for (std::vector<int>::const_iterator i = assembletoggle.begin(); i != assembletoggle.end();
         ++i)
     {
-      if (*i == 0) elevec1_epetra[row1] = 0.0;
+      if (*i == 0) elevec1[row1] = 0.0;
       ++row1;
     }
 
@@ -411,7 +409,7 @@ void Discret::Elements::FluidEleCalcXWall<distype, enrtype>::get_ele_properties(
   // get element mk for stabilization
   const std::shared_ptr<Core::LinAlg::Vector<double>> mkvec =
       params.get<std::shared_ptr<Core::LinAlg::Vector<double>>>("mk");
-  mk_ = (*mkvec)[mkvec->Map().LID(ele->id())];
+  mk_ = (*mkvec)[mkvec->get_block_map().LID(ele->id())];
 
   numgpnorm_ = params.get<int>("gpnorm");
   numgpnormow_ = params.get<int>("gpnormow");
@@ -419,7 +417,7 @@ void Discret::Elements::FluidEleCalcXWall<distype, enrtype>::get_ele_properties(
   // get node coordinates and number of elements per node
   Core::Geo::fill_initial_position_array<distype, nsd_, Core::LinAlg::Matrix<nsd_, nen_>>(
       ele, my::xyze_);
-  Core::LinAlg::Matrix<nsd_, nen_> edispnp(true);
+  Core::LinAlg::Matrix<nsd_, nen_> edispnp(Core::LinAlg::Initialization::zero);
   if (ele->is_ale()) get_grid_disp_ale(discretization, lm, edispnp);
   prepare_gauss_rule();
 
@@ -534,12 +532,12 @@ void Discret::Elements::FluidEleCalcXWall<distype, enrtype>::
 
   if (my::det_ < 1E-16)
     FOUR_C_THROW(
-        "GLOBAL ELEMENT NO.%i\nZERO OR NEGATIVE JACOBIAN DETERMINANT: %f", my::eid_, my::det_);
+        "GLOBAL ELEMENT NO.{}\nZERO OR NEGATIVE JACOBIAN DETERMINANT: {}", my::eid_, my::det_);
 
   // compute integration factor
   my::fac_ = gpweight * my::det_;
 
-  // compute global first derivates
+  // compute global first derivatives
   derxy_.multiply(my::xji_, deriv_);
 
   //--------------------------------------------------------------
@@ -566,8 +564,8 @@ void Discret::Elements::FluidEleCalcXWall<distype, enrtype>::eval_enrichment()
   derxyenr_.clear();
   derxyenr2_.clear();
 
-  Core::LinAlg::Matrix<nsd_, 1> derpsigp(true);
-  Core::LinAlg::Matrix<numderiv2_, 1> der2psigp(true);
+  Core::LinAlg::Matrix<nsd_, 1> derpsigp(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<numderiv2_, 1> der2psigp(Core::LinAlg::Initialization::zero);
 
   double psigp = enrichment_shape_der(derpsigp, der2psigp);
 
@@ -604,9 +602,9 @@ void Discret::Elements::FluidEleCalcXWall<distype, enrtype>::eval_enrichment()
   // treat blending elements with ramp functions
   if (is_blending_ele_)
   {
-    Core::LinAlg::Matrix<nsd_, 1> derramp(true);
+    Core::LinAlg::Matrix<nsd_, 1> derramp(Core::LinAlg::Initialization::zero);
     derramp.multiply(derxy_, eramp_);
-    Core::LinAlg::Matrix<numderiv2_, 1> der2ramp(true);
+    Core::LinAlg::Matrix<numderiv2_, 1> der2ramp(Core::LinAlg::Initialization::zero);
     der2ramp.multiply(derxy2_, eramp_);
     double ramp = eramp_.dot(funct_);
 
@@ -670,17 +668,17 @@ double Discret::Elements::FluidEleCalcXWall<distype, enrtype>::enrichment_shape_
   // calculate transformation ---------------------------------------
   double wdist = ewdist_.dot(funct_);
   double tauw = etauw_.dot(funct_);
-  Core::LinAlg::Matrix<nsd_, 1> derwdist(true);
+  Core::LinAlg::Matrix<nsd_, 1> derwdist(Core::LinAlg::Initialization::zero);
   derwdist.multiply(derxy_, ewdist_);
-  Core::LinAlg::Matrix<nsd_, 1> dertauw(true);
+  Core::LinAlg::Matrix<nsd_, 1> dertauw(Core::LinAlg::Initialization::zero);
   dertauw.multiply(derxy_, etauw_);
-  Core::LinAlg::Matrix<numderiv2_, 1> der2wdist(true);
+  Core::LinAlg::Matrix<numderiv2_, 1> der2wdist(Core::LinAlg::Initialization::zero);
   if (my::is_higher_order_ele_) der2wdist.multiply(derxy2_, ewdist_);
-  Core::LinAlg::Matrix<numderiv2_, 1> der2tauw(true);
+  Core::LinAlg::Matrix<numderiv2_, 1> der2tauw(Core::LinAlg::Initialization::zero);
   if (my::is_higher_order_ele_) der2tauw.multiply(derxy2_, etauw_);
-  Core::LinAlg::Matrix<nsd_, 1> dertrans(true);
-  Core::LinAlg::Matrix<numderiv2_, 1> der2trans_1(true);
-  Core::LinAlg::Matrix<numderiv2_, 1> der2trans_2(true);
+  Core::LinAlg::Matrix<nsd_, 1> dertrans(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<numderiv2_, 1> der2trans_1(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<numderiv2_, 1> der2trans_2(Core::LinAlg::Initialization::zero);
 
   if (tauw < 1.0e-10) FOUR_C_THROW("tauw is almost zero");
   if (dens_ < 1.0e-10) FOUR_C_THROW("density is almost zero");
@@ -827,7 +825,7 @@ int Discret::Elements::FluidEleCalcXWall<distype, enrtype>::tau_w_via_gradient(
   //   Extract velocity/pressure from global vectors
   //----------------------------------------------------------------------------
 
-  Core::LinAlg::Matrix<nsd_, nen_> evel(true);
+  Core::LinAlg::Matrix<nsd_, nen_> evel(Core::LinAlg::Initialization::zero);
   my::extract_values_from_global_vector(
       discretization, lm, *my::rotsymmpbc_, &evel, nullptr, "vel");
 
@@ -840,8 +838,8 @@ int Discret::Elements::FluidEleCalcXWall<distype, enrtype>::tau_w_via_gradient(
 
   if (ele->is_ale())
   {
-    Core::LinAlg::Matrix<nsd_, nen_> edispnp(true);
-    Core::LinAlg::Matrix<nsd_, nen_> egridv(true);
+    Core::LinAlg::Matrix<nsd_, nen_> edispnp(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<nsd_, nen_> egridv(Core::LinAlg::Initialization::zero);
     my::get_grid_disp_vel_ale(discretization, lm, edispnp, egridv);
     evel -= egridv;
   }
@@ -865,7 +863,7 @@ int Discret::Elements::FluidEleCalcXWall<distype, enrtype>::tau_w_via_gradient(
       eval_shape_func_and_derivs_at_int_point(gpc, 1.0);
 
       // calculate wall-normal vector
-      Core::LinAlg::Matrix<nsd_, 1> normwall(true);
+      Core::LinAlg::Matrix<nsd_, 1> normwall(Core::LinAlg::Initialization::zero);
       normwall.multiply(derxy_, ewdist_);
 
       // at certain corner elements, it can happen, that the normal vector calculated at the
@@ -887,19 +885,19 @@ int Discret::Elements::FluidEleCalcXWall<distype, enrtype>::tau_w_via_gradient(
       // unit vector
       normwall.scale(1.0 / normwall.norm2());
 
-      Core::LinAlg::Matrix<nsd_, nsd_> velderxy(true);
+      Core::LinAlg::Matrix<nsd_, nsd_> velderxy(Core::LinAlg::Initialization::zero);
       velderxy.multiply_nt(evel, my::derxy_);
 
       // remove normal part
 
       //      normwall.scale(1.0/normwall.norm2());
-      Core::LinAlg::Matrix<nsd_, nsd_> velderxywoun(true);
+      Core::LinAlg::Matrix<nsd_, nsd_> velderxywoun(Core::LinAlg::Initialization::zero);
       for (int idim = 0; idim < nsd_; idim++)
         for (int jdim = 0; jdim < nsd_; jdim++)
           velderxywoun(idim, jdim) = velderxy(idim, jdim) * (1.0 - abs(normwall(idim)));
 
       // now transform to derivative w.r.t. n
-      Core::LinAlg::Matrix<nsd_, 1> veldern(true);
+      Core::LinAlg::Matrix<nsd_, 1> veldern(Core::LinAlg::Initialization::zero);
       for (int idim = 0; idim < nsd_; idim++)
         for (int jdim = 0; jdim < nsd_; jdim++)
           veldern(idim) += velderxywoun(idim, jdim) * normwall(jdim);
@@ -951,12 +949,12 @@ double Discret::Elements::FluidEleCalcXWall<distype, enrtype>::calc_mk()
     intpoints = intpointsplane;
   }
 
-  Core::LinAlg::SerialDenseMatrix elemat_epetra1;
-  Core::LinAlg::SerialDenseMatrix elemat_epetra2;
-  elemat_epetra1.shape(nen_, nen_);
-  elemat_epetra2.shape(nen_, nen_);
-  Core::LinAlg::Matrix<nen_, nen_> Amat(elemat_epetra1.values(), true);
-  Core::LinAlg::Matrix<nen_, nen_> Bmat(elemat_epetra2.values(), true);
+  Core::LinAlg::SerialDenseMatrix elemat1;
+  Core::LinAlg::SerialDenseMatrix elemat2;
+  elemat1.shape(nen_, nen_);
+  elemat2.shape(nen_, nen_);
+  Core::LinAlg::Matrix<nen_, nen_> Amat(elemat1.values(), true);
+  Core::LinAlg::Matrix<nen_, nen_> Bmat(elemat2.values(), true);
 
   double vol = 0.0;
   //------------------------------------------------------------------
@@ -1008,7 +1006,7 @@ double Discret::Elements::FluidEleCalcXWall<distype, enrtype>::calc_mk()
     vol += my::fac_;
   }  // gauss loop
 
-  const double maxeigenvalue = Core::LinAlg::generalized_eigen(elemat_epetra1, elemat_epetra2);
+  const double maxeigenvalue = Core::LinAlg::generalized_eigen(elemat1, elemat2);
 
   double h_u = 0.0;
   if (my::fldpara_->which_tau() == Inpar::FLUID::tau_franca_barrenechea_valentin_frey_wall ||
@@ -1061,7 +1059,7 @@ int Discret::Elements::FluidEleCalcXWall<distype, enrtype>::calc_mk(Discret::Ele
   Core::Geo::fill_initial_position_array<distype, nsd_, Core::LinAlg::Matrix<nsd_, nen_>>(
       ele, my::xyze_);
 
-  Core::LinAlg::Matrix<nsd_, nen_> edispnp(true);
+  Core::LinAlg::Matrix<nsd_, nen_> edispnp(Core::LinAlg::Initialization::zero);
   if (ele->is_ale()) get_grid_disp_ale(discretization, lm, edispnp);
 
   elevec1[0] = calc_mk();
@@ -1084,17 +1082,17 @@ int Discret::Elements::FluidEleCalcXWall<distype, enrtype>::x_wall_projection(
   //   Extract velocity/pressure from global vectors
   //----------------------------------------------------------------------------
 
-  Core::LinAlg::Matrix<nsd_, nen_> eveln(true);
+  Core::LinAlg::Matrix<nsd_, nen_> eveln(Core::LinAlg::Initialization::zero);
   my::extract_values_from_global_vector(
       discretization, lm, *my::rotsymmpbc_, &eveln, nullptr, "veln");
 
-  Core::LinAlg::Matrix<nsd_, nen_> eaccn(true);
+  Core::LinAlg::Matrix<nsd_, nen_> eaccn(Core::LinAlg::Initialization::zero);
   bool switchonaccn = discretization.has_state("accn");
   if (switchonaccn)
     my::extract_values_from_global_vector(
         discretization, lm, *my::rotsymmpbc_, &eaccn, nullptr, "accn");
 
-  Core::LinAlg::Matrix<nsd_, nen_> evelnp(true);
+  Core::LinAlg::Matrix<nsd_, nen_> evelnp(Core::LinAlg::Initialization::zero);
   bool switchonvelnp = discretization.has_state("velnp");
   if (switchonvelnp)
     my::extract_values_from_global_vector(
@@ -1107,7 +1105,7 @@ int Discret::Elements::FluidEleCalcXWall<distype, enrtype>::x_wall_projection(
   Core::Geo::fill_initial_position_array<distype, nsd_, Core::LinAlg::Matrix<nsd_, nen_>>(
       ele, my::xyze_);
 
-  Core::LinAlg::Matrix<nsd_, nen_> edispnp(true);
+  Core::LinAlg::Matrix<nsd_, nen_> edispnp(Core::LinAlg::Initialization::zero);
   if (ele->is_ale()) get_grid_disp_ale(discretization, lm, edispnp);
 
   //  Core::FE::GaussIntegration intpoints(Core::FE::CellType::line6);
@@ -1136,8 +1134,8 @@ int Discret::Elements::FluidEleCalcXWall<distype, enrtype>::x_wall_projection(
     //                         MASS MATRIX
     //----------------------------------------------------------------------------
     std::array<int, nsd_> idim_nsd_p_idim;
-    Core::LinAlg::Matrix<nsd_ * nsd_, enren_> lin_resM_Du(true);
-    Core::LinAlg::Matrix<enren_ * nsd_, enren_ * nsd_> estif_u(true);
+    Core::LinAlg::Matrix<nsd_ * nsd_, enren_> lin_resM_Du(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<enren_ * nsd_, enren_ * nsd_> estif_u(Core::LinAlg::Initialization::zero);
 
     for (int idim = 0; idim < nsd_; ++idim)
     {
@@ -1362,7 +1360,7 @@ void Discret::Elements::FluidEleCalcXWall<distype, enrtype>::prepare_gauss_rule(
 
   // the derivative of the wall distance with respect to the local coordinates
   // shows how the local axes are oriented with respect to the wall-normal vector
-  Core::LinAlg::Matrix<nsd_, 1> normwallrst(true);
+  Core::LinAlg::Matrix<nsd_, 1> normwallrst(Core::LinAlg::Initialization::zero);
   normwallrst.multiply(deriv_, ewdist_);
   double normwallrstnorm2 = normwallrst.norm2();
   const double dot1 = abs(normwallrst(0) / normwallrstnorm2);

@@ -131,7 +131,7 @@ FLD::Utils::StressManager::get_pre_calc_wall_shear_stresses(
       break;
     case Inpar::FLUID::wss_mean:
       if (sum_dt_wss_ > 0.0)  // iff we have actually calculated some mean wss
-        wss->Update(1.0 / sum_dt_wss_, *sum_wss_, 0.0);  // weighted sum of all prior stresses
+        wss->update(1.0 / sum_dt_wss_, *sum_wss_, 0.0);  // weighted sum of all prior stresses
       break;
     default:
       FOUR_C_THROW(
@@ -217,7 +217,7 @@ std::shared_ptr<Core::LinAlg::Vector<double>> FLD::Utils::StressManager::get_pre
       break;
     case Inpar::FLUID::wss_mean:
       if (sum_dt_stresses_ > 0.0)  // iff we have actually calculated some mean stresses
-        stresses->Update(
+        stresses->update(
             1.0 / sum_dt_stresses_, *sum_stresses_, 0.0);  // weighted sum of all prior stresses
       break;
     default:
@@ -240,7 +240,7 @@ std::shared_ptr<Core::LinAlg::Vector<double>> FLD::Utils::StressManager::calc_st
       integrate_interface_shape(condstring);
 
   // compute traction values at specified nodes; otherwise do not touch the zero values
-  for (int i = 0; i < integratedshapefunc->MyLength(); i++)
+  for (int i = 0; i < integratedshapefunc->local_length(); i++)
   {
     if ((*integratedshapefunc)[i] != 0.0)
     {
@@ -266,7 +266,7 @@ std::shared_ptr<Core::LinAlg::Vector<double>> FLD::Utils::StressManager::integra
   // get a vector layout from the discretization to construct matching
   // vectors and matrices
   //                 local <-> global dof numbering
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   // create vector (+ initialization with zeros)
   std::shared_ptr<Core::LinAlg::Vector<double>> integratedshapefunc =
@@ -276,7 +276,7 @@ std::shared_ptr<Core::LinAlg::Vector<double>> FLD::Utils::StressManager::integra
   discret_->clear_state();
   if (alefluid_)
   {
-    discret_->set_state("dispnp", dispnp_);
+    discret_->set_state("dispnp", *dispnp_);
   }
   discret_->evaluate_condition(eleparams, integratedshapefunc, condname);
   discret_->clear_state();
@@ -302,7 +302,7 @@ std::shared_ptr<Core::LinAlg::Vector<double>> FLD::Utils::StressManager::calc_wa
   // get a vector layout from the discretization to construct matching
   // vectors and matrices
   //                 local <-> global dof numbering
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   // vector ndnorm0 with pressure-entries is needed for evaluate_condition
   std::shared_ptr<Core::LinAlg::Vector<double>> ndnorm0 =
@@ -312,7 +312,7 @@ std::shared_ptr<Core::LinAlg::Vector<double>> FLD::Utils::StressManager::calc_wa
   discret_->clear_state();  // TODO: (Thon) Do we really have to to this in here?
   if (alefluid_)
   {
-    discret_->set_state("dispnp", dispnp_);
+    discret_->set_state("dispnp", *dispnp_);
   }
   // evaluate the normals of the surface
   discret_->evaluate_condition(eleparams, ndnorm0, "FluidStressCalc");
@@ -321,7 +321,7 @@ std::shared_ptr<Core::LinAlg::Vector<double>> FLD::Utils::StressManager::calc_wa
   // -------------------------------------------------------------------
   // normalize the normal vectors
   // -------------------------------------------------------------------
-  for (int i = 0; i < ndnorm0->MyLength(); i += numdim_ + 1)
+  for (int i = 0; i < ndnorm0->local_length(); i += numdim_ + 1)
   {
     // calculate the length of the normal
     double L = 0.0;
@@ -350,7 +350,7 @@ std::shared_ptr<Core::LinAlg::Vector<double>> FLD::Utils::StressManager::calc_wa
   std::shared_ptr<Core::LinAlg::Vector<double>> wss = stresses;
 
   // loop over all entities within the traction vector
-  for (int i = 0; i < ndnorm0->MyLength(); i += numdim_ + 1)
+  for (int i = 0; i < ndnorm0->local_length(); i += numdim_ + 1)
   {
     // evaluate the normal stress = < traction . normal >
     double normal_stress = 0.0;
@@ -396,12 +396,12 @@ std::shared_ptr<Core::LinAlg::Vector<double>> FLD::Utils::StressManager::aggreag
 std::shared_ptr<Core::LinAlg::Vector<double>> FLD::Utils::StressManager::time_average_stresses(
     const Core::LinAlg::Vector<double>& stresses, const double dt)
 {
-  sum_stresses_->Update(dt, stresses, 1.0);  // weighted sum of all prior stresses
+  sum_stresses_->update(dt, stresses, 1.0);  // weighted sum of all prior stresses
   sum_dt_stresses_ += dt;
 
   std::shared_ptr<Core::LinAlg::Vector<double>> mean_stresses =
       std::make_shared<Core::LinAlg::Vector<double>>(*(discret_->dof_row_map()), true);
-  mean_stresses->Update(1.0 / sum_dt_stresses_, *sum_stresses_, 0.0);
+  mean_stresses->update(1.0 / sum_dt_stresses_, *sum_stresses_, 0.0);
 
   return mean_stresses;
 }
@@ -412,12 +412,12 @@ std::shared_ptr<Core::LinAlg::Vector<double>> FLD::Utils::StressManager::time_av
 std::shared_ptr<Core::LinAlg::Vector<double>> FLD::Utils::StressManager::time_average_wss(
     const Core::LinAlg::Vector<double>& wss, const double dt)
 {
-  sum_wss_->Update(dt, wss, 1.0);  // weighted sum of all prior stresses
+  sum_wss_->update(dt, wss, 1.0);  // weighted sum of all prior stresses
   sum_dt_wss_ += dt;
 
   std::shared_ptr<Core::LinAlg::Vector<double>> mean_wss =
       std::make_shared<Core::LinAlg::Vector<double>>(*(discret_->dof_row_map()), true);
-  mean_wss->Update(1.0 / sum_dt_wss_, *sum_wss_, 0.0);
+  mean_wss->update(1.0 / sum_dt_wss_, *sum_wss_, 0.0);
 
   return mean_wss;
 }
@@ -466,7 +466,7 @@ void FLD::Utils::StressManager::calc_sep_enr(std::shared_ptr<Core::LinAlg::Spars
 //----------------------------------------------------------------------*/
 void FLD::Utils::setup_fluid_fluid_vel_pres_split(const Core::FE::Discretization& fluiddis,
     int ndim, const Core::FE::Discretization& alefluiddis, Core::LinAlg::MapExtractor& extractor,
-    std::shared_ptr<Epetra_Map> fullmap)
+    std::shared_ptr<Core::LinAlg::Map> fullmap)
 {
   std::set<int> veldofset;
   std::set<int> presdofset;
@@ -517,16 +517,18 @@ void FLD::Utils::setup_fluid_fluid_vel_pres_split(const Core::FE::Discretization
   veldofmapvec.reserve(veldofset.size());
   veldofmapvec.assign(veldofset.begin(), veldofset.end());
   veldofset.clear();
-  std::shared_ptr<Epetra_Map> velrowmap = std::make_shared<Epetra_Map>(-1, veldofmapvec.size(),
-      veldofmapvec.data(), 0, Core::Communication::as_epetra_comm(fluiddis.get_comm()));
+  std::shared_ptr<Core::LinAlg::Map> velrowmap =
+      std::make_shared<Core::LinAlg::Map>(-1, veldofmapvec.size(), veldofmapvec.data(), 0,
+          Core::Communication::as_epetra_comm(fluiddis.get_comm()));
   veldofmapvec.clear();
 
   std::vector<int> presdofmapvec;
   presdofmapvec.reserve(presdofset.size());
   presdofmapvec.assign(presdofset.begin(), presdofset.end());
   presdofset.clear();
-  std::shared_ptr<Epetra_Map> presrowmap = std::make_shared<Epetra_Map>(-1, presdofmapvec.size(),
-      presdofmapvec.data(), 0, Core::Communication::as_epetra_comm(alefluiddis.get_comm()));
+  std::shared_ptr<Core::LinAlg::Map> presrowmap =
+      std::make_shared<Core::LinAlg::Map>(-1, presdofmapvec.size(), presdofmapvec.data(), 0,
+          Core::Communication::as_epetra_comm(alefluiddis.get_comm()));
   extractor.setup(*fullmap, presrowmap, velrowmap);
 }
 
@@ -557,7 +559,7 @@ void FLD::Utils::lift_drag(const std::shared_ptr<const Core::FE::Discretization>
     // vector with lift&drag forces after communication
     liftdragvals = std::make_shared<std::map<int, std::vector<double>>>();
 
-    for (unsigned i = 0; i < ldconds.size(); ++i)  // loop L&D conditions (i.e. lines in .dat file)
+    for (unsigned i = 0; i < ldconds.size(); ++i)
     {
       // get label of present lift_drag condition
       const int label = ldconds[i]->parameters().get<int>("label");
@@ -585,7 +587,7 @@ void FLD::Utils::lift_drag(const std::shared_ptr<const Core::FE::Discretization>
     }
 
     // sort data
-    for (unsigned i = 0; i < ldconds.size(); ++i)  // loop L&D conditions (i.e. lines in .dat file)
+    for (unsigned i = 0; i < ldconds.size(); ++i)
     {
       // get label of present lift_drag condition
       const int label = ldconds[i]->parameters().get<int>("label");
@@ -646,11 +648,11 @@ void FLD::Utils::lift_drag(const std::shared_ptr<const Core::FE::Discretization>
       {
         const Core::LinAlg::Matrix<3, 1> x(
             (*actnode)->x().data(), false);  // pointer to nodal coordinates
-        const Epetra_BlockMap& rowdofmap = trueresidual.Map();
+        const Epetra_BlockMap& rowdofmap = trueresidual.get_block_map();
         const std::vector<int> dof = dis->dof(*actnode);
 
         // get nodal forces
-        Core::LinAlg::Matrix<3, 1> actforces(true);
+        Core::LinAlg::Matrix<3, 1> actforces(Core::LinAlg::Initialization::zero);
         for (int idim = 0; idim < ndim; idim++)
         {
           actforces(idim, 0) = (trueresidual)[rowdofmap.LID(dof[idim])];
@@ -659,7 +661,7 @@ void FLD::Utils::lift_drag(const std::shared_ptr<const Core::FE::Discretization>
         // z-component remains zero for ndim=2
 
         // get moment
-        Core::LinAlg::Matrix<3, 1> actmoments(true);
+        Core::LinAlg::Matrix<3, 1> actmoments(Core::LinAlg::Initialization::zero);
         // get vector of point to center point
         Core::LinAlg::Matrix<3, 1> distances;
         distances.update(1.0, x, -1.0, centerCoord);
@@ -675,7 +677,7 @@ void FLD::Utils::lift_drag(const std::shared_ptr<const Core::FE::Discretization>
         }
 
         // calculate nodal angular moment with respect to global coordinate system
-        Core::LinAlg::Matrix<3, 1> actmoment_gc(true);
+        Core::LinAlg::Matrix<3, 1> actmoment_gc(Core::LinAlg::Initialization::zero);
         actmoment_gc(0, 0) =
             distances(1) * actforces(2, 0) - distances(2) * actforces(1, 0);  // zero for 2D
         actmoment_gc(1, 0) =
@@ -710,9 +712,9 @@ void FLD::Utils::lift_drag(const std::shared_ptr<const Core::FE::Discretization>
 
       // care for the fact that we are (most likely) parallel
       Core::Communication::sum_all(
-          myforces.data(), ((*liftdragvals)[label]).data(), 3, trueresidual.Comm());
+          myforces.data(), ((*liftdragvals)[label]).data(), 3, trueresidual.get_comm());
       Core::Communication::sum_all(
-          mymoments.data(), ((*liftdragvals)[label]).data() + 3, 3, trueresidual.Comm());
+          mymoments.data(), ((*liftdragvals)[label]).data() + 3, 3, trueresidual.get_comm());
 
       // do the output
       if (myrank == 0)
@@ -835,7 +837,7 @@ std::map<int, double> FLD::Utils::compute_flow_rates(Core::FE::Discretization& d
 
     // get a vector layout from the discretization to construct matching
     // vectors and matrices local <-> global dof numbering
-    const Epetra_Map* dofrowmap = dis.dof_row_map();
+    const Core::LinAlg::Map* dofrowmap = dis.dof_row_map();
 
     // create vector (+ initialization with zeros)
     std::shared_ptr<Core::LinAlg::Vector<double>> flowrates =
@@ -844,9 +846,9 @@ std::map<int, double> FLD::Utils::compute_flow_rates(Core::FE::Discretization& d
     // call loop over elements
     dis.clear_state();
 
-    dis.set_state("velaf", velnp);
-    if (dispnp != nullptr) dis.set_state("dispnp", dispnp);
-    if (gridv != nullptr) dis.set_state("gridv", gridv);
+    dis.set_state("velaf", *velnp);
+    if (dispnp != nullptr) dis.set_state("dispnp", *dispnp);
+    if (gridv != nullptr) dis.set_state("gridv", *gridv);
 
     dis.evaluate_condition(eleparams, flowrates, condstring, condID);
     dis.clear_state();
@@ -888,9 +890,9 @@ std::map<int, double> FLD::Utils::compute_volume(Core::FE::Discretization& dis,
 
   // call loop over elements
   dis.clear_state();
-  dis.set_state("velnp", velnp);
-  if (dispnp != nullptr) dis.set_state("dispnp", dispnp);
-  if (gridv != nullptr) dis.set_state("gridv", gridv);
+  dis.set_state("velnp", *velnp);
+  if (dispnp != nullptr) dis.set_state("dispnp", *dispnp);
+  if (gridv != nullptr) dis.set_state("gridv", *gridv);
 
   std::shared_ptr<Core::LinAlg::SerialDenseVector> volumes =
       std::make_shared<Core::LinAlg::SerialDenseVector>(1);
@@ -976,7 +978,7 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> FLD::Utils::project_gradient(
   std::shared_ptr<Core::LinAlg::MultiVector<double>> projected_velgrad = nullptr;
 
   // dependent on the desired projection, just remove this line
-  if (not vel->Map().SameAs(*discret.dof_row_map()))
+  if (not vel->get_map().SameAs(*discret.dof_row_map()))
     FOUR_C_THROW("input map is not a dof row map of the fluid");
 
   switch (recomethod)
@@ -1025,7 +1027,7 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> FLD::Utils::project_gradient(
 
       // set given state for element evaluation
       discret.clear_state();
-      discret.set_state("vel", vel);
+      discret.set_state("vel", *vel);
 
       // project velocity gradient of fluid to nodal level via L2 projection
       projected_velgrad = Core::FE::compute_nodal_l2_projection(discret, "vel", numvec, params,

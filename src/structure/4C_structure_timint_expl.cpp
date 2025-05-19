@@ -10,8 +10,9 @@
 #include "4C_cardiovascular0d_manager.hpp"
 #include "4C_constraint_manager.hpp"
 #include "4C_constraint_springdashpot_manager.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_contact_meshtying_contact_bridge.hpp"
-#include "4C_inpar_contact.hpp"
+#include "4C_fem_discretization.hpp"
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
 #include "4C_mortar_manager_base.hpp"
 #include "4C_mortar_strategy_base.hpp"
@@ -72,10 +73,10 @@ void Solid::TimIntExpl::setup()
   // explicit time integrators can only handle penalty contact / meshtying
   if (have_contact_meshtying())
   {
-    auto soltype = Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(
+    auto soltype = Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(
         cmtbridge_->get_strategy().params(), "STRATEGY");
-    if (soltype != Inpar::CONTACT::solution_penalty &&
-        (soltype != Inpar::CONTACT::solution_multiscale))
+    if (soltype != CONTACT::SolvingStrategy::penalty &&
+        (soltype != CONTACT::SolvingStrategy::multiscale))
       FOUR_C_THROW(
           "Currently, only penalty or multi-scale contact / meshtying can be done with explicit "
           "time integration schemes.");
@@ -86,7 +87,7 @@ void Solid::TimIntExpl::setup()
     FOUR_C_THROW("Explicit time integration schemes cannot handle local co-ordinate systems");
 
   // explicit time integrators cannot handle nonlinear inertia forces
-  if (have_nonlinear_mass())
+  if (have_nonlinear_mass() != Inpar::Solid::MassLin::ml_none)
     FOUR_C_THROW(
         "Explicit time integration schemes cannot handle nonlinear inertia forces (flag: MASSLIN)");
 
@@ -107,10 +108,10 @@ void Solid::TimIntExpl::apply_force_external(const double time,  //!< evaluation
 
   // set vector values needed by elements
   discret_->clear_state();
-  discret_->set_state(0, "displacement", dis);
-  discret_->set_state(0, "displacement new", dis);
+  discret_->set_state(0, "displacement", *dis);
+  discret_->set_state(0, "displacement new", *dis);
 
-  if (damping_ == Inpar::Solid::damp_material) discret_->set_state(0, "velocity", vel);
+  if (damping_ == Inpar::Solid::damp_material) discret_->set_state(0, "velocity", *vel);
   // get load vector
   discret_->evaluate_neumann(p, fext);
 

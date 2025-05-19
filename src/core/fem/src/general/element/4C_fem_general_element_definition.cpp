@@ -15,15 +15,6 @@ FOUR_C_NAMESPACE_OPEN
 
 
 /*----------------------------------------------------------------------*/
-//! Print function
-/*----------------------------------------------------------------------*/
-void print_element_dat_header()
-{
-  Core::Elements::ElementDefinition ed;
-  ed.print_element_dat_header_to_stream(std::cout);
-}
-
-/*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
 void Core::Elements::ElementDefinition::print_element_dat_header_to_stream(std::ostream& stream)
 {
@@ -42,19 +33,9 @@ void Core::Elements::ElementDefinition::print_element_dat_header_to_stream(std::
   print_element_lines(stream, "SOLID");
   print_element_lines(stream, "SOLIDPORO_PRESSURE_BASED");
   print_element_lines(stream, "SOLIDPORO_PRESSURE_VELOCITY_BASED");
+  print_element_lines(stream, "SOLIDPORO_PRESSURE_VELOCITY_BASED_P1");
   print_element_lines(stream, "SOLIDSCATRA");
-  print_element_lines(stream, "SOLIDH27_DEPRECATED");
-  print_element_lines(stream, "SOLIDH27PORO");
-  print_element_lines(stream, "SOLIDH8_DEPRECATED");
   print_element_lines(stream, "MEMBRANE3");
-  print_element_lines(stream, "SOLIDH8PORO");
-  print_element_lines(stream, "SOLIDH8POROSCATRA");
-  print_element_lines(stream, "SOLIDH8POROP1");
-  print_element_lines(stream, "SOLIDH8POROP1SCATRA");
-  print_element_lines(stream, "SOLIDSH8");
-  print_element_lines(stream, "SOLIDT10_DEPRECATED");
-  print_element_lines(stream, "SOLIDT4_DEPRECATED");
-  print_element_lines(stream, "SOLIDT4PORO");
   print_element_lines(stream, "TORSION3");
   print_element_lines(stream, "TRUSS3");
   print_element_lines(stream, "TRUSS3SCATRA");
@@ -97,10 +78,6 @@ void Core::Elements::ElementDefinition::print_element_dat_header_to_stream(std::
   print_element_lines(stream, "RED_AIRWAY");
   print_element_lines(stream, "RED_ACINUS");
   print_element_lines(stream, "RED_ACINAR_INTER_DEP");
-
-  print_section_header(stream, "ELECTROMAGNETIC ELEMENTS");
-  print_element_lines(stream, "ELECTROMAGNETIC");
-  print_element_lines(stream, "ELECTROMAGNETICDIFF");
 }
 
 
@@ -119,7 +96,7 @@ void Core::Elements::ElementDefinition::print_section_header(std::ostream& strea
 /*----------------------------------------------------------------------*/
 void Core::Elements::ElementDefinition::print_element_lines(std::ostream& stream, std::string name)
 {
-  FOUR_C_ASSERT(definitions_.contains(name), "Element type not found: " + name);
+  FOUR_C_ASSERT(definitions_.contains(name), "Element type not found: {}", name);
   auto& defs = definitions_[name];
 
   for (const auto& [cell_type, spec] : defs)
@@ -144,9 +121,9 @@ void Core::Elements::ElementDefinition::setup_valid_element_lines()
 const Core::IO::InputSpec& Core::Elements::ElementDefinition::element_lines(
     std::string name, std::string cell_type)
 {
-  FOUR_C_ASSERT(definitions_.contains(name), "Element type not found: " + name);
+  FOUR_C_ASSERT(definitions_.contains(name), "Element type not found: {}", name);
   auto& defs = definitions_.at(name);
-  FOUR_C_ASSERT(defs.contains(cell_type), "Cell type not found: " + cell_type);
+  FOUR_C_ASSERT(defs.contains(cell_type), "Cell type not found: {}", cell_type);
   return defs.at(cell_type);
 }
 

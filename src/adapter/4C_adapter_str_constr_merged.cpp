@@ -10,7 +10,6 @@
 #include "4C_constraint_manager.hpp"
 #include "4C_fem_condition_utils.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_validparameters.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 #include "4C_structure_aux.hpp"
@@ -140,7 +139,7 @@ std::shared_ptr<const Core::LinAlg::Vector<double>> Adapter::StructureConstrMerg
   // get last converged state from structure and constraintmanager
   std::shared_ptr<const Core::LinAlg::Vector<double>> strudis = structure_->veln();
   const Core::LinAlg::Vector<double> lagrmult(
-      structure_->get_constraint_manager()->get_lagr_mult_vector_old()->Map(), true);
+      structure_->get_constraint_manager()->get_lagr_mult_vector_old()->get_block_map(), true);
 
   // merge stuff together
   std::shared_ptr<Core::LinAlg::Vector<double>> mergedstat =
@@ -158,7 +157,7 @@ std::shared_ptr<const Core::LinAlg::Vector<double>> Adapter::StructureConstrMerg
   // get last converged state from structure and constraintmanager
   std::shared_ptr<const Core::LinAlg::Vector<double>> strudis = structure_->accn();
   const Core::LinAlg::Vector<double> lagrmult(
-      structure_->get_constraint_manager()->get_lagr_mult_vector_old()->Map(), true);
+      structure_->get_constraint_manager()->get_lagr_mult_vector_old()->get_block_map(), true);
 
   // merge stuff together
   std::shared_ptr<Core::LinAlg::Vector<double>> mergedstat =
@@ -171,7 +170,7 @@ std::shared_ptr<const Core::LinAlg::Vector<double>> Adapter::StructureConstrMerg
 
 /*----------------------------------------------------------------------*/
 /* non-overlapping DOF map */
-std::shared_ptr<const Epetra_Map> Adapter::StructureConstrMerged::dof_row_map()
+std::shared_ptr<const Core::LinAlg::Map> Adapter::StructureConstrMerged::dof_row_map()
 {
   return dofrowmap_;
 }
@@ -240,7 +239,7 @@ void Adapter::StructureConstrMerged::evaluate(
 
 /*----------------------------------------------------------------------*/
 /* domain map */
-const Epetra_Map& Adapter::StructureConstrMerged::domain_map() const
+const Core::LinAlg::Map& Adapter::StructureConstrMerged::domain_map() const
 {
   return *(Core::LinAlg::merge_map(structure_->domain_map(),
       *(structure_->get_constraint_manager()->get_constraint_map()), false));

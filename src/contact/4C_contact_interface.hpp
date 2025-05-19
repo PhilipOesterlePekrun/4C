@@ -10,8 +10,8 @@
 
 #include "4C_config.hpp"
 
+#include "4C_contact_input.hpp"
 #include "4C_coupling_adapter.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_linalg_fixedsizematrix.hpp"
 #include "4C_mortar_interface.hpp"
 #include "4C_mortar_strategy_base.hpp"
@@ -78,130 +78,139 @@ namespace CONTACT
 
     inline bool& is_two_half_pass() { return two_half_pass_; }
 
-    inline enum Inpar::CONTACT::ConstraintDirection& constraint_direction()
+    inline enum CONTACT::ConstraintDirection& constraint_direction() { return constr_direction_; }
+
+    [[nodiscard]] inline enum CONTACT::ConstraintDirection constraint_direction() const
     {
       return constr_direction_;
     }
 
-    [[nodiscard]] inline enum Inpar::CONTACT::ConstraintDirection constraint_direction() const
-    {
-      return constr_direction_;
-    }
+    inline std::shared_ptr<Core::LinAlg::Map>& active_nodes() { return activenodes_; }
 
-    inline std::shared_ptr<Epetra_Map>& active_nodes() { return activenodes_; }
-
-    [[nodiscard]] inline const std::shared_ptr<Epetra_Map>& active_nodes() const
+    [[nodiscard]] inline const std::shared_ptr<Core::LinAlg::Map>& active_nodes() const
     {
       return activenodes_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& active_dofs() { return activedofs_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& active_dofs() { return activedofs_; }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> active_dofs() const
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> active_dofs() const
     {
       return activedofs_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& inactive_nodes() { return inactivenodes_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& inactive_nodes() { return inactivenodes_; }
 
-    [[nodiscard]] inline const std::shared_ptr<Epetra_Map>& inactive_nodes() const
+    [[nodiscard]] inline const std::shared_ptr<Core::LinAlg::Map>& inactive_nodes() const
     {
       return inactivenodes_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& inactive_dofs() { return inactivedofs_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& inactive_dofs() { return inactivedofs_; }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> inactive_dofs() const
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> inactive_dofs() const
     {
       return inactivedofs_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& active_n() { return activen_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& active_n() { return activen_; }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> active_n() const { return activen_; }
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> active_n() const
+    {
+      return activen_;
+    }
 
-    inline std::shared_ptr<Epetra_Map>& active_t() { return activet_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& active_t() { return activet_; }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> active_t() const { return activet_; }
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> active_t() const
+    {
+      return activet_;
+    }
 
-    inline std::shared_ptr<Epetra_Map>& slip_nodes() { return slipnodes_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& slip_nodes() { return slipnodes_; }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> slip_nodes() const { return slipnodes_; }
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> slip_nodes() const
+    {
+      return slipnodes_;
+    }
 
-    inline std::shared_ptr<Epetra_Map>& slip_dofs() { return slipdofs_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& slip_dofs() { return slipdofs_; }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> slip_dofs() const { return slipdofs_; }
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> slip_dofs() const
+    {
+      return slipdofs_;
+    }
 
-    inline std::shared_ptr<Epetra_Map>& slip_t() { return slipt_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& slip_t() { return slipt_; }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> slip_t() const { return slipt_; }
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> slip_t() const { return slipt_; }
 
-    inline std::shared_ptr<Epetra_Map>& non_smooth_nodes() { return nonsmoothnodes_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& non_smooth_nodes() { return nonsmoothnodes_; }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> non_smooth_nodes() const
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> non_smooth_nodes() const
     {
       return nonsmoothnodes_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& smooth_nodes() { return smoothnodes_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& smooth_nodes() { return smoothnodes_; }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> smooth_nodes() const
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> smooth_nodes() const
     {
       return smoothnodes_;
     }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> sdof_vertex_rowmap() const
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> sdof_vertex_rowmap() const
     {
       return sdof_vertex_rowmap_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& sdof_vertex_rowmap() { return sdof_vertex_rowmap_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& sdof_vertex_rowmap() { return sdof_vertex_rowmap_; }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> sdof_vertex_colmap() const
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> sdof_vertex_colmap() const
     {
       return sdof_vertex_colmap_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& sdof_vertex_colmap() { return sdof_vertex_colmap_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& sdof_vertex_colmap() { return sdof_vertex_colmap_; }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> sdof_edge_rowmap() const
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> sdof_edge_rowmap() const
     {
       return sdof_edge_rowmap_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& sdof_edge_rowmap() { return sdof_edge_rowmap_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& sdof_edge_rowmap() { return sdof_edge_rowmap_; }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> sdof_edge_colmap() const
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> sdof_edge_colmap() const
     {
       return sdof_edge_colmap_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& sdof_edge_colmap() { return sdof_edge_colmap_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& sdof_edge_colmap() { return sdof_edge_colmap_; }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> sdof_surf_rowmap() const
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> sdof_surf_rowmap() const
     {
       return sdof_surf_rowmap_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& sdof_surf_rowmap() { return sdof_surf_rowmap_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& sdof_surf_rowmap() { return sdof_surf_rowmap_; }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> sdof_surf_colmap() const
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> sdof_surf_colmap() const
     {
       return sdof_surf_colmap_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& sdof_surf_colmap() { return sdof_surf_colmap_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& sdof_surf_colmap() { return sdof_surf_colmap_; }
 
-    inline std::shared_ptr<Epetra_Map>& n_extended_ghosting() { return nextendedghosting_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& n_extended_ghosting() { return nextendedghosting_; }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> n_extended_ghosting() const
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> n_extended_ghosting() const
     {
       return nextendedghosting_;
     }
 
-    inline std::shared_ptr<Epetra_Map>& e_extended_ghosting() { return eextendedghosting_; }
+    inline std::shared_ptr<Core::LinAlg::Map>& e_extended_ghosting() { return eextendedghosting_; }
 
-    [[nodiscard]] inline std::shared_ptr<const Epetra_Map> e_extended_ghosting() const
+    [[nodiscard]] inline std::shared_ptr<const Core::LinAlg::Map> e_extended_ghosting() const
     {
       return eextendedghosting_;
     }
@@ -255,64 +264,64 @@ namespace CONTACT
     bool two_half_pass_;
 
     //! direction in which the contact constraints are formulated
-    Inpar::CONTACT::ConstraintDirection constr_direction_;
+    CONTACT::ConstraintDirection constr_direction_;
 
     //! @name Maps
     //! @{
 
     //! row map of all active slave nodes
-    std::shared_ptr<Epetra_Map> activenodes_;
+    std::shared_ptr<Core::LinAlg::Map> activenodes_;
 
     //! row map of all active slave dofs
-    std::shared_ptr<Epetra_Map> activedofs_;
+    std::shared_ptr<Core::LinAlg::Map> activedofs_;
 
     //! row map of all inactive slave nodes
-    std::shared_ptr<Epetra_Map> inactivenodes_;
+    std::shared_ptr<Core::LinAlg::Map> inactivenodes_;
 
     //! row map of all inactive slave dofs
-    std::shared_ptr<Epetra_Map> inactivedofs_;
+    std::shared_ptr<Core::LinAlg::Map> inactivedofs_;
 
     //! row map of global N-matrix
-    std::shared_ptr<Epetra_Map> activen_;
+    std::shared_ptr<Core::LinAlg::Map> activen_;
 
     //! row map of global T-matrix
-    std::shared_ptr<Epetra_Map> activet_;
+    std::shared_ptr<Core::LinAlg::Map> activet_;
 
     //! row map of all slip slave nodes
-    std::shared_ptr<Epetra_Map> slipnodes_;
+    std::shared_ptr<Core::LinAlg::Map> slipnodes_;
 
     //! row map of all slip slave dofs
-    std::shared_ptr<Epetra_Map> slipdofs_;
+    std::shared_ptr<Core::LinAlg::Map> slipdofs_;
 
     //! row map of part of T-matrix (slip nodes)
-    std::shared_ptr<Epetra_Map> slipt_;
+    std::shared_ptr<Core::LinAlg::Map> slipt_;
 
     //! row map of all nonsmooth slave nodes
-    std::shared_ptr<Epetra_Map> nonsmoothnodes_;
+    std::shared_ptr<Core::LinAlg::Map> nonsmoothnodes_;
 
     //! row map of all smooth slave nodes
-    std::shared_ptr<Epetra_Map> smoothnodes_;
+    std::shared_ptr<Core::LinAlg::Map> smoothnodes_;
 
     //! row map of all nonsmooth slave nodes
-    std::shared_ptr<Epetra_Map> sdof_vertex_rowmap_;
+    std::shared_ptr<Core::LinAlg::Map> sdof_vertex_rowmap_;
 
     //! row map of all smooth slave nodes
-    std::shared_ptr<Epetra_Map> sdof_vertex_colmap_;
+    std::shared_ptr<Core::LinAlg::Map> sdof_vertex_colmap_;
 
     //! row map of all nonsmooth slave nodes
-    std::shared_ptr<Epetra_Map> sdof_edge_rowmap_;
+    std::shared_ptr<Core::LinAlg::Map> sdof_edge_rowmap_;
 
     //! row map of all smooth slave nodes
-    std::shared_ptr<Epetra_Map> sdof_edge_colmap_;
+    std::shared_ptr<Core::LinAlg::Map> sdof_edge_colmap_;
 
     //! row map of all nonsmooth slave nodes
-    std::shared_ptr<Epetra_Map> sdof_surf_rowmap_;
+    std::shared_ptr<Core::LinAlg::Map> sdof_surf_rowmap_;
 
     //! row map of all smooth slave nodes
-    std::shared_ptr<Epetra_Map> sdof_surf_colmap_;
+    std::shared_ptr<Core::LinAlg::Map> sdof_surf_colmap_;
 
-    std::shared_ptr<Epetra_Map> nextendedghosting_;
-    std::shared_ptr<Epetra_Map> eextendedghosting_;
+    std::shared_ptr<Core::LinAlg::Map> nextendedghosting_;
+    std::shared_ptr<Core::LinAlg::Map> eextendedghosting_;
 
     //! @}
 
@@ -359,7 +368,7 @@ namespace CONTACT
      *  \param icontact (in) : global contact parameter-list
      *  \param selfcontact (in): Boolean flag to indicate self-contact
      *
-     *  \author hiermeier \date 03/17 */
+     *  */
     static std::shared_ptr<Interface> create(const int id, MPI_Comm comm, const int spatialDim,
         const Teuchos::ParameterList& icontact, const bool selfcontact);
 
@@ -415,7 +424,7 @@ namespace CONTACT
     \pre Filled() == true is prerequisite
 
     */
-    [[nodiscard]] std::shared_ptr<const Epetra_Map> active_nodes() const
+    [[nodiscard]] std::shared_ptr<const Core::LinAlg::Map> active_nodes() const
     {
       if (not filled()) FOUR_C_THROW("CONTACT::Interface::fill_complete was not called");
 
@@ -428,14 +437,14 @@ namespace CONTACT
     \pre Filled() == true is prerequisite
 
     */
-    [[nodiscard]] std::shared_ptr<const Epetra_Map> active_dofs() const
+    [[nodiscard]] std::shared_ptr<const Core::LinAlg::Map> active_dofs() const
     {
       if (not filled()) FOUR_C_THROW("CONTACT::Interface::fill_complete was not called");
 
       return activedofs_;
     }
 
-    [[nodiscard]] std::shared_ptr<const Epetra_Map> inactive_nodes() const
+    [[nodiscard]] std::shared_ptr<const Core::LinAlg::Map> inactive_nodes() const
     {
       if (not filled()) FOUR_C_THROW("CONTACT::Interface::fill_complete was not called");
 
@@ -448,7 +457,7 @@ namespace CONTACT
     \pre Filled() == true is prerequisite
 
     */
-    [[nodiscard]] virtual std::shared_ptr<const Epetra_Map> inactive_dofs() const
+    [[nodiscard]] virtual std::shared_ptr<const Core::LinAlg::Map> inactive_dofs() const
     {
       if (not filled()) FOUR_C_THROW("CONTACT::Interface::fill_complete was not called");
 
@@ -461,7 +470,7 @@ namespace CONTACT
     \pre Filled() == true is prerequisite
 
     */
-    [[nodiscard]] virtual std::shared_ptr<const Epetra_Map> active_n_dofs() const
+    [[nodiscard]] virtual std::shared_ptr<const Core::LinAlg::Map> active_n_dofs() const
     {
       if (not filled()) FOUR_C_THROW("CONTACT::Interface::fill_complete was not called");
 
@@ -474,7 +483,7 @@ namespace CONTACT
     \pre Filled() == true is prerequisite
 
     */
-    [[nodiscard]] virtual std::shared_ptr<const Epetra_Map> active_t_dofs() const
+    [[nodiscard]] virtual std::shared_ptr<const Core::LinAlg::Map> active_t_dofs() const
     {
       if (not filled()) FOUR_C_THROW("CONTACT::Interface::fill_complete was not called");
 
@@ -487,7 +496,7 @@ namespace CONTACT
     \pre Filled() == true is prerequisite
 
     */
-    [[nodiscard]] virtual std::shared_ptr<const Epetra_Map> slip_nodes() const
+    [[nodiscard]] virtual std::shared_ptr<const Core::LinAlg::Map> slip_nodes() const
     {
       if (filled())
       {
@@ -505,7 +514,7 @@ namespace CONTACT
     \pre Filled() == true is prerequisite
 
     */
-    [[nodiscard]] virtual std::shared_ptr<const Epetra_Map> slip_dofs() const
+    [[nodiscard]] virtual std::shared_ptr<const Core::LinAlg::Map> slip_dofs() const
     {
       if (filled())
       {
@@ -523,7 +532,7 @@ namespace CONTACT
     \pre Filled() == true is prerequisite
 
     */
-    [[nodiscard]] virtual std::shared_ptr<const Epetra_Map> slip_t_dofs() const
+    [[nodiscard]] virtual std::shared_ptr<const Core::LinAlg::Map> slip_t_dofs() const
     {
       if (filled())
       {
@@ -541,7 +550,7 @@ namespace CONTACT
     \pre Filled() == true is prerequisite
 
     */
-    [[nodiscard]] virtual std::shared_ptr<const Epetra_Map> non_smooth_nodes() const
+    [[nodiscard]] virtual std::shared_ptr<const Core::LinAlg::Map> non_smooth_nodes() const
     {
       if (filled())
       {
@@ -559,7 +568,7 @@ namespace CONTACT
     \pre Filled() == true is prerequisite
 
     */
-    [[nodiscard]] virtual std::shared_ptr<const Epetra_Map> smooth_nodes() const
+    [[nodiscard]] virtual std::shared_ptr<const Core::LinAlg::Map> smooth_nodes() const
     {
       if (filled())
       {
@@ -577,7 +586,7 @@ namespace CONTACT
     \pre Filled() == true is prerequisite
 
     */
-    [[nodiscard]] virtual std::shared_ptr<const Epetra_Map> sdof_vertex_rowmap() const
+    [[nodiscard]] virtual std::shared_ptr<const Core::LinAlg::Map> sdof_vertex_rowmap() const
     {
       if (filled())
       {
@@ -594,7 +603,7 @@ namespace CONTACT
     \pre Filled() == true is prerequisite
 
     */
-    [[nodiscard]] virtual std::shared_ptr<const Epetra_Map> sdof_vertex_colmap() const
+    [[nodiscard]] virtual std::shared_ptr<const Core::LinAlg::Map> sdof_vertex_colmap() const
     {
       if (filled())
       {
@@ -605,7 +614,7 @@ namespace CONTACT
         FOUR_C_THROW("CONTACT::Interface::fill_complete was not called");
       }
     }
-    [[nodiscard]] virtual std::shared_ptr<const Epetra_Map> sdof_edge_rowmap() const
+    [[nodiscard]] virtual std::shared_ptr<const Core::LinAlg::Map> sdof_edge_rowmap() const
     {
       if (filled())
       {
@@ -616,7 +625,7 @@ namespace CONTACT
         FOUR_C_THROW("CONTACT::Interface::fill_complete was not called");
       }
     }
-    [[nodiscard]] virtual std::shared_ptr<const Epetra_Map> sdof_edge_colmap() const
+    [[nodiscard]] virtual std::shared_ptr<const Core::LinAlg::Map> sdof_edge_colmap() const
     {
       if (filled())
       {
@@ -627,7 +636,7 @@ namespace CONTACT
         FOUR_C_THROW("CONTACT::Interface::fill_complete was not called");
       }
     }
-    [[nodiscard]] virtual std::shared_ptr<const Epetra_Map> sdof_surf_rowmap() const
+    [[nodiscard]] virtual std::shared_ptr<const Core::LinAlg::Map> sdof_surf_rowmap() const
     {
       if (filled())
       {
@@ -638,7 +647,7 @@ namespace CONTACT
         FOUR_C_THROW("CONTACT::Interface::fill_complete was not called");
       }
     }
-    [[nodiscard]] virtual std::shared_ptr<const Epetra_Map> sdof_surf_colmap() const
+    [[nodiscard]] virtual std::shared_ptr<const Core::LinAlg::Map> sdof_surf_colmap() const
     {
       if (filled())
       {
@@ -1147,7 +1156,7 @@ namespace CONTACT
     \param(in) gref_smmap: global merged slave/master reference map
     */
     void update_self_contact_lag_mult_set(
-        const Epetra_Map& gref_lmmap, const Epetra_Map& gref_smmap);
+        const Core::LinAlg::Map& gref_lmmap, const Core::LinAlg::Map& gref_smmap);
 
     /*!
     \brief Assemble normal coupling weighted condition. It is useful for poro contact
@@ -1198,17 +1207,6 @@ namespace CONTACT
     \param type ??
     */
     virtual void store_to_old(Mortar::StrategyBase::QuantityType type);
-
-    //@}
-
-    /*!
-    \brief Visualize contact stuff with gmsh
-
-    \param[in] step Time step index
-    \param[in] iter Nonlinear iteration index
-    */
-    void visualize_gmsh(
-        const int step, const int iter, const std::string& file_name_only_prefix) const final;
 
     //! @name Finite difference checks
     //!@{
@@ -1303,8 +1301,8 @@ namespace CONTACT
 
     //!@}
 
-    void write_nodal_coordinates_to_file(
-        const int interfacel_id, const Epetra_Map& nodal_map, const std::string& full_path) const;
+    void write_nodal_coordinates_to_file(const int interfacel_id,
+        const Core::LinAlg::Map& nodal_map, const std::string& full_path) const;
 
     /*!
     \brief Add line to line penalty forces
@@ -1470,14 +1468,15 @@ namespace CONTACT
     Derived version!
 
     */
-    void evaluate_coupling(const Epetra_Map& selecolmap, const Epetra_Map* snoderowmap,
+    void evaluate_coupling(const Core::LinAlg::Map& selecolmap,
+        const Core::LinAlg::Map* snoderowmap,
         const std::shared_ptr<Mortar::ParamsInterface>& mparams_ptr) final;
 
     /*!
     \brief Evaluate segment-to-segment coupling (mortar...)
 
     */
-    void evaluate_sts(const Epetra_Map& selecolmap,
+    void evaluate_sts(const Core::LinAlg::Map& selecolmap,
         const std::shared_ptr<Mortar::ParamsInterface>& mparams_ptr) final;
 
     /*!
@@ -1657,31 +1656,42 @@ namespace CONTACT
     bool& friction_;          ///< ref. to flag for frictional contact
     bool& nonSmoothContact_;  ///< ref. to flag for non-smooth contact algorithm
     bool& two_half_pass_;     ///< ref. to flag for two half pass contact algorithm
-    Inpar::CONTACT::ConstraintDirection&
+    CONTACT::ConstraintDirection&
         constr_direction_;  ///< ref. to direction in which the contact constraints are formulated
 
-    std::shared_ptr<Epetra_Map>& activenodes_;    ///< ref. to row map of all active slave nodes
-    std::shared_ptr<Epetra_Map>& activedofs_;     ///< ref. to row map of all active slave dofs
-    std::shared_ptr<Epetra_Map>& inactivenodes_;  ///< ref. to row map of all active slave nodes
-    std::shared_ptr<Epetra_Map>& inactivedofs_;   ///< ref. to row map of all active slave dofs
-    std::shared_ptr<Epetra_Map>& activen_;        ///< ref. to row map of global N-matrix
-    std::shared_ptr<Epetra_Map>& activet_;        ///< ref. to row map of global T-matrix
-    std::shared_ptr<Epetra_Map>& slipnodes_;      ///< ref. to row map of all slip slave nodes
-    std::shared_ptr<Epetra_Map>& slipdofs_;       ///< ref. to row map of all slip slave dofs
-    std::shared_ptr<Epetra_Map>& slipt_;  ///< ref. to row map of part of T-matrix (slip nodes)
+    std::shared_ptr<Core::LinAlg::Map>&
+        activenodes_;                                 ///< ref. to row map of all active slave nodes
+    std::shared_ptr<Core::LinAlg::Map>& activedofs_;  ///< ref. to row map of all active slave dofs
+    std::shared_ptr<Core::LinAlg::Map>&
+        inactivenodes_;  ///< ref. to row map of all active slave nodes
+    std::shared_ptr<Core::LinAlg::Map>&
+        inactivedofs_;                               ///< ref. to row map of all active slave dofs
+    std::shared_ptr<Core::LinAlg::Map>& activen_;    ///< ref. to row map of global N-matrix
+    std::shared_ptr<Core::LinAlg::Map>& activet_;    ///< ref. to row map of global T-matrix
+    std::shared_ptr<Core::LinAlg::Map>& slipnodes_;  ///< ref. to row map of all slip slave nodes
+    std::shared_ptr<Core::LinAlg::Map>& slipdofs_;   ///< ref. to row map of all slip slave dofs
+    std::shared_ptr<Core::LinAlg::Map>&
+        slipt_;  ///< ref. to row map of part of T-matrix (slip nodes)
 
-    std::shared_ptr<Epetra_Map>& nonsmoothnodes_;  ///< ref. to row map of all nonsmooth slave nodes
-    std::shared_ptr<Epetra_Map>& smoothnodes_;     ///< ref. to row map of all smooth slave nodes
-    std::shared_ptr<Epetra_Map>&
+    std::shared_ptr<Core::LinAlg::Map>&
+        nonsmoothnodes_;  ///< ref. to row map of all nonsmooth slave nodes
+    std::shared_ptr<Core::LinAlg::Map>&
+        smoothnodes_;  ///< ref. to row map of all smooth slave nodes
+    std::shared_ptr<Core::LinAlg::Map>&
         sdofVertexRowmap_;  ///< ref. to row map of all nonsmooth slave nodes
-    std::shared_ptr<Epetra_Map>& sdofVertexColmap_;  ///< ref. to row map of all smooth slave nodes
-    std::shared_ptr<Epetra_Map>& sdofEdgeRowmap_;  ///< ref. to row map of all nonsmooth slave nodes
-    std::shared_ptr<Epetra_Map>& sdofEdgeColmap_;  ///< ref. to row map of all smooth slave nodes
-    std::shared_ptr<Epetra_Map>& sdofSurfRowmap_;  ///< ref. to row map of all nonsmooth slave nodes
-    std::shared_ptr<Epetra_Map>& sdofSurfColmap_;  ///< ref. to row map of all smooth slave nodes
+    std::shared_ptr<Core::LinAlg::Map>&
+        sdofVertexColmap_;  ///< ref. to row map of all smooth slave nodes
+    std::shared_ptr<Core::LinAlg::Map>&
+        sdofEdgeRowmap_;  ///< ref. to row map of all nonsmooth slave nodes
+    std::shared_ptr<Core::LinAlg::Map>&
+        sdofEdgeColmap_;  ///< ref. to row map of all smooth slave nodes
+    std::shared_ptr<Core::LinAlg::Map>&
+        sdofSurfRowmap_;  ///< ref. to row map of all nonsmooth slave nodes
+    std::shared_ptr<Core::LinAlg::Map>&
+        sdofSurfColmap_;  ///< ref. to row map of all smooth slave nodes
 
-    std::shared_ptr<Epetra_Map>& nextendedghosting_;
-    std::shared_ptr<Epetra_Map>& eextendedghosting_;
+    std::shared_ptr<Core::LinAlg::Map>& nextendedghosting_;
+    std::shared_ptr<Core::LinAlg::Map>& eextendedghosting_;
 
 
     std::shared_ptr<SelfBinaryTree>&

@@ -7,384 +7,405 @@
 
 #include "4C_inpar_solver_nonlin.hpp"
 
+#include "4C_io_input_spec_builders.hpp"
 #include "4C_solver_nonlin_nox_enum_lists.hpp"
-#include "4C_utils_parameter_list.hpp"
-
 FOUR_C_NAMESPACE_OPEN
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-void Inpar::NlnSol::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::NlnSol::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
-  using Teuchos::tuple;
+  using namespace Core::IO::InputSpecBuilders;
 
   /*----------------------------------------------------------------------*
    * parameters for NOX - non-linear solution
    *----------------------------------------------------------------------*/
-  Teuchos::ParameterList& snox = list.sublist("STRUCT NOX", false, "");
+  list["STRUCT NOX"] = group("STRUCT NOX",
+      {
 
-  {
-    std::vector<std::string> nonlinear_solver_valid_input = {"Line Search Based",
-        "Pseudo Transient", "Trust Region Based", "Inexact Trust Region Based", "Tensor Based",
-        "Single Step"};
-
-    Core::Utils::string_parameter("Nonlinear Solver", "Line Search Based",
-        "Choose a nonlinear solver method.", &snox, nonlinear_solver_valid_input);
-  }
+          deprecated_selection<std::string>("Nonlinear Solver",
+              {"Line Search Based", "Pseudo Transient", "Trust Region Based",
+                  "Inexact Trust Region Based", "Tensor Based", "Single Step"},
+              {.description = "Choose a nonlinear solver method.",
+                  .default_value = "Line Search Based"})},
+      {.defaultable = true});
 
   // sub-list direction
-  Teuchos::ParameterList& direction = snox.sublist("Direction", false, "");
+  list["STRUCT NOX/Direction"] = group("STRUCT NOX/Direction",
+      {
 
-  {
-    std::vector<std::string> newton_method_valid_input = {
-        "Newton", "Steepest Descent", "NonlinearCG", "Broyden", "User Defined"};
-    Core::Utils::string_parameter("Method", "Newton",
-        "Choose a direction method for the nonlinear solver.", &direction,
-        newton_method_valid_input);
+          deprecated_selection<std::string>("Method",
+              {"Newton", "Steepest Descent", "NonlinearCG", "Broyden", "User Defined"},
+              {.description = "Choose a direction method for the nonlinear solver.",
+                  .default_value = "Newton"}),
 
-    std::vector<std::string> user_defined_method_valid_input = {"Newton", "Modified Newton"};
-    Core::Utils::string_parameter("User Defined Method", "Modified Newton",
-        "Choose a user-defined direction method.", &direction, user_defined_method_valid_input);
-  }
+
+          deprecated_selection<std::string>("User Defined Method", {"Newton", "Modified Newton"},
+              {.description = "Choose a user-defined direction method.",
+                  .default_value = "Modified Newton"})},
+      {.defaultable = true});
 
   // sub-sub-list "Newton"
-  Teuchos::ParameterList& newton = direction.sublist("Newton", false, "");
+  list["STRUCT NOX/Direction/Newton"] = group("STRUCT NOX/Direction/Newton",
+      {
 
-  {
-    std::vector<std::string> forcing_term_valid_input = {"Constant", "Type 1", "Type 2"};
-    Core::Utils::string_parameter(
-        "Forcing Term Method", "Constant", "", &newton, forcing_term_valid_input);
+          deprecated_selection<std::string>("Forcing Term Method", {"Constant", "Type 1", "Type 2"},
+              {.description = "", .default_value = "Constant"}),
 
-    Core::Utils::double_parameter(
-        "Forcing Term Initial Tolerance", 0.1, "initial linear solver tolerance", &newton);
-    Core::Utils::double_parameter("Forcing Term Minimum Tolerance", 1.0e-6, "", &newton);
-    Core::Utils::double_parameter("Forcing Term Maximum Tolerance", 0.01, "", &newton);
-    Core::Utils::double_parameter("Forcing Term Alpha", 1.5, "used only by \"Type 2\"", &newton);
-    Core::Utils::double_parameter("Forcing Term Gamma", 0.9, "used only by \"Type 2\"", &newton);
-    Core::Utils::bool_parameter("Rescue Bad Newton Solve", "Yes",
-        "If set to true, we will use "
-        "the computed direction even if the linear solve does not achieve the tolerance "
-        "specified by the forcing term",
-        &newton);
-  }
+          parameter<double>("Forcing Term Initial Tolerance",
+              {.description = "initial linear solver tolerance", .default_value = 0.1}),
+          parameter<double>(
+              "Forcing Term Minimum Tolerance", {.description = "", .default_value = 1.0e-6}),
+          parameter<double>(
+              "Forcing Term Maximum Tolerance", {.description = "", .default_value = 0.01}),
+          parameter<double>("Forcing Term Alpha",
+              {.description = "used only by \"Type 2\"", .default_value = 1.5}),
+          parameter<double>("Forcing Term Gamma",
+              {.description = "used only by \"Type 2\"", .default_value = 0.9}),
+          parameter<bool>("Rescue Bad Newton Solve",
+              {.description =
+                      "If set to true, we will use the computed direction even if the linear "
+                      "solve does not achieve the tolerance specified by the forcing term",
+                  .default_value = true})},
+      {.defaultable = true});
 
   // sub-sub-list "Steepest Descent"
-  Teuchos::ParameterList& steepestdescent = direction.sublist("Steepest Descent", false, "");
+  list["STRUCT NOX/Direction/Steepest Descent"] = group("STRUCT NOX/Direction/Steepest Descent",
+      {
 
-  {
-    std::vector<std::string> scaling_type_valid_input = {
-        "2-Norm", "Quadratic Model Min", "F 2-Norm", "None"};
-    Core::Utils::string_parameter(
-        "Scaling Type", "None", "", &steepestdescent, scaling_type_valid_input);
-  }
-
-  // sub-sub-sub-list "Modified Newton"
-  Teuchos::ParameterList& modnewton = newton.sublist("Modified", false, "");
-  {
-    Core::Utils::double_parameter("Initial Primal Diagonal Correction", 1.0e-4,
-        "Initial correction factor for the diagonal of the primal block.", &modnewton);
-
-    Core::Utils::double_parameter("Minimal Primal Diagonal Correction", 1.0e-20,
-        "Minimal correction factor for the diagonal of the primal block.", &modnewton);
-
-    Core::Utils::double_parameter("Maximal Primal Diagonal Correction", 1.0e+40,
-        "Maximal correction factor for the diagonal of the primal block.", &modnewton);
-
-    Core::Utils::double_parameter("Primal Reduction Factor", 1.0 / 3.0,
-        "Reduction factor for the adaption of the primal diagonal correction.", &modnewton);
-
-    Core::Utils::double_parameter("Primal Accretion Factor", 8.0,
-        "Accretion factor for the adaption of the primal diagonal correction.", &modnewton);
-
-    Core::Utils::double_parameter("Primal High Accretion Factor", 100.0,
-        "High accretion factor for the adaption of the primal diagonal correction.", &modnewton);
-
-    Core::Utils::bool_parameter("Catch Floating Point Exceptions", "No",
-        "Set to true, if"
-        "floating point exceptions during the linear solver call should be "
-        "caught by the algorithm.",
-        &modnewton);
-  }
+          deprecated_selection<std::string>("Scaling Type",
+              {"2-Norm", "Quadratic Model Min", "F 2-Norm", "None"},
+              {.description = "", .default_value = "None"})},
+      {.defaultable = true});
 
   // sub-list "Pseudo Transient"
-  Teuchos::ParameterList& ptc = snox.sublist("Pseudo Transient", false, "");
+  list["STRUCT NOX/Pseudo Transient"] = group("STRUCT NOX/Pseudo Transient",
+      {
 
-  {
-    Core::Utils::double_parameter("deltaInit", -1.0,
-        "Initial time step size. If its negative, the initial time step is calculated "
-        "automatically.",
-        &ptc);
-    Core::Utils::double_parameter("deltaMax", std::numeric_limits<double>::max(),
-        "Maximum time step size. "
-        "If the new step size is greater than this value, the transient terms will be eliminated "
-        "from the Newton iteration resulting in a full Newton solve.",
-        &ptc);
-    Core::Utils::double_parameter("deltaMin", 1.0e-5, "Minimum step size.", &ptc);
-    Core::Utils::int_parameter(
-        "Max Number of PTC Iterations", std::numeric_limits<int>::max(), "", &ptc);
-    Core::Utils::double_parameter("SER_alpha", 1.0, "Exponent of SET.", &ptc);
-    Core::Utils::double_parameter("ScalingFactor", 1.0, "Scaling Factor for ptc matrix.", &ptc);
+          parameter<double>("deltaInit",
+              {.description = "Initial time step size. If its negative, the initial time "
+                              "step is calculated automatically.",
+                  .default_value = -1.0}),
+          parameter<double>("deltaMax",
+              {.description =
+                      "Maximum time step size. If the new step size is greater than this value, "
+                      "the "
+                      "transient terms will be eliminated from the Newton iteration resulting in a "
+                      "full "
+                      "Newton solve.",
+                  .default_value = std::numeric_limits<double>::max()}),
+          parameter<double>(
+              "deltaMin", {.description = "Minimum step size.", .default_value = 1.0e-5}),
+          parameter<int>("Max Number of PTC Iterations",
+              {.description = "", .default_value = std::numeric_limits<int>::max()}),
 
-    std::vector<std::string> time_step_control_valid_input = {"SER",
-        "Switched Evolution Relaxation", "TTE", "Temporal Truncation Error", "MRR",
-        "Model Reduction Ratio"};
-    Core::Utils::string_parameter(
-        "Time Step Control", "SER", "", &ptc, time_step_control_valid_input);
+          parameter<double>("SER_alpha", {.description = "Exponent of SET.", .default_value = 1.0}),
+          parameter<double>("ScalingFactor",
+              {.description = "Scaling Factor for ptc matrix.", .default_value = 1.0}),
 
-    std::vector<std::string> tsc_norm_type_valid_input = {"Two Norm", "One Norm", "Max Norm"};
-    Core::Utils::string_parameter("Norm Type for TSC", "Max Norm",
-        "Norm Type for the time step control", &ptc, tsc_norm_type_valid_input);
+          deprecated_selection<std::string>("Time Step Control",
+              {"SER", "Switched Evolution Relaxation", "TTE", "Temporal Truncation Error", "MRR",
+                  "Model Reduction Ratio"},
+              {.description = "", .default_value = "SER"}),
 
-    std::vector<std::string> scaling_op_valid_input = {
-        "Identity", "CFL Diagonal", "Lumped Mass", "Element based"};
-    Core::Utils::string_parameter("Scaling Type", "Identity",
-        "Type of the scaling matrix for the PTC method.", &ptc, scaling_op_valid_input);
 
-    std::vector<std::string> build_scale_op_valid_input = {"every iter", "every timestep"};
-    Core::Utils::string_parameter("Build scaling operator", "every timestep",
-        "Build scaling operator in every iteration or timestep", &ptc, build_scale_op_valid_input);
-  }
+          deprecated_selection<std::string>("Norm Type for TSC",
+              {"Two Norm", "One Norm", "Max Norm"},
+              {.description = "Norm Type for the time step control", .default_value = "Max Norm"}),
+
+          deprecated_selection<std::string>("Scaling Type",
+              {"Identity", "CFL Diagonal", "Lumped Mass", "Element based"},
+              {.description = "Type of the scaling matrix for the PTC method.",
+                  .default_value = "Identity"}),
+
+
+          deprecated_selection<std::string>("Build scaling operator",
+              {"every iter", "every timestep"},
+              {.description = "Build scaling operator in every iteration or timestep",
+                  .default_value = "every timestep"})},
+      {.defaultable = true});
 
   // sub-list "Line Search"
-  Teuchos::ParameterList& linesearch = snox.sublist("Line Search", false, "");
+  list["STRUCT NOX/Line Search"] = group("STRUCT NOX/Line Search",
+      {
 
-  {
-    std::vector<std::string> method_valid_input = {
-        "Full Step", "Backtrack", "Polynomial", "More'-Thuente", "User Defined"};
-    Core::Utils::string_parameter("Method", "Full Step", "", &linesearch, method_valid_input);
+          deprecated_selection<std::string>("Method",
+              {"Full Step", "Backtrack", "Polynomial", "More'-Thuente", "User Defined"},
+              {.description = "", .default_value = "Full Step"}),
 
 
-    Teuchos::Array<std::string> checktypes =
-        Teuchos::tuple<std::string>("Complete", "Minimal", "None");
-    Teuchos::setStringToIntegralParameter<::NOX::StatusTest::CheckType>(
-        "Inner Status Test Check Type", "Minimal",
-        "Specify the check type for the inner status tests.", checktypes,
-        Teuchos::tuple<::NOX::StatusTest::CheckType>(
-            ::NOX::StatusTest::Complete, ::NOX::StatusTest::Minimal, ::NOX::StatusTest::None),
-        &linesearch);
-  }
+
+          deprecated_selection<::NOX::StatusTest::CheckType>("Inner Status Test Check Type",
+              {
+                  {"Complete", ::NOX::StatusTest::Complete},
+                  {"Minimal", ::NOX::StatusTest::Minimal},
+                  {"None", ::NOX::StatusTest::None},
+              },
+              {.description = "Specify the check type for the inner status tests.",
+                  .default_value = ::NOX::StatusTest::Minimal})},
+      {.defaultable = true});
 
   // sub-sub-list "Full Step"
-  Teuchos::ParameterList& fullstep = linesearch.sublist("Full Step", false, "");
+  list["STRUCT NOX/Line Search/Full Step"] = group("STRUCT NOX/Line Search/Full Step",
+      {
 
-  {
-    Core::Utils::double_parameter("Full Step", 1.0, "length of a full step", &fullstep);
-  }
+          parameter<double>(
+              "Full Step", {.description = "length of a full step", .default_value = 1.0})},
+      {.defaultable = true});
 
   // sub-sub-list "Backtrack"
-  Teuchos::ParameterList& backtrack = linesearch.sublist("Backtrack", false, "");
+  list["STRUCT NOX/Line Search/Backtrack"] = group("STRUCT NOX/Line Search/Backtrack",
+      {
 
-  {
-    Core::Utils::double_parameter("Default Step", 1.0, "starting step length", &backtrack);
-    Core::Utils::double_parameter(
-        "Minimum Step", 1.0e-12, "minimum acceptable step length", &backtrack);
-    Core::Utils::double_parameter("Recovery Step", 1.0,
-        "step to take when the line search fails (defaults to value for \"Default Step\")",
-        &backtrack);
-    Core::Utils::int_parameter(
-        "Max Iters", 50, "maximum number of iterations (i.e., RHS computations)", &backtrack);
-    Core::Utils::double_parameter("Reduction Factor", 0.5,
-        "A multiplier between zero and one that reduces the step size between line search "
-        "iterations",
-        &backtrack);
-    Core::Utils::bool_parameter("Allow Exceptions", "No",
-        "Set to true, if exceptions during the force evaluation and backtracking routine should be "
-        "allowed.",
-        &backtrack);
-  }
+          parameter<double>(
+              "Default Step", {.description = "starting step length", .default_value = 1.0}),
+          parameter<double>("Minimum Step",
+              {.description = "minimum acceptable step length", .default_value = 1.0e-12}),
+          parameter<double>(
+              "Recovery Step", {.description = "step to take when the line search fails "
+                                               "(defaults to value for \"Default Step\")",
+                                   .default_value = 1.0}),
+          parameter<int>(
+              "Max Iters", {.description = "maximum number of iterations", .default_value = 50}),
+          parameter<double>("Reduction Factor",
+              {.description = "A multiplier between zero and one that reduces the "
+                              "step size between line search iterations",
+                  .default_value = 0.5}),
+          parameter<bool>("Allow Exceptions",
+              {.description =
+                      "Set to true, if exceptions during the force evaluation and backtracking "
+                      "routine should be allowed.",
+                  .default_value = false})},
+      {.defaultable = true});
 
   // sub-sub-list "Polynomial"
-  Teuchos::ParameterList& polynomial = linesearch.sublist("Polynomial", false, "");
+  list["STRUCT NOX/Line Search/Polynomial"] = group("STRUCT NOX/Line Search/Polynomial",
+      {
 
-  {
-    Core::Utils::double_parameter("Default Step", 1.0, "Starting step length", &polynomial);
-    Core::Utils::int_parameter("Max Iters", 100,
-        "Maximum number of line search iterations. "
-        "The search fails if the number of iterations exceeds this value",
-        &polynomial);
-    Core::Utils::double_parameter("Minimum Step", 1.0e-12,
-        "Minimum acceptable step length. The search fails if the computed $\\lambda_k$ "
-        "is less than this value",
-        &polynomial);
+          parameter<double>(
+              "Default Step", {.description = "Starting step length", .default_value = 1.0}),
+          parameter<int>(
+              "Max Iters", {.description = "Maximum number of line search iterations. The search "
+                                           "fails if the number of iterations exceeds this value",
+                               .default_value = 100}),
+          parameter<double>("Minimum Step",
+              {.description = "Minimum acceptable step length. The search fails if the "
+                              "computed $\\lambda_k$ is less than this value",
+                  .default_value = 1.0e-12}),
 
-    std::vector<std::string> recovery_step_type_valid_input = {"Constant", "Last Computed Step"};
-    Core::Utils::string_parameter("Recovery Step Type", "Constant",
-        "Determines the step size to take when the line search fails", &polynomial,
-        recovery_step_type_valid_input);
 
-    Core::Utils::double_parameter("Recovery Step", 1.0,
-        "The value of the step to take when the line search fails. Only used if the \"Recovery "
-        "Step Type\" is set to \"Constant\"",
-        &polynomial);
+          deprecated_selection<std::string>("Recovery Step Type",
+              {"Constant", "Last Computed Step"},
+              {.description = "Determines the step size to take when the line search fails",
+                  .default_value = "Constant"}),
 
-    std::vector<std::string> interpolation_type_valid_input = {"Quadratic", "Quadratic3", "Cubic"};
-    Core::Utils::string_parameter("Interpolation Type", "Cubic",
-        "Type of interpolation that should be used", &polynomial, interpolation_type_valid_input);
+          parameter<double>(
+              "Recovery Step", {.description = "The value of the step to take when the line search "
+                                               "fails. Only used if the \"Recovery "
+                                               "Step Type\" is set to \"Constant\"",
+                                   .default_value = 1.0}),
 
-    Core::Utils::double_parameter("Min Bounds Factor", 0.1,
-        "Choice for $\\gamma_{\\min}$, i.e., the factor that limits the minimum size "
-        "of the new step based on the previous step",
-        &polynomial);
-    Core::Utils::double_parameter("Max Bounds Factor", 0.5,
-        "Choice for $\\gamma_{\\max}$, i.e., the factor that limits the maximum size "
-        "of the new step based on the previous step",
-        &polynomial);
 
-    std::vector<std::string> sufficient_decrease_condition_valid_input = {
-        "Armijo-Goldstein", "Ared/Pred", "None"};
-    Core::Utils::string_parameter("Sufficient Decrease Condition", "Armijo-Goldstein",
-        "Choice to use for the sufficient decrease condition", &polynomial,
-        sufficient_decrease_condition_valid_input);
+          deprecated_selection<std::string>("Interpolation Type",
+              {"Quadratic", "Quadratic3", "Cubic"},
+              {.description = "Type of interpolation that should be used",
+                  .default_value = "Cubic"}),
 
-    Core::Utils::double_parameter(
-        "Alpha Factor", 1.0e-4, "Parameter choice for sufficient decrease condition", &polynomial);
-    Core::Utils::bool_parameter("Force Interpolation", "No",
-        "Set to true if at least one interpolation step should be used. The default is false which "
-        "means that the line search will stop if the default step length satisfies the convergence "
-        "criteria",
-        &polynomial);
-    Core::Utils::bool_parameter("Use Counters", "Yes",
-        "Set to true if we should use counters and then output the result to the parameter list as "
-        "described in Output Parameters",
-        &polynomial);
-    Core::Utils::int_parameter("Maximum Iteration for Increase", 0,
-        "Maximum index of the nonlinear iteration for which we allow a relative increase",
-        &polynomial);
-    Core::Utils::double_parameter("Allowed Relative Increase", 100, "", &polynomial);
-  }
+          parameter<double>("Min Bounds Factor",
+              {.description =
+                      "Choice for $\\gamma_{\\min}$, i.e., the factor that limits the minimum "
+                      "size of the new step based on the previous step",
+                  .default_value = 0.1}),
+          parameter<double>("Max Bounds Factor",
+              {.description =
+                      "Choice for $\\gamma_{\\max}$, i.e., the factor that limits the maximum "
+                      "size of the new step based on the previous step",
+                  .default_value = 0.5}),
+
+          deprecated_selection<std::string>("Sufficient Decrease Condition",
+              {"Armijo-Goldstein", "Ared/Pred", "None"},
+              {.description = "Choice to use for the sufficient decrease condition",
+                  .default_value = "Armijo-Goldstein"}),
+
+          parameter<double>(
+              "Alpha Factor", {.description = "Parameter choice for sufficient decrease condition",
+                                  .default_value = 1.0e-4}),
+          parameter<bool>("Force Interpolation",
+              {.description = "Set to true if at least one interpolation step should be used. The "
+                              "default is false which means that the line search will stop if the "
+                              "default step length satisfies the convergence criteria",
+                  .default_value = false}),
+          parameter<bool>("Use Counters",
+              {.description =
+                      "Set to true if we should use counters and then output the result to the "
+                      "parameter list as described in Output Parameters",
+                  .default_value = true}),
+          parameter<int>("Maximum Iteration for Increase",
+              {.description = "Maximum index of the nonlinear iteration for which we allow a "
+                              "relative increase",
+                  .default_value = 0}),
+
+          parameter<double>(
+              "Allowed Relative Increase", {.description = "", .default_value = 100.0})},
+      {.defaultable = true});
 
   // sub-sub-list "More'-Thuente"
-  Teuchos::ParameterList& morethuente = linesearch.sublist("More'-Thuente", false, "");
+  list["STRUCT NOX/Line Search/More'-Thuente"] = group("STRUCT NOX/Line Search/More'-Thuente",
+      {
 
-  {
-    Core::Utils::double_parameter("Sufficient Decrease", 1.0e-4,
-        "The ftol in the sufficient decrease condition", &morethuente);
-    Core::Utils::double_parameter(
-        "Curvature Condition", 0.9999, "The gtol in the curvature condition", &morethuente);
-    Core::Utils::double_parameter("Interval Width", 1.0e-15,
-        "The maximum width of the interval containing the minimum of the modified function",
-        &morethuente);
-    Core::Utils::double_parameter(
-        "Maximum Step", 1.0e6, "maximum allowable step length", &morethuente);
-    Core::Utils::double_parameter(
-        "Minimum Step", 1.0e-12, "minimum allowable step length", &morethuente);
-    Core::Utils::int_parameter("Max Iters", 20,
-        "maximum number of right-hand-side and corresponding Jacobian evaluations", &morethuente);
-    Core::Utils::double_parameter("Default Step", 1.0, "starting step length", &morethuente);
+          parameter<double>("Sufficient Decrease",
+              {.description = "The ftol in the sufficient decrease condition",
+                  .default_value = 1.0e-4}),
+          parameter<double>("Curvature Condition",
+              {.description = "The gtol in the curvature condition", .default_value = 0.9999}),
+          parameter<double>(
+              "Interval Width", {.description = "The maximum width of the interval containing the "
+                                                "minimum of the modified function",
+                                    .default_value = 1.0e-15}),
+          parameter<double>("Maximum Step",
+              {.description = "maximum allowable step length", .default_value = 1.0e6}),
+          parameter<double>("Minimum Step",
+              {.description = "minimum allowable step length", .default_value = 1.0e-12}),
+          parameter<int>("Max Iters",
+              {.description =
+                      "maximum number of right-hand-side and corresponding Jacobian evaluations",
+                  .default_value = 20}),
+          parameter<double>(
+              "Default Step", {.description = "starting step length", .default_value = 1.0}),
 
-    std::vector<std::string> recovery_step_type_valid_input = {"Constant", "Last Computed Step"};
-    Core::Utils::string_parameter("Recovery Step Type", "Constant",
-        "Determines the step size to take when the line search fails", &morethuente,
-        recovery_step_type_valid_input);
 
-    Core::Utils::double_parameter("Recovery Step", 1.0,
-        "The value of the step to take when the line search fails. Only used if the \"Recovery "
-        "Step Type\" is set to \"Constant\"",
-        &morethuente);
+          deprecated_selection<std::string>("Recovery Step Type",
+              {"Constant", "Last Computed Step"},
+              {.description = "Determines the step size to take when the line search fails",
+                  .default_value = "Constant"}),
 
-    std::vector<std::string> sufficient_decrease_condition_valid_input = {
-        "Armijo-Goldstein", "Ared/Pred", "None"};
-    Core::Utils::string_parameter("Sufficient Decrease Condition", "Armijo-Goldstein",
-        "Choice to use for the sufficient decrease condition", &morethuente,
-        sufficient_decrease_condition_valid_input);
+          parameter<double>(
+              "Recovery Step", {.description = "The value of the step to take when the line search "
+                                               "fails. Only used if the \"Recovery "
+                                               "Step Type\" is set to \"Constant\"",
+                                   .default_value = 1.0}),
 
-    Core::Utils::bool_parameter("Optimize Slope Calculation", "No",
-        "Boolean value. If set to true the value of $s^T J^T F$ is estimated using a "
-        "directional derivative in a call to ::NOX::LineSearch::Common::computeSlopeWithOutJac. "
-        "If false the slope computation is computed with the "
-        "::NOX::LineSearch::Common::computeSlope method. "
-        "Setting this to true eliminates having to compute the Jacobian at each inner iteration of "
-        "the More'-Thuente line search",
-        &morethuente);
-  }
+          deprecated_selection<std::string>("Sufficient Decrease Condition",
+              {"Armijo-Goldstein", "Ared/Pred", "None"},
+              {.description = "Choice to use for the sufficient decrease condition",
+                  .default_value = "Armijo-Goldstein"}),
+
+          parameter<bool>("Optimize Slope Calculation",
+              {.description =
+                      "Boolean value. If set to true the value of $s^T J^T F$ is estimated using "
+                      "a directional derivative in a call to "
+                      "::NOX::LineSearch::Common::computeSlopeWithOutJac. If false the slope "
+                      "computation is computed with the ::NOX::LineSearch::Common::computeSlope "
+                      "method. Setting this to true eliminates having to compute the Jacobian at "
+                      "each inner iteration of the More'-Thuente line search",
+                  .default_value = false})},
+      {.defaultable = true});
 
   // sub-list "Trust Region"
-  Teuchos::ParameterList& trustregion = snox.sublist("Trust Region", false, "");
+  list["STRUCT NOX/Trust Region"] = group("STRUCT NOX/Trust Region",
+      {
 
-  {
-    Core::Utils::double_parameter("Minimum Trust Region Radius", 1.0e-6,
-        "Minimum allowable trust region radius", &trustregion);
-    Core::Utils::double_parameter("Maximum Trust Region Radius", 1.0e+9,
-        "Maximum allowable trust region radius", &trustregion);
-    Core::Utils::double_parameter("Minimum Improvement Ratio", 1.0e-4,
-        "Minimum improvement ratio to accept the step", &trustregion);
-    Core::Utils::double_parameter("Contraction Trigger Ratio", 0.1,
-        "If the improvement ratio is less than this value, then the trust region is contracted by "
-        "the amount specified by the \"Contraction Factor\". Must be larger than \"Minimum "
-        "Improvement Ratio\"",
-        &trustregion);
-    Core::Utils::double_parameter("Contraction Factor", 0.25, "", &trustregion);
-    Core::Utils::double_parameter("Expansion Trigger Ratio", 0.75,
-        "If the improvement ratio is greater than this value, then the trust region is contracted "
-        "by the amount specified by the \"Expansion Factor\"",
-        &trustregion);
-    Core::Utils::double_parameter("Expansion Factor", 4.0, "", &trustregion);
-    Core::Utils::double_parameter("Recovery Step", 1.0, "", &trustregion);
-  }
+          parameter<double>("Minimum Trust Region Radius",
+              {.description = "Minimum allowable trust region radius", .default_value = 1.0e-6}),
+          parameter<double>("Maximum Trust Region Radius",
+              {.description = "Maximum allowable trust region radius", .default_value = 1.0e+9}),
+          parameter<double>("Minimum Improvement Ratio",
+              {.description = "Minimum improvement ratio to accept the step",
+                  .default_value = 1.0e-4}),
+          parameter<double>("Contraction Trigger Ratio",
+              {.description =
+                      "If the improvement ratio is less than this value, then the trust region is "
+                      "contracted by "
+                      "the amount specified by the \"Contraction Factor\". Must be larger than "
+                      "\"Minimum "
+                      "Improvement Ratio\"",
+                  .default_value = 0.1}),
+
+          parameter<double>("Contraction Factor", {.description = "", .default_value = 0.25}),
+          parameter<double>("Expansion Trigger Ratio",
+              {.description = "If the improvement ratio is greater than this value, then the trust "
+                              "region is contracted "
+                              "by the amount specified by the \"Expansion Factor\"",
+                  .default_value = 0.75}),
+
+          parameter<double>("Expansion Factor", {.description = "", .default_value = 4.0}),
+
+          parameter<double>("Recovery Step", {.description = "", .default_value = 1.0})},
+      {.defaultable = true});
 
   // sub-list "Printing"
-  Teuchos::ParameterList& printing = snox.sublist("Printing", false, "");
+  list["STRUCT NOX/Printing"] = group("STRUCT NOX/Printing",
+      {
 
-  {
-    Core::Utils::bool_parameter("Error", "No", "", &printing);
-    Core::Utils::bool_parameter("Warning", "Yes", "", &printing);
-    Core::Utils::bool_parameter("Outer Iteration", "Yes", "", &printing);
-    Core::Utils::bool_parameter("Inner Iteration", "Yes", "", &printing);
-    Core::Utils::bool_parameter("Parameters", "No", "", &printing);
-    Core::Utils::bool_parameter("Details", "No", "", &printing);
-    Core::Utils::bool_parameter("Outer Iteration StatusTest", "Yes", "", &printing);
-    Core::Utils::bool_parameter("Linear Solver Details", "No", "", &printing);
-    Core::Utils::bool_parameter("Test Details", "No", "", &printing);
-    Core::Utils::bool_parameter("Debug", "No", "", &printing);
-  }
+          parameter<bool>("Error", {.description = "", .default_value = false}),
+
+          parameter<bool>("Warning", {.description = "", .default_value = true}),
+
+          parameter<bool>("Outer Iteration", {.description = "", .default_value = true}),
+
+          parameter<bool>("Inner Iteration", {.description = "", .default_value = true}),
+
+          parameter<bool>("Parameters", {.description = "", .default_value = false}),
+
+          parameter<bool>("Details", {.description = "", .default_value = false}),
+
+          parameter<bool>("Outer Iteration StatusTest", {.description = "", .default_value = true}),
+
+          parameter<bool>("Linear Solver Details", {.description = "", .default_value = false}),
+
+          parameter<bool>("Test Details", {.description = "", .default_value = false}),
+
+          parameter<bool>("Debug", {.description = "", .default_value = false})},
+      {.defaultable = true});
 
   // sub-list "Status Test"
-  Teuchos::ParameterList& statusTest = snox.sublist("Status Test", false, "");
+  list["STRUCT NOX/Status Test"] = group("STRUCT NOX/Status Test",
+      {
 
-  {
-    Core::Utils::string_parameter("XML File", "none",
-        "Filename of XML file with configuration"
-        " of nox status test",
-        &statusTest);
-  }
+          Core::IO::InputSpecBuilders::parameter<std::optional<std::filesystem::path>>("XML File",
+              {.description = "Filename of XML file with configuration of nox status test"})},
+      {.defaultable = true});
 
   // sub-list "Solver Options"
-  Teuchos::ParameterList& solverOptions = snox.sublist("Solver Options", false, "");
+  list["STRUCT NOX/Solver Options"] = group("STRUCT NOX/Solver Options",
+      {
 
-  {
-    Teuchos::Array<std::string> meritFct = Teuchos::tuple<std::string>("Sum of Squares");
-    Teuchos::setStringToIntegralParameter<NOX::Nln::MeritFunction::MeritFctName>("Merit Function",
-        "Sum of Squares", "", meritFct,
-        Teuchos::tuple<NOX::Nln::MeritFunction::MeritFctName>(
-            NOX::Nln::MeritFunction::mrtfct_sum_of_squares),
-        &solverOptions);
+          deprecated_selection<NOX::Nln::MeritFunction::MeritFctName>("Merit Function",
+              {
+                  {"Sum of Squares", NOX::Nln::MeritFunction::mrtfct_sum_of_squares},
+              },
+              {.description = "", .default_value = NOX::Nln::MeritFunction::mrtfct_sum_of_squares}),
 
-    std::vector<std::string> status_test_check_type_valid_input = {"Complete", "Minimal", "None"};
-    Core::Utils::string_parameter("Status Test Check Type", "Complete", "", &solverOptions,
-        status_test_check_type_valid_input);
-  }
+          deprecated_selection<std::string>("Status Test Check Type",
+              {"Complete", "Minimal", "None"}, {.description = "", .default_value = "Complete"})},
+      {.defaultable = true});
 
   // sub-sub-sub-list "Linear Solver"
-  Teuchos::ParameterList& linearSolver = newton.sublist("Linear Solver", false, "");
+  list["STRUCT NOX/Direction/Newton/Linear Solver"] = group(
+      "STRUCT NOX/Direction/Newton/Linear Solver",
+      {
 
-  {
-    // convergence criteria adaptivity
-    Core::Utils::bool_parameter("Adaptive Control", "No",
-        "Switch on adaptive control of linear solver tolerance for nonlinear solution",
-        &linearSolver);
-    Core::Utils::double_parameter("Adaptive Control Objective", 0.1,
-        "The linear solver shall be this much better than the current nonlinear residual in the "
-        "nonlinear convergence limit",
-        &linearSolver);
-    Core::Utils::bool_parameter(
-        "Zero Initial Guess", "Yes", "Zero out the delta X vector if requested.", &linearSolver);
-    Core::Utils::bool_parameter("Computing Scaling Manually", "No",
-        "Allows the manually scaling of your linear system (not supported at the moment).",
-        &linearSolver);
-    Core::Utils::bool_parameter("Output Solver Details", "Yes",
-        "Switch the linear solver output on and off.", &linearSolver);
-  }
+          // convergence criteria adaptivity
+          parameter<bool>(
+              "Adaptive Control", {.description = "Switch on adaptive control of linear solver "
+                                                  "tolerance for nonlinear solution",
+                                      .default_value = false}),
+          parameter<double>("Adaptive Control Objective",
+              {.description =
+                      "The linear solver shall be this much better than the current nonlinear "
+                      "residual in the nonlinear convergence limit",
+                  .default_value = 0.1}),
+          parameter<bool>("Zero Initial Guess",
+              {.description = "Zero out the delta X vector if requested.", .default_value = true}),
+          parameter<bool>("Computing Scaling Manually",
+              {.description =
+                      "Allows the manually scaling of your linear system (not supported at the "
+                      "moment).",
+                  .default_value = false}),
+          parameter<bool>("Output Solver Details",
+              {.description = "Switch the linear solver output on and off.",
+                  .default_value = true})},
+      {.defaultable = true});
 }
 
 FOUR_C_NAMESPACE_CLOSE

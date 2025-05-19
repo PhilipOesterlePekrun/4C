@@ -101,7 +101,7 @@ namespace PoroElast
 
     //! Set the slave and master elements of the face element
     void set_slave_and_master(const Core::FE::Discretization& voldiscret,
-        const Core::FE::Discretization* voldiscret2, const Epetra_Map* elecolmap,
+        const Core::FE::Discretization* voldiscret2, const Core::LinAlg::Map* elecolmap,
         Core::Elements::FaceElement* faceele);
 
     //! strategy for material assignment for non matching meshes with poro
@@ -119,8 +119,6 @@ namespace PoroElast
      In case of poro, we also need the initial porosity type of the structural element to be known
      in the fluid element, which is why there is a special strategy for poro. Note that this is not
      yet working for inhomogeneous material properties.
-
-     \author vuong 10/14
      */
     class PoroMaterialStrategy : public Coupling::VolMortar::Utils::DefaultMaterialStrategy
     {

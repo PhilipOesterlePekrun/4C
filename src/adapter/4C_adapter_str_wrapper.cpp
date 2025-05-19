@@ -7,6 +7,7 @@
 
 #include "4C_adapter_str_wrapper.hpp"
 
+
 FOUR_C_NAMESPACE_OPEN
 
 /*----------------------------------------------------------------------*/
@@ -14,7 +15,7 @@ FOUR_C_NAMESPACE_OPEN
 void Adapter::StructureNOXCorrectionWrapper::prepare_time_step()
 {
   StructureWrapper::prepare_time_step();
-  if (disstepinc_ != nullptr) disstepinc_->PutScalar(0.);
+  if (disstepinc_ != nullptr) disstepinc_->put_scalar(0.);
 }
 
 
@@ -40,11 +41,11 @@ void Adapter::StructureNOXCorrectionWrapper::evaluate(
         std::make_shared<Core::LinAlg::Vector<double>>(*disstepinc);
     if (disstepinc_ != nullptr)
     {
-      disiterinc->Update(-1.0, *disstepinc_, 1.0);
+      disiterinc->update(-1.0, *disstepinc_, 1.0);
 
       // update incremental displacement member to provided step increments
       // shortly: disinc_^<i> := disp^<i+1>
-      disstepinc_->Update(1.0, *disstepinc, 0.0);
+      disstepinc_->update(1.0, *disstepinc, 0.0);
     }
     else
     {

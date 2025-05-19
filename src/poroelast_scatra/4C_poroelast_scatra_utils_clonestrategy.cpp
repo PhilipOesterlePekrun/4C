@@ -9,20 +9,13 @@
 
 #include "4C_adapter_structure_scatra_ele.hpp"
 #include "4C_global_data.hpp"
-#include "4C_mat_fluidporo.hpp"
 #include "4C_mat_par_bundle.hpp"
-#include "4C_mat_structporo.hpp"
 #include "4C_poroelast_scatra_utils.hpp"
 #include "4C_poroelast_utils_clonestrategy.hpp"
 #include "4C_scatra_ele.hpp"
-#include "4C_so3_hex27.hpp"
-#include "4C_so3_hex8.hpp"
-#include "4C_so3_nurbs27.hpp"
-#include "4C_so3_poro_p1_scatra.hpp"
-#include "4C_so3_poro_scatra.hpp"
-#include "4C_so3_tet10.hpp"
-#include "4C_so3_tet4.hpp"
 #include "4C_solid_poro_3D_ele_pressure_based.hpp"
+#include "4C_solid_poro_3D_ele_pressure_velocity_based.hpp"
+#include "4C_solid_poro_3D_ele_pressure_velocity_based_p1.hpp"
 #include "4C_w1_poro_p1_scatra.hpp"
 #include "4C_w1_poro_scatra.hpp"
 
@@ -36,65 +29,19 @@ Inpar::ScaTra::ImplType PoroElastScaTra::Utils::PoroScatraCloneStrategy::get_imp
   // the element type name, needed to cast correctly in the following
   const std::string eletypename = ele->element_type().name();
 
-  // TET 4 Elements
-  // tet 4 solid poro scatra
-  if (eletypename == "So_tet4PoroScatraType")
-  {
-    return (
-        dynamic_cast<
-            Discret::Elements::So3PoroScatra<Discret::Elements::SoTet4, Core::FE::CellType::tet4>*>(
-            ele))
-        ->impl_type();
-  }
-  // tet4 solid porop1 scatra
-  else if (eletypename == "So_tet4PoroP1ScatraType")
-  {
-    return (dynamic_cast<Discret::Elements::So3PoroP1Scatra<Discret::Elements::SoTet4,
-                Core::FE::CellType::tet4>*>(ele))
-        ->impl_type();
-  }
-  // tet 10 solid poro scatra
-  else if (eletypename == "So_tet10PoroScatraType")
-  {
-    return (dynamic_cast<Discret::Elements::So3PoroScatra<Discret::Elements::SoTet10,
-                Core::FE::CellType::tet10>*>(ele))
-        ->impl_type();
-  }
-  // HEX 8 Elements
-  // hex8 solid poro scatra
-  else if (eletypename == "So_hex8PoroScatraType")
-  {
-    return (
-        dynamic_cast<
-            Discret::Elements::So3PoroScatra<Discret::Elements::SoHex8, Core::FE::CellType::hex8>*>(
-            ele))
-        ->impl_type();
-  }
-  // hex8 solid porop1 scatra
-  else if (eletypename == "So_hex8PoroP1ScatraType")
-  {
-    return (dynamic_cast<Discret::Elements::So3PoroP1Scatra<Discret::Elements::SoHex8,
-                Core::FE::CellType::hex8>*>(ele))
-        ->impl_type();
-  }
-  // hex27 solid poro scatra
-  else if (eletypename == "So_hex27PoroScatraType")
-  {
-    return (dynamic_cast<Discret::Elements::So3PoroScatra<Discret::Elements::SoHex27,
-                Core::FE::CellType::hex27>*>(ele))
-        ->impl_type();
-  }
-  // nurbs 27
-  else if (eletypename == "So_nurbs27PoroScatraType")
-  {
-    return (dynamic_cast<Discret::Elements::So3PoroScatra<Discret::Elements::Nurbs::SoNurbs27,
-                Core::FE::CellType::nurbs27>*>(ele))
-        ->impl_type();
-  }
   // Solidporo
-  else if (eletypename == "SolidPoroPressureBasedType")
+  if (eletypename == "SolidPoroPressureBasedType")
   {
     return (dynamic_cast<Discret::Elements::SolidPoroPressureBased*>(ele))->get_impl_type();
+  }
+  else if (eletypename == "SolidPoroPressureVelocityBasedType")
+  {
+    return (dynamic_cast<Discret::Elements::SolidPoroPressureVelocityBased*>(ele))->get_impl_type();
+  }
+  else if (eletypename == "SolidPoroPressureVelocityBasedP1Type")
+  {
+    return (dynamic_cast<Discret::Elements::SolidPoroPressureVelocityBasedP1*>(ele))
+        ->get_impl_type();
   }
   // wall poro scatra elements
   // quad 4
@@ -178,8 +125,7 @@ void PoroElastScaTra::Utils::PoroScatraCloneStrategy::set_element_data(
   // note: set_material() was reimplemented by the transport element!
   auto* trans = dynamic_cast<Discret::Elements::Transport*>(newele.get());
   if (trans == nullptr)
-    FOUR_C_THROW(
-        "unsupported element type '%s'", Core::Utils::get_dynamic_type_name(*newele).c_str());
+    FOUR_C_THROW("unsupported element type '{}'", Core::Utils::get_dynamic_type_name(*newele));
 
 
   // set material
@@ -194,15 +140,13 @@ void PoroElastScaTra::Utils::PoroScatraCloneStrategy::set_element_data(
   if (impltype == Inpar::ScaTra::impltype_undefined)
     FOUR_C_THROW(
         "PoroScatraCloneStrategy copies scatra discretization from structure discretization, but "
-        "the "
-        "STRUCTURE elements that are defined in the .dat file are either not meant to be copied "
-        "to scatra elements "
-        "or the ImplType is set 'Undefined' which is not meaningful for the created scatra "
-        "discretization! "
+        "the STRUCTURE elements that are defined in the input file are either not meant to be "
+        "copied "
+        "to scatra elements or the ImplType is set 'Undefined' which is not meaningful for the "
+        "created scatra discretization! "
         "Use SOLIDSCATRA, WALLSCATRA, SHELLSCATRA, SOLIDPOROSCATRA, SOLIDPOROP1SCATRA, "
-        "SOLIDPORO_PRESSURE_BASED"
-        "WALLPOROSCATRA or "
-        "WALLPOROP1SCATRA Elements with meaningful ImplType instead!");
+        "SOLIDPORO_PRESSURE_BASED, WALLPOROSCATRA or WALLPOROP1SCATRA Elements with meaningful "
+        "ImplType instead!");
 
   trans->set_impl_type(impltype);
 }
@@ -232,7 +176,7 @@ void PoroElastScaTra::Utils::PoroScatraCloneStrategy::check_material_type(const 
       (mtype != Core::Materials::m_electrode) && (mtype != Core::Materials::m_matlist) &&
       (mtype != Core::Materials::m_matlist_reactions) && (mtype != Core::Materials::m_myocard) &&
       (mtype != Core::Materials::m_thermostvenant))
-    FOUR_C_THROW("Material with ID %d is not admissible for scalar transport elements", matid);
+    FOUR_C_THROW("Material with ID {} is not admissible for scalar transport elements", matid);
 }
 
 bool PoroElastScaTra::Utils::PoroelastCloneStrategyforScatraElements::determine_ele_type(

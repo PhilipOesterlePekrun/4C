@@ -8,12 +8,13 @@
 #include "4C_comm_utils.hpp"
 
 #include "4C_io_pstream.hpp"
+#include "4C_linalg_multi_vector.hpp"
+#include "4C_linalg_sparsematrix.hpp"
 #include "4C_linalg_utils_densematrix_communication.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 
-#include <Epetra_CrsMatrix.h>
 #include <Epetra_Import.h>
-#include <Epetra_MpiComm.h>
+#include <Epetra_Map.h>
 
 #include <iomanip>
 #include <sstream>
@@ -105,7 +106,7 @@ namespace Core::Communication
               printf("Try again!\n");
             }
             MPI_Finalize();
-            exit(1);
+            exit(EXIT_FAILURE);
           }
         }
         // case without given group layout
@@ -128,7 +129,7 @@ namespace Core::Communication
               printf("Try again!\n");
             }
             MPI_Finalize();
-            exit(1);
+            exit(EXIT_FAILURE);
           }
 
           // equal size of the groups
@@ -194,7 +195,7 @@ namespace Core::Communication
             printf("Try again!\n");
           }
           MPI_Finalize();
-          exit(1);
+          exit(EXIT_FAILURE);
         }
       }
 
@@ -205,6 +206,7 @@ namespace Core::Communication
                (argument.substr(0, 2) != "-h") and (argument.substr(0, 6) != "--help") and
                (argument.substr(0, 2) != "-p") and (argument.substr(0, 12) != "--parameters") and
                (argument.substr(0, 2) != "-d") and (argument.substr(0, 9) != "--datfile") and
+               (argument.substr(0, 13) != "--to-yaml") and
                (argument.substr(0, 13) != "--interactive"))
       {
         printf(
@@ -213,7 +215,7 @@ namespace Core::Communication
             argument.c_str());
         printf("Please refer to ./4C --help and try again!\n");
         MPI_Finalize();
-        exit(1);
+        exit(EXIT_FAILURE);
       }
 
     }  // end for(int i=0; i<int(conf.size()); i++)
@@ -230,7 +232,7 @@ namespace Core::Communication
         printf("Try again!\n");
       }
       MPI_Finalize();
-      exit(1);
+      exit(EXIT_FAILURE);
     }
 
     // do the splitting of the communicator
@@ -294,7 +296,7 @@ namespace Core::Communication
         lpidgpid_(lpidgpid),
         lcomm_(lcomm),
         gcomm_(gcomm),
-        subcomm_(nullptr),
+        subcomm_(MPI_COMM_NULL),
         np_type_(npType)
   {
     return;
@@ -314,7 +316,7 @@ namespace Core::Communication
     // if GPID is not part of the current group
     printf("\n\n\nERROR: GPID (%d) is not in this group (%d) \n\n\n\n", GPID, group_id_);
     MPI_Abort(gcomm_, EXIT_FAILURE);
-    exit(1);
+    exit(EXIT_FAILURE);
 
     return -1;
   }
@@ -346,13 +348,13 @@ namespace Core::Communication
       return false;
     }
 
-    // do stupid conversion from Epetra_BlockMap to Epetra_Map
+    // do stupid conversion from Epetra_BlockMap to Core::LinAlg::Map
     const Epetra_BlockMap& vecblockmap = vec.Map();
-    Epetra_Map vecmap(vecblockmap.NumGlobalElements(), vecblockmap.NumMyElements(),
+    Core::LinAlg::Map vecmap(vecblockmap.NumGlobalElements(), vecblockmap.NumMyElements(),
         vecblockmap.MyGlobalElements(), 0, Core::Communication::as_epetra_comm(vec.Comm()));
 
     // gather data of vector to compare on gcomm proc 0 and last gcomm proc
-    std::shared_ptr<Epetra_Map> proc0map;
+    std::shared_ptr<Core::LinAlg::Map> proc0map;
     if (Core::Communication::my_mpi_rank(lcomm) == Core::Communication::my_mpi_rank(gcomm))
       proc0map = Core::LinAlg::allreduce_overlapping_e_map(vecmap, 0);
     else
@@ -360,7 +362,7 @@ namespace Core::Communication
           vecmap, Core::Communication::num_mpi_ranks(lcomm) - 1);
 
     // export full vectors to the two desired processors
-    Core::LinAlg::MultiVector<double> fullvec(*proc0map, vec.NumVectors(), true);
+    Core::LinAlg::MultiVector<double> fullvec(proc0map->get_epetra_map(), vec.NumVectors(), true);
     Core::LinAlg::export_to(vec, fullvec);
 
     const int myglobalrank = Core::Communication::my_mpi_rank(gcomm);
@@ -387,7 +389,7 @@ namespace Core::Communication
       // do comparison of names
       if (std::strcmp(name, receivename.data()))
         FOUR_C_THROW(
-            "comparison of different vectors: communicators 0 (%s) and communicators 1 (%s)", name,
+            "comparison of different vectors: communicators 0 ({}) and communicators 1 ({})", name,
             receivename.data());
 
       // compare data
@@ -411,7 +413,7 @@ namespace Core::Communication
       int mylength = fullvec.MyLength() * vec.NumVectors();
       if (mylength != lengthRecv)
         FOUR_C_THROW(
-            "length of received data (%i) does not match own data (%i)", lengthRecv, mylength);
+            "length of received data ({}) does not match own data ({})", lengthRecv, mylength);
 
       for (int i = 0; i < mylength; ++i)
       {
@@ -463,8 +465,8 @@ namespace Core::Communication
     {
       std::stringstream diff;
       diff << std::scientific << std::setprecision(16) << maxdiff;
-      FOUR_C_THROW("vectors %s do not match, maximum difference between entries is: %s", name,
-          diff.str().c_str());
+      FOUR_C_THROW(
+          "vectors {} do not match, maximum difference between entries is: {}", name, diff.str());
     }
 
     return true;
@@ -473,7 +475,7 @@ namespace Core::Communication
   /*----------------------------------------------------------------------*
    *----------------------------------------------------------------------*/
   bool are_distributed_sparse_matrices_identical(const Communicators& communicators,
-      Epetra_CrsMatrix& matrix, const char* name, double tol /*= 1.0e-14*/
+      const Core::LinAlg::SparseMatrix& matrix, const char* name, double tol /*= 1.0e-14*/
   )
   {
     MPI_Comm lcomm = communicators.local_comm();
@@ -489,18 +491,18 @@ namespace Core::Communication
       return false;
     }
 
-    const Epetra_Map& rowmap = matrix.RowMap();
-    const Epetra_Map& domainmap = matrix.DomainMap();
+    const Core::LinAlg::Map& rowmap = Core::LinAlg::Map(matrix.row_map());
+    const Core::LinAlg::Map& domainmap = Core::LinAlg::Map(matrix.domain_map());
 
     // gather data of vector to compare on gcomm proc 0 and last gcomm proc
-    std::shared_ptr<Epetra_Map> serialrowmap;
+    std::shared_ptr<Core::LinAlg::Map> serialrowmap;
     if (Core::Communication::my_mpi_rank(lcomm) == Core::Communication::my_mpi_rank(gcomm))
       serialrowmap = Core::LinAlg::allreduce_overlapping_e_map(rowmap, 0);
     else
       serialrowmap = Core::LinAlg::allreduce_overlapping_e_map(
           rowmap, Core::Communication::num_mpi_ranks(lcomm) - 1);
 
-    std::shared_ptr<Epetra_Map> serialdomainmap;
+    std::shared_ptr<Core::LinAlg::Map> serialdomainmap;
     if (Core::Communication::my_mpi_rank(lcomm) == Core::Communication::my_mpi_rank(gcomm))
       serialdomainmap = Core::LinAlg::allreduce_overlapping_e_map(domainmap, 0);
     else
@@ -508,16 +510,16 @@ namespace Core::Communication
           domainmap, Core::Communication::num_mpi_ranks(lcomm) - 1);
 
     // export full matrices to the two desired processors
-    Epetra_Import serialimporter(*serialrowmap, rowmap);
-    Epetra_CrsMatrix serialCrsMatrix(Copy, *serialrowmap, 0);
-    serialCrsMatrix.Import(matrix, serialimporter, Insert);
-    serialCrsMatrix.FillComplete(*serialdomainmap, *serialrowmap);
+    Epetra_Import serialimporter(serialrowmap->get_epetra_map(), rowmap.get_epetra_map());
+    Core::LinAlg::SparseMatrix serialCrsMatrix(*serialrowmap, 0);
+    serialCrsMatrix.import(matrix, serialimporter, Insert);
+    serialCrsMatrix.complete(*serialdomainmap, *serialrowmap);
 
     // fill data of matrices to container which can be easily communicated via MPI
     std::vector<int> data_indices;
-    data_indices.reserve(serialCrsMatrix.NumMyNonzeros() * 2);
+    data_indices.reserve(serialCrsMatrix.num_my_nonzeros() * 2);
     std::vector<double> data_values;
-    data_values.reserve(serialCrsMatrix.NumMyNonzeros());
+    data_values.reserve(serialCrsMatrix.num_my_nonzeros());
     if (myglobalrank == 0 || myglobalrank == Core::Communication::num_mpi_ranks(gcomm) - 1)
     {
       for (int i = 0; i < serialrowmap->NumMyElements(); ++i)
@@ -526,8 +528,8 @@ namespace Core::Communication
         int NumEntries;
         double* Values;
         int* Indices;
-        int err = serialCrsMatrix.ExtractMyRowView(i, NumEntries, Values, Indices);
-        if (err != 0) FOUR_C_THROW("ExtractMyRowView error: %d", err);
+        int err = serialCrsMatrix.extract_my_row_view(i, NumEntries, Values, Indices);
+        if (err != 0) FOUR_C_THROW("extract_my_row_view error: {}", err);
 
         for (int j = 0; j < NumEntries; ++j)
         {
@@ -563,7 +565,7 @@ namespace Core::Communication
       // do comparison of names
       if (std::strcmp(name, receivename.data()))
         FOUR_C_THROW(
-            "comparison of different vectors: communicators 0 (%s) and communicators 1 (%s)", name,
+            "comparison of different vectors: communicators 0 ({}) and communicators 1 ({})", name,
             receivename.data());
 
       // compare data: indices
@@ -587,7 +589,7 @@ namespace Core::Communication
       int mylength = data_indices.size();
       if (mylength != lengthRecv)
         FOUR_C_THROW(
-            "length of received data (%i) does not match own data (%i)", lengthRecv, mylength);
+            "length of received data ({}) does not match own data ({})", lengthRecv, mylength);
 
       for (int i = 0; i < mylength; ++i)
       {
@@ -595,7 +597,7 @@ namespace Core::Communication
         {
           bool iscolindex = data_indices[i] % 2;
           FOUR_C_THROW(
-              "%s index of matrix %s does not match: communicators 0 (%i) and communicators 1 (%i)",
+              "{} index of matrix {} does not match: communicators 0 ({}) and communicators 1 ({})",
               iscolindex == 0 ? "row" : "col", name, data_indices[i], receivebuf_indices[i]);
         }
       }
@@ -623,7 +625,7 @@ namespace Core::Communication
       mylength = data_values.size();
       if (mylength != lengthRecv)
         FOUR_C_THROW(
-            "length of received data (%i) does not match own data (%i)", lengthRecv, mylength);
+            "length of received data ({}) does not match own data ({})", lengthRecv, mylength);
 
       for (int i = 0; i < mylength; ++i)
       {
@@ -684,8 +686,8 @@ namespace Core::Communication
     {
       std::stringstream diff;
       diff << std::scientific << std::setprecision(16) << maxdiff;
-      FOUR_C_THROW("matrices %s do not match, maximum difference between entries is: %s in row",
-          name, diff.str().c_str());
+      FOUR_C_THROW("matrices {} do not match, maximum difference between entries is: {} in row",
+          name, diff.str());
     }
 
     return true;

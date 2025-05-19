@@ -85,10 +85,10 @@ namespace
 
 template <Core::FE::CellType celltype, typename ElementFormulation>
 Discret::Elements::SolidEleCalc<celltype, ElementFormulation>::SolidEleCalc()
-    : stiffness_matrix_integration_(
-          create_gauss_integration<celltype>(get_gauss_rule_stiffness_matrix<celltype>())),
+    : stiffness_matrix_integration_(Core::FE::create_gauss_integration<celltype>(
+          get_gauss_rule_stiffness_matrix<celltype>())),
       mass_matrix_integration_(
-          create_gauss_integration<celltype>(get_gauss_rule_mass_matrix<celltype>()))
+          Core::FE::create_gauss_integration<celltype>(get_gauss_rule_mass_matrix<celltype>()))
 {
   Discret::Elements::resize_gp_history(history_data_, stiffness_matrix_integration_.num_points());
 }
@@ -498,7 +498,7 @@ Discret::Elements::SolidEleCalc<celltype, ElementFormulation>::get_normal_cauchy
   {
     FOUR_C_THROW(
         "Cannot evaluate the Cauchy stress at xi with an element formulation with Gauss point "
-        "history. The element formulation is %s.",
+        "history. The element formulation is {}.",
         Core::Utils::get_type_name<ElementFormulation>().c_str());
   }
   else

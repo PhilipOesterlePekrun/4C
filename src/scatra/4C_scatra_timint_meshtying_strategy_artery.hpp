@@ -39,7 +39,7 @@ namespace FSI
   }  // namespace Utils
 }  // namespace FSI
 
-namespace PoroMultiPhaseScaTra
+namespace PoroPressureBased
 {
   class PoroMultiPhaseScaTraArtCouplBase;
 }
@@ -55,10 +55,10 @@ namespace ScaTra
     );
 
     //! return global map of degrees of freedom
-    const Epetra_Map& dof_row_map() const override;
+    const Core::LinAlg::Map& dof_row_map() const override;
 
     //! return global map of degrees of freedom
-    std::shared_ptr<const Epetra_Map> art_scatra_dof_row_map() const;
+    std::shared_ptr<const Core::LinAlg::Map> art_scatra_dof_row_map() const;
 
     //! evaluate mesh-tying
     //! \note  nothing is done here
@@ -172,7 +172,7 @@ namespace ScaTra
     std::shared_ptr<Adapter::ArtNet> arttimint_;
 
     //! mesh tying object
-    std::shared_ptr<PoroMultiPhaseScaTra::PoroMultiPhaseScaTraArtCouplBase> arttoscatracoupling_;
+    std::shared_ptr<PoroPressureBased::PoroMultiPhaseScaTraArtCouplBase> arttoscatracoupling_;
 
     //! the two discretizations
     std::shared_ptr<Core::FE::Discretization> artscatradis_;

@@ -83,8 +83,8 @@ void Solid::TimeInt::Implicit::set_state(const std::shared_ptr<Core::LinAlg::Vec
 {
   integrator_ptr()->set_state(*x);
   ::NOX::Epetra::Vector x_nox(
-      Teuchos::rcpFromRef(*x->get_ptr_of_Epetra_Vector()), ::NOX::Epetra::Vector::CreateView);
-  nln_solver().solution_group().setX(x_nox);
+      Teuchos::rcpFromRef(*x->get_ptr_of_epetra_vector()), ::NOX::Epetra::Vector::CreateView);
+  nln_solver().get_solution_group().setX(x_nox);
   set_state_in_sync_with_nox_group(true);
 }
 
@@ -109,7 +109,7 @@ void Solid::TimeInt::Implicit::prepare_time_step()
   double& time_np = data_global_state().get_time_np();
   time_np = data_global_state().get_time_n() + (*data_global_state().get_delta_time())[0]; */
 
-  ::NOX::Abstract::Group& grp = nln_solver().solution_group();
+  ::NOX::Abstract::Group& grp = nln_solver().get_solution_group();
   predictor().predict(grp);
 }
 
@@ -130,7 +130,7 @@ int Solid::TimeInt::Implicit::integrate_step()
 {
   check_init_setup();
   // do the predictor step
-  ::NOX::Abstract::Group& grp = nln_solver().solution_group();
+  ::NOX::Abstract::Group& grp = nln_solver().get_solution_group();
   predictor().predict(grp);
   return solve();
 }
@@ -158,7 +158,7 @@ void Solid::TimeInt::Implicit::update_state_incrementally(
 
   check_init_setup();
   throw_if_state_not_in_sync_with_nox_group();
-  ::NOX::Abstract::Group& grp = nln_solver().solution_group();
+  ::NOX::Abstract::Group& grp = nln_solver().get_solution_group();
 
   auto* grp_ptr = dynamic_cast<NOX::Nln::Group*>(&grp);
   FOUR_C_ASSERT(grp_ptr != nullptr, "Dynamic cast failed!");
@@ -170,7 +170,7 @@ void Solid::TimeInt::Implicit::update_state_incrementally(
 
   // wrap the displacement vector in a nox_epetra_Vector
   const ::NOX::Epetra::Vector nox_disiterinc_ptr(
-      Teuchos::rcpFromRef(*mutable_disiterinc->get_ptr_of_Epetra_Vector()),
+      Teuchos::rcpFromRef(*mutable_disiterinc->get_ptr_of_epetra_vector()),
       ::NOX::Epetra::Vector::CreateView);
 
   // updated the state vector in the nox group
@@ -202,7 +202,7 @@ void Solid::TimeInt::Implicit::evaluate()
 {
   check_init_setup();
   throw_if_state_not_in_sync_with_nox_group();
-  ::NOX::Abstract::Group& grp = nln_solver().solution_group();
+  ::NOX::Abstract::Group& grp = nln_solver().get_solution_group();
 
   auto* grp_ptr = dynamic_cast<NOX::Nln::Group*>(&grp);
   FOUR_C_ASSERT(grp_ptr != nullptr, "Dynamic cast failed!");
@@ -223,14 +223,6 @@ const ::NOX::Abstract::Group& Solid::TimeInt::Implicit::get_solution_group() con
 {
   check_init_setup();
   return nln_solver().get_solution_group();
-}
-
-/*----------------------------------------------------------------------------*
- *----------------------------------------------------------------------------*/
-std::shared_ptr<::NOX::Abstract::Group> Solid::TimeInt::Implicit::solution_group_ptr()
-{
-  check_init_setup();
-  return Core::Utils::shared_ptr_from_ref(nln_solver().solution_group());
 }
 
 /*----------------------------------------------------------------------------*
@@ -482,8 +474,8 @@ void Solid::TimeInt::Implicit::check_for_time_step_increase(Inpar::Solid::Conver
 void Solid::TimeInt::Implicit::print_jacobian_in_matlab_format(
     const NOX::Nln::Group& curr_grp) const
 {
-  typedef Core::LinAlg::BlockSparseMatrix<Core::LinAlg::DefaultBlockMatrixStrategy>
-      LinalgBlockSparseMatrix;
+  using LinalgBlockSparseMatrix =
+      Core::LinAlg::BlockSparseMatrix<Core::LinAlg::DefaultBlockMatrixStrategy>;
 
   if (not get_data_io().is_write_jacobian_to_matlab()) return;
 
@@ -517,8 +509,7 @@ void Solid::TimeInt::Implicit::print_jacobian_in_matlab_format(
     {
       Teuchos::RCP<const Core::LinAlg::SparseMatrix> sparse_matrix =
           Teuchos::rcp_dynamic_cast<const Core::LinAlg::SparseMatrix>(jac_ptr, true);
-      Core::LinAlg::print_matrix_in_matlab_format(
-          filename.str().c_str(), *sparse_matrix->epetra_matrix());
+      Core::LinAlg::print_matrix_in_matlab_format(filename.str().c_str(), *sparse_matrix);
 
       break;
     }
@@ -532,9 +523,8 @@ void Solid::TimeInt::Implicit::print_jacobian_in_matlab_format(
     }
     default:
     {
-      FOUR_C_THROW("Unsupported NOX::Nln::LinSystem::OperatorType: \"%s\"",
-          NOX::Nln::LinSystem::operator_type_to_string(jac_type).c_str());
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("Unsupported NOX::Nln::LinSystem::OperatorType: \"{}\"",
+          NOX::Nln::LinSystem::operator_type_to_string(jac_type));
     }
   }
 

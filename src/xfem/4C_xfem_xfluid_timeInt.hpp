@@ -16,7 +16,7 @@
 #include "4C_inpar_xfem.hpp"
 #include "4C_linalg_fixedsizematrix.hpp"
 
-class Epetra_Map;
+class Map;
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -124,9 +124,6 @@ namespace XFEM
 
     /// get permutation map for ghost dofs
     std::shared_ptr<std::map<int, int>> get_permutation_map() { return permutation_map_; };
-
-    /// timint output for reconstruction methods
-    void output();
 
    private:
     /// transfer standard and ghost dofs to new map as far as possible and mark dofs for
@@ -292,9 +289,6 @@ namespace XFEM
         dofset_marker_export_;  /// std::map<nid, std::map<dofset_number,method> > that contains
                                 /// marker for reconstruction method of single nodal dofsets used
                                 /// for export in parallel
-
-    // global timestep
-    int step_;
 
     // name check interfacetips in timeintegration
     bool xfluid_timint_check_interfacetips_;

@@ -13,6 +13,7 @@
 #include "4C_fem_condition_utils.hpp"
 #include "4C_fem_general_element.hpp"
 #include "4C_global_data.hpp"
+#include "4C_io_discretization_visualization_writer_mesh.hpp"
 #include "4C_linalg_utils_densematrix_communication.hpp"
 #include "4C_linalg_utils_sparse_algebra_assemble.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
@@ -42,8 +43,19 @@ Arteries::ArtNetExplicitTimeInt::ArtNetExplicitTimeInt(
     Core::IO::DiscretizationWriter& output)
     : TimInt(actdis, linsolvernumber, probparams, artparams, output)
 {
-  //  exit(1);
+  const int restart_step = Global::Problem::instance()->restart();
+  if (restart_step > 0)
+  {
+    FourC::Core::IO::DiscretizationReader reader(
+        discret_, Global::Problem::instance()->input_control_file(), restart_step);
 
+    time_ = reader.read_double("time");
+  }
+
+  visualization_writer_ = std::make_unique<Core::IO::DiscretizationVisualizationWriterMesh>(
+      actdis, Core::IO::visualization_parameters_factory(
+                  Global::Problem::instance()->io_params().sublist("RUNTIME VTK OUTPUT"),
+                  *Global::Problem::instance()->output_control_file(), time_));
 }  // ArtNetExplicitTimeInt::ArtNetExplicitTimeInt
 
 
@@ -75,7 +87,8 @@ void Arteries::ArtNetExplicitTimeInt::init(const Teuchos::ParameterList& globalt
   // and only one cpu
   // -------------------------------------------------------------------
   // reduce the node row map into processor 0
-  const Epetra_Map noderowmap_1_proc = *Core::LinAlg::allreduce_e_map(*discret_->node_row_map(), 0);
+  const Core::LinAlg::Map noderowmap_1_proc =
+      *Core::LinAlg::allreduce_e_map(*discret_->node_row_map(), 0);
   // update the discetization by redistributing the new row map
   discret_->redistribute(noderowmap_1_proc, noderowmap_1_proc);
 
@@ -84,16 +97,16 @@ void Arteries::ArtNetExplicitTimeInt::init(const Teuchos::ParameterList& globalt
   // vectors and matrices
   //                 local <-> global dof numbering
   // -------------------------------------------------------------------
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
-  //  const Epetra_Map* dofcolmap  = discret_->DofColMap();
+  //  const Core::LinAlg::Map* dofcolmap  = discret_->DofColMap();
 
   // -------------------------------------------------------------------
   // get a vector layout from the discretization to construct matching
   // vectors and matrices
   //                 local <-> global node numbering
   // -------------------------------------------------------------------
-  const Epetra_Map* noderowmap = discret_->node_row_map();
+  const Core::LinAlg::Map* noderowmap = discret_->node_row_map();
 
 
   // -------------------------------------------------------------------
@@ -158,16 +171,13 @@ void Arteries::ArtNetExplicitTimeInt::init(const Teuchos::ParameterList& globalt
 
   artjun_ = std::make_shared<Utils::ArtJunctionWrapper>(discret_, output_, junparams, dta_);
 
-  // create the gnuplot export conditions
-  artgnu_ = std::make_shared<Arteries::Utils::ArtWriteGnuplotWrapper>(discret_, junparams);
-
   // ---------------------------------------------------------------------------------------
   // Initialize all the arteries' cross-sectional areas to the initial crossectional area Ao
   // and the volumetric flow rate to 0
   // ---------------------------------------------------------------------------------------
   Teuchos::ParameterList eleparams;
   discret_->clear_state();
-  discret_->set_state("qanp", qanp_);
+  discret_->set_state("qanp", *qanp_);
 
   // loop all elements on this proc (including ghosted ones)
 
@@ -187,8 +197,8 @@ void Arteries::ArtNetExplicitTimeInt::init(const Teuchos::ParameterList& globalt
     eleparams.set("qa0", qanp_);
     eleparams.set("wfo", Wfo_);
     eleparams.set("wbo", Wbo_);
-    Wfn_->Update(1.0, *Wfo_, 0.0);
-    Wbn_->Update(1.0, *Wbo_, 0.0);
+    Wfn_->update(1.0, *Wfo_, 0.0);
+    Wbn_->update(1.0, *Wbo_, 0.0);
     // eleparams.set("lmowner",lmowner);
     eleparams.set<Arteries::Action>("action", Arteries::get_initial_artery_state);
     discret_->evaluate(eleparams, nullptr, nullptr, nullptr, nullptr, nullptr);
@@ -212,13 +222,13 @@ void Arteries::ArtNetExplicitTimeInt::init(const Teuchos::ParameterList& globalt
     {
       int gid = lm[0];
       double val = gid;
-      nodeIds_->ReplaceGlobalValues(1, &val, &gid);
+      nodeIds_->replace_global_values(1, &val, &gid);
     }
     if (myrank_ == (lmowner)[1])
     {
       int gid = lm[1];
       double val = gid;
-      nodeIds_->ReplaceGlobalValues(1, &val, &gid);
+      nodeIds_->replace_global_values(1, &val, &gid);
     }
   }
 
@@ -286,7 +296,7 @@ void Arteries::ArtNetExplicitTimeInt::solve(
 
     // set both system matrix and rhs vector to zero
     sysmat_->zero();
-    rhs_->PutScalar(0.0);
+    rhs_->put_scalar(0.0);
 
 
     // create the parameters for the discretization
@@ -301,7 +311,7 @@ void Arteries::ArtNetExplicitTimeInt::solve(
 
     // set vector values needed by elements
     discret_->clear_state();
-    discret_->set_state("qanp", qanp_);
+    discret_->set_state("qanp", *qanp_);
 
 
     // call standard loop over all elements
@@ -325,7 +335,7 @@ void Arteries::ArtNetExplicitTimeInt::solve(
 
     // set vector values needed by elements
     discret_->clear_state();
-    discret_->set_state("qanp", qanp_);
+    discret_->set_state("qanp", *qanp_);
 
     eleparams.set("time step size", dta_);
     eleparams.set("Wfnp", Wfnp_);
@@ -341,8 +351,8 @@ void Arteries::ArtNetExplicitTimeInt::solve(
   }
 
   // Solve the boundary conditions
-  bcval_->PutScalar(0.0);
-  dbctog_->PutScalar(0.0);
+  bcval_->put_scalar(0.0);
+  dbctog_->put_scalar(0.0);
   // Solve terminal BCs
 
   {
@@ -354,7 +364,7 @@ void Arteries::ArtNetExplicitTimeInt::solve(
 
     // set vector values needed by elements
     discret_->clear_state();
-    discret_->set_state("qanp", qanp_);
+    discret_->set_state("qanp", *qanp_);
 
     eleparams.set("time step size", dta_);
     eleparams.set("total time", time_);
@@ -420,7 +430,7 @@ void Arteries::ArtNetExplicitTimeInt::solve(
 
     // set vector values needed by elements
     discret_->clear_state();
-    discret_->set_state("qanp", qanp_);
+    discret_->set_state("qanp", *qanp_);
 
     eleparams.set("time step size", dta_);
     eleparams.set("total time", time_);
@@ -435,7 +445,7 @@ void Arteries::ArtNetExplicitTimeInt::solve(
 void Arteries::ArtNetExplicitTimeInt::solve_scatra()
 {
   {
-    scatraO2np_->PutScalar(0.0);
+    scatraO2np_->put_scalar(0.0);
     // create the parameters for the discretization
     Teuchos::ParameterList eleparams;
 
@@ -458,8 +468,8 @@ void Arteries::ArtNetExplicitTimeInt::solve_scatra()
     discret_->evaluate(eleparams, scatra_sysmat_, scatra_rhs_);
   }
   {
-    scatra_bcval_->PutScalar(0.0);
-    scatra_dbctog_->PutScalar(0.0);
+    scatra_bcval_->put_scalar(0.0);
+    scatra_dbctog_->put_scalar(0.0);
     // create the parameters for the discretization
     Teuchos::ParameterList eleparams;
 
@@ -468,7 +478,7 @@ void Arteries::ArtNetExplicitTimeInt::solve_scatra()
 
     // set vector values needed by elements
     discret_->clear_state();
-    discret_->set_state("qanp", qanp_);
+    discret_->set_state("qanp", *qanp_);
 
     eleparams.set("time step size", dta_);
     eleparams.set("time", time_);
@@ -478,7 +488,7 @@ void Arteries::ArtNetExplicitTimeInt::solve_scatra()
     // call standard loop over all elements
     discret_->evaluate(eleparams, scatra_sysmat_, scatra_rhs_);
   }
-  scatraO2np_->Update(1.0, *scatra_bcval_, 1.0);
+  scatraO2np_->update(1.0, *scatra_bcval_, 1.0);
 }
 
 /*----------------------------------------------------------------------*
@@ -492,17 +502,17 @@ void Arteries::ArtNetExplicitTimeInt::solve_scatra()
 void Arteries::ArtNetExplicitTimeInt::time_update()
 {
   // Volumetric Flow rate/Cross-sectional area of this step become most recent
-  qanm_->Update(1.0, *qan_, 0.0);
-  qan_->Update(1.0, *qanp_, 0.0);
-  Wfn_->Update(1.0, *Wfnp_, 0.0);
-  Wbn_->Update(1.0, *Wbnp_, 0.0);
+  qanm_->update(1.0, *qan_, 0.0);
+  qan_->update(1.0, *qanp_, 0.0);
+  Wfn_->update(1.0, *Wfnp_, 0.0);
+  Wbn_->update(1.0, *Wbnp_, 0.0);
 
   if (solvescatra_)
   {
     //    scatraO2wfn_->Update(1.0,*scatraO2wfnp_ ,0.0);
     //    scatraO2wbn_->Update(1.0,*scatraO2wbnp_ ,0.0);
-    scatraO2nm_->Update(1.0, *scatraO2n_, 0.0);
-    scatraO2n_->Update(1.0, *scatraO2np_, 0.0);
+    scatraO2nm_->update(1.0, *scatraO2n_, 0.0);
+    scatraO2n_->update(1.0, *scatraO2np_, 0.0);
   }
 
   return;
@@ -519,7 +529,7 @@ void Arteries::ArtNetExplicitTimeInt::time_update()
 void Arteries::ArtNetExplicitTimeInt::init_save_state()
 {
   // get the discretizations DOF row map
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   // Volumetric Flow rate/Cross-sectional area of this step become most recent
   saved_qanp_ = Core::LinAlg::create_vector(*dofrowmap, true);
@@ -558,23 +568,23 @@ void Arteries::ArtNetExplicitTimeInt::init_save_state()
 void Arteries::ArtNetExplicitTimeInt::save_state()
 {
   // Volumetric Flow rate/Cross-sectional area of this step become most recent
-  saved_qanp_->Update(1.0, *qanp_, 0.0);
-  saved_qan_->Update(1.0, *qan_, 0.0);
-  saved_qanm_->Update(1.0, *qanm_, 0.0);
+  saved_qanp_->update(1.0, *qanp_, 0.0);
+  saved_qan_->update(1.0, *qan_, 0.0);
+  saved_qanm_->update(1.0, *qanm_, 0.0);
 
-  saved_Wfnp_->Update(1.0, *Wfnp_, 0.0);
-  saved_Wfn_->Update(1.0, *Wfn_, 0.0);
-  saved_Wfnm_->Update(1.0, *Wfnm_, 0.0);
+  saved_Wfnp_->update(1.0, *Wfnp_, 0.0);
+  saved_Wfn_->update(1.0, *Wfn_, 0.0);
+  saved_Wfnm_->update(1.0, *Wfnm_, 0.0);
 
-  saved_Wbnp_->Update(1.0, *Wbnp_, 0.0);
-  saved_Wbn_->Update(1.0, *Wbn_, 0.0);
-  saved_Wbnm_->Update(1.0, *Wbnm_, 0.0);
+  saved_Wbnp_->update(1.0, *Wbnp_, 0.0);
+  saved_Wbn_->update(1.0, *Wbn_, 0.0);
+  saved_Wbnm_->update(1.0, *Wbnm_, 0.0);
 
   if (solvescatra_)
   {
-    saved_scatraO2np_->Update(1.0, *scatraO2np_, 0.0);
-    saved_scatraO2n_->Update(1.0, *scatraO2n_, 0.0);
-    saved_scatraO2nm_->Update(1.0, *scatraO2nm_, 0.0);
+    saved_scatraO2np_->update(1.0, *scatraO2np_, 0.0);
+    saved_scatraO2n_->update(1.0, *scatraO2n_, 0.0);
+    saved_scatraO2nm_->update(1.0, *scatraO2nm_, 0.0);
   }
 
   return;
@@ -594,31 +604,106 @@ void Arteries::ArtNetExplicitTimeInt::save_state()
 void Arteries::ArtNetExplicitTimeInt::load_state()
 {
   // Volumetric Flow rate/Cross-sectional area of this step become most recent
-  qanp_->Update(1.0, *saved_qanp_, 0.0);
-  qan_->Update(1.0, *saved_qan_, 0.0);
-  qanm_->Update(1.0, *saved_qanm_, 0.0);
+  qanp_->update(1.0, *saved_qanp_, 0.0);
+  qan_->update(1.0, *saved_qan_, 0.0);
+  qanm_->update(1.0, *saved_qanm_, 0.0);
 
-  Wfnp_->Update(1.0, *saved_Wfnp_, 0.0);
-  Wfn_->Update(1.0, *saved_Wfn_, 0.0);
-  Wfnm_->Update(1.0, *saved_Wfnm_, 0.0);
+  Wfnp_->update(1.0, *saved_Wfnp_, 0.0);
+  Wfn_->update(1.0, *saved_Wfn_, 0.0);
+  Wfnm_->update(1.0, *saved_Wfnm_, 0.0);
 
-  Wbnp_->Update(1.0, *saved_Wbnp_, 0.0);
-  Wbn_->Update(1.0, *saved_Wbn_, 0.0);
-  Wbnm_->Update(1.0, *saved_Wbnm_, 0.0);
+  Wbnp_->update(1.0, *saved_Wbnp_, 0.0);
+  Wbn_->update(1.0, *saved_Wbn_, 0.0);
+  Wbnm_->update(1.0, *saved_Wbnm_, 0.0);
 
   if (solvescatra_)
   {
-    scatraO2np_->Update(1.0, *saved_scatraO2np_, 0.0);
-    scatraO2n_->Update(1.0, *saved_scatraO2n_, 0.0);
-    scatraO2nm_->Update(1.0, *saved_scatraO2nm_, 0.0);
+    scatraO2np_->update(1.0, *saved_scatraO2np_, 0.0);
+    scatraO2n_->update(1.0, *saved_scatraO2n_, 0.0);
+    scatraO2nm_->update(1.0, *saved_scatraO2nm_, 0.0);
   }
 
   return;
 }  // ArtNetExplicitTimeInt::LoadState
 
+void Arteries::ArtNetExplicitTimeInt::collect_runtime_output_data(bool CoupledTo3D, int step)
+{
+  visualization_writer_->append_result_data_vector_with_context(
+      *qanp_, Core::IO::OutputEntity::dof, {"qanp"});
+
+  // write domain decomposition for visualization (only once!)
+  if (step_ == upres_) visualization_writer_->append_element_owner("Owner");
+
+  this->calc_postprocessing_values();
+
+  visualization_writer_->append_result_data_vector_with_context(
+      *qn_, Core::IO::OutputEntity::node, {"one_d_artery_flow"});
+
+  visualization_writer_->append_result_data_vector_with_context(
+      *on_, Core::IO::OutputEntity::node, {"one_d_artery_pressure"});
+
+  visualization_writer_->append_result_data_vector_with_context(
+      *an_, Core::IO::OutputEntity::node, {"one_d_artery_area"});
+
+  if (solvescatra_)
+  {
+    this->calc_scatra_from_scatra_fw(export_scatra_, scatraO2np_);
+    visualization_writer_->append_result_data_vector_with_context(
+        *export_scatra_, Core::IO::OutputEntity::node, {"one_d_o2_scatra"});
+  }
+
+
+  visualization_writer_->append_result_data_vector_with_context(
+      *Wfnp_, Core::IO::OutputEntity::node, {"forward_speed"});
+
+  visualization_writer_->append_result_data_vector_with_context(
+      *Wfo_, Core::IO::OutputEntity::node, {"forward_speed0"});
+
+  visualization_writer_->append_result_data_vector_with_context(
+      *Wbnp_, Core::IO::OutputEntity::node, {"backward_speed"});
+
+  visualization_writer_->append_result_data_vector_with_context(
+      *Wbo_, Core::IO::OutputEntity::node, {"backward_speed0"});
+
+  if (CoupledTo3D)
+  {
+    output_.write_int("Actual_RedD_step", step);
+  }
+}
+
+void Arteries::ArtNetExplicitTimeInt::output_restart(bool CoupledTo3D, int step)
+{
+  // step number and time (only after that data output is possible)
+  output_.new_step(step_, time_);
+
+  // "volumetric flow rate/cross-sectional area" vector
+  output_.write_vector("qanp", qanp_);
+
+  // Export postpro results
+  this->calc_postprocessing_values();
+  output_.write_vector("one_d_artery_flow", qn_);
+  output_.write_vector("one_d_artery_pressure", on_);
+  output_.write_vector("one_d_artery_area", an_);
+
+  if (solvescatra_)
+  {
+    this->calc_scatra_from_scatra_fw(export_scatra_, scatraO2np_);
+    output_.write_vector("one_d_o2_scatra", export_scatra_);
+  }
+
+
+  output_.write_vector("forward_speed", Wfnp_);
+  output_.write_vector("forward_speed0", Wfo_);
+  output_.write_vector("backward_speed", Wbnp_);
+  output_.write_vector("backward_speed0", Wbo_);
+
+  if (CoupledTo3D)
+  {
+    output_.write_int("Actual_RedD_step", step);
+  }
+}
 
 /*----------------------------------------------------------------------*
- | output of solution vector to binio                       ismail 07/09|
  *----------------------------------------------------------------------*/
 void Arteries::ArtNetExplicitTimeInt::output(
     bool CoupledTo3D, std::shared_ptr<Teuchos::ParameterList> CouplingParams)
@@ -647,103 +732,15 @@ void Arteries::ArtNetExplicitTimeInt::output(
 
   if (step_ % upres_ == 0)
   {
-    // step number and time
-    output_.new_step(step_, time_);
-    //    output_.write_vector("NodeIDs",nodeIds_);
+    visualization_writer_->reset();
 
-    // "volumetric flow rate/cross-sectional area" vector
-    output_.write_vector("qanp", qanp_);
+    collect_runtime_output_data(CoupledTo3D, step);
 
-
-    // write domain decomposition for visualization (only once!)
-    if (step_ == upres_) output_.write_element_data(true);
-
-    // #endif
-    //  ------------------------------------------------------------------
-    //  Export gnuplot format arteries
-    //  ------------------------------------------------------------------
-
-    Teuchos::ParameterList params;
-    // other parameters that might be needed by the elements
-    params.set("total time", time_);
-
-    // set the dof vector values
-    //    discret_->ClearState();
-    //    discret_->set_state("qanp",qanp_);
-
-    // call the gnuplot writer
-    //    artgnu_->Write(params);
-    //    discret_->ClearState();
-
-    // Export postpro results
-    this->calc_postprocessing_values();
-    output_.write_vector("one_d_artery_flow", qn_);
-    output_.write_vector("one_d_artery_pressure", on_);
-    output_.write_vector("one_d_artery_area", an_);
-
-    if (solvescatra_)
-    {
-      this->calc_scatra_from_scatra_fw(export_scatra_, scatraO2np_);
-      output_.write_vector("one_d_o2_scatra", export_scatra_);
-    }
-
-    output_.write_vector("forward_speed", Wfnp_);
-    output_.write_vector("forward_speed0", Wfo_);
-    output_.write_vector("backward_speed", Wbnp_);
-    output_.write_vector("backward_speed0", Wbo_);
-
-    if (CoupledTo3D)
-    {
-      output_.write_int("Actual_RedD_step", step);
-    }
+    visualization_writer_->write_to_disk(time_, step_);
   }
-  // write restart also when uprestart_ is not a integer multiple of upres_
-  else if (uprestart_ != 0 && step_ % uprestart_ == 0)
+  if (uprestart_ != 0 && step_ % uprestart_ == 0)
   {
-    // step number and time
-    output_.new_step(step_, time_);
-
-    // "volumetric flow rate/cross-sectional area" vector
-    output_.write_vector("qanp", qanp_);
-
-    // Export postpro results
-    this->calc_postprocessing_values();
-    output_.write_vector("one_d_artery_flow", qn_);
-    output_.write_vector("one_d_artery_pressure", on_);
-    output_.write_vector("one_d_artery_area", an_);
-
-    if (solvescatra_)
-    {
-      this->calc_scatra_from_scatra_fw(export_scatra_, scatraO2np_);
-      output_.write_vector("one_d_o2_scatra", export_scatra_);
-    }
-
-
-    output_.write_vector("forward_speed", Wfnp_);
-    output_.write_vector("forward_speed0", Wfo_);
-    output_.write_vector("backward_speed", Wbnp_);
-    output_.write_vector("backward_speed0", Wbo_);
-
-    // ------------------------------------------------------------------
-    // Export gnuplot format arteries
-    // ------------------------------------------------------------------
-    // #endif
-    Teuchos::ParameterList params;
-    // other parameters that might be needed by the elements
-    params.set("total time", time_);
-
-    // set the dof vector values
-    //    discret_->ClearState();
-    //    discret_->set_state("qanp",qanp_);
-
-    // call the gnuplot writer
-    //    artgnu_->Write(params);
-    //    discret_->ClearState();
-
-    if (CoupledTo3D)
-    {
-      output_.write_int("Actual_RedD_step", step);
-    }
+    output_restart(CoupledTo3D, step);
   }
 
   // -------------------------------------------------------------------
@@ -758,7 +755,7 @@ void Arteries::ArtNetExplicitTimeInt::output(
     time_ = time_backup;
   }
 
-  return;
+
 }  // ArteryExplicitTimeInt::Output
 
 
@@ -802,12 +799,7 @@ void Arteries::ArtNetExplicitTimeInt::calc_postprocessing_values()
 
   // set vector values needed by elements
   discret_->clear_state();
-  //  std::cout<<"On proc("<<myrank_<<"): "<<"postpro setting qanp"<<std::endl;
-  discret_->set_state("qanp", qanp_);
-  //  std::cout<<"On proc("<<myrank_<<"): "<<"postpro setting wfnp"<<std::endl;
-  //  discret_->set_state("Wfnp",Wfnp_);
-  //  std::cout<<"On proc("<<myrank_<<"): "<<"postpro setting wbnp"<<std::endl;
-  //  discret_->set_state("Wbnp",Wbnp_);
+  discret_->set_state("qanp", *qanp_);
 
   eleparams.set("time step size", dta_);
   eleparams.set("total time", time_);
@@ -825,7 +817,7 @@ void Arteries::ArtNetExplicitTimeInt::calc_scatra_from_scatra_fw(
     std::shared_ptr<Core::LinAlg::Vector<double>> scatra,
     std::shared_ptr<Core::LinAlg::Vector<double>> scatra_fb)
 {
-  scatra->PutScalar(0.0);
+  scatra->put_scalar(0.0);
 
   // create the parameters for the discretization
   Teuchos::ParameterList eleparams;

@@ -11,6 +11,7 @@
 #include "4C_global_data.hpp"
 #include "4C_linalg_fixedsizematrix_tensor_products.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <vector>
 
@@ -124,7 +125,7 @@ void Mat::ViscoNeoHooke::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::ViscoNeoHooke*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
 
@@ -140,7 +141,7 @@ void Mat::ViscoNeoHooke::unpack(Core::Communication::UnpackBuffer& buffer)
   artstresslast_ = std::make_shared<std::vector<Core::LinAlg::Matrix<NUM_STRESS_3D, 1>>>();
   for (int var = 0; var < twicehistsize; var += 2)
   {
-    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> tmp(true);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> tmp(Core::LinAlg::Initialization::zero);
     histstresscurr_->push_back(tmp);
     artstresscurr_->push_back(tmp);
     extract_from_pack(buffer, tmp);
@@ -163,7 +164,7 @@ void Mat::ViscoNeoHooke::setup(int numgp, const Core::IO::InputParameterContaine
   artstresscurr_ = std::make_shared<std::vector<Core::LinAlg::Matrix<NUM_STRESS_3D, 1>>>();
   histstresslast_ = std::make_shared<std::vector<Core::LinAlg::Matrix<NUM_STRESS_3D, 1>>>();
   artstresslast_ = std::make_shared<std::vector<Core::LinAlg::Matrix<NUM_STRESS_3D, 1>>>();
-  const Core::LinAlg::Matrix<NUM_STRESS_3D, 1> emptyvec(true);
+  const Core::LinAlg::Matrix<NUM_STRESS_3D, 1> emptyvec(Core::LinAlg::Initialization::zero);
   histstresscurr_->resize(numgp);
   histstresslast_->resize(numgp);
   artstresscurr_->resize(numgp);
@@ -193,7 +194,7 @@ void Mat::ViscoNeoHooke::update()
 {
   histstresslast_ = histstresscurr_;
   artstresslast_ = artstresscurr_;
-  const Core::LinAlg::Matrix<NUM_STRESS_3D, 1> emptyvec(true);
+  const Core::LinAlg::Matrix<NUM_STRESS_3D, 1> emptyvec(Core::LinAlg::Initialization::zero);
   histstresscurr_ = std::make_shared<std::vector<Core::LinAlg::Matrix<NUM_STRESS_3D, 1>>>();
   artstresscurr_ = std::make_shared<std::vector<Core::LinAlg::Matrix<NUM_STRESS_3D, 1>>>();
   const int numgp = histstresslast_->size();

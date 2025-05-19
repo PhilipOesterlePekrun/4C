@@ -10,6 +10,7 @@
 #include "4C_comm_pack_helpers.hpp"
 #include "4C_global_data.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <vector>
 
@@ -27,7 +28,7 @@ Mat::PAR::ElchMat::ElchMat(const Core::Mat::PAR::Parameter::Data& matdata)
 {
   if (numphase_ != (int)phaseids_.size())
     FOUR_C_THROW(
-        "number of phases %d does not fit to size of phase vector %d", numphase_, phaseids_.size());
+        "number of phases {} does not fit to size of phase vector {}", numphase_, phaseids_.size());
 
   if (not local_)
   {
@@ -157,7 +158,7 @@ void Mat::ElchMat::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::ElchMat*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
 

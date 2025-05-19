@@ -10,8 +10,8 @@
 
 #include "4C_config.hpp"
 
+#include "4C_contact_input.hpp"
 #include "4C_contact_interface.hpp"
-#include "4C_inpar_contact.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -95,7 +95,7 @@ namespace CONTACT
       */
     virtual void assemble_lin_dm_x(Core::LinAlg::SparseMatrix* linD_X,
         Core::LinAlg::SparseMatrix* linM_X, const double fac, const LinDmXMode mode,
-        const std::shared_ptr<Epetra_Map> node_rowmap);
+        const std::shared_ptr<Core::LinAlg::Map> node_rowmap);
 
     /*!
       \brief Assemble D and M times the linearization of the nodal frictional dissipation

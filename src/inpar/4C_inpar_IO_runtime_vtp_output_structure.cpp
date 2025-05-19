@@ -7,10 +7,8 @@
 
 #include "4C_inpar_IO_runtime_vtp_output_structure.hpp"
 
-#include "4C_io_geometry_type.hpp"
-#include "4C_utils_parameter_list.hpp"
+#include "4C_io_input_spec_builders.hpp"
 
-#include <Teuchos_ParameterList.hpp>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -20,44 +18,44 @@ namespace Inpar
   {
     /*----------------------------------------------------------------------*
      *----------------------------------------------------------------------*/
-    void set_valid_parameters(Teuchos::ParameterList& list)
+    void set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
     {
-      using Teuchos::setStringToIntegralParameter;
-      using Teuchos::tuple;
+      using namespace Core::IO::InputSpecBuilders;
 
       // related sublist
-      Teuchos::ParameterList& sublist_IO = list.sublist("IO", false, "");
-      Teuchos::ParameterList& sublist_IO_VTP_structure =
-          sublist_IO.sublist("RUNTIME VTP OUTPUT STRUCTURE", false, "");
+      list["IO/RUNTIME VTP OUTPUT STRUCTURE"] = group("IO/RUNTIME VTP OUTPUT STRUCTURE",
+          {
 
+              // output interval regarding steps: write output every INTERVAL_STEPS steps
+              parameter<int>("INTERVAL_STEPS",
+                  {.description = "write VTP output at runtime every INTERVAL_STEPS steps",
+                      .default_value = -1}),
+              parameter<int>("STEP_OFFSET",
+                  {.description =
+                          "An offset added to the current step to shift the steps to be written.",
+                      .default_value = 0}),
 
-      // output interval regarding steps: write output every INTERVAL_STEPS steps
-      Core::Utils::int_parameter("INTERVAL_STEPS", -1,
-          "write VTP output at runtime every INTERVAL_STEPS steps", &sublist_IO_VTP_structure);
+              // whether to write output in every iteration of the nonlinear solver
+              parameter<bool>("EVERY_ITERATION",
+                  {.description = "write output in every iteration of the nonlinear solver",
+                      .default_value = false}),
 
-      Core::Utils::int_parameter("STEP_OFFSET", 0,
-          "An offset added to the current step to shift the steps to be written.",
-          &sublist_IO_VTP_structure);
+              // write owner at every visualization point
+              parameter<bool>(
+                  "OWNER", {.description = "write owner of every point", .default_value = false}),
 
-      // whether to write output in every iteration of the nonlinear solver
-      Core::Utils::bool_parameter("EVERY_ITERATION", "No",
-          "write output in every iteration of the nonlinear solver", &sublist_IO_VTP_structure);
+              // write orientation at every visualization point
+              parameter<bool>("ORIENTATIONANDLENGTH",
+                  {.description = "write orientation at every point", .default_value = false}),
 
-      // write owner at every visualization point
-      Core::Utils::bool_parameter(
-          "OWNER", "No", "write owner of every point", &sublist_IO_VTP_structure);
+              // write number of bonds at every visualization point
+              parameter<bool>("NUMBEROFBONDS",
+                  {.description = "write number of bonds of every point", .default_value = false}),
 
-      // write orientation at every visualization point
-      Core::Utils::bool_parameter("ORIENTATIONANDLENGTH", "No", "write orientation at every point",
-          &sublist_IO_VTP_structure);
-
-      // write number of bonds at every visualization point
-      Core::Utils::bool_parameter(
-          "NUMBEROFBONDS", "No", "write number of bonds of every point", &sublist_IO_VTP_structure);
-
-      // write force actin in linker
-      Core::Utils::bool_parameter(
-          "LINKINGFORCE", "No", "write force acting in linker", &sublist_IO_VTP_structure);
+              // write force actin in linker
+              parameter<bool>("LINKINGFORCE",
+                  {.description = "write force acting in linker", .default_value = false})},
+          {.defaultable = true});
     }
 
 

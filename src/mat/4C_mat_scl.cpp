@@ -10,6 +10,7 @@
 #include "4C_comm_pack_helpers.hpp"
 #include "4C_global_data.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function_of_scalar.hpp"
 
 #include <vector>
@@ -38,7 +39,7 @@ Mat::PAR::Scl::Scl(const Core::Mat::PAR::Parameter::Data& matdata)
               .get<double>("PERMITTIVITY_VACUUM"))
 {
   if (transnrparanum_ != static_cast<int>(transnr_.size()))
-    FOUR_C_THROW("number of materials %d does not fit to size of material vector %d",
+    FOUR_C_THROW("number of materials {} does not fit to size of material vector {}",
         transnrparanum_, transnr_.size());
 
   // check if number of provided parameter is valid for a the chosen predefined function
@@ -105,7 +106,7 @@ void Mat::Scl::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::Scl*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
   }

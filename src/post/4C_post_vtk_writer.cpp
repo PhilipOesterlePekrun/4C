@@ -123,7 +123,7 @@ void PostVtkWriter::write_vtk_footer()
   currentout_ << std::flush;
 
   // Also start master file on processor 0
-  typedef std::vector<std::string> pptags_type;
+  using pptags_type = std::vector<std::string>;
   const pptags_type& ppiecetags = this->writer_p_piece_tags();
   if (myrank_ == 0)
   {
@@ -164,8 +164,7 @@ void PostVtkWriter::write_special_field(SpecialFieldInterface& special,
     }
   }
   // should always find the correct result
-  if (!foundit)
-    FOUR_C_THROW("Internal error when trying to identify output type %s", groupname.c_str());
+  if (!foundit) FOUR_C_THROW("Internal error when trying to identify output type {}", groupname);
 
   // jump to the correct location in the data vector. Some fields might only
   // be stored once, so need to catch that case as well

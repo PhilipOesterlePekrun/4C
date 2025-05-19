@@ -82,7 +82,7 @@ namespace ScaTra
     //! assemble micro and macro and apply mesh tying between micro and macro model
     void assemble_and_apply_mesh_tying();
 
-    //! stop Netwon loop on convergence and print L2-Norm of increments and residuals
+    //! stop Newton loop on convergence and print L2-Norm of increments and residuals
     bool break_newton_loop_and_print_convergence();
 
     //! copy solution from coupling nodes from macro discretization to micro discretization
@@ -117,7 +117,7 @@ namespace ScaTra
     std::shared_ptr<Core::LinAlg::MultiMapExtractor> full_block_map_elch_scl_;
 
     //! map of coupled ELCH-SCL problem
-    std::shared_ptr<const Epetra_Map> full_map_elch_scl_;
+    std::shared_ptr<const Core::LinAlg::Map> full_map_elch_scl_;
 
     //! increment of coupled ELCH-SCL problem
     std::shared_ptr<Core::LinAlg::Vector<double>> increment_elch_scl_;

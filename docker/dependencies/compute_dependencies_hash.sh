@@ -9,4 +9,4 @@
 # Exit the script at the first failure
 set -e
 
-find dependencies docker/dependencies -not -wholename '*/trilinos_develop/*' -not -name 'README.md' -type f -exec sha1sum {} \; | sort | sha1sum | cut -c -8
+find dependencies/current dependencies/testing docker/dependencies -type f -exec sha1sum {} \; | sort | sha1sum | cut -c -8

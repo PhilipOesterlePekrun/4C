@@ -13,10 +13,10 @@
 #include "4C_config.hpp"
 
 #include "4C_adapter_str_fsiwrapper.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
 
-#include <Epetra_Map.h>
 #include <Epetra_Operator.h>
 
 #include <memory>
@@ -48,7 +48,7 @@ namespace Adapter
    * integration. The results are modified and/or merged to account for the
    * additional degrees of freedom of the lagrange multipliers.
    *
-   * \date 11/08
+
    */
   class StructureConstrMerged : public FSIStructureWrapper
   {
@@ -86,7 +86,7 @@ namespace Adapter
     std::shared_ptr<const Core::LinAlg::Vector<double>> accn() const override;
 
     /// dof map of vector of unknowns
-    std::shared_ptr<const Epetra_Map> dof_row_map() override;
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map() override;
 
     /// apply interface forces to structural solver
     ///
@@ -115,13 +115,13 @@ namespace Adapter
     };
 
     /// domain map of system matrix
-    const Epetra_Map& domain_map() const override;
+    const Core::LinAlg::Map& domain_map() const override;
 
     /// are there any algebraic constraints?
     bool have_constraint() override { return structure_->have_constraint(); };
 
     /// Return bool indicating if constraints are defined
-    std::shared_ptr<CONSTRAINTS::ConstrManager> get_constraint_manager() override
+    std::shared_ptr<Constraints::ConstrManager> get_constraint_manager() override
     {
       return structure_->get_constraint_manager();
     };
@@ -156,7 +156,7 @@ namespace Adapter
 
     /// the complete non-overlapping degree of freedom row map for structure and lagrange
     /// multipliers
-    std::shared_ptr<Epetra_Map> dofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> dofrowmap_;
 
     /// @name local copies of input parameters
     //{@

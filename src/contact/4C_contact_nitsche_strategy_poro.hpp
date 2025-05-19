@@ -30,23 +30,23 @@ namespace CONTACT
   {
    public:
     //! Standard constructor
-    NitscheStrategyPoro(const Epetra_Map* dof_row_map, const Epetra_Map* NodeRowMap,
+    NitscheStrategyPoro(const Core::LinAlg::Map* dof_row_map, const Core::LinAlg::Map* NodeRowMap,
         Teuchos::ParameterList params, std::vector<std::shared_ptr<CONTACT::Interface>> interface,
         int dim, MPI_Comm comm, double alphaf, int maxdof)
         : NitscheStrategy(
               dof_row_map, NodeRowMap, params, std::move(interface), dim, comm, alphaf, maxdof),
-          no_penetration_(params.get<bool>("CONTACTNOPEN"))
+          no_penetration_(params.get<bool>("CONTACT_NO_PENETRATION"))
     {
     }
 
     //! Shared data constructor
     NitscheStrategyPoro(const std::shared_ptr<CONTACT::AbstractStrategyDataContainer>& data_ptr,
-        const Epetra_Map* dof_row_map, const Epetra_Map* NodeRowMap, Teuchos::ParameterList params,
-        std::vector<std::shared_ptr<CONTACT::Interface>> interface, int dim, MPI_Comm comm,
-        double alphaf, int maxdof)
+        const Core::LinAlg::Map* dof_row_map, const Core::LinAlg::Map* NodeRowMap,
+        Teuchos::ParameterList params, std::vector<std::shared_ptr<CONTACT::Interface>> interface,
+        int dim, MPI_Comm comm, double alphaf, int maxdof)
         : NitscheStrategy(data_ptr, dof_row_map, NodeRowMap, params, std::move(interface), dim,
               comm, alphaf, maxdof),
-          no_penetration_(params.get<bool>("CONTACTNOPEN"))
+          no_penetration_(params.get<bool>("CONTACT_NO_PENETRATION"))
     {
     }
 
@@ -55,7 +55,8 @@ namespace CONTACT
         std::shared_ptr<Core::LinAlg::Vector<double>>& f, const int step, const int iter,
         bool predictor) override;
 
-    //  void Integrate(CONTACT::ParamsInterface& cparams);
+    void integrate(const CONTACT::ParamsInterface& cparams) override;
+
     void set_state(
         const enum Mortar::StateType& statename, const Core::LinAlg::Vector<double>& vec) override;
 

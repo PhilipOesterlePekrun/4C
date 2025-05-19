@@ -245,8 +245,8 @@ void PostVtuWriter::write_dof_result_step(std::ofstream& file,
 
   // For parallel computations, we need to access all dofs on the elements, including the
   // nodes owned by other processors. Therefore, we need to import that data here.
-  const Epetra_BlockMap& vecmap = data->Map();
-  const Epetra_Map* colmap = dis->dof_col_map(0);
+  const Epetra_BlockMap& vecmap = data->get_block_map();
+  const Core::LinAlg::Map* colmap = dis->dof_col_map(0);
 
   int offset = vecmap.MinAllGID() - dis->dof_row_map()->MinAllGID();
   if (fillzeros) offset = 0;
@@ -263,7 +263,7 @@ void PostVtuWriter::write_dof_result_step(std::ofstream& file,
     std::vector<int> gids(vecmap.NumMyElements());
     for (int i = 0; i < vecmap.NumMyElements(); ++i)
       gids[i] = vecmap.MyGlobalElements()[i] - offset;
-    Epetra_Map rowmap(
+    Core::LinAlg::Map rowmap(
         vecmap.NumGlobalElements(), vecmap.NumMyElements(), gids.data(), 0, vecmap.Comm());
     std::shared_ptr<Core::LinAlg::Vector<double>> dofvec =
         Core::LinAlg::create_vector(rowmap, false);
@@ -315,7 +315,7 @@ void PostVtuWriter::write_dof_result_step(std::ofstream& file,
 
         for (int d = 0; d < numdf; ++d)
         {
-          const int lid = ghostedData->Map().LID(nodedofs[d + from]);
+          const int lid = ghostedData->get_block_map().LID(nodedofs[d + from]);
           if (lid > -1)
             solution.push_back((*ghostedData)[lid]);
           else
@@ -323,7 +323,7 @@ void PostVtuWriter::write_dof_result_step(std::ofstream& file,
             if (fillzeros)
               solution.push_back(0.);
             else
-              FOUR_C_THROW("received illegal dof local id: %d", lid);
+              FOUR_C_THROW("received illegal dof local id: {}", lid);
           }
         }
         for (int d = numdf; d < ncomponents; ++d) solution.push_back(0.);
@@ -366,7 +366,7 @@ void PostVtuWriter::write_nodal_result_step(std::ofstream& file,
 
   // Here is the only thing we need to do for parallel computations: We need read access to all dofs
   // on the row elements, so need to get the NodeColMap to have this access
-  const Epetra_Map* colmap = dis->node_col_map();
+  const Core::LinAlg::Map* colmap = dis->node_col_map();
   const Epetra_BlockMap& vecmap = data->Map();
 
   FOUR_C_ASSERT(
@@ -418,7 +418,7 @@ void PostVtuWriter::write_nodal_result_step(std::ofstream& file,
             solution.push_back((column)[lid]);
           else
           {
-            FOUR_C_THROW("received illegal node local id: %d", lid);
+            FOUR_C_THROW("received illegal node local id: {}", lid);
           }
         }
         for (int d = numdf; d < ncomponents; ++d) solution.push_back(0.);
@@ -469,7 +469,7 @@ void PostVtuWriter::write_element_result_step(std::ofstream& file,
 
   const int numcol = data->NumVectors();
   if (numdf + from > numcol)
-    FOUR_C_THROW("violated column range of Core::LinAlg::MultiVector<double>: %d", numcol);
+    FOUR_C_THROW("violated column range of Core::LinAlg::MultiVector<double>: {}", numcol);
 
   std::shared_ptr<Core::LinAlg::MultiVector<double>> importedData;
   if (dis->element_row_map()->SameAs(data->Map()))
@@ -568,7 +568,6 @@ void PostVtuWriter::write_geo_nurbs_ele(const Core::Elements::Element* ele,
     }
     default:
       FOUR_C_THROW("VTK output not yet implemented for given NURBS element");
-      exit(EXIT_FAILURE);
   }
 
   return;
@@ -583,7 +582,7 @@ void PostVtuWriter::write_geo_nurbs_ele(const Core::Elements::Element* ele,
 {
   using namespace FourC;
 
-  const unsigned NUMNODES = Core::FE::num_nodes<nurbs_type>;
+  const unsigned NUMNODES = Core::FE::num_nodes(nurbs_type);
   const unsigned DIM = Core::FE::dim<nurbs_type>;
 
   const Core::FE::CellType mapped_dis_type = map_nurbs_dis_type_to_lagrange_dis_type(nurbs_type);
@@ -658,7 +657,6 @@ Core::FE::CellType PostVtuWriter::map_nurbs_dis_type_to_lagrange_dis_type(
       return Core::FE::CellType::hex27;
     default:
       FOUR_C_THROW("No known mapping from NURBS to Lagrange.");
-      exit(EXIT_FAILURE);
   }
 }
 
@@ -753,7 +751,7 @@ void PostVtuWriter::write_dof_result_step_nurbs_ele(const Core::Elements::Elemen
 {
   using namespace FourC;
 
-  const unsigned NUMNODES = Core::FE::num_nodes<nurbs_type>;
+  const unsigned NUMNODES = Core::FE::num_nodes(nurbs_type);
   const unsigned DIM = Core::FE::dim<nurbs_type>;
 
   const std::shared_ptr<const Core::FE::Discretization> dis = field_->discretization();
@@ -801,7 +799,7 @@ void PostVtuWriter::write_dof_result_step_nurbs_ele(const Core::Elements::Elemen
       dis->dof(ele->nodes()[m], nodedofs);
       for (int d = 0; d < numdf; ++d)
       {
-        const int lid = ghostedData.Map().LID(nodedofs[d + from]);
+        const int lid = ghostedData.get_block_map().LID(nodedofs[d + from]);
         if (lid > -1)
           val[d] += funct(m) * ((ghostedData)[lid]);
         else
@@ -809,7 +807,7 @@ void PostVtuWriter::write_dof_result_step_nurbs_ele(const Core::Elements::Elemen
           if (fillzeros)
             val[d] += 0.;
           else
-            FOUR_C_THROW("received illegal dof local id: %d", lid);
+            FOUR_C_THROW("received illegal dof local id: {}", lid);
         }
       }
     }
@@ -848,7 +846,7 @@ void PostVtuWriter::write_dof_result_step_beam_ele(const Discret::Elements::Beam
 
     for (std::vector<int>::const_iterator it = nodedofs.begin(); it != nodedofs.end(); ++it)
     {
-      const int lid = ghostedData->Map().LID(*it);
+      const int lid = ghostedData->get_block_map().LID(*it);
       if (lid > -1)
         elementdofvals.push_back((*ghostedData)[lid]);
       else
@@ -856,7 +854,7 @@ void PostVtuWriter::write_dof_result_step_beam_ele(const Discret::Elements::Beam
         if (fillzeros)
           elementdofvals.push_back(0.);
         else
-          FOUR_C_THROW("received illegal dof local id: %d", lid);
+          FOUR_C_THROW("received illegal dof local id: {}", lid);
       }
     }
   }
@@ -942,7 +940,7 @@ void PostVtuWriter::write_nodal_result_step_nurbs_ele(const Core::Elements::Elem
 {
   using namespace FourC;
 
-  const unsigned NUMNODES = Core::FE::num_nodes<nurbs_type>;
+  const unsigned NUMNODES = Core::FE::num_nodes(nurbs_type);
   const unsigned DIM = Core::FE::dim<nurbs_type>;
 
   const std::shared_ptr<const Core::FE::Discretization> dis = field_->discretization();
@@ -994,7 +992,7 @@ void PostVtuWriter::write_nodal_result_step_nurbs_ele(const Core::Elements::Elem
         if (lid > -1)
           val[idf] += funct(m) * (column)[lid];
         else
-          FOUR_C_THROW("received illegal node local id: %d", lid);
+          FOUR_C_THROW("received illegal node local id: {}", lid);
       }
     }
 

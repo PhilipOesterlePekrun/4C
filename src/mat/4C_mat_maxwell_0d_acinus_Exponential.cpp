@@ -12,6 +12,7 @@
 #include "4C_mat_par_bundle.hpp"
 #include "4C_red_airways_elem_params.hpp"
 #include "4C_red_airways_elementbase.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <vector>
 
@@ -103,7 +104,7 @@ void Mat::Maxwell0dAcinusExponential::unpack(Core::Communication::UnpackBuffer& 
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::Maxwell0dAcinusExponential*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
 }
@@ -115,11 +116,10 @@ void Mat::Maxwell0dAcinusExponential::unpack(Core::Communication::UnpackBuffer& 
  *----------------------------------------------------------------------*/
 void Mat::Maxwell0dAcinusExponential::setup(const Core::IO::InputParameterContainer& container)
 {
-  e1_0_ = container.get<double>("E1_0");
-  e1_lin_ = container.get<double>("E1_LIN");
-  e1_exp_ = container.get<double>("E1_EXP");
-  tau_ = container.get<double>("TAU");
-  // TODO bool -variable init, in Evaluate abfragen ob init=true
+  e1_0_ = *container.get<std::optional<double>>("E1_0");
+  e1_lin_ = *container.get<std::optional<double>>("E1_LIN");
+  e1_exp_ = *container.get<std::optional<double>>("E1_EXP");
+  tau_ = *container.get<std::optional<double>>("TAU");
 }
 
 
@@ -152,7 +152,7 @@ void Mat::Maxwell0dAcinusExponential::evaluate(Core::LinAlg::SerialDenseVector& 
   // Safety check for NumOfAcini
   if (NumOfAcini < 1.0)
   {
-    FOUR_C_THROW("Acinus condition at node (%d) has zero acini");
+    FOUR_C_THROW("Acinus condition has zero acini");
   }
 
   // Calculate volume and flow difference per acinuar duct

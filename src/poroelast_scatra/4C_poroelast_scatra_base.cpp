@@ -87,6 +87,15 @@ PoroElastScaTra::PoroScatraBase::PoroScatraBase(
 }
 
 /*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
+void PoroElastScaTra::PoroScatraBase::post_setup()
+{
+  // call post_setup routine of the structure field
+  structure_field()->post_setup();
+}
+
+
+/*----------------------------------------------------------------------*
  |                                                         vuong 05/13  |
  *----------------------------------------------------------------------*/
 void PoroElastScaTra::PoroScatraBase::setup_system() { poro_->setup_system(); }
@@ -142,8 +151,8 @@ void PoroElastScaTra::PoroScatraBase::set_scatra_solution()
   }
 
   // porous structure
-  poro_->structure_field()->discretization()->set_state(2, "scalar", phinp_s);
-  poro_->structure_field()->discretization()->set_state(2, "scalarn", phin_s);
+  poro_->structure_field()->discretization()->set_state(2, "scalar", *phinp_s);
+  poro_->structure_field()->discretization()->set_state(2, "scalarn", *phin_s);
 
   // porous fluid
   poro_->fluid_field()->set_iter_scalar_fields(phinp_f, phin_f, phidtnp,
@@ -170,12 +179,8 @@ void PoroElastScaTra::PoroScatraBase::set_velocity_fields()
     velnp = volcoupl_fluidscatra_->apply_vector_mapping21(*poro_->fluid_field()->velnp());
   }
 
-  scatra_->scatra_field()->set_velocity_field(convel,  // convective vel.
-      nullptr,                                         // acceleration
-      velnp,                                           // velocity
-      nullptr,                                         // fsvel
-      true                                             // set pressure
-  );
+  scatra_->scatra_field()->set_convective_velocity(*convel);
+  scatra_->scatra_field()->set_velocity_field(*velnp);
 }
 
 /*----------------------------------------------------------------------*
@@ -194,7 +199,7 @@ void PoroElastScaTra::PoroScatraBase::set_mesh_disp()
     dispnp = volcoupl_fluidscatra_->apply_vector_mapping21(*fluid_field()->dispnp());
   }
 
-  scatra_->scatra_field()->apply_mesh_movement(dispnp);
+  scatra_->scatra_field()->apply_mesh_movement(*dispnp);
 
   std::shared_ptr<const Core::LinAlg::Vector<double>> sdispnp = nullptr;
 
@@ -207,7 +212,7 @@ void PoroElastScaTra::PoroScatraBase::set_mesh_disp()
     sdispnp = volcoupl_structurescatra_->apply_vector_mapping21(*structure_field()->dispnp());
   }
 
-  scatra_->scatra_field()->discretization()->set_state(1, "displacement", sdispnp);
+  scatra_->scatra_field()->discretization()->set_state(1, "displacement", *sdispnp);
 }
 
 /*----------------------------------------------------------------------*

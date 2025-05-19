@@ -20,6 +20,7 @@
 #include "4C_global_data.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 #include "4C_scatra_ele_parameter_std.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -89,7 +90,7 @@ void ScaTra::LevelSet::Intersection::get_zero_level_set(const Core::LinAlg::Vect
     // ------------------------------------------------------------------------
     // Prepare cut
     // ------------------------------------------------------------------------
-    Cut::LevelSetIntersection levelset(scatradis.get_comm());
+    Cut::LevelSetIntersection levelset(Core::Communication::my_mpi_rank(scatradis.get_comm()));
     Core::LinAlg::SerialDenseMatrix xyze;
     std::vector<double> phi_nodes;
     std::vector<int> nids;
@@ -230,8 +231,8 @@ void ScaTra::LevelSet::Intersection::check_boundary_cell_type(Core::FE::CellType
 {
   if (distype_bc != Core::FE::CellType::tri3 and distype_bc != Core::FE::CellType::quad4)
   {
-    FOUR_C_THROW("unexpected type of boundary integration cell: %s",
-        Core::FE::cell_type_to_string(distype_bc).c_str());
+    FOUR_C_THROW("unexpected type of boundary integration cell: {}",
+        Core::FE::cell_type_to_string(distype_bc));
   }
 }
 
@@ -315,13 +316,11 @@ void ScaTra::LevelSet::Intersection::prepare_cut(const Core::Elements::Element* 
           Core::Geo::fill_initial_position_array<Core::FE::CellType::line2, 3>(ele, xyze);
           break;
         default:
-          FOUR_C_THROW("Unsupported problem dimension! (probdim = %d)", probdim);
-          exit(EXIT_FAILURE);
+          FOUR_C_THROW("Unsupported problem dimension! (probdim = {})", probdim);
       }
       break;
     default:
-      FOUR_C_THROW(
-          "Unknown element type ( type = %s )", Core::FE::cell_type_to_string(distype).c_str());
+      FOUR_C_THROW("Unknown element type ( type = {} )", Core::FE::cell_type_to_string(distype));
       break;
   }
 
@@ -336,7 +335,7 @@ void ScaTra::LevelSet::Intersection::prepare_cut(const Core::Elements::Element* 
   lmowner.clear();
   lmstride.clear();
   ele->location_vector(scatradis, lm, lmowner, lmstride);
-  Core::FE::extract_my_values(phicol, phi_nodes, lm);
+  phi_nodes = Core::FE::extract_values(phicol, lm);
 
   // define nodal ID's
   node_ids.resize(numnode, 0.0);
@@ -571,7 +570,7 @@ void ScaTra::LevelSet::Intersection::unpack_boundary_int_cells(
       Core::FE::CellType distype;
       extract_from_pack(buffer, distype);
       if (!(distype == Core::FE::CellType::tri3 || distype == Core::FE::CellType::quad4))
-        FOUR_C_THROW("unexpected distype %d", distype);
+        FOUR_C_THROW("unexpected distype {}", distype);
 
       Core::LinAlg::SerialDenseMatrix vertices_xi;
       extract_from_pack(buffer, vertices_xi);

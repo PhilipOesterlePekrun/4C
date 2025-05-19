@@ -367,7 +367,7 @@ double Discret::Elements::ScaTraEleCalcElchNP<distype>::calc_res(
 
   if (my::use2ndderiv_)
   {
-    Core::LinAlg::Matrix<nen_, 1> laplace(true);
+    Core::LinAlg::Matrix<nen_, 1> laplace(Core::LinAlg::Initialization::zero);
     my::get_laplacian_strong_form(laplace);
 
     diffphi = myelch::diff_manager()->get_isotropic_diff(k) * laplace.dot(my::ephinp_[k]);
@@ -412,7 +412,7 @@ void Discret::Elements::ScaTraEleCalcElchNP<distype>::calc_mat_conv_stab(
 {
   // Compute Laplacian N,xx  +  N,yy +  N,zz of all shape functions at current integration point if
   // needed
-  Core::LinAlg::Matrix<nen_, 1> laplace(true);
+  Core::LinAlg::Matrix<nen_, 1> laplace(Core::LinAlg::Initialization::zero);
   if (my::use2ndderiv_) my::get_laplacian_strong_form(laplace);
 
   for (unsigned vi = 0; vi < nen_; ++vi)
@@ -952,8 +952,7 @@ void Discret::Elements::ScaTraEleCalcElchNP<distype>::correction_for_flux_across
     // get dirichlet toggle from the discretization
     std::shared_ptr<const Core::LinAlg::Vector<double>> dctoggle =
         discretization.get_state("dctoggle");
-    std::vector<double> mydctoggle(lm.size());
-    Core::FE::extract_my_values(*dctoggle, mydctoggle, lm);
+    std::vector<double> mydctoggle = Core::FE::extract_values(*dctoggle, lm);
 
     double val = 0.;
     for (unsigned vi = 0; vi < nen_; ++vi)

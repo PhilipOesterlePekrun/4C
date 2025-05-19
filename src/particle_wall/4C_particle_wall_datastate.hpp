@@ -33,7 +33,6 @@ namespace PARTICLEWALL
   /*!
    * \brief wall data state container
    *
-   * \author Sebastian Fuchs \date 05/2019
    */
   class WallDataState final
   {
@@ -41,7 +40,6 @@ namespace PARTICLEWALL
     /*!
      * \brief constructor
      *
-     * \author Sebastian Fuchs \date 05/2019
      *
      * \param[in] params particle simulation parameter list
      */
@@ -50,7 +48,6 @@ namespace PARTICLEWALL
     /*!
      * \brief init wall data state container
      *
-     * \author Sebastian Fuchs \date 05/2019
      *
      * \param[in] walldiscretization wall discretization
      */
@@ -59,21 +56,18 @@ namespace PARTICLEWALL
     /*!
      * \brief setup wall data state container
      *
-     * \author Sebastian Fuchs \date 05/2019
      */
     void setup();
 
     /*!
      * \brief check for correct maps
      *
-     * \author Sebastian Fuchs \date 05/2019
      */
     void check_for_correct_maps();
 
     /*!
      * \brief update maps of state vectors
      *
-     * \author Sebastian Fuchs \date 05/2019
      */
     void update_maps_of_state_vectors();
 
@@ -154,7 +148,7 @@ namespace PARTICLEWALL
     std::shared_ptr<Core::FE::Discretization> walldiscretization_;
 
     //! current dof row map
-    std::shared_ptr<Epetra_Map> curr_dof_row_map_;
+    std::shared_ptr<Core::LinAlg::Map> curr_dof_row_map_;
 
     //! @name stored states
     //! @{

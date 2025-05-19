@@ -281,8 +281,8 @@ void ParticleInteraction::SPHRigidParticleContactElastic::
     if (walldatastate->get_vel_col() != nullptr)
     {
       // get nodal velocities
-      std::vector<double> nodal_vel(numnodes * 3);
-      Core::FE::extract_my_values(*walldatastate->get_vel_col(), nodal_vel, lmele);
+      std::vector<double> nodal_vel =
+          Core::FE::extract_values(*walldatastate->get_vel_col(), lmele);
 
       // determine velocity of wall contact point j
       for (int node = 0; node < numnodes; ++node)
@@ -333,7 +333,7 @@ void ParticleInteraction::SPHRigidParticleContactElastic::
           nodal_force[node * 3 + dim] = funct[node] * wallcontactforce[dim];
 
       // assemble nodal forces
-      const int err = walldatastate->get_force_col()->SumIntoGlobalValues(
+      const int err = walldatastate->get_force_col()->sum_into_global_values(
           numnodes * 3, nodal_force.data(), lmele.data());
       if (err < 0) FOUR_C_THROW("sum into Core::LinAlg::Vector<double> failed!");
     }

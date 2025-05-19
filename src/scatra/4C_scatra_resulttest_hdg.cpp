@@ -37,7 +37,7 @@ double ScaTra::HDGResultTest::result_node(
   double result(0.);
 
   // extract row map from solution vector
-  const Epetra_BlockMap& phinpmap = scatratiminthdg_->interpolated_phinp()->Map();
+  const Epetra_BlockMap& phinpmap = scatratiminthdg_->interpolated_phinp()->get_block_map();
 
   // test result value of single scalar field (averaged value on element node is tested)
   if (quantity == "phi")
@@ -52,7 +52,7 @@ double ScaTra::HDGResultTest::result_node(
     result = std::sqrt((*errors_)[2] / (*errors_)[3]);
   // catch unknown quantity strings
   else
-    FOUR_C_THROW("Quantity '%s' not supported in result test!", quantity.c_str());
+    FOUR_C_THROW("Quantity '{}' not supported in result test!", quantity);
 
   return result;
 }  // ScaTra::HDGResultTest::ResultNode

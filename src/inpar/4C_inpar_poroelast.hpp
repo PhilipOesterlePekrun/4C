@@ -10,8 +10,10 @@
 
 #include "4C_config.hpp"
 
+#include "4C_io_input_spec.hpp"
 #include "4C_utils_exceptions.hpp"
-#include "4C_utils_parameter_list.fwd.hpp"
+
+#include <map>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -84,38 +86,11 @@ namespace Inpar
       //   initfield_field_by_condition
     };
 
-    //! map enum term to std::string
-    static inline std::string vector_norm_string(const enum VectorNorm norm  //!< input enum term
-    )
-    {
-      switch (norm)
-      {
-        case Inpar::PoroElast::norm_l1:
-          return "L1";
-          break;
-        case Inpar::PoroElast::norm_l1_scaled:
-          return "L1_scaled";
-          break;
-        case Inpar::PoroElast::norm_l2:
-          return "L2";
-          break;
-        case Inpar::PoroElast::norm_rms:
-          return "Rms";
-          break;
-        case Inpar::PoroElast::norm_inf:
-          return "Inf";
-          break;
-        default:
-          FOUR_C_THROW("Cannot make std::string to vector norm %d", norm);
-          return "";
-      }
-    }
-
     //@}
 
 
     /// set the poroelast parameters
-    void set_valid_parameters(Teuchos::ParameterList& list);
+    void set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list);
 
   }  // namespace PoroElast
 

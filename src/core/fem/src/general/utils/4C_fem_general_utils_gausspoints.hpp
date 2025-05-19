@@ -11,6 +11,7 @@
 #include "4C_config.hpp"
 
 #include "4C_fem_general_utils_fem_shapefunctions.hpp"
+#include "4C_fem_general_utils_integration.hpp"
 #include "4C_fem_geometry_element_coordtrafo.hpp"
 
 #include <map>
@@ -180,18 +181,15 @@ namespace Core::FE
     std::vector<std::shared_ptr<GaussPoints>> gp_;
   };
 
-  /// remember calculated gauss points so we do not need to calculate again
-  class GaussPointCache
-  {
-   public:
-    static GaussPointCache& instance();
+  /**
+   * Create GaussPoints object for a given element type and degree.
+   */
+  std::shared_ptr<GaussPoints> create_gauss_points(Core::FE::CellType distype, int degree);
 
-    std::shared_ptr<GaussPoints> create(Core::FE::CellType distype, int degree);
-
-   private:
-    /// cache of already created gauss rules
-    std::map<std::pair<Core::FE::CellType, int>, std::shared_ptr<GaussPoints>> gp_cache_;
-  };
+  /**
+   * Create GaussPoints object for a given element type with a default degree.
+   */
+  std::shared_ptr<GaussPoints> create_gauss_points_default(Core::FE::CellType distype);
 
   /// gauss integration interface
   class GaussIntegration
@@ -239,11 +237,11 @@ namespace Core::FE
       int point_;
     };
 
-    typedef GaussPointIterator iterator;
-    typedef GaussPointIterator const_iterator;
+    using iterator = GaussPointIterator;
+    using const_iterator = GaussPointIterator;
 
     /// construct the optimal (normal) rule for a given element shape
-    GaussIntegration(Core::FE::CellType distype);
+    explicit GaussIntegration(Core::FE::CellType distype);
 
     /// construct rule for a given element shape
     GaussIntegration(Core::FE::CellType distype, int degree);
@@ -283,10 +281,10 @@ namespace Core::FE
     /// Create Gauss integration rule of given degree
     template <Core::FE::CellType distype>
     static std::shared_ptr<GaussPoints> create_projected(
-        const Core::LinAlg::Matrix<Core::FE::dim<distype>, Core::FE::num_nodes<distype>>& xie,
+        const Core::LinAlg::Matrix<Core::FE::dim<distype>, Core::FE::num_nodes(distype)>& xie,
         int degree)
     {
-      std::shared_ptr<GaussPoints> gp = GaussPointCache::instance().create(distype, degree);
+      std::shared_ptr<GaussPoints> gp = create_gauss_points(distype, degree);
       std::shared_ptr<CollectedGaussPoints> cgp =
           std::make_shared<CollectedGaussPoints>(gp->num_points());
 
@@ -301,11 +299,11 @@ namespace Core::FE
     /// coordinate system
     template <Core::FE::CellType distype>
     static void project_gauss_points_local_to_global(
-        const Core::LinAlg::Matrix<Core::FE::dim<distype>, Core::FE::num_nodes<distype>>& xie,
+        const Core::LinAlg::Matrix<Core::FE::dim<distype>, Core::FE::num_nodes(distype)>& xie,
         GaussIntegration& intpoints, CollectedGaussPoints& cgp)
     {
       const int nsd = Core::FE::dim<distype>;
-      const int nen = Core::FE::num_nodes<distype>;
+      const int nen = Core::FE::num_nodes(distype);
 
       Core::LinAlg::Matrix<nen, 1> funct;
       Core::LinAlg::Matrix<nsd, nen> deriv;
@@ -339,11 +337,11 @@ namespace Core::FE
     /// coordinate system
     template <Core::FE::CellType distype>
     static std::shared_ptr<GaussPoints> project_gauss_points_global_to_local(
-        const Core::LinAlg::Matrix<Core::FE::dim<distype>, Core::FE::num_nodes<distype>>& xie,
+        const Core::LinAlg::Matrix<Core::FE::dim<distype>, Core::FE::num_nodes(distype)>& xie,
         GaussIntegration& intpoints, const bool& throw_error = true)
     {
       const int nsd = Core::FE::dim<distype>;
-      const int nen = Core::FE::num_nodes<distype>;
+      const int nen = Core::FE::num_nodes(distype);
 
       Core::LinAlg::Matrix<nen, 1> funct;
       Core::LinAlg::Matrix<nsd, nen> deriv;
@@ -384,6 +382,29 @@ namespace Core::FE
     /// internal collection
     std::shared_ptr<GaussPoints> gp_;
   };
+
+  /*!
+   * @brief Create a Gauss integration interface from a given Gauss rule type
+   */
+  template <Core::FE::CellType celltype, typename GaussRuleType>
+  GaussIntegration create_gauss_integration(GaussRuleType rule)
+  {
+    // setup default integration
+    IntPointsAndWeights<Core::FE::dim<celltype>> intpoints(rule);
+
+    // format as Discret::Utils::GaussIntegration
+    std::shared_ptr<Core::FE::CollectedGaussPoints> gp =
+        std::make_shared<Core::FE::CollectedGaussPoints>();
+
+    std::array<double, 3> xi = {0., 0., 0.};
+    for (int i = 0; i < intpoints.ip().nquad; ++i)
+    {
+      for (int d = 0; d < Core::FE::dim<celltype>; ++d) xi[d] = intpoints.ip().qxg[i][d];
+      gp->append(xi[0], xi[1], xi[2], intpoints.ip().qwgt[i]);
+    }
+
+    return Core::FE::GaussIntegration(gp);
+  }
 
 }  // namespace Core::FE
 

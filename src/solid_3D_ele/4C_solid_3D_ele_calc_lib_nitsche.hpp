@@ -54,7 +54,7 @@ namespace Discret::Elements
    */
   template <Core::FE::CellType celltype>
   void evaluate_d_cauchy_n_dir_d_displacements(
-      const Core::LinAlg::Matrix<9, Core::FE::num_nodes<celltype> * Core::FE::dim<celltype>>&
+      const Core::LinAlg::Matrix<9, Core::FE::num_nodes(celltype) * Core::FE::dim<celltype>>&
           d_F_dd,
       const Core::LinAlg::Matrix<9, 1>& d_cauchyndir_dF,
       Core::LinAlg::SerialDenseMatrix& d_cauchyndir_dd)
@@ -74,7 +74,7 @@ namespace Discret::Elements
    */
   template <Core::FE::CellType celltype>
   void evaluate_d2_cauchy_n_dir_d_displacements_d_normal(
-      const Core::LinAlg::Matrix<9, Core::FE::num_nodes<celltype> * Core::FE::dim<celltype>>&
+      const Core::LinAlg::Matrix<9, Core::FE::num_nodes(celltype) * Core::FE::dim<celltype>>&
           d_F_dd,
       const Core::LinAlg::Matrix<9, Core::FE::dim<celltype>>& d2_cauchyndir_dF_dn,
       Core::LinAlg::SerialDenseMatrix& d2_cauchyndir_dd_dn)
@@ -94,7 +94,7 @@ namespace Discret::Elements
    */
   template <Core::FE::CellType celltype>
   void evaluate_d2_cauchy_n_dir_d_displacements_d_dir(
-      const Core::LinAlg::Matrix<9, Core::FE::num_nodes<celltype> * Core::FE::dim<celltype>>&
+      const Core::LinAlg::Matrix<9, Core::FE::num_nodes(celltype) * Core::FE::dim<celltype>>&
           d_F_dd,
       const Core::LinAlg::Matrix<9, Core::FE::dim<celltype>>& d2_cauchyndir_dF_ddir,
       Core::LinAlg::SerialDenseMatrix& d2_cauchyndir_dd_ddir)
@@ -113,13 +113,13 @@ namespace Discret::Elements
    */
   template <Core::FE::CellType celltype>
   void evaluate_d2_cauchy_n_dir_d_displacements2(
-      const Core::LinAlg::Matrix<9, Core::FE::num_nodes<celltype> * Core::FE::dim<celltype>>&
+      const Core::LinAlg::Matrix<9, Core::FE::num_nodes(celltype) * Core::FE::dim<celltype>>&
           d_F_dd,
       const Core::LinAlg::Matrix<9, 9>& d2_cauchyndir_dF2,
       Core::LinAlg::SerialDenseMatrix& d2_cauchyndir_dd_dd)
   {
-    Core::LinAlg::Matrix<9, Core::FE::num_nodes<celltype> * Core::FE::dim<celltype>>
-        d2_cauchyndir_dF_2d_F_dd(false);
+    Core::LinAlg::Matrix<9, Core::FE::num_nodes(celltype) * Core::FE::dim<celltype>>
+        d2_cauchyndir_dF_2d_F_dd(Core::LinAlg::Initialization::uninitialized);
     d2_cauchyndir_dF_2d_F_dd.multiply(d2_cauchyndir_dF2, d_F_dd);
     Internal::multiply_tn(d_F_dd, d2_cauchyndir_dF_2d_F_dd, d2_cauchyndir_dd_dd);
   }
@@ -152,12 +152,12 @@ namespace Discret::Elements
    */
   template <Core::FE::CellType celltype>
   void evaluate_d2_cauchy_n_dir_d_displacements_d_xi(
-      const Core::LinAlg::Matrix<9, Core::FE::num_nodes<celltype> * Core::FE::dim<celltype> *
+      const Core::LinAlg::Matrix<9, Core::FE::num_nodes(celltype) * Core::FE::dim<celltype> *
                                         Core::FE::dim<celltype>>& d2_F_dxi_dd,
       const Core::LinAlg::Matrix<9, 1>& d_cauchyndir_dF,
       Core::LinAlg::SerialDenseMatrix& d2_cauchyndir_dd_dxi)
   {
-    constexpr int num_dof = Core::FE::num_nodes<celltype> * Core::FE::dim<celltype>;
+    constexpr int num_dof = Core::FE::num_nodes(celltype) * Core::FE::dim<celltype>;
 
     d2_cauchyndir_dd_dxi.reshape(num_dof, Core::FE::dim<celltype>);
 
@@ -165,7 +165,7 @@ namespace Discret::Elements
     {
       for (int j = 0; j < Core::FE::dim<celltype>; ++j)
       {
-        for (int k = 0; k < Core::FE::num_nodes<celltype>; ++k)
+        for (int k = 0; k < Core::FE::num_nodes(celltype); ++k)
         {
           for (int l = 0; l < Core::FE::dim<celltype>; ++l)
           {
@@ -231,7 +231,7 @@ namespace Discret::Elements
   template <Core::FE::CellType celltype>
   struct CauchyNDirLinearizationDependencies
   {
-    std::optional<Core::LinAlg::Matrix<9, Core::FE::num_nodes<celltype> * Core::FE::dim<celltype>>>
+    std::optional<Core::LinAlg::Matrix<9, Core::FE::num_nodes(celltype) * Core::FE::dim<celltype>>>
         d_F_dd{};
     std::optional<Core::LinAlg::Matrix<9, Core::FE::dim<celltype>>> d_F_dxi{};
     std::optional<Core::LinAlg::Matrix<9, 1>> d_cauchyndir_dF{};
@@ -239,7 +239,7 @@ namespace Discret::Elements
     std::optional<Core::LinAlg::Matrix<9, 3>> d2_cauchyndir_dF_ddir{};
     std::optional<Core::LinAlg::Matrix<9, 3>> d2_cauchyndir_dF_dn{};
     std::optional<Core::LinAlg::Matrix<9,
-        Core::FE::num_nodes<celltype> * Core::FE::dim<celltype> * Core::FE::dim<celltype>>>
+        Core::FE::num_nodes(celltype) * Core::FE::dim<celltype> * Core::FE::dim<celltype>>>
         d2_F_dxi_dd{};
   };
 
@@ -276,19 +276,19 @@ namespace Discret::Elements
         Internal::make_optional_if<Core::LinAlg::Matrix<9, 1>>(
             linearizations.d_cauchyndir_dd || linearizations.d_cauchyndir_dxi ||
                 linearizations.d2_cauchyndir_dd_dxi,
-            true);
+            Core::LinAlg::Initialization::zero);
 
     linearization_dependencies.d2_cauchyndir_dF2 =
         Internal::make_optional_if<Core::LinAlg::Matrix<9, 9>>(
-            linearizations.d2_cauchyndir_dd2, true);
+            linearizations.d2_cauchyndir_dd2, Core::LinAlg::Initialization::zero);
 
     linearization_dependencies.d2_cauchyndir_dF_dn =
         Internal::make_optional_if<Core::LinAlg::Matrix<9, 3>>(
-            linearizations.d2_cauchyndir_dd_dn, true);
+            linearizations.d2_cauchyndir_dd_dn, Core::LinAlg::Initialization::zero);
 
     linearization_dependencies.d2_cauchyndir_dF_ddir =
         Internal::make_optional_if<Core::LinAlg::Matrix<9, 3>>(
-            linearizations.d2_cauchyndir_dd_ddir, true);
+            linearizations.d2_cauchyndir_dd_ddir, Core::LinAlg::Initialization::zero);
 
 
     if (linearizations.d_cauchyndir_dd || linearizations.d2_cauchyndir_dd_dn ||
@@ -431,8 +431,8 @@ namespace Discret::Elements
         requires(!can_evaluate_cauchy_n_dir<T&, dim>)
       {
         FOUR_C_THROW(
-            "Your element evaluation %s does not allow to evaluate the Cauchy stress at a specific "
-            "point in a specific direction in the dimension dim=%d.",
+            "Your element evaluation {} does not allow to evaluate the Cauchy stress at a specific "
+            "point in a specific direction in the dimension dim={}.",
             typeid(T).name(), dim);
       }
 
@@ -452,15 +452,15 @@ namespace Discret::Elements
    *
    * @return double
    */
-  template <int dim, typename VariantType>
+  template <typename VariantType>
   double get_normal_cauchy_stress_at_xi(VariantType& variant,
       const Core::Elements::Element& element, Mat::So3Material& mat,
-      const std::vector<double>& disp, const Core::LinAlg::Matrix<dim, 1>& xi,
-      const Core::LinAlg::Matrix<dim, 1>& n, const Core::LinAlg::Matrix<dim, 1>& dir,
-      CauchyNDirLinearizations<dim>& linearizations)
+      const std::vector<double>& disp, const Core::LinAlg::Matrix<3, 1>& xi,
+      const Core::LinAlg::Matrix<3, 1>& n, const Core::LinAlg::Matrix<3, 1>& dir,
+      CauchyNDirLinearizations<3>& linearizations)
   {
     return std::visit(
-        Internal::EvaluateCauchyNDirAction<dim>(element, mat, disp, xi, n, dir, linearizations),
+        Internal::EvaluateCauchyNDirAction<3>(element, mat, disp, xi, n, dir, linearizations),
         variant);
   }
 }  // namespace Discret::Elements

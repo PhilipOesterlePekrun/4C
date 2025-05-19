@@ -11,6 +11,7 @@
 #include "4C_global_data.hpp"
 #include "4C_mat_lubrication_law.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <vector>
 
@@ -56,7 +57,7 @@ Mat::PAR::LubricationMat::LubricationMat(const Core::Mat::PAR::Parameter::Data& 
       break;
     }
     default:
-      FOUR_C_THROW("invalid material for lubrication law %d", curmat->type());
+      FOUR_C_THROW("invalid material for lubrication law {}", curmat->type());
       break;
   }
 }
@@ -122,7 +123,7 @@ void Mat::LubricationMat::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::LubricationMat*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
 }

@@ -93,7 +93,7 @@ double Core::LinAlg::SparseMatrixBase::norm_frobenius() const { return sysmat_->
 int Core::LinAlg::SparseMatrixBase::multiply(
     bool TransA, const Core::LinAlg::Vector<double>& x, Core::LinAlg::Vector<double>& y) const
 {
-  return sysmat_->Multiply(TransA, x.get_ref_of_Epetra_Vector(), y.get_ref_of_Epetra_Vector());
+  return sysmat_->Multiply(TransA, x.get_ref_of_epetra_vector(), y.get_ref_of_epetra_vector());
 }
 
 
@@ -121,6 +121,19 @@ int Core::LinAlg::SparseMatrixBase::right_scale(const Core::LinAlg::Vector<doubl
   return sysmat_->RightScale(x);
 }
 
+/*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
+int Core::LinAlg::SparseMatrixBase::inv_row_sums(Core::LinAlg::Vector<double>& x)
+{
+  return sysmat_->InvRowSums(x);
+}
+
+/*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
+int Core::LinAlg::SparseMatrixBase::inv_col_sums(Core::LinAlg::Vector<double>& x)
+{
+  return sysmat_->InvColSums(x);
+}
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
@@ -151,9 +164,80 @@ int Core::LinAlg::SparseMatrixBase::replace_diagonal_values(
 int Core::LinAlg::SparseMatrixBase::extract_diagonal_copy(
     Core::LinAlg::Vector<double>& Diagonal) const
 {
-  return sysmat_->ExtractDiagonalCopy(Diagonal.get_ref_of_Epetra_Vector());
+  return sysmat_->ExtractDiagonalCopy(Diagonal.get_ref_of_epetra_vector());
 }
 
+/*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
+int Core::LinAlg::SparseMatrixBase::extract_my_row_copy(
+    int my_row, int length, int& num_entries, double* values, int* indices) const
+{
+  return sysmat_->ExtractMyRowCopy(my_row, length, num_entries, values, indices);
+}
+
+/*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
+int Core::LinAlg::SparseMatrixBase::extract_global_row_copy(
+    int global_row, int length, int& num_entries, double* values, int* indices) const
+{
+  return sysmat_->ExtractGlobalRowCopy(global_row, length, num_entries, values, indices);
+}
+
+/*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
+int Core::LinAlg::SparseMatrixBase::extract_my_row_view(
+    int my_row, int& num_entries, double*& values, int*& indices) const
+{
+  return sysmat_->ExtractMyRowView(my_row, num_entries, values, indices);
+}
+
+/*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
+int Core::LinAlg::SparseMatrixBase::extract_global_row_view(
+    int global_row, int& num_entries, double*& values, int*& indices) const
+{
+  return sysmat_->ExtractGlobalRowView(global_row, num_entries, values, indices);
+}
+
+/*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
+int Core::LinAlg::SparseMatrixBase::insert_my_values(
+    int my_row, int num_entries, const double* values, const int* indices) const
+{
+  return sysmat_->InsertMyValues(my_row, num_entries, values, indices);
+}
+
+/*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
+int Core::LinAlg::SparseMatrixBase::sum_into_my_values(
+    int my_row, int num_entries, const double* values, const int* indices) const
+{
+  return sysmat_->SumIntoMyValues(my_row, num_entries, values, indices);
+}
+
+/*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
+int Core::LinAlg::SparseMatrixBase::replace_my_values(
+    int my_row, int num_entries, const double* values, const int* indices) const
+{
+  return sysmat_->ReplaceMyValues(my_row, num_entries, values, indices);
+}
+
+/*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
+int Core::LinAlg::SparseMatrixBase::insert_global_values(
+    int global_row, int num_entries, const double* values, const int* indices) const
+{
+  return sysmat_->InsertGlobalValues(global_row, num_entries, values, indices);
+}
+
+/*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
+int Core::LinAlg::SparseMatrixBase::sum_into_global_values(
+    int global_row, int num_entries, const double* values, const int* indices) const
+{
+  return sysmat_->SumIntoGlobalValues(global_row, num_entries, values, indices);
+}
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
@@ -169,7 +253,7 @@ void Core::LinAlg::SparseMatrixBase::add(const Core::LinAlg::SparseOperator& A,
 void Core::LinAlg::SparseMatrixBase::add_other(Core::LinAlg::SparseMatrixBase& B,
     const bool transposeA, const double scalarA, const double scalarB) const
 {
-  // B.Add(*this, transposeA, scalarA, scalarB);
+  // B.add(*this, transposeA, scalarA, scalarB);
   Core::LinAlg::add(*sysmat_, transposeA, scalarA, B, scalarB);
 }
 
@@ -184,8 +268,8 @@ void Core::LinAlg::SparseMatrixBase::add_other(Core::LinAlg::BlockSparseMatrixBa
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-bool Core::LinAlg::SparseMatrixBase::is_dbc_applied(
-    const Epetra_Map& dbcmap, bool diagonalblock, const Core::LinAlg::SparseMatrix* trafo) const
+bool Core::LinAlg::SparseMatrixBase::is_dbc_applied(const Core::LinAlg::Map& dbcmap,
+    bool diagonalblock, const Core::LinAlg::SparseMatrix* trafo) const
 {
   if (not filled()) FOUR_C_THROW("The matrix must be filled!");
 
@@ -216,7 +300,7 @@ bool Core::LinAlg::SparseMatrixBase::is_dbc_applied(
     // handle a diagonal block
     if (diagonalblock)
     {
-      if (NumEntries == 0) FOUR_C_THROW("Row %d is empty and part of a diagonal block!", row);
+      if (NumEntries == 0) FOUR_C_THROW("Row {} is empty and part of a diagonal block!", row);
 
       if (trafo)
       {
@@ -240,7 +324,7 @@ bool Core::LinAlg::SparseMatrixBase::is_dbc_applied(
             if (Indices[k] == tIndices[j]) break;
 
           if (k == NumEntries)
-            FOUR_C_THROW("Couldn't find column index %d in row %d.", tIndices[j], row);
+            FOUR_C_THROW("Couldn't find column index {} in row {}.", tIndices[j], row);
 
           if (std::abs(Values[k] - tValues[j]) > std::numeric_limits<double>::epsilon())
           {

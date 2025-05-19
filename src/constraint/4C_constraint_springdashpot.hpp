@@ -45,13 +45,13 @@ namespace Adapter
   class CouplingNonLinMortar;
 }
 
-namespace CONSTRAINTS
+namespace Constraints
 {
   class SpringDashpot
   {
    public:
     //! Type of spring
-    enum SpringType
+    enum class RobinSpringDashpotType
     {
       xyz,            ///<
       refsurfnormal,  ///<
@@ -117,7 +117,7 @@ namespace CONSTRAINTS
     void output_prestr_offset_old(Core::LinAlg::MultiVector<double>& springprestroffset) const;
 
     //! return type of spring
-    SpringType get_spring_type() { return springtype_; }
+    RobinSpringDashpotType get_spring_type() { return springtype_; }
 
     //! update condition for new time step
     void update();
@@ -227,10 +227,10 @@ namespace CONSTRAINTS
 
    private:
     //! Type of spring
-    SpringType springtype_;
+    RobinSpringDashpotType springtype_;
 
   };  // class
-}  // namespace CONSTRAINTS
+}  // namespace Constraints
 
 FOUR_C_NAMESPACE_CLOSE
 

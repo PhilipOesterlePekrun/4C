@@ -14,9 +14,6 @@
 #include "4C_linalg_vector.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
 
-#include <Epetra_Operator.h>
-#include <Epetra_RowMatrix.h>
-
 #include <memory>
 
 FOUR_C_NAMESPACE_OPEN
@@ -35,7 +32,7 @@ namespace Core::LinAlg
   class SparseOperator;
 }  // namespace Core::LinAlg
 
-namespace CONSTRAINTS
+namespace Constraints
 {
   /*!
   \brief Class containing uzawa algorithm to solve linear system.
@@ -165,7 +162,7 @@ namespace CONSTRAINTS
     std::shared_ptr<Core::LinAlg::SparseMatrix> stcmat_;
 
   };  // class
-}  // namespace CONSTRAINTS
+}  // namespace Constraints
 FOUR_C_NAMESPACE_CLOSE
 
 #endif

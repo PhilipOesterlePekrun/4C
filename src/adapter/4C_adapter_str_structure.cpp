@@ -10,18 +10,16 @@
 #include "4C_adapter_str_constr_merged.hpp"
 #include "4C_adapter_str_fpsiwrapper.hpp"
 #include "4C_adapter_str_fsi_timint_adaptive.hpp"
-#include "4C_adapter_str_redairway.hpp"
 #include "4C_adapter_str_ssiwrapper.hpp"
 #include "4C_adapter_str_timeloop.hpp"
 #include "4C_adapter_str_timint_adaptive.hpp"
 #include "4C_adapter_str_wrapper.hpp"
 #include "4C_comm_utils.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_inpar_fsi.hpp"
 #include "4C_inpar_poroelast.hpp"
 #include "4C_inpar_structure.hpp"
-#include "4C_inpar_validparameters.hpp"
 #include "4C_io.hpp"
 #include "4C_io_control.hpp"
 #include "4C_io_pstream.hpp"
@@ -59,18 +57,16 @@ void Adapter::StructureBaseAlgorithm::create_structure(const Teuchos::ParameterL
   // major switch to different time integrators
   switch (Teuchos::getIntegralValue<Inpar::Solid::DynamicType>(sdyn, "DYNAMICTYPE"))
   {
-    case Inpar::Solid::dyna_statics:
-    case Inpar::Solid::dyna_genalpha:
-    case Inpar::Solid::dyna_onesteptheta:
-    case Inpar::Solid::dyna_expleuler:
-    case Inpar::Solid::dyna_centrdiff:
-    case Inpar::Solid::dyna_ab2:
+    case Inpar::Solid::DynamicType::Statics:
+    case Inpar::Solid::DynamicType::GenAlpha:
+    case Inpar::Solid::DynamicType::OneStepTheta:
+    case Inpar::Solid::DynamicType::ExplEuler:
+    case Inpar::Solid::DynamicType::CentrDiff:
+    case Inpar::Solid::DynamicType::AdamsBashforth2:
       create_tim_int(prbdyn, sdyn, actdis);  // <-- here is the show
       break;
     default:
-      FOUR_C_THROW("unknown time integration scheme '%s'",
-          Teuchos::getStringValue<Inpar::Solid::DynamicType>(sdyn, "DYNAMICTYPE").c_str());
-      break;
+      FOUR_C_THROW("Unknown time integration scheme");
   }
 }
 
@@ -121,7 +117,7 @@ void Adapter::StructureBaseAlgorithm::create_tim_int(const Teuchos::ParameterLis
   Teuchos::ParameterList& nox = xparams->sublist("NOX");
   nox = snox;
 
-  // Check if for chosen Rayleigh damping the regarding parameters are given explicitly in the .dat
+  // Check if for chosen Rayleigh damping the regarding parameters are given explicitly in the input
   // file
   if (Teuchos::getIntegralValue<Inpar::Solid::DampKind>(sdyn, "DAMPING") ==
       Inpar::Solid::damp_rayleigh)
@@ -145,67 +141,6 @@ void Adapter::StructureBaseAlgorithm::create_tim_int(const Teuchos::ParameterLis
   if (onlymeshtying or onlycontact or meshtyingandcontact)
     contactsolver = create_contact_meshtying_solver(*actdis, sdyn);
 
-  if (solver != nullptr && (solver->params().isSublist("Belos Parameters")) &&
-      solver->params().isSublist("ML Parameters")  // TODO what about MueLu?
-      && Teuchos::getIntegralValue<Inpar::Solid::StcScale>(sdyn, "STC_SCALING") !=
-             Inpar::Solid::stc_none)
-  {
-    Teuchos::ParameterList& mllist = solver->params().sublist("ML Parameters");
-    std::shared_ptr<std::vector<double>> ns =
-        mllist.get<std::shared_ptr<std::vector<double>>>("nullspace");
-
-    // prepare matrix for scaled thickness business of thin shell structures
-    std::shared_ptr<Core::LinAlg::SparseMatrix> stcinv =
-        std::make_shared<Core::LinAlg::SparseMatrix>(*actdis->dof_row_map(), 81, true, true);
-
-    stcinv->zero();
-    // create the parameters for the discretization
-    Teuchos::ParameterList p;
-    // action for elements
-    const std::string action = "calc_stc_matrix_inverse";
-    p.set("action", action);
-    p.set<Inpar::Solid::StcScale>("stc_scaling", sdyn.get<Inpar::Solid::StcScale>("STC_SCALING"));
-    p.set("stc_layer", 1);
-
-    actdis->evaluate(p, stcinv, nullptr, nullptr, nullptr, nullptr);
-
-    stcinv->complete();
-
-    for (int lay = 2; lay <= sdyn.get<int>("STC_LAYER"); ++lay)
-    {
-      Teuchos::ParameterList pe;
-
-      p.set("stc_layer", lay);
-
-      std::shared_ptr<Core::LinAlg::SparseMatrix> tmpstcmat =
-          std::make_shared<Core::LinAlg::SparseMatrix>(*actdis->dof_row_map(), 81, true, true);
-      tmpstcmat->zero();
-
-      actdis->evaluate(p, tmpstcmat, nullptr, nullptr, nullptr, nullptr);
-      tmpstcmat->complete();
-
-      stcinv = Core::LinAlg::matrix_multiply(*stcinv, false, *tmpstcmat, false, false, false, true);
-    }
-
-    Core::LinAlg::Vector<double> temp(*(actdis->dof_row_map()), false);
-
-    const auto multiply_nullspace_vector = [&](std::size_t offset)
-    {
-      const int size = actdis->dof_row_map()->NumMyElements();
-      Core::LinAlg::Vector<double> vec(*(actdis->dof_row_map()), false);
-      std::copy(ns->data() + offset * size, ns->data() + (offset + 1) * size, vec.Values());
-
-      stcinv->multiply(false, vec, temp);
-      std::copy(temp.Values(), temp.Values() + size, ns->data() + offset * size);
-    };
-
-
-    // extract and modify the six nullspace vectors corresponding to the modes
-    // trans x, trans y, trans z, rot x, rot y, rot z
-    // Note: We assume 3d here!
-    for (int i = 0; i < 6; ++i) multiply_nullspace_vector(i);
-  }
-
   // Checks in case of multi-scale simulations
   {
     // make sure we IMR-like generalised-alpha requested for multi-scale
@@ -216,7 +151,7 @@ void Adapter::StructureBaseAlgorithm::create_tim_int(const Teuchos::ParameterLis
       if (par->type() == Core::Materials::m_struct_multiscale)
       {
         if (Teuchos::getIntegralValue<Inpar::Solid::DynamicType>(sdyn, "DYNAMICTYPE") !=
-            Inpar::Solid::dyna_genalpha)
+            Inpar::Solid::DynamicType::GenAlpha)
           FOUR_C_THROW("In multi-scale simulations, you have to use DYNAMICTYPE=GenAlpha");
         else if (Teuchos::getIntegralValue<Inpar::Solid::MidAverageEnum>(
                      sdyn.sublist("GENALPHA"), "GENAVG") != Inpar::Solid::midavg_trlike)
@@ -267,7 +202,6 @@ void Adapter::StructureBaseAlgorithm::create_tim_int(const Teuchos::ParameterLis
    *
    * ToDO: Find something nicer here!
    *
-   * \author mayr.mt \date 12/2013
    */
   // ---------------------------------------------------------------------------
   if (probtype == Core::ProblemType::fsi or probtype == Core::ProblemType::fsi_redmodels)
@@ -366,11 +300,6 @@ void Adapter::StructureBaseAlgorithm::create_tim_int(const Teuchos::ParameterLis
       case Core::ProblemType::ssti:
       {
         structure_ = std::make_shared<SSIStructureWrapper>(tmpstr);
-      }
-      break;
-      case Core::ProblemType::redairways_tissue:
-      {
-        structure_ = std::make_shared<StructureRedAirway>(tmpstr);
       }
       break;
       case Core::ProblemType::poroelast:
@@ -473,9 +402,9 @@ Adapter::StructureBaseAlgorithm::create_contact_meshtying_solver(
         "CONTACT DYNAMIC to a valid number!");
 
   // Distinguish the system type, i.e. condensed vs. saddle-point
-  switch (Teuchos::getIntegralValue<Inpar::CONTACT::SystemType>(mcparams, "SYSTEM"))
+  switch (Teuchos::getIntegralValue<CONTACT::SystemType>(mcparams, "SYSTEM"))
   {
-    case Inpar::CONTACT::system_saddlepoint:
+    case CONTACT::SystemType::saddlepoint:
     {
       /* Plausibility check
        *
@@ -496,7 +425,7 @@ Adapter::StructureBaseAlgorithm::create_contact_meshtying_solver(
               "You have chosen an iterative linear solver. For mortar meshtying/contact problems "
               "in saddle-point formulation, a block preconditioner is required. Choose an "
               "appropriate block preconditioner such as CheapSIMPLE or MueLu "
-              "(if MueLu is available) in the SOLVER %i block in your input file.",
+              "(if MueLu is available) in the SOLVER {} block in your input file.",
               linsolvernumber);
       }
 
@@ -520,9 +449,8 @@ Adapter::StructureBaseAlgorithm::create_contact_meshtying_solver(
             "Problems like beamcontact or pure structure problem w/o contact do not support a "
             "saddle-point formulation.");
 
-      auto soltype =
-          Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(mcparams, "STRATEGY");
-      if (soltype == Inpar::CONTACT::solution_lagmult)
+      auto soltype = Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(mcparams, "STRATEGY");
+      if (soltype == CONTACT::SolvingStrategy::lagmult)
       {
         // get the solver number used for structural problems
         const int linsolvernumber = sdyn.get<int>("LINEAR_SOLVER");

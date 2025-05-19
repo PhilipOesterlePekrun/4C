@@ -10,6 +10,7 @@
 #include "4C_comm_mpi_utils.hpp"
 #include "4C_contact_element.hpp"
 #include "4C_contact_friction_node.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_contact_integrator.hpp"
 #include "4C_contact_interface.hpp"
 #include "4C_coupling_adapter_mortar.hpp"
@@ -19,7 +20,6 @@
 #include "4C_fem_nurbs_discretization_control_point.hpp"
 #include "4C_fem_nurbs_discretization_knotvector.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_linalg_sparsematrix.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
@@ -39,7 +39,7 @@ Adapter::CouplingNonLinMortar::CouplingNonLinMortar(int spatial_dimension,
     : Coupling::Adapter::CouplingMortar(
           spatial_dimension, mortar_coupling_params, contact_dynamic_params, shape_function_type),
       issetup_(false),
-      comm_(nullptr),
+      comm_(MPI_COMM_NULL),
       myrank_(-1),
       slavenoderowmap_(nullptr),
       DLin_(nullptr),
@@ -198,8 +198,9 @@ void Adapter::CouplingNonLinMortar::read_mortar_condition(
   input.setParameters(meshtying);
   input.setParameters(wearlist);
 
-  input.set<int>("PROBTYPE", Inpar::CONTACT::other);  // if other probtypes, this will be
-                                                      // overwritten in overloaded function
+  input.set<CONTACT::Problemtype>(
+      "PROBTYPE", CONTACT::Problemtype::other);  // if other probtypes, this will be
+                                                 // overwritten in overloaded function
 
   // is this a nurbs problem?
   bool isnurbs = false;
@@ -530,9 +531,9 @@ void Adapter::CouplingNonLinMortar::complete_interface(
   interface->create_search_tree();
 
   // store old row maps (before parallel redistribution)
-  pslavedofrowmap_ = std::make_shared<Epetra_Map>(*interface->slave_row_dofs());
-  pmasterdofrowmap_ = std::make_shared<Epetra_Map>(*interface->master_row_dofs());
-  pslavenoderowmap_ = std::make_shared<Epetra_Map>(*interface->slave_row_nodes());
+  pslavedofrowmap_ = std::make_shared<Core::LinAlg::Map>(*interface->slave_row_dofs());
+  pmasterdofrowmap_ = std::make_shared<Core::LinAlg::Map>(*interface->master_row_dofs());
+  pslavenoderowmap_ = std::make_shared<Core::LinAlg::Map>(*interface->slave_row_nodes());
   psmdofrowmap_ = Core::LinAlg::merge_map(pslavedofrowmap_, pmasterdofrowmap_, false);
 
   // print parallel distribution
@@ -561,9 +562,9 @@ void Adapter::CouplingNonLinMortar::complete_interface(
   }
 
   // store row maps (after parallel redistribution)
-  slavedofrowmap_ = std::make_shared<Epetra_Map>(*interface->slave_row_dofs());
-  masterdofrowmap_ = std::make_shared<Epetra_Map>(*interface->master_row_dofs());
-  slavenoderowmap_ = std::make_shared<Epetra_Map>(*interface->slave_row_nodes());
+  slavedofrowmap_ = std::make_shared<Core::LinAlg::Map>(*interface->slave_row_dofs());
+  masterdofrowmap_ = std::make_shared<Core::LinAlg::Map>(*interface->master_row_dofs());
+  slavenoderowmap_ = std::make_shared<Core::LinAlg::Map>(*interface->slave_row_nodes());
   smdofrowmap_ = Core::LinAlg::merge_map(slavedofrowmap_, masterdofrowmap_, false);
 
   // store interface
@@ -632,7 +633,7 @@ void Adapter::CouplingNonLinMortar::setup_spring_dashpot(
   input.setParameters(Global::Problem::instance()->mortar_coupling_params());
   input.setParameters(Global::Problem::instance()->contact_dynamic_params());
   input.setParameters(Global::Problem::instance()->wear_params());
-  input.set<int>("PROBTYPE", Inpar::CONTACT::other);
+  input.set<CONTACT::Problemtype>("PROBTYPE", CONTACT::Problemtype::other);
 
   // is this a nurbs problem?
   Core::FE::ShapeFunctionType distype = Global::Problem::instance()->spatial_approximation_type();
@@ -742,8 +743,8 @@ void Adapter::CouplingNonLinMortar::setup_spring_dashpot(
   }
 
   // store old row maps (before parallel redistribution)
-  slavedofrowmap_ = std::make_shared<Epetra_Map>(*interface->slave_row_dofs());
-  masterdofrowmap_ = std::make_shared<Epetra_Map>(*interface->master_row_dofs());
+  slavedofrowmap_ = std::make_shared<Core::LinAlg::Map>(*interface->slave_row_dofs());
+  masterdofrowmap_ = std::make_shared<Core::LinAlg::Map>(*interface->master_row_dofs());
 
   // store interface
   interface_ = interface;
@@ -752,7 +753,7 @@ void Adapter::CouplingNonLinMortar::setup_spring_dashpot(
   interface_->create_search_tree();
 
   // interface displacement (=0) has to be merged from slave and master discretization
-  std::shared_ptr<Epetra_Map> dofrowmap =
+  std::shared_ptr<Core::LinAlg::Map> dofrowmap =
       Core::LinAlg::merge_map(masterdofrowmap_, slavedofrowmap_, false);
   std::shared_ptr<Core::LinAlg::Vector<double>> dispn =
       Core::LinAlg::create_vector(*dofrowmap, true);
@@ -1065,7 +1066,7 @@ void Adapter::CouplingNonLinMortar::create_p()
   Dinv_->extract_diagonal_copy(*diag);
 
   // set zero diagonal values to dummy 1.0
-  for (int i = 0; i < diag->MyLength(); ++i)
+  for (int i = 0; i < diag->local_length(); ++i)
   {
     if (abs((*diag)[i]) < 1e-12)
     {
@@ -1076,7 +1077,7 @@ void Adapter::CouplingNonLinMortar::create_p()
   }
 
   // scalar inversion of diagonal values
-  err = diag->Reciprocal(*diag);
+  err = diag->reciprocal(*diag);
   if (err > 0) FOUR_C_THROW("ERROR: Reciprocal: Zero diagonal entry!");
 
   // re-insert inverted diagonal into invd

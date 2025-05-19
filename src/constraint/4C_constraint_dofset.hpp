@@ -13,8 +13,7 @@
 #include "4C_comm_mpi_utils.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_dofset.hpp"
-
-#include <Epetra_Map.h>
+#include "4C_linalg_map.hpp"
 
 #include <list>
 #include <memory>
@@ -22,7 +21,7 @@
 
 FOUR_C_NAMESPACE_OPEN
 
-namespace CONSTRAINTS
+namespace Constraints
 {
   /*!
   \note This is an internal class of the constraint manager that one
@@ -76,11 +75,11 @@ namespace CONSTRAINTS
 
    protected:
   };  // class ConstraintDofSet
-}  // namespace CONSTRAINTS
+}  // namespace Constraints
 
 
 // << operator
-std::ostream& operator<<(std::ostream& os, const CONSTRAINTS::ConstraintDofSet& dofset);
+std::ostream& operator<<(std::ostream& os, const Constraints::ConstraintDofSet& dofset);
 
 
 FOUR_C_NAMESPACE_CLOSE

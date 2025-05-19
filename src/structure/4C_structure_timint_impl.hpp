@@ -55,8 +55,7 @@ namespace Solid
    * provides some utility functions to obtain various force vectors necessary
    * in the calculation of the force residual in the derived time integrators.
    *
-   * \author bborn
-   * \date 06/08
+
    */
   class TimIntImpl : public TimInt,
                      public ::NOX::Epetra::Interface::Required,
@@ -97,8 +96,8 @@ namespace Solid
 
     \warning none
     \return bool
-    \date 08/16
-    \author rauch  */
+
+    */
     void init(const Teuchos::ParameterList& timeparams, const Teuchos::ParameterList& sdynparams,
         const Teuchos::ParameterList& xparams, std::shared_ptr<Core::FE::Discretization> actdis,
         std::shared_ptr<Core::LinAlg::Solver> solver) override;
@@ -119,8 +118,8 @@ namespace Solid
 
     \warning none
     \return void
-    \date 08/16
-    \author rauch  */
+
+    */
     void setup() override;
 
 
@@ -245,7 +244,6 @@ namespace Solid
      *
      *  \f[ f_{res} = f_{int} - f_{ext} \f]
      *
-     *  \author mayr.mt \date 09/2014
      */
     virtual void evaluate_force_residual() = 0;
 
@@ -353,17 +351,14 @@ namespace Solid
 
     //! determine characteristic norms for relative
     //! error checks of residual displacements
-    //! \author lw  \date 12/07
     virtual double calc_ref_norm_displacement();
 
     //! determine characteristic norms for relative
     //! error checks of residual forces
-    //! \author lw  \date 12/07
     virtual double calc_ref_norm_force() = 0;
 
     //! Is convergence reached of iterative solution technique?
     //! Keep your fingers crossed...
-    //! \author lw  \date 12/07
     bool converged();
 
     /*!
@@ -439,7 +434,6 @@ namespace Solid
     //! Until convergence Lagrange multiplier
     //! is increased by Uzawa_param*(Vol_err)
     //!
-    //! \author tk (originally)
     int uzawa_non_linear_newton_full();
 
     //! do full Newton iteration respecting volume constraint
@@ -448,7 +442,6 @@ namespace Solid
     //! and Lagrange multipliers
     //! Linear problem is solved with Uzawa algorithm.
     //!
-    //! \author tk (originally) \date 11/07
     int uzawa_linear_newton_full();
 
     //! check for success of nonlinear solve otherwise return error code
@@ -460,12 +453,10 @@ namespace Solid
     //! larger convergence radius than newton and is therefore more stable
     //! and/or can do larger time steps
     //!
-    //! \author mwgee (originally) \date 03/12
     int ptc();
 
     //! Do nonlinear iteration for contact / meshtying
     //!
-    //! \author popp (originally) \date 03/10
     int cmt_nonlinear_solve();
 
     /*! \brief Call linear solver for contact / meshtying
@@ -505,21 +496,8 @@ namespace Solid
 
     //! Do nonlinear iteration for beam contact
     //!
-    //! \author popp (originally) \date 11/11
     int beam_contact_nonlinear_solve();
 
-    //@}
-
-    //! @name STC business
-    //@{
-    //! Precondition system and return operator
-    void stc_preconditioning();
-
-    //! Build up STC Matrix
-    void compute_stc_matrix();
-
-    //! recover standard solution
-    void recover_stc_solution();
     //@}
 
     //! @name NOX solution
@@ -714,7 +692,7 @@ namespace Solid
     bool have_spring_dashpot() override;
 
     //! Return Teuchos::rcp to ConstraintManager conman_
-    std::shared_ptr<CONSTRAINTS::ConstrManager> get_constraint_manager() override
+    std::shared_ptr<Constraints::ConstrManager> get_constraint_manager() override
     {
       return conman_;
     }
@@ -726,21 +704,13 @@ namespace Solid
     }
 
     //! Return Teuchos::rcp to SpringDashpotManager springman_
-    std::shared_ptr<CONSTRAINTS::SpringDashpotManager> get_spring_dashpot_manager() override
+    std::shared_ptr<Constraints::SpringDashpotManager> get_spring_dashpot_manager() override
     {
       return springman_;
     }
 
     //! Get type of thickness scaling for thin shell structures
-    Inpar::Solid::StcScale get_stc_algo() override { return stcscale_; }
-
-    //! Access to scaling matrix for STC
-    std::shared_ptr<Core::LinAlg::SparseMatrix> get_stc_mat() override
-    {
-      if (!stccompl_) compute_stc_matrix();
-      stccompl_ = true;
-      return stcmat_;
-    }
+    Inpar::Solid::StcScale get_stc_algo() override { return Inpar::Solid::StcScale::stc_inactive; }
 
     //! Update iteration
     //! Add residual increment to Lagrange multipliers stored in Constraint manager
@@ -882,7 +852,7 @@ namespace Solid
             disi  //!< input residual displacements
     )
     {
-      if (disi != nullptr) disi_->Update(1.0, *disi, 0.0);
+      if (disi != nullptr) disi_->update(1.0, *disi, 0.0);
     }
 
     //! Return the rhs-vector (negative sign for Newton is already included.)
@@ -895,20 +865,16 @@ namespace Solid
     //@{
 
     //! Print to screen predictor information about residual norm etc.
-    //! \author lw (originally) \date 12/07
     void print_predictor();
 
     //! Print to screen information about residual forces and displacements
-    //! \author lw (originally) \date 12/07
     void print_newton_iter();
 
     //! Contains text to print_newton_iter
-    //! \author lw (originally) \date 12/07
     void print_newton_iter_text(FILE* ofile  //!< output file handle
     );
 
     //! Contains header to print_newton_iter
-    //! \author lw (originally) \date 12/07
     void print_newton_iter_header(FILE* ofile  //!< output file handle
     );
 
@@ -1035,15 +1001,6 @@ namespace Solid
     //! @name Krylov projection variables
     bool updateprojection_;  //!< bool triggering update of Krylov projection
     std::shared_ptr<Core::LinAlg::KrylovProjector> projector_;  //!< Krylov projector himself
-    //@}
-
-    //! @name STC Scaling for thin shell structures
-    //@{
-    enum Inpar::Solid::StcScale stcscale_;                //!< scale thickness of shells?
-    double stcfact_;                                      //!< scaling factor for STC
-    int stclayer_;                                        //! number of layers for multilayered case
-    std::shared_ptr<Core::LinAlg::SparseMatrix> stcmat_;  //!< scaling matrix for STC
-    bool stccompl_;  //!< keep track if stc matrix has been evaluated
     //@}
 
     //! @name Pseudo Transient Continuation Parameters

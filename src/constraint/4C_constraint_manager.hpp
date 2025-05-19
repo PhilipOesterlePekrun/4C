@@ -14,9 +14,6 @@
 #include "4C_utils_exceptions.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
 
-#include <Epetra_Operator.h>
-#include <Epetra_RowMatrix.h>
-
 #include <memory>
 
 FOUR_C_NAMESPACE_OPEN
@@ -38,7 +35,7 @@ namespace Core::LinAlg
   class MultiMapExtractor;
 }  // namespace Core::LinAlg
 
-namespace CONSTRAINTS
+namespace Constraints
 {
   // forward declarations
   class Constraint;
@@ -82,8 +79,8 @@ namespace CONSTRAINTS
 
     \warning none
     \return void
-    \date 09/16
-    \author rauch  */
+
+    */
     void setup(
         std::shared_ptr<const Core::LinAlg::Vector<double>> disp, Teuchos::ParameterList params);
 
@@ -107,7 +104,7 @@ namespace CONSTRAINTS
     double get_error_norm() const
     {
       double foo;
-      constrainterr_->Norm2(&foo);
+      constrainterr_->norm_2(&foo);
       return foo;
     };
 
@@ -122,7 +119,7 @@ namespace CONSTRAINTS
     void scale_lagr_mult(double d  ///< scale factor
     )
     {
-      lagr_mult_vec_->Scale(d);
+      lagr_mult_vec_->scale(d);
       return;
     };
 
@@ -166,10 +163,10 @@ namespace CONSTRAINTS
     std::shared_ptr<Core::LinAlg::Vector<double>> get_error() const { return constrainterr_; }
 
     /*!
-     \brief Return EpetraMap that determined distribution of constraints and lagrange
+     \brief Return map that determined distribution of constraints and lagrange
      multiplier over processors
     */
-    std::shared_ptr<Epetra_Map> get_constraint_map() const { return constrmap_; };
+    std::shared_ptr<Core::LinAlg::Map> get_constraint_map() const { return constrmap_; };
 
     //! Return the additional rectangular matrix, constructed for lagrange multiplier evaluation
     std::shared_ptr<Core::LinAlg::SparseOperator> get_constr_matrix()  // const
@@ -266,8 +263,8 @@ namespace CONSTRAINTS
         Core::LinAlg::Vector<double>& newlagrmult  ///< new lagrange multipliers
     )
     {
-      lagr_mult_vec_->Update(1.0, newlagrmult, 0.0);
-      lagr_mult_vec_old_->Update(1.0, newlagrmult, 0.0);
+      lagr_mult_vec_->update(1.0, newlagrmult, 0.0);
+      lagr_mult_vec_old_->update(1.0, newlagrmult, 0.0);
       return;
     }
 
@@ -293,13 +290,13 @@ namespace CONSTRAINTS
     std::shared_ptr<Core::FE::Discretization>
         actdisc_;  ///< discretization, elements to constraint live in
     std::shared_ptr<ConstraintDofSet>
-        constrdofset_;                          ///< degrees of freedom of lagrange multipliers
-    std::shared_ptr<Epetra_Map> constrmap_;     ///< unique map of constraint values
-    std::shared_ptr<Epetra_Map> redconstrmap_;  ///< fully redundant map of constraint values
+        constrdofset_;                              ///< degrees of freedom of lagrange multipliers
+    std::shared_ptr<Core::LinAlg::Map> constrmap_;  ///< unique map of constraint values
+    std::shared_ptr<Core::LinAlg::Map> redconstrmap_;  ///< fully redundant map of constraint values
     std::shared_ptr<Epetra_Export>
         conimpo_;  ///< importer for fully redundant constraint vector into distributed one
-    std::shared_ptr<Epetra_Map> monitormap_;  ///< unique map of monitor values
-    std::shared_ptr<Epetra_Map> redmonmap_;   ///< fully redundant map of monitor values
+    std::shared_ptr<Core::LinAlg::Map> monitormap_;  ///< unique map of monitor values
+    std::shared_ptr<Core::LinAlg::Map> redmonmap_;   ///< fully redundant map of monitor values
     std::shared_ptr<Epetra_Export>
         monimpo_;  ///< importer for fully redundant monitor vector into distributed one
     std::shared_ptr<Core::LinAlg::Vector<double>>
@@ -387,7 +384,7 @@ namespace CONSTRAINTS
     void set_is_init(bool trueorfalse) { isinit_ = trueorfalse; };
 
   };  // class
-}  // namespace CONSTRAINTS
+}  // namespace Constraints
 FOUR_C_NAMESPACE_CLOSE
 
 #endif

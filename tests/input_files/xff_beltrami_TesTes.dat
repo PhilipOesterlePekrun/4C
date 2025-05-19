@@ -48,16 +48,6 @@ TOL_PRES_RES	  1e-04
 TOL_PRES_INC	  1e-04
 --------------------------------------------------------------------SOLVER 1
 SOLVER                          UMFPACK
-AZCONV                          AZ_r0
-IFPACKGFILL                     0
-AZITER                          1000
-AZOUTPUT                        0
-IFPACKOVERLAP                   0
-AZPREC                          ILU
-AZREUSE                         4
-AZSOLVE                         GMRES
-AZSUB                           40
-AZTOL                           1e-04
 ----------------------------------------------------------------XFEM GENERAL
 GMSH_DEBUG_OUT                  No
 GMSH_SOL_OUT                    Yes
@@ -71,21 +61,18 @@ CONV_STAB_SCALING               none
 -------------------------------------------------------------------MATERIALS
 MAT 1 MAT_fluid DYNVISCOSITY 1.0 DENSITY 1.0 GAMMA 1.0
 ----------------------------------------------------------------------FUNCT1
-BELTRAMI c1 1.0
+FLUID_FUNCTION BELTRAMI c1 1.0
 ----------------------------------------------------------------------FUNCT2
-BELTRAMI c1 2.0
+FLUID_FUNCTION BELTRAMI c1 2.0
 -----------------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF 1
 // Cube surface
-E 2 - NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
+E 2 NUMDOF 4 ONOFF 1 1 1 1 VAL 1.0 1.0 1.0 1.0 FUNCT 1 1 1 2
 --------------------------------------DESIGN XFEM FLUIDFLUID SURF CONDITIONS
-DSURF 1
 // Sphere surface
-E 1 - COUPLINGID 1 COUPSTRATEGY xfluid
+E 1 COUPLINGID 1 COUPSTRATEGY xfluid
 ------------------------------------------DESIGN FLUID MESH VOL CONDITIONS
-DVOL 1
 // Sphere
-E 1 - COUPLINGID 1
+E 1 COUPLINGID 1
 ---------------------------------------------------------DSURF-NODE TOPOLOGY
 NODE 348 DSURFACE 1
 NODE 349 DSURFACE 1

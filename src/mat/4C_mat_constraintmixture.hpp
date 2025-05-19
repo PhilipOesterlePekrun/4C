@@ -114,14 +114,14 @@ namespace Mat
       double get_parameter(int parametername, const int EleId)
       {
         // check if we have an element based value via size
-        if (matparams_[parametername]->GlobalLength() == 1)
+        if (matparams_[parametername]->global_length() == 1)
         {
           // we have a global value hence we directly return the first entry
           return (*matparams_[parametername])[0];
         }
         // If someone calls this functions without a valid EleID and we have element based values
         // throw error
-        else if (EleId < 0 && matparams_[parametername]->GlobalLength() > 1)
+        else if (EleId < 0 && matparams_[parametername]->global_length() > 1)
         {
           FOUR_C_THROW("Global mat parameter requested but we have elementwise mat params");
           return 0.0;
@@ -130,7 +130,8 @@ namespace Mat
         else
         {
           // calculate LID here, instead of before each call
-          return (*matparams_[parametername])[matparams_[parametername]->Map().LID(EleId)];
+          return (
+              *matparams_[parametername])[matparams_[parametername]->get_block_map().LID(EleId)];
         }
       }
 
@@ -267,7 +268,7 @@ namespace Mat
     /// Return prestretch of collagen fibers
     Core::LinAlg::Matrix<3, 1> get_prestretch(int gp) const
     {
-      Core::LinAlg::Matrix<3, 1> visprestretch(true);
+      Core::LinAlg::Matrix<3, 1> visprestretch(Core::LinAlg::Initialization::zero);
       visprestretch(0) = localprestretch_->at(gp)(0);
       visprestretch(1) = localprestretch_->at(gp)(1);
       visprestretch(2) = localprestretch_->at(gp)(2);
@@ -276,7 +277,7 @@ namespace Mat
     /// Return prestretch of collagen fibers
     Core::LinAlg::Matrix<3, 1> get_homstress(int gp) const
     {
-      Core::LinAlg::Matrix<3, 1> visprestretch(true);
+      Core::LinAlg::Matrix<3, 1> visprestretch(Core::LinAlg::Initialization::zero);
       visprestretch(0) = localhomstress_->at(gp)(0);
       visprestretch(1) = localhomstress_->at(gp)(1);
       visprestretch(2) = localhomstress_->at(gp)(2);

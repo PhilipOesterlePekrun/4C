@@ -11,14 +11,16 @@
 #include "4C_comm_utils_factory.hpp"
 #include "4C_fem_general_cell_type.hpp"
 #include "4C_fem_general_utils_local_connectivity_matrices.hpp"
+#include "4C_inpar_structure.hpp"
+#include "4C_io_input_spec.hpp"
 #include "4C_io_input_spec_builders.hpp"
 #include "4C_mat_so3_material.hpp"
-#include "4C_so3_line.hpp"
-#include "4C_so3_nullspace.hpp"
-#include "4C_so3_surface.hpp"
 #include "4C_solid_3D_ele_factory.hpp"
 #include "4C_solid_3D_ele_interface_serializable.hpp"
+#include "4C_solid_3D_ele_line.hpp"
+#include "4C_solid_3D_ele_nullspace.hpp"
 #include "4C_solid_3D_ele_properties.hpp"
+#include "4C_solid_3D_ele_surface.hpp"
 #include "4C_solid_3D_ele_utils.hpp"
 #include "4C_structure_new_elements_paramsinterface.hpp"
 
@@ -28,21 +30,36 @@ using namespace Core::IO::InputSpecBuilders;
 
 namespace
 {
+
+  Core::IO::InputSpec get_kinem_type_input_spec()
+  {
+    return deprecated_selection<Inpar::Solid::KinemType>("KINEM",
+        {
+            {kinem_type_string(Inpar::Solid::KinemType::linear), Inpar::Solid::KinemType::linear},
+            {kinem_type_string(Inpar::Solid::KinemType::nonlinearTotLag),
+                Inpar::Solid::KinemType::nonlinearTotLag},
+        },
+        {.description = "Whether to use linear kinematics (small displacements) or nonlinear "
+                        "kinematics (large displacements)"});
+  }
+
   template <Core::FE::CellType celltype>
   auto get_default_input_spec()
   {
     return all_of({
-        entry<std::vector<int>>(
-            Core::FE::cell_type_to_string(celltype), {.size = Core::FE::num_nodes<celltype>}),
-        entry<int>("MAT"),
-        entry<std::string>("KINEM"),
-        entry<std::string>("PRESTRESS_TECH", {.required = false}),
-        entry<std::vector<double>>("RAD", {.required = false, .size = 3}),
-        entry<std::vector<double>>("AXI", {.required = false, .size = 3}),
-        entry<std::vector<double>>("CIR", {.required = false, .size = 3}),
-        entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
-        entry<std::vector<double>>("FIBER2", {.required = false, .size = 3}),
-        entry<std::vector<double>>("FIBER3", {.required = false, .size = 3}),
+        parameter<std::vector<int>>(
+            Core::FE::cell_type_to_string(celltype), {.size = Core::FE::num_nodes(celltype)}),
+        parameter<int>("MAT"),
+        get_kinem_type_input_spec(),
+        parameter<Discret::Elements::PrestressTechnology>(
+            "PRESTRESS_TECH", {.description = "The technology used for prestressing",
+                                  .default_value = Discret::Elements::PrestressTechnology::none}),
+        parameter<std::optional<std::vector<double>>>("RAD", {.size = 3}),
+        parameter<std::optional<std::vector<double>>>("AXI", {.size = 3}),
+        parameter<std::optional<std::vector<double>>>("CIR", {.size = 3}),
+        parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
+        parameter<std::optional<std::vector<double>>>("FIBER2", {.size = 3}),
+        parameter<std::optional<std::vector<double>>>("FIBER3", {.size = 3}),
     });
   }
 }  // namespace
@@ -58,7 +75,21 @@ void Discret::Elements::SolidType::setup_element_definition(
 
   defsgeneral[Core::FE::cell_type_to_string(Core::FE::CellType::hex8)] = all_of({
       get_default_input_spec<Core::FE::CellType::hex8>(),
-      entry<std::string>("TECH", {.required = false}),
+      deprecated_selection<ElementTechnology>("TECH",
+          {
+              {element_technology_string(ElementTechnology::none), ElementTechnology::none},
+              {element_technology_string(ElementTechnology::fbar), ElementTechnology::fbar},
+              {element_technology_string(ElementTechnology::eas_mild), ElementTechnology::eas_mild},
+              {element_technology_string(ElementTechnology::eas_full), ElementTechnology::eas_full},
+              {element_technology_string(ElementTechnology::shell_ans),
+                  ElementTechnology::shell_ans},
+              {element_technology_string(ElementTechnology::shell_eas),
+                  ElementTechnology::shell_eas},
+              {element_technology_string(ElementTechnology::shell_eas_ans),
+                  ElementTechnology::shell_eas_ans},
+              {element_technology_string(ElementTechnology::fbar), ElementTechnology::fbar},
+          },
+          {.default_value = ElementTechnology::none}),
   });
 
   defsgeneral[Core::FE::cell_type_to_string(Core::FE::CellType::hex18)] =
@@ -78,18 +109,31 @@ void Discret::Elements::SolidType::setup_element_definition(
 
   defsgeneral[Core::FE::cell_type_to_string(Core::FE::CellType::wedge6)] = all_of({
       get_default_input_spec<Core::FE::CellType::wedge6>(),
-      entry<std::string>("TECH", {.required = false}),
+      deprecated_selection<ElementTechnology>("TECH",
+          {
+              {element_technology_string(ElementTechnology::none), ElementTechnology::none},
+              {element_technology_string(ElementTechnology::shell_ans),
+                  ElementTechnology::shell_ans},
+              {element_technology_string(ElementTechnology::shell_eas_ans),
+                  ElementTechnology::shell_eas_ans},
+          },
+          {.default_value = ElementTechnology::none}),
   });
 
   defsgeneral[Core::FE::cell_type_to_string(Core::FE::CellType::pyramid5)] = all_of({
       get_default_input_spec<Core::FE::CellType::pyramid5>(),
-      entry<std::string>("TECH", {.required = false}),
+      deprecated_selection<ElementTechnology>("TECH",
+          {
+              {element_technology_string(ElementTechnology::none), ElementTechnology::none},
+              {element_technology_string(ElementTechnology::fbar), ElementTechnology::fbar},
+          },
+          {.default_value = ElementTechnology::none}),
   });
 
   defsgeneral["NURBS27"] = all_of({
-      entry<std::vector<int>>("NURBS27", {.size = 27}),
-      entry<int>("MAT"),
-      entry<std::string>("KINEM"),
+      parameter<std::vector<int>>("NURBS27", {.size = 27}),
+      parameter<int>("MAT"),
+      get_kinem_type_input_spec(),
   });
 }
 
@@ -126,15 +170,14 @@ Core::LinAlg::SerialDenseMatrix Discret::Elements::SolidType::compute_null_space
   switch (numdof)
   {
     case 3:
-      return compute_solid_3d_null_space(node, x0);
+      return compute_solid_null_space<3>(node.x(), x0);
     case 2:
-      return compute_solid_2d_null_space(node, x0);
+      return compute_solid_null_space<2>(node.x(), x0);
     default:
       FOUR_C_THROW(
-          "The null space computation of a solid element of dimension %d is not yet implemented",
+          "The null space computation of a solid element of dimension {} is not yet implemented",
           numdof);
   }
-  exit(1);
 }
 
 Discret::Elements::Solid::Solid(int id, int owner) : Core::Elements::Element(id, owner) {}
@@ -159,12 +202,12 @@ int Discret::Elements::Solid::num_volume() const
 
 std::vector<std::shared_ptr<Core::Elements::Element>> Discret::Elements::Solid::lines()
 {
-  return Core::Communication::get_element_lines<StructuralLine, Solid>(*this);
+  return Core::Communication::get_element_lines<SolidLine<3>, Solid>(*this);
 }
 
 std::vector<std::shared_ptr<Core::Elements::Element>> Discret::Elements::Solid::surfaces()
 {
-  return Core::Communication::get_element_surfaces<StructuralSurface, Solid>(*this);
+  return Core::Communication::get_element_surfaces<SolidSurface, Solid>(*this);
 }
 
 const Core::FE::GaussIntegration& Discret::Elements::Solid::get_gauss_rule() const
@@ -227,9 +270,6 @@ bool Discret::Elements::Solid::read_element(const std::string& eletype, const st
 
   // read number of material model
   set_material(0, Mat::factory(FourC::Solid::Utils::ReadElement::read_element_material(container)));
-
-  // kinematic type
-  set_kinematic_type(FourC::Solid::Utils::ReadElement::read_element_kinematic_type(container));
 
   solid_ele_property_ = FourC::Solid::Utils::ReadElement::read_solid_element_properties(container);
 

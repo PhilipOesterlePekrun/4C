@@ -8,6 +8,7 @@
 #include "4C_thermo_resulttest.hpp"
 
 #include "4C_fem_general_node.hpp"
+#include "4C_io_input_parameter_container.hpp"
 
 #include <string>
 
@@ -18,8 +19,8 @@ FOUR_C_NAMESPACE_OPEN
  *----------------------------------------------------------------------*/
 Thermo::ResultTest::ResultTest(TimInt& tintegrator) : Core::Utils::ResultTest("THERMAL")
 {
-  temp_ = tintegrator.temp();
-  rate_ = tintegrator.rate();
+  temp_ = tintegrator.tempn();
+  rate_ = tintegrator.raten();
   flux_ = tintegrator.freact();
   thrdisc_ = tintegrator.discretization();
 }
@@ -43,8 +44,7 @@ void Thermo::ResultTest::test_node(
 
   if (isnodeofanybody == 0)
   {
-    FOUR_C_THROW(
-        "Node %d does not belong to discretization %s", node + 1, thrdisc_->name().c_str());
+    FOUR_C_THROW("Node {} does not belong to discretization {}", node + 1, thrdisc_->name());
   }
   else
   {
@@ -63,7 +63,7 @@ void Thermo::ResultTest::test_node(
       // test temperature
       if (temp_ != nullptr)
       {
-        const Epetra_BlockMap& tempmap = temp_->Map();
+        const Epetra_BlockMap& tempmap = temp_->get_block_map();
 
         if (position == "temp")
         {
@@ -75,7 +75,7 @@ void Thermo::ResultTest::test_node(
       // test temperature rates
       if (rate_ != nullptr)
       {
-        const Epetra_BlockMap& ratemap = rate_->Map();
+        const Epetra_BlockMap& ratemap = rate_->get_block_map();
 
         if (position == "rate")
         {
@@ -87,7 +87,7 @@ void Thermo::ResultTest::test_node(
       // test thermal flux
       if (flux_ != nullptr)
       {
-        const Epetra_BlockMap& fluxmap = flux_->Map();
+        const Epetra_BlockMap& fluxmap = flux_->get_block_map();
 
         if (position == "flux")
         {
@@ -97,8 +97,7 @@ void Thermo::ResultTest::test_node(
       }
 
       // catch position strings, which are not handled by thermo result test
-      if (unknownpos)
-        FOUR_C_THROW("Quantity '%s' not supported in thermo testing", position.c_str());
+      if (unknownpos) FOUR_C_THROW("Quantity '{}' not supported in thermo testing", position);
 
       // compare values
       const int err = compare_values(result, "NODE", container);

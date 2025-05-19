@@ -28,10 +28,9 @@
 #include "4C_mat_elasthyper.hpp"
 #include "4C_mat_newtonianfluid.hpp"
 #include "4C_rebalance_binning_based.hpp"
-#include "4C_so3_base.hpp"
-#include "4C_so3_surface.hpp"
 #include "4C_solid_3D_ele.hpp"
 #include "4C_solid_3D_ele_calc_lib_nitsche.hpp"
+#include "4C_solid_3D_ele_surface.hpp"
 #include "4C_utils_exceptions.hpp"
 #include "4C_xfem_discretization_utils.hpp"
 #include "4C_xfem_interface_utils.hpp"
@@ -198,7 +197,7 @@ void XFEM::MeshCoupling::init_state_vectors()
 {
   // move state vectors to extra container class!
 
-  const Epetra_Map* cutterdofrowmap = cutter_dis_->dof_row_map();
+  const Core::LinAlg::Map* cutterdofrowmap = cutter_dis_->dof_row_map();
 
   ivelnp_ = Core::LinAlg::create_vector(*cutterdofrowmap, true);
   iveln_ = Core::LinAlg::create_vector(*cutterdofrowmap, true);
@@ -220,9 +219,9 @@ void XFEM::MeshCoupling::set_state()
   // set general vector values of cutterdis needed by background element evaluate routine
   clear_state();
 
-  cutter_dis_->set_state("ivelnp", ivelnp_);
-  cutter_dis_->set_state("iveln", iveln_);
-  cutter_dis_->set_state("idispnp", idispnp_);
+  cutter_dis_->set_state("ivelnp", *ivelnp_);
+  cutter_dis_->set_state("iveln", *iveln_);
+  cutter_dis_->set_state("idispnp", *idispnp_);
 }
 
 /*--------------------------------------------------------------------------*
@@ -232,9 +231,9 @@ void XFEM::MeshCoupling::set_state_displacement()
   // set general vector values of cutterdis needed by background element evaluate routine
   clear_state();
 
-  cutter_dis_->set_state("idispnp", idispnp_);
-  cutter_dis_->set_state("idispn", idispn_);
-  cutter_dis_->set_state("idispnpi", idispnpi_);
+  cutter_dis_->set_state("idispnp", *idispnp_);
+  cutter_dis_->set_state("idispn", *idispn_);
+  cutter_dis_->set_state("idispnpi", *idispnpi_);
 }
 
 /*--------------------------------------------------------------------------*
@@ -242,17 +241,17 @@ void XFEM::MeshCoupling::set_state_displacement()
 void XFEM::MeshCoupling::update_state_vectors()
 {
   // update velocity n-1
-  ivelnm_->Update(1.0, *iveln_, 0.0);
+  ivelnm_->update(1.0, *iveln_, 0.0);
 
   // update velocity n
-  iveln_->Update(1.0, *ivelnp_, 0.0);
+  iveln_->update(1.0, *ivelnp_, 0.0);
 
   // update displacement n
-  idispn_->Update(1.0, *idispnp_, 0.0);
+  idispn_->update(1.0, *idispnp_, 0.0);
 
   // update displacement from last increment (also used for combinations of non-monolithic
   // fluidfluid and monolithic xfsi)
-  idispnpi_->Update(1.0, *idispnp_, 0.0);
+  idispnpi_->update(1.0, *idispnp_, 0.0);
 }
 
 /*--------------------------------------------------------------------------*
@@ -263,7 +262,7 @@ void XFEM::MeshCoupling::update_displacement_iteration_vectors()
 
   // update displacement from last increment (also used for combinations of non-monolithic
   // fluidfluid and monolithic xfsi)
-  idispnpi_->Update(1.0, *idispnp_, 0.0);
+  idispnpi_->update(1.0, *idispnp_, 0.0);
 }
 
 /*--------------------------------------------------------------------------*
@@ -422,9 +421,9 @@ void XFEM::MeshVolCoupling::redistribute_embedded_discretization()
     std::vector<int> full_nodes(full_ele_nodes_col.begin(), full_ele_nodes_col.end());
     std::vector<int> full_eles(full_eles_col.begin(), full_eles_col.end());
 
-    const Epetra_Map full_nodecolmap(-1, full_nodes.size(), full_nodes.data(), 0,
+    const Core::LinAlg::Map full_nodecolmap(-1, full_nodes.size(), full_nodes.data(), 0,
         Core::Communication::as_epetra_comm(cond_dis_->get_comm()));
-    const Epetra_Map full_elecolmap(-1, full_eles.size(), full_eles.data(), 0,
+    const Core::LinAlg::Map full_elecolmap(-1, full_eles.size(), full_eles.data(), 0,
         Core::Communication::as_epetra_comm(cond_dis_->get_comm()));
 
     // redistribute nodes and elements to column (ghost) map
@@ -574,21 +573,21 @@ void XFEM::MeshVolCoupling::create_auxiliary_discretization()
   }
 
   // build nodal row & col maps to redistribute the discretization
-  std::shared_ptr<Epetra_Map> newnoderowmap;
-  std::shared_ptr<Epetra_Map> newnodecolmap;
+  std::shared_ptr<Core::LinAlg::Map> newnoderowmap;
+  std::shared_ptr<Core::LinAlg::Map> newnodecolmap;
 
   {
     // copy row/col node gids to std::vector
-    // (expected by Epetra_Map ctor)
+    // (expected by Core::LinAlg::Map ctor)
     std::vector<int> rownodes(adjacent_row.begin(), adjacent_row.end());
     // build noderowmap for new distribution of nodes
-    newnoderowmap = std::make_shared<Epetra_Map>(-1, rownodes.size(), rownodes.data(), 0,
+    newnoderowmap = std::make_shared<Core::LinAlg::Map>(-1, rownodes.size(), rownodes.data(), 0,
         Core::Communication::as_epetra_comm(aux_coup_dis_->get_comm()));
 
     std::vector<int> colnodes(adjacent_col.begin(), adjacent_col.end());
 
     // build nodecolmap for new distribution of nodes
-    newnodecolmap = std::make_shared<Epetra_Map>(-1, colnodes.size(), colnodes.data(), 0,
+    newnodecolmap = std::make_shared<Core::LinAlg::Map>(-1, colnodes.size(), colnodes.data(), 0,
         Core::Communication::as_epetra_comm(aux_coup_dis_->get_comm()));
 
     aux_coup_dis_->redistribute(*newnoderowmap, *newnodecolmap,
@@ -629,9 +628,9 @@ void XFEM::MeshCouplingBC::do_condition_specific_setup()
   set_interface_displacement();
 
   // set the interface displacements also to idispn
-  idispn_->Update(1.0, *idispnp_, 0.0);
+  idispn_->update(1.0, *idispnp_, 0.0);
 
-  idispnpi_->Update(1.0, *idispnp_, 0.0);
+  idispnpi_->update(1.0, *idispnp_, 0.0);
 }
 
 /*--------------------------------------------------------------------------*
@@ -639,7 +638,7 @@ void XFEM::MeshCouplingBC::do_condition_specific_setup()
 bool XFEM::MeshCouplingBC::has_moving_interface()
 {
   // get the first local col(!) node
-  if (cutter_dis_->num_my_col_nodes() == 0) FOUR_C_THROW("no col node on proc %i", myrank_);
+  if (cutter_dis_->num_my_col_nodes() == 0) FOUR_C_THROW("no col node on proc {}", myrank_);
 
   Core::Nodes::Node* lnode = cutter_dis_->l_col_node(0);
 
@@ -703,14 +702,14 @@ void XFEM::MeshCouplingBC::evaluate_condition(std::shared_ptr<Core::LinAlg::Vect
     else if (condname == "XFEMSurfWeakDirichlet" or condname == "XFEMRobinDirichletSurf")
       evaluate_interface_velocity(final_values, lnode, cond, time, dt);
     else
-      FOUR_C_THROW("non supported condname for evaluation %s", condname.c_str());
+      FOUR_C_THROW("non supported condname for evaluation {}", condname);
 
 
     // set final values to vector
     for (int dof = 0; dof < numdof; ++dof)
     {
       int gid = nodedofset[dof];
-      ivec->ReplaceGlobalValues(1, &final_values[dof], &gid);
+      ivec->replace_global_values(1, &final_values[dof], &gid);
     }
 
   }  // loop row nodes
@@ -755,7 +754,7 @@ void XFEM::MeshCouplingBC::evaluate_interface_velocity(std::vector<double>& fina
       compute_interface_velocity_from_displacement(final_values, node, dt, evaltype);
   }
   else
-    FOUR_C_THROW("evaltype not supported %s", evaltype->c_str());
+    FOUR_C_THROW("evaltype not supported {}", *evaltype);
 }
 
 /*--------------------------------------------------------------------------*
@@ -782,7 +781,7 @@ void XFEM::MeshCouplingBC::evaluate_interface_displacement(std::vector<double>& 
     evaluate_implementation(final_values, node->x().data(), cond, time, function_name);
   }
   else
-    FOUR_C_THROW("evaltype not supported %s", evaltype.c_str());
+    FOUR_C_THROW("evaltype not supported {}", evaltype);
 }
 
 
@@ -814,7 +813,7 @@ void XFEM::MeshCouplingBC::compute_interface_velocity_from_displacement(
   for (int dof = 0; dof < numdof; ++dof)
   {
     int gid = nodedofset[dof];
-    int lid = idispnp_->Map().LID(gid);
+    int lid = idispnp_->get_block_map().LID(gid);
 
     const double dispnp = (*idispnp_)[lid];
     const double dispn = (*idispn_)[lid];
@@ -867,23 +866,23 @@ void XFEM::MeshCouplingBC::evaluate_implementation(std::vector<double>& final_va
     arg = -angle_vel * (time - t_4) + M_PI / T * (t_2 - t_1) + 2.0 * M_PI / T * (t_3 - t_2);
   }
   else
-    FOUR_C_THROW("for that time we did not define an implemented rotation %f", time);
+    FOUR_C_THROW("for that time we did not define an implemented rotation {}", time);
 
 
   // rotation with constant angle velocity around point
-  Core::LinAlg::Matrix<3, 1> center(true);
+  Core::LinAlg::Matrix<3, 1> center(Core::LinAlg::Initialization::zero);
 
   center(0) = 0.0;
   center(1) = 0.0;
   center(2) = 0.0;
 
-  Core::LinAlg::Matrix<3, 1> diff(true);
+  Core::LinAlg::Matrix<3, 1> diff(Core::LinAlg::Initialization::zero);
   diff(0) = x[0] - center(0);
   diff(1) = x[1] - center(1);
   diff(2) = x[2] - center(2);
 
   // rotation matrix
-  Core::LinAlg::Matrix<3, 3> rot(true);
+  Core::LinAlg::Matrix<3, 3> rot(Core::LinAlg::Initialization::zero);
 
   rot(0, 0) = cos(arg);
   rot(0, 1) = -sin(arg);
@@ -899,8 +898,8 @@ void XFEM::MeshCouplingBC::evaluate_implementation(std::vector<double>& final_va
   //
   //          rot.Scale(r);
 
-  Core::LinAlg::Matrix<3, 1> x_new(true);
-  Core::LinAlg::Matrix<3, 1> rotated(true);
+  Core::LinAlg::Matrix<3, 1> x_new(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1> rotated(Core::LinAlg::Initialization::zero);
 
   rotated.multiply(rot, diff);
 
@@ -966,7 +965,7 @@ void XFEM::MeshCouplingWeakDirichlet::do_condition_specific_setup()
   set_interface_velocity();
 
   // set the initial interface velocities also to iveln
-  iveln_->Update(1.0, *ivelnp_, 0.0);
+  iveln_->update(1.0, *ivelnp_, 0.0);
 }
 
 
@@ -1216,7 +1215,7 @@ void XFEM::MeshCouplingNavierSlip::do_condition_specific_setup()
   set_interface_velocity();
 
   // set the initial interface velocities also to iveln
-  iveln_->Update(1.0, *ivelnp_, 0.0);
+  iveln_->update(1.0, *ivelnp_, 0.0);
 }
 
 
@@ -1251,7 +1250,7 @@ void XFEM::MeshCouplingNavierSlip::evaluate_coupling_conditions(Core::LinAlg::Ma
   if (eval_dirich_at_gp)
   {
     // evaluate interface velocity (given by weak Dirichlet condition)
-    const auto maybe_id = cond->parameters().get<Core::IO::Noneable<int>>("ROBIN_DIRICHLET_ID");
+    const auto maybe_id = cond->parameters().get<std::optional<int>>("ROBIN_DIRICHLET_ID");
     robin_id = maybe_id.value_or(-1) - 1;
 
     if (robin_id >= 0)
@@ -1269,7 +1268,7 @@ void XFEM::MeshCouplingNavierSlip::evaluate_coupling_conditions(Core::LinAlg::Ma
   }
 
   // evaluate interface traction (given by Neumann condition)
-  const auto maybe_id = cond->parameters().get<Core::IO::Noneable<int>>("ROBIN_NEUMANN_ID");
+  const auto maybe_id = cond->parameters().get<std::optional<int>>("ROBIN_NEUMANN_ID");
   robin_id = maybe_id.value_or(-1) - 1;
 
   if (robin_id >= 0)
@@ -1291,7 +1290,7 @@ void XFEM::MeshCouplingNavierSlip::evaluate_coupling_conditions(Core::LinAlg::Ma
           itraction, x, conditionsmap_robin_neumann_.find(robin_id)->second, time_);
 
       double sl_visc_fac = sliplength / (kappa_m * visc_m + (1.0 - kappa_m) * visc_s);
-      Core::LinAlg::Matrix<3, 1> tmp_itraction(true);
+      Core::LinAlg::Matrix<3, 1> tmp_itraction(Core::LinAlg::Initialization::zero);
       tmp_itraction.multiply_tn(proj_matrix, itraction);
       // Project this into tangential direction!!!
 
@@ -1303,7 +1302,7 @@ void XFEM::MeshCouplingNavierSlip::evaluate_coupling_conditions(Core::LinAlg::Ma
 
   if (force_tangvel_map_.find(cond->id())->second)
   {
-    Core::LinAlg::Matrix<3, 1> tmp_ivel(true);
+    Core::LinAlg::Matrix<3, 1> tmp_ivel(Core::LinAlg::Initialization::zero);
     tmp_ivel.multiply_tn(proj_matrix, ivel);  // apply Projection matrix from the right. (u_0 * P^t)
     ivel.update(1.0, tmp_ivel, 0.0);
   }
@@ -1344,7 +1343,7 @@ void XFEM::MeshCouplingNavierSlip::evaluate_coupling_conditions_old_state(
   //  }
 
   // evaluate interface velocity (given by weak Dirichlet condition)
-  auto maybe_id = cond->parameters().get<Core::IO::Noneable<int>>("ROBIN_DIRICHLET_ID");
+  auto maybe_id = cond->parameters().get<std::optional<int>>("ROBIN_DIRICHLET_ID");
   int robin_id = maybe_id.value_or(-1) - 1;
 
   if (robin_id >= 0)
@@ -1352,7 +1351,7 @@ void XFEM::MeshCouplingNavierSlip::evaluate_coupling_conditions_old_state(
         ivel, x, conditionsmap_robin_dirch_.find(robin_id)->second, time_ - dt_);
 
   // evaluate interface traction (given by Neumann condition)
-  maybe_id = cond->parameters().get<Core::IO::Noneable<int>>("ROBIN_NEUMANN_ID");
+  maybe_id = cond->parameters().get<std::optional<int>>("ROBIN_NEUMANN_ID");
   robin_id = maybe_id.value_or(-1) - 1;
 
   if (robin_id >= 0)
@@ -1394,7 +1393,7 @@ void XFEM::MeshCouplingNavierSlip::create_robin_id_map(
   {
     // Extract its robin id (either dirichlet or neumann)
     const auto maybe_robin_id =
-        conditions_NS[i]->parameters().get<Core::IO::Noneable<int>>(robin_id_name);
+        conditions_NS[i]->parameters().get<std::optional<int>>(robin_id_name);
     const int tmp_robin_id = maybe_robin_id.value_or(-1) - 1;
 
     // Is this robin id active? I.e. is it not 0 or negative?
@@ -1491,7 +1490,7 @@ void XFEM::MeshCouplingNavierSlip::set_condition_specific_parameters()
   for (auto* tmp_cond : conditions_NS)
   {
     const auto maybe_robin_id =
-        tmp_cond->parameters().get<Core::IO::Noneable<int>>("ROBIN_DIRICHLET_ID");
+        tmp_cond->parameters().get<std::optional<int>>("ROBIN_DIRICHLET_ID");
     const auto tmp_robin_id = maybe_robin_id.value_or(-1) - 1;
 
     if (tmp_robin_id >= 0)
@@ -1514,7 +1513,7 @@ void XFEM::MeshCouplingNavierSlip::get_condition_by_robin_id(
   // select the conditions with specified "ROBIN_ID"
   for (auto* cond : mycond)
   {
-    const auto maybe_robin_id = cond->parameters().get<Core::IO::Noneable<int>>("ROBIN_ID");
+    const auto maybe_robin_id = cond->parameters().get<std::optional<int>>("ROBIN_ID");
     const int id_zero_based = maybe_robin_id.value_or(-1) - 1;
 
     if (id_zero_based == coupling_id) mynewcond.push_back(cond);
@@ -1623,8 +1622,8 @@ void XFEM::MeshCouplingFSI::init_state_vectors()
 {
   XFEM::MeshCoupling::init_state_vectors();
 
-  const Epetra_Map* cutterdofrowmap = cutter_dis_->dof_row_map();
-  const Epetra_Map* cutterdofcolmap = cutter_dis_->dof_col_map();
+  const Core::LinAlg::Map* cutterdofrowmap = cutter_dis_->dof_row_map();
+  const Core::LinAlg::Map* cutterdofcolmap = cutter_dis_->dof_col_map();
 
   itrueresidual_ = Core::LinAlg::create_vector(*cutterdofrowmap, true);
   iforcecol_ = Core::LinAlg::create_vector(*cutterdofcolmap, true);
@@ -1637,22 +1636,22 @@ void XFEM::MeshCouplingFSI::complete_state_vectors()
   // finalize itrueresidual vector
 
   // need to export the interface forces
-  Core::LinAlg::Vector<double> iforce_tmp(itrueresidual_->Map(), true);
-  Epetra_Export exporter_iforce(iforcecol_->Map(), iforce_tmp.Map());
-  int err1 = iforce_tmp.Export(*iforcecol_, exporter_iforce, Add);
-  if (err1) FOUR_C_THROW("Export using exporter returned err=%d", err1);
+  Core::LinAlg::Vector<double> iforce_tmp(itrueresidual_->get_block_map(), true);
+  Epetra_Export exporter_iforce(iforcecol_->get_block_map(), iforce_tmp.get_block_map());
+  int err1 = iforce_tmp.export_to(*iforcecol_, exporter_iforce, Add);
+  if (err1) FOUR_C_THROW("Export using exporter returned err={}", err1);
 
   // scale the interface trueresidual with -1.0 to get the forces acting on structural side (no
   // residual-scaling!)
-  itrueresidual_->Update(-1.0, iforce_tmp, 0.0);
+  itrueresidual_->update(-1.0, iforce_tmp, 0.0);
 }
 
 /*--------------------------------------------------------------------------*
  *--------------------------------------------------------------------------*/
 void XFEM::MeshCouplingFSI::zero_state_vectors_fsi()
 {
-  itrueresidual_->PutScalar(0.0);
-  iforcecol_->PutScalar(0.0);
+  itrueresidual_->put_scalar(0.0);
+  iforcecol_->put_scalar(0.0);
 }
 
 // -------------------------------------------------------------------
@@ -1683,15 +1682,15 @@ void XFEM::MeshCouplingFSI::read_restart(const int step)
   boundaryreader.read_vector(idispnp_, "idispnp_res");
   boundaryreader.read_vector(idispnpi_, "idispnpi_res");
 
-  if (not(cutter_dis_->dof_row_map())->SameAs(ivelnp_->Map()))
+  if (not(cutter_dis_->dof_row_map())->SameAs(ivelnp_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
-  if (not(cutter_dis_->dof_row_map())->SameAs(iveln_->Map()))
+  if (not(cutter_dis_->dof_row_map())->SameAs(iveln_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
-  if (not(cutter_dis_->dof_row_map())->SameAs(idispnp_->Map()))
+  if (not(cutter_dis_->dof_row_map())->SameAs(idispnp_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
-  if (not(cutter_dis_->dof_row_map())->SameAs(idispn_->Map()))
+  if (not(cutter_dis_->dof_row_map())->SameAs(idispn_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
-  if (not(cutter_dis_->dof_row_map())->SameAs(idispnpi_->Map()))
+  if (not(cutter_dis_->dof_row_map())->SameAs(idispnpi_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
 }
 
@@ -1823,7 +1822,7 @@ void XFEM::MeshCouplingFSI::set_condition_specific_parameters()
       FOUR_C_THROW("ID already existing! For sliplength_map_.");
 
     Inpar::XFEM::InterfaceLaw interfacelaw =
-        static_cast<Inpar::XFEM::InterfaceLaw>(cond->parameters().get<int>("INTLAW"));
+        cond->parameters().get<Inpar::XFEM::InterfaceLaw>("INTLAW");
     if (i != conditions_XFSI.begin())
     {
       if (interfacelaw_ != interfacelaw)
@@ -1844,7 +1843,7 @@ void XFEM::MeshCouplingFSI::set_condition_specific_parameters()
       Core::Elements::Element* fluid_ele = bg_dis_->l_row_element(ele);
       if (fluid_ele->shape() == Core::FE::CellType::hex8)
       {
-        Core::LinAlg::Matrix<3, 8> xyze(true);
+        Core::LinAlg::Matrix<3, 8> xyze(Core::LinAlg::Initialization::zero);
         Core::Geo::fill_initial_position_array(fluid_ele, xyze);
         double vol = XFEM::Utils::eval_element_volume<Core::FE::CellType::hex8>(xyze);
         hmax = std::max(hmax, XFEM::Utils::compute_vol_eq_diameter(vol));
@@ -1910,8 +1909,8 @@ void XFEM::MeshCouplingFSI::lift_drag(const int step, const double time) const
   {
     // compute force components
     const int nsd = 3;
-    const Epetra_Map* dofcolmap = cutter_dis_->dof_col_map();
-    Core::LinAlg::Matrix<3, 1> c(true);
+    const Core::LinAlg::Map* dofcolmap = cutter_dis_->dof_col_map();
+    Core::LinAlg::Matrix<3, 1> c(Core::LinAlg::Initialization::zero);
     for (int inode = 0; inode < cutter_dis_->num_my_col_nodes(); ++inode)
     {
       const Core::Nodes::Node* node = cutter_dis_->l_col_node(inode);
@@ -2123,7 +2122,7 @@ void XFEM::MeshCouplingFSI::update_configuration_map_gp(double& kappa_m,  //< fl
 #ifdef FOUR_C_ENABLE_ASSERTIONS
   if ((kappa_m != 1 && get_averaging_strategy() == Inpar::XFEM::Xfluid_Sided) ||
       (kappa_m != 0 && get_averaging_strategy() == Inpar::XFEM::Embedded_Sided))
-    FOUR_C_THROW("XFEM::MeshCouplingFSI::update_configuration_map_gp: kappa_m == %f", kappa_m);
+    FOUR_C_THROW("XFEM::MeshCouplingFSI::update_configuration_map_gp: kappa_m == {}", kappa_m);
 #endif
 
   if (get_averaging_strategy() == Inpar::XFEM::Xfluid_Sided)
@@ -2272,14 +2271,6 @@ void XFEM::MeshCouplingFSI::update_configuration_map_gp_contact(
   XFEM::Utils::get_navier_slip_stabilization_parameters(
       visc_stab_tang, dynvisc, sliplength, stabnit, stabadj);  // sliplength is input for this
 
-#ifdef WRITE_GMSH
-  {
-    xf_c_comm_->Gmsh_Write(x, *fulltraction, 1);
-    xf_c_comm_->Gmsh_Write(x, (double)pure_fsi, 3);
-    xf_c_comm_->Gmsh_Write(x, sliplength, 6);
-  }
-#endif
-
   if (pure_fsi)  // standard FSI with general Navier-slip --> Case I
   {
     xf_c_comm_->inc_gp(3);
@@ -2344,26 +2335,14 @@ void XFEM::MeshCouplingFSI::evaluate_structural_cauchy_stress(Core::Elements::El
 
   constexpr Core::FE::CellType celltype = Core::FE::CellType::hex8;
   constexpr int num_dim = Core::FE::dim<celltype>;
-  constexpr int num_dof = Core::FE::dim<celltype> * Core::FE::num_nodes<celltype>;
+  constexpr int num_dof = Core::FE::dim<celltype> * Core::FE::num_nodes(celltype);
 
 
   auto evaluate_cauchy_n_dir_and_derivatives = std::invoke(
       [&]() -> std::function<void(const Core::LinAlg::Matrix<num_dim, 1>&, double&,
                 Core::LinAlg::SerialDenseMatrix&, Core::LinAlg::SerialDenseMatrix&)>
       {
-        if (auto* solid_ele = dynamic_cast<Discret::Elements::SoBase*>(coupl_ele);
-            solid_ele != nullptr)
-        {
-          return [&, solid_ele](const Core::LinAlg::Matrix<num_dim, 1>& dir, double& cauchy_n_dir,
-                     Core::LinAlg::SerialDenseMatrix& d_cauchy_d_d,
-                     Core::LinAlg::SerialDenseMatrix& d2_cauchy_d_d2)
-          {
-            solid_ele->get_cauchy_n_dir_and_derivatives_at_xi(rst_slave, eledisp, normal, dir,
-                cauchy_n_dir, &d_cauchy_d_d, &d2_cauchy_d_d2, nullptr, nullptr, nullptr, nullptr,
-                nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
-          };
-        }
-        else if (auto* solid_ele = dynamic_cast<Discret::Elements::Solid*>(coupl_ele);
+        if (auto* solid_ele = dynamic_cast<Discret::Elements::Solid*>(coupl_ele);
             solid_ele != nullptr)
         {
           return [&, solid_ele](const Core::LinAlg::Matrix<num_dim, 1>& dir, double& cauchy_n_dir,
@@ -2374,13 +2353,13 @@ void XFEM::MeshCouplingFSI::evaluate_structural_cauchy_stress(Core::Elements::El
             linearizations.d_cauchyndir_dd = &d_cauchy_d_d;
             linearizations.d2_cauchyndir_dd2 = &d2_cauchy_d_d2;
 
-            cauchy_n_dir = solid_ele->get_normal_cauchy_stress_at_xi<3>(
+            cauchy_n_dir = solid_ele->get_normal_cauchy_stress_at_xi(
                 eledisp, rst_slave, normal, dir, linearizations);
           };
         }
         else
         {
-          FOUR_C_THROW("Unknown solid element type");
+          FOUR_C_THROW("Unknown 3D solid element type");
         }
       });
 
@@ -2396,7 +2375,7 @@ void XFEM::MeshCouplingFSI::evaluate_structural_cauchy_stress(Core::Elements::El
   static Core::LinAlg::SerialDenseMatrix dtraction_dd_i;
   for (int i = 0; i < num_dim; ++i)
   {
-    Core::LinAlg::Matrix<num_dim, 1> ei(true);
+    Core::LinAlg::Matrix<num_dim, 1> ei(Core::LinAlg::Initialization::zero);
     ei(i, 0) = 1.;
 
     evaluate_cauchy_n_dir_and_derivatives(ei, traction(i, 0), dtraction_dd_i, solid_stress[2 + i]);
@@ -2406,7 +2385,7 @@ void XFEM::MeshCouplingFSI::evaluate_structural_cauchy_stress(Core::Elements::El
   }
 
   FOUR_C_ASSERT_ALWAYS(timefac_ > 0,
-      "XFEM::MeshCouplingFSI::evaluate_structural_cauchy_stress: timefac = %f, not set!", timefac_);
+      "XFEM::MeshCouplingFSI::evaluate_structural_cauchy_stress: timefac = {}, not set!", timefac_);
 
   // Change from linearization w.r.t. displacements to linearization w.r.t. velocities
   // (All other linearizations on the Nitsche Interface are evaluated like this)
@@ -2438,14 +2417,14 @@ void XFEM::MeshCouplingFSI::get_stress_tangent_slave(
  *--------------------------------------------------------------------------*/
 void XFEM::MeshCouplingFSI::estimate_nitsche_trace_max_eigenvalue(Core::Elements::Element* ele)
 {
-  auto* solidfaceele = dynamic_cast<Discret::Elements::StructuralSurface*>(ele);
-  FOUR_C_ASSERT(solidfaceele != nullptr, "Cast to StructuralSurface failed!");
+  auto* solidfaceele = dynamic_cast<Discret::Elements::SolidSurface*>(ele);
+  FOUR_C_ASSERT(solidfaceele != nullptr, "Cast to SolidSurface failed!");
 
   solidfaceele->set_parent_master_element(
       coupl_dis_->g_element(solidfaceele->parent_element_id()), solidfaceele->face_parent_number());
 
   Core::Elements::LocationArray la(1);
-  solidfaceele->parent_element()->location_vector(*coupl_dis_, la, false);
+  solidfaceele->parent_element()->location_vector(*coupl_dis_, la);
 
   // extract eledisp here
   // parent and boundary displacement at n+1
@@ -2453,7 +2432,7 @@ void XFEM::MeshCouplingFSI::estimate_nitsche_trace_max_eigenvalue(Core::Elements
   std::shared_ptr<const Core::LinAlg::Vector<double>> dispnp = coupl_dis_->get_state("dispnp");
   if (dispnp == nullptr) FOUR_C_THROW("Cannot get state vector 'dispnp'");
 
-  Core::FE::extract_my_values(*dispnp, eledisp, la[0].lm_);
+  eledisp = Core::FE::extract_values(*dispnp, la[0].lm_);
   (*ele_to_max_eigenvalue_)[ele->id()] = solidfaceele->estimate_nitsche_trace_max_eigenvalue(
       eledisp);  // this is (E/h) ...basically :-)
 }
@@ -2646,7 +2625,7 @@ void XFEM::MeshCouplingFluidFluid::estimate_nitsche_trace_max_eigenvalue(
   Core::Elements::FaceElement* faceele = dynamic_cast<Core::Elements::FaceElement*>(ele);
   if (!faceele) FOUR_C_THROW("Cast to faceele failed!");  // todo change to FOUR_C_ASSERT
 
-  faceele->location_vector(*coupl_dis_, la, false);
+  faceele->location_vector(*coupl_dis_, la);
 
   Discret::Elements::FluidBoundaryParentInterface::impl(faceele)
       ->estimate_nitsche_trace_max_eigenvalue(
@@ -2685,15 +2664,15 @@ void XFEM::MeshCouplingFluidFluid::read_restart(const int step)
   boundaryreader.read_vector(idispnp_, "idispnp_res");
   boundaryreader.read_vector(idispnpi_, "idispnpi_res");
 
-  if (not(cutter_dis_->dof_row_map())->SameAs(ivelnp_->Map()))
+  if (not(cutter_dis_->dof_row_map())->SameAs(ivelnp_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
-  if (not(cutter_dis_->dof_row_map())->SameAs(iveln_->Map()))
+  if (not(cutter_dis_->dof_row_map())->SameAs(iveln_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
-  if (not(cutter_dis_->dof_row_map())->SameAs(idispnp_->Map()))
+  if (not(cutter_dis_->dof_row_map())->SameAs(idispnp_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
-  if (not(cutter_dis_->dof_row_map())->SameAs(idispn_->Map()))
+  if (not(cutter_dis_->dof_row_map())->SameAs(idispn_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
-  if (not(cutter_dis_->dof_row_map())->SameAs(idispnpi_->Map()))
+  if (not(cutter_dis_->dof_row_map())->SameAs(idispnpi_->get_block_map()))
     FOUR_C_THROW("Global dof numbering in maps does not match");
 }
 

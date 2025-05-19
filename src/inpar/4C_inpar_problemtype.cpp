@@ -8,54 +8,33 @@
 #include "4C_inpar_problemtype.hpp"
 
 #include "4C_fem_general_shape_function_type.hpp"
+#include "4C_io_input_spec_builders.hpp"
 #include "4C_utils_exceptions.hpp"
-#include "4C_utils_parameter_list.hpp"
-
 FOUR_C_NAMESPACE_OPEN
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void Inpar::PROBLEMTYPE::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::PROBLEMTYPE::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
-  using Teuchos::tuple;
+  using namespace Core::IO::InputSpecBuilders;
 
   /*----------------------------------------------------------------------*/
-  Teuchos::ParameterList& type = list.sublist("PROBLEM TYPE", false, "");
+  list["PROBLEM TYPE"] = group("PROBLEM TYPE",
+      {
 
-  {
-    using IntegerType = Core::ProblemType;
-    Teuchos::Array<std::string> name;
-    Teuchos::Array<IntegerType> label;
+          deprecated_selection<Core::ProblemType>(
+              "PROBLEMTYPE", string_to_problem_type_map(), {.description = "Type of the problem"}),
 
-    for (const auto& [prb_name, prb_enum] : string_to_problem_type_map())
-    {
-      name.push_back(prb_name);
-      label.push_back(prb_enum);
-    }
+          deprecated_selection<Core::FE::ShapeFunctionType>("SHAPEFCT",
+              Core::FE::string_to_shape_function_type_map(),
+              {.description = "Defines the function spaces for the spatial approximation",
+                  .default_value = Core::FE::ShapeFunctionType::polynomial}),
 
-    setStringToIntegralParameter<IntegerType>(
-        "PROBLEMTYPE", "Fluid_Structure_Interaction", "", name, label, &type);
-  }
-
-  {
-    using IntegerType = Core::FE::ShapeFunctionType;
-    Teuchos::Array<std::string> name;
-    Teuchos::Array<IntegerType> label;
-
-    for (const auto& [prb_name, prb_enum] : Core::FE::string_to_shape_function_type_map())
-    {
-      name.push_back(prb_name);
-      label.push_back(prb_enum);
-    }
-
-    setStringToIntegralParameter<IntegerType>("SHAPEFCT", "Polynomial",
-        "Defines the function spaces for the spatial approximation", name, label, &type);
-  }
-
-  Core::Utils::int_parameter("RESTART", 0, "", &type);
-  Core::Utils::int_parameter(
-      "RANDSEED", -1, "Set the random seed. If < 0 use current time.", &type);
+          parameter<int>("RESTART", {.description = "", .default_value = 0}),
+          parameter<int>(
+              "RANDSEED", {.description = "Set the random seed. If < 0 use current time.",
+                              .default_value = -1})},
+      {.required = true});
 }
 
 /*----------------------------------------------------------------------*/
@@ -73,7 +52,6 @@ std::map<std::string, Core::ProblemType> Inpar::PROBLEMTYPE::string_to_problem_t
     string2prbtype["Cardiac_Monodomain"] = Core::ProblemType::cardiac_monodomain;
     string2prbtype["Elastohydrodynamic_Lubrication"] = Core::ProblemType::ehl;
     string2prbtype["Electrochemistry"] = Core::ProblemType::elch;
-    string2prbtype["Electromagnetics"] = Core::ProblemType::elemag;
     string2prbtype["Fluid"] = Core::ProblemType::fluid;
     string2prbtype["Fluid_Ale"] = Core::ProblemType::fluid_ale;
     string2prbtype["Fluid_Beam_Interaction"] = Core::ProblemType::fbi;
@@ -85,7 +63,6 @@ std::map<std::string, Core::ProblemType> Inpar::PROBLEMTYPE::string_to_problem_t
     string2prbtype["Fluid_Structure_Interaction_RedModels"] = Core::ProblemType::fsi_redmodels;
     string2prbtype["Fluid_Structure_Interaction_XFEM"] = Core::ProblemType::fsi_xfem;
     string2prbtype["Fluid_XFEM"] = Core::ProblemType::fluid_xfem;
-    string2prbtype["Fluid_XFEM_LevelSet"] = Core::ProblemType::fluid_xfem_ls;
     string2prbtype["Gas_Fluid_Structure_Interaction"] = Core::ProblemType::gas_fsi;
     string2prbtype["Level_Set"] = Core::ProblemType::level_set;
     string2prbtype["Low_Mach_Number_Flow"] = Core::ProblemType::loma;
@@ -99,8 +76,8 @@ std::map<std::string, Core::ProblemType> Inpar::PROBLEMTYPE::string_to_problem_t
     string2prbtype["Multiphase_Poroelasticity"] = Core::ProblemType::poromultiphase;
     string2prbtype["Multiphase_Poroelasticity_ScaTra"] = Core::ProblemType::poromultiphasescatra;
     string2prbtype["Multiphase_Porous_Flow"] = Core::ProblemType::porofluidmultiphase;
-    string2prbtype["RedAirways_Tissue"] = Core::ProblemType::redairways_tissue;
     string2prbtype["ReducedDimensionalAirWays"] = Core::ProblemType::red_airways;
+    string2prbtype["Reduced_Lung"] = Core::ProblemType::reduced_lung;
     string2prbtype["Scalar_Thermo_Interaction"] = Core::ProblemType::sti;
     string2prbtype["Scalar_Transport"] = Core::ProblemType::scatra;
     string2prbtype["Structure"] = Core::ProblemType::structure;
@@ -121,7 +98,7 @@ Core::ProblemType Inpar::PROBLEMTYPE::string_to_problem_type(std::string name)
   std::map<std::string, Core::ProblemType> map = string_to_problem_type_map();
   std::map<std::string, Core::ProblemType>::const_iterator i = map.find(name);
   if (i != map.end()) return i->second;
-  FOUR_C_THROW("unsupported problem name '%s'", name.c_str());
+  FOUR_C_THROW("unsupported problem name '{}'", name);
 
   return Core::ProblemType::none;
 }

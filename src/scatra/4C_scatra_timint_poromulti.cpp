@@ -10,7 +10,7 @@
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_node.hpp"
 #include "4C_io.hpp"
-#include "4C_poromultiphase_scatra_utils.hpp"
+#include "4C_porofluid_pressure_based_elast_scatra_utils.hpp"
 #include "4C_scatra_ele_action.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -51,7 +51,7 @@ void ScaTra::ScaTraTimIntPoroMulti::set_l2_flux_of_multi_fluid(
     FOUR_C_THROW("Too few dofsets on scatra discretization!");
 
   if (multiflux->NumVectors() % nsd_ != 0)
-    FOUR_C_THROW("Unexpected length of flux vector: %i", multiflux->NumVectors());
+    FOUR_C_THROW("Unexpected length of flux vector: {}", multiflux->NumVectors());
 
   const int totalnumdof = multiflux->NumVectors() / nsd_;
 
@@ -84,18 +84,18 @@ void ScaTra::ScaTraTimIntPoroMulti::set_l2_flux_of_multi_fluid(
       {
         // get global and local dof IDs
         const int gid = nodedofs[index];
-        const int lid = phaseflux->Map().LID(gid);
+        const int lid = phaseflux->get_block_map().LID(gid);
         if (lid < 0) FOUR_C_THROW("Local ID not found in map for given global ID!");
 
         const double value = ((*multiflux)(curphase * nsd_ + index))[lnodeid];
 
-        int err = phaseflux->ReplaceMyValue(lid, 0, value);
+        int err = phaseflux->replace_local_value(lid, 0, value);
         if (err != 0) FOUR_C_THROW("error while inserting a value into convel");
       }
     }
 
     // provide scatra discretization with convective velocity
-    discret_->set_state(nds_vel(), statename.str(), phaseflux);
+    discret_->set_state(nds_vel(), statename.str(), *phaseflux);
   }
 }  // ScaTraTimIntImpl::SetSolutionFields
 
@@ -110,8 +110,8 @@ void ScaTra::ScaTraTimIntPoroMulti::set_solution_field_of_multi_fluid(
     FOUR_C_THROW("Too few dofsets on scatra discretization!");
 
   // provide scatra discretization with fluid primary variable field
-  discret_->set_state(nds_pressure(), "phinp_fluid", phinp_fluid);
-  discret_->set_state(nds_pressure(), "phin_fluid", phin_fluid);
+  discret_->set_state(nds_pressure(), "phinp_fluid", *phinp_fluid);
+  discret_->set_state(nds_pressure(), "phin_fluid", *phin_fluid);
 }
 
 /*----------------------------------------------------------------------*
@@ -141,14 +141,14 @@ void ScaTra::ScaTraTimIntPoroMulti::collect_runtime_output_data()
         discret_->get_state(nds_disp(), "dispnp");
     if (dispnp == nullptr) FOUR_C_THROW("Cannot extract displacement field from discretization");
 
-    // convert dof-based Epetra vector into node-based Epetra multi-vector for postprocessing
+    // convert dof-based vector into node-based multi-vector for postprocessing
     auto dispnp_multi = Core::LinAlg::MultiVector<double>(*discret_->node_row_map(), nsd_, true);
     for (int inode = 0; inode < discret_->num_my_row_nodes(); ++inode)
     {
       Core::Nodes::Node* node = discret_->l_row_node(inode);
       for (int idim = 0; idim < nsd_; ++idim)
         (dispnp_multi)(idim)[inode] =
-            (*dispnp)[dispnp->Map().LID(discret_->dof(nds_disp(), node, idim))];
+            (*dispnp)[dispnp->get_block_map().LID(discret_->dof(nds_disp(), node, idim))];
     }
 
     std::vector<std::optional<std::string>> context(nsd_, "ale-displacement");
@@ -206,15 +206,15 @@ void ScaTra::ScaTraTimIntPoroMulti::collect_runtime_output_data()
           // compute CaO2
           const double CaO2 = (*phinp_)[lidoxydof] * rho_bl / rho_oxy;
           // compute Pb
-          PoroMultiPhaseScaTra::Utils::get_oxy_partial_pressure_from_concentration<double>(
+          PoroPressureBased::get_oxy_partial_pressure_from_concentration<double>(
               Pb, CaO2, CaO2_max, Pb50, n, alpha_eff);
           // replace value
-          oxypartpress.ReplaceGlobalValue(node->id(), 0, Pb);
+          oxypartpress.replace_global_value(node->id(), 0, Pb);
         }
       }
     }
 
-    std::vector<std::optional<std::string>> context(oxypartpress.NumVectors(), "oxypartpress");
+    std::vector<std::optional<std::string>> context(oxypartpress.num_vectors(), "oxypartpress");
     visualization_writer().append_result_data_vector_with_context(
         oxypartpress, Core::IO::OutputEntity::node, context);
   }

@@ -10,11 +10,11 @@
 #include "4C_linalg_vector.hpp"
 
 #include "4C_comm_mpi_utils.hpp"
+#include "4C_linalg_map.hpp"
+#include "4C_linalg_multi_vector.hpp"
+#include "4C_linalg_sparsematrix.hpp"
 
-
-// Epetra related headers
 #include <Epetra_Map.h>
-#include <Epetra_MpiComm.h>
 
 #include <memory>
 
@@ -26,7 +26,7 @@ namespace
   {
    public:
     MPI_Comm comm_;
-    std::shared_ptr<Epetra_Map> map_;
+    std::shared_ptr<Core::LinAlg::Map> map_;
     int NumGlobalElements = 10;
 
    protected:
@@ -36,7 +36,7 @@ namespace
       comm_ = MPI_COMM_WORLD;
 
       // set up a map
-      map_ = std::make_shared<Epetra_Map>(
+      map_ = std::make_shared<Core::LinAlg::Map>(
           NumGlobalElements, 0, Core::Communication::as_epetra_comm(comm_));
     }
   };
@@ -44,7 +44,7 @@ namespace
   TEST_F(VectorTest, ConstructorsAndNorms)
   {
     // create an epetra vector
-    Epetra_Vector my_epetra_vector = Epetra_Vector(*map_, true);
+    Epetra_Vector my_epetra_vector = Epetra_Vector(map_->get_epetra_map(), true);
 
     // try to copy zero vector into wrapper
     Core::LinAlg::Vector<double> epetra_based_test_vector =
@@ -56,8 +56,8 @@ namespace
     // initialize with wrong value
     double norm_of_test_vector = 1;
 
-    test_vector.Print(std::cout);
-    test_vector.Norm2(&norm_of_test_vector);
+    test_vector.print(std::cout);
+    test_vector.norm_2(&norm_of_test_vector);
     // test norm2 and success of both vectors
     ASSERT_FLOAT_EQ(0.0, norm_of_test_vector);
 
@@ -65,45 +65,45 @@ namespace
     norm_of_test_vector = 1;
 
     // check result of Norm2
-    epetra_based_test_vector.Norm2(&norm_of_test_vector);
+    epetra_based_test_vector.norm_2(&norm_of_test_vector);
     ASSERT_FLOAT_EQ(0.0, norm_of_test_vector);
 
     // test element access function for proc 0
     if (Core::Communication::my_mpi_rank(comm_) == 0) test_vector[1] = 1;
 
     // check result of Norm1
-    test_vector.Norm1(&norm_of_test_vector);
+    test_vector.norm_1(&norm_of_test_vector);
     ASSERT_FLOAT_EQ(1.0, norm_of_test_vector);
 
     test_vector[1] = 100.0;
 
     // check result of NormInf
-    test_vector.NormInf(&norm_of_test_vector);
+    test_vector.norm_inf(&norm_of_test_vector);
     ASSERT_FLOAT_EQ(100.0, norm_of_test_vector);
   }
 
   TEST_F(VectorTest, DeepCopying)
   {
     Core::LinAlg::Vector<double> a(*map_, true);
-    a.PutScalar(1.0);
+    a.put_scalar(1.0);
 
     Core::LinAlg::Vector<double> b(*map_, true);
     // copy assign
     b = a;
-    b.PutScalar(2.0);
+    b.put_scalar(2.0);
     double norm_a = 0.0;
     double norm_b = 0.0;
-    a.Norm2(&norm_a);
-    b.Norm2(&norm_b);
+    a.norm_2(&norm_a);
+    b.norm_2(&norm_b);
 
     EXPECT_FLOAT_EQ(norm_a, 1.0 * std::sqrt(NumGlobalElements));
     EXPECT_FLOAT_EQ(norm_b, 2.0 * std::sqrt(NumGlobalElements));
 
     // copy constructor
     Core::LinAlg::Vector<double> c(a);
-    c.PutScalar(3.0);
+    c.put_scalar(3.0);
     double norm_c = 0.0;
-    c.Norm2(&norm_c);
+    c.norm_2(&norm_c);
     EXPECT_FLOAT_EQ(norm_c, 3.0 * std::sqrt(NumGlobalElements));
   }
 
@@ -115,62 +115,62 @@ namespace
     // copy zero vector into new interface
     Core::LinAlg::Vector<double> test_vector = Core::LinAlg::Vector<double>(*map_, true);
 
-    test_vector.PutScalar(2.0);
+    test_vector.put_scalar(2.0);
 
     // check result
-    test_vector.Norm2(&norm_of_test_vector);
+    test_vector.norm_2(&norm_of_test_vector);
     ASSERT_FLOAT_EQ(NumGlobalElements * 2.0 * 2.0, norm_of_test_vector * norm_of_test_vector);
   }
 
   TEST_F(VectorTest, Update)
   {
     Core::LinAlg::Vector<double> a = Core::LinAlg::Vector<double>(*map_, true);
-    a.PutScalar(1.0);
+    a.put_scalar(1.0);
 
     Core::LinAlg::Vector<double> b = Core::LinAlg::Vector<double>(*map_, true);
-    b.PutScalar(1.0);
+    b.put_scalar(1.0);
 
     // update the vector
-    b.Update(2.0, a, 3.0);
+    b.update(2.0, a, 3.0);
 
     // initialize with false value
     double b_norm = 0.0;
 
     // check norm of vector
-    b.Norm2(&b_norm);
+    b.norm_2(&b_norm);
     ASSERT_FLOAT_EQ(NumGlobalElements * (2.0 + 3.0) * (2.0 + 3.0), b_norm * b_norm);
 
     Core::LinAlg::Vector<double> c = Core::LinAlg::Vector<double>(*map_, true);
-    c.Update(1, a, -1, b, 0);
+    c.update(1, a, -1, b, 0);
 
     // initialize with false value
     double c_norm = 0.0;
 
     // check norm of vector
-    c.Norm1(&c_norm);
+    c.norm_1(&c_norm);
     ASSERT_FLOAT_EQ(4 * NumGlobalElements, c_norm);
   }
 
 
   TEST_F(VectorTest, View)
   {
-    Epetra_Vector a(*map_, true);
+    Epetra_Vector a(map_->get_epetra_map(), true);
     a.PutScalar(1.0);
     // Scope in which a is modified by the view
     {
-      Core::LinAlg::VectorView a_view(a);
+      Core::LinAlg::View a_view(a);
 
       double norm = 0.0;
-      ((Core::LinAlg::Vector<double>&)a_view).Norm2(&norm);
+      ((Core::LinAlg::Vector<double>&)a_view).norm_2(&norm);
       EXPECT_EQ(norm, std::sqrt(NumGlobalElements));
 
-      ((Core::LinAlg::Vector<double>&)a_view).PutScalar(2.0);
+      ((Core::LinAlg::Vector<double>&)a_view).put_scalar(2.0);
     }
     const Epetra_Vector& a_const = a;
-    Core::LinAlg::VectorView a_view_const(a_const);
+    Core::LinAlg::View a_view_const(a_const);
     // Change must be reflected in a
     double norm = 0.0;
-    static_cast<const Core::LinAlg::Vector<double>&>(a_view_const).Norm2(&norm);
+    static_cast<const Core::LinAlg::Vector<double>&>(a_view_const).norm_2(&norm);
     EXPECT_EQ(norm, 2.0 * std::sqrt(NumGlobalElements));
   }
 
@@ -185,7 +185,7 @@ namespace
   TEST_F(VectorTest, MultiVectorImplicitConversionView)
   {
     Core::LinAlg::Vector<double> a(*map_, true);
-    a.PutScalar(1.0);
+    a.put_scalar(1.0);
 
     // This views the data that is in a. It does not copy the data.
     // This results in the same behavior as inheritance would give.
@@ -193,7 +193,7 @@ namespace
 
     // This copies the data.
     Core::LinAlg::MultiVector<double> mv = a;
-    a.PutScalar(2.0);
+    a.put_scalar(2.0);
 
     // mv should still be 1.0 because we only modified a.
     EXPECT_EQ(means_multi_vector(mv)[0], 1.0);
@@ -202,11 +202,11 @@ namespace
   TEST_F(VectorTest, MultiVectorImplicitConversionCopy)
   {
     auto a = std::make_shared<Core::LinAlg::Vector<double>>(*map_, true);
-    a->PutScalar(1.0);
+    a->put_scalar(1.0);
 
     // This copies the data.
     Core::LinAlg::MultiVector<double> mv = *a;
-    a->PutScalar(2.0);
+    a->put_scalar(2.0);
     // Explicitly deallocate a to make sure that mv is not a view.
     a = nullptr;
 
@@ -217,7 +217,7 @@ namespace
   TEST_F(VectorTest, MultiVectorImplicitConversionRef)
   {
     Core::LinAlg::Vector<double> a(*map_, true);
-    a.PutScalar(1.0);
+    a.put_scalar(1.0);
 
     Core::LinAlg::MultiVector<double>& mv = a;
     mv.PutScalar(2.0);
@@ -226,21 +226,21 @@ namespace
     // Reassigning to a must keep mv valid: move assign
     a = Core::LinAlg::Vector<double>(*map_, true);
     EXPECT_EQ(means_multi_vector(mv)[0], 0.0);
-    a.PutScalar(3.0);
+    a.put_scalar(3.0);
     EXPECT_EQ(means_multi_vector(mv)[0], 3.0);
 
     // Reassigning to a must keep mv valid: copy assign
     Core::LinAlg::Vector<double> b(*map_, true);
     a = b;
     EXPECT_EQ(means_multi_vector(mv)[0], 0.0);
-    a.PutScalar(4.0);
+    a.put_scalar(4.0);
     EXPECT_EQ(means_multi_vector(mv)[0], 4.0);
   }
 
   TEST_F(VectorTest, AssignToRef)
   {
     Core::LinAlg::Vector<double> a(*map_, true);
-    a.PutScalar(1.0);
+    a.put_scalar(1.0);
     EXPECT_EQ(means_multi_vector(a)[0], 1.0);
     Core::LinAlg::MultiVector<double>& mv = a;
     // Actually assign an MV to a via the ref. Note that this would throw in Trilinos if not using a
@@ -259,7 +259,7 @@ namespace
     Core::LinAlg::Vector<double>& a = mv(index);
     EXPECT_EQ(means_multi_vector(a)[0], 1.0);
 
-    a.PutScalar(2.0);
+    a.put_scalar(2.0);
 
     // Check that the change is reflected in the MultiVector
     EXPECT_EQ(means_multi_vector(mv), (std::vector{1., 2., 1.}));
@@ -273,7 +273,7 @@ namespace
     {
       const auto put_scalar = [](Core::LinAlg::MultiVector<double>& v, double s)
       { v.PutScalar(s); };
-      Core::LinAlg::VectorView view_mv2((Epetra_MultiVector&)mv2);
+      Core::LinAlg::View view_mv2((Epetra_MultiVector&)mv2);
       put_scalar(view_mv2, 4.0);
     }
     EXPECT_EQ(means_multi_vector(mv), (std::vector{1., 4., 1.}));
@@ -282,7 +282,7 @@ namespace
   TEST_F(VectorTest, ReplaceMap)
   {
     Core::LinAlg::Vector<double> a(*map_, true);
-    a.PutScalar(1.0);
+    a.put_scalar(1.0);
 
     // New map where elements are distributed differently
     std::array<int, 5> my_elements;
@@ -290,17 +290,17 @@ namespace
       my_elements = {0, 2, 4, 6, 8};
     else
       my_elements = {1, 3, 5, 7, 9};
-    Epetra_Map new_map(
+    Core::LinAlg::Map new_map(
         10, my_elements.size(), my_elements.data(), 0, Core::Communication::as_epetra_comm(comm_));
 
     const Core::LinAlg::MultiVector<double>& b = a;
     const Core::LinAlg::Vector<double>& c = b(0);
 
     // A change of the map is reflected to all views
-    a.ReplaceMap(new_map);
+    a.replace_map(new_map);
 
-    EXPECT_TRUE(a.Map().SameAs(b.Map()));
-    EXPECT_TRUE(a.Map().SameAs(c.Map()));
+    EXPECT_TRUE(a.get_block_map().SameAs(b.Map()));
+    EXPECT_TRUE(a.get_block_map().SameAs(c.get_block_map()));
   }
 
 }  // namespace

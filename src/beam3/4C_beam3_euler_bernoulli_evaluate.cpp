@@ -7,12 +7,12 @@
 
 #include "4C_beam3_euler_bernoulli.hpp"
 #include "4C_beam3_spatial_discretization_utils.hpp"
+#include "4C_browniandyn_input.hpp"
 #include "4C_fem_condition.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_extract_values.hpp"
 #include "4C_fem_general_largerotations.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_browniandyn.hpp"
 #include "4C_inpar_structure.hpp"
 #include "4C_linalg_fixedsizematrix.hpp"
 #include "4C_structure_new_elements_paramsinterface.hpp"
@@ -78,7 +78,7 @@ int Discret::Elements::Beam3eb::evaluate(Teuchos::ParameterList& params,
     else if (action == "calc_struct_energy")
       act = Core::Elements::struct_calc_energy;
     else
-      FOUR_C_THROW("Unknown type of action '%s' for Beam3eb", action.c_str());
+      FOUR_C_THROW("Unknown type of action '{}' for Beam3eb", action);
   }
 
   std::string test = params.get<std::string>("action", "calc_none");
@@ -113,29 +113,26 @@ int Discret::Elements::Beam3eb::evaluate(Teuchos::ParameterList& params,
       std::shared_ptr<const Core::LinAlg::Vector<double>> disp =
           discretization.get_state("displacement");
       if (disp == nullptr) FOUR_C_THROW("Cannot get state vectors 'displacement'");
-      std::vector<double> mydisp(lm.size());
-      Core::FE::extract_my_values(*disp, mydisp, lm);
+      std::vector<double> mydisp = Core::FE::extract_values(*disp, lm);
 
       // get residual displacements
       std::shared_ptr<const Core::LinAlg::Vector<double>> res =
           discretization.get_state("residual displacement");
       if (res == nullptr) FOUR_C_THROW("Cannot get state vectors 'residual displacement'");
-      std::vector<double> myres(lm.size());
-      Core::FE::extract_my_values(*res, myres, lm);
+      std::vector<double> myres = Core::FE::extract_values(*res, lm);
 
       // Only in the dynamic case the velocities are needed.
       // get element velocities only if example is static in nature
       std::shared_ptr<const Core::LinAlg::Vector<double>> vel;
       std::vector<double> myvel(lm.size(), 0.0);
-      myvel.clear();
       const Teuchos::ParameterList& sdyn = Global::Problem::instance()->structural_dynamic_params();
 
       if (Teuchos::getIntegralValue<Inpar::Solid::DynamicType>(sdyn, "DYNAMICTYPE") !=
-          Inpar::Solid::dyna_statics)
+          Inpar::Solid::DynamicType::Statics)
       {
         vel = discretization.get_state("velocity");
         if (vel == nullptr) FOUR_C_THROW("Cannot get state vectors 'velocity'");
-        Core::FE::extract_my_values(*vel, myvel, lm);
+        myvel = Core::FE::extract_values(*vel, lm);
       }
 
       if (act == Core::Elements::struct_calc_nlnstiffmass)
@@ -169,15 +166,13 @@ int Discret::Elements::Beam3eb::evaluate(Teuchos::ParameterList& params,
       std::shared_ptr<const Core::LinAlg::Vector<double>> disp =
           discretization.get_state("displacement");
       if (disp == nullptr) FOUR_C_THROW("Cannot get state vectors 'displacement'");
-      std::vector<double> mydisp(lm.size());
-      Core::FE::extract_my_values(*disp, mydisp, lm);
+      std::vector<double> mydisp = Core::FE::extract_values(*disp, lm);
 
       // get element velocity
       std::shared_ptr<const Core::LinAlg::Vector<double>> vel =
           discretization.get_state("velocity");
       if (vel == nullptr) FOUR_C_THROW("Cannot get state vectors 'velocity'");
-      std::vector<double> myvel(lm.size());
-      Core::FE::extract_my_values(*vel, myvel, lm);
+      std::vector<double> myvel = Core::FE::extract_values(*vel, lm);
 
       if (act == Core::Elements::struct_calc_brownianforce)
         calc_brownian_forces_and_stiff<2, 2, 3>(params, myvel, mydisp, nullptr, &elevec1);
@@ -241,8 +236,7 @@ int Discret::Elements::Beam3eb::evaluate_neumann(Teuchos::ParameterList& params,
   std::shared_ptr<const Core::LinAlg::Vector<double>> disp =
       discretization.get_state("displacement new");
   if (disp == nullptr) FOUR_C_THROW("Cannot get state vector 'displacement new'");
-  std::vector<double> mydisp(lm.size());
-  Core::FE::extract_my_values(*disp, mydisp, lm);
+  std::vector<double> mydisp = Core::FE::extract_values(*disp, lm);
 
 #ifndef INEXTENSIBLE
   const int dofpn = 3 * NODALDOFS;
@@ -256,12 +250,11 @@ int Discret::Elements::Beam3eb::evaluate_neumann(Teuchos::ParameterList& params,
   // (UNCOMMENT IF NEEDED)
   const Teuchos::ParameterList& sdyn = Global::Problem::instance()->structural_dynamic_params();
   if (Teuchos::getIntegralValue<Inpar::Solid::DynamicType>(sdyn, "DYNAMICTYPE") !=
-      Inpar::Solid::dyna_statics)
+      Inpar::Solid::DynamicType::Statics)
   {
     std::shared_ptr<const Core::LinAlg::Vector<double>> vel = discretization.get_state("velocity");
     if (vel == nullptr) FOUR_C_THROW("Cannot get state vectors 'velocity'");
-    std::vector<double> myvel(lm.size());
-    Core::FE::extract_my_values(*vel, myvel, lm);
+    std::vector<double> myvel = Core::FE::extract_values(*vel, lm);
   }
   // find out whether we will use a time curve
   double time = -1.0;
@@ -271,7 +264,7 @@ int Discret::Elements::Beam3eb::evaluate_neumann(Teuchos::ParameterList& params,
     time = params.get("total time", -1.0);
 
   // find out whether we will use a time curve and get the factor
-  const auto tmp_funct = condition.parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+  const auto tmp_funct = condition.parameters().get<std::vector<std::optional<int>>>("FUNCT");
 
   // get values and switches from the condition
   // "ONOFF" is related to the first 6 flags of a line Neumann condition in the input file;
@@ -936,7 +929,7 @@ void Discret::Elements::Beam3eb::calc_internal_and_inertia_forces_and_stiff(
 
         R_bending.scale(EI * wgt / std::pow(jacobi_, 3));
 
-        // shifting values from fixed size matrix to epetra matrix *stiffmatrix
+        // shifting values from fixed size matrix to flexible size matrix *stiffmatrix
         for (int i = 0; i < dofpn * nnode; i++)
         {
           for (int j = 0; j < dofpn * nnode; j++)
@@ -978,7 +971,7 @@ void Discret::Elements::Beam3eb::calc_internal_and_inertia_forces_and_stiff(
         Res_bending.scale(EI * wgt);
         Res_tension.scale(EA * wgt);
 
-        // shifting values from fixed size vector to epetra vector *force
+        // shifting values from fixed size vector to flexible size vector *force
         for (int i = 0; i < dofpn * nnode; i++)
         {
 #ifndef ANS_BEAM3EB
@@ -1013,7 +1006,7 @@ void Discret::Elements::Beam3eb::calc_internal_and_inertia_forces_and_stiff(
 #endif
 
     // matrix for current positions and tangents
-    Core::LinAlg::Matrix<nnode * dofpn, 1> disp_totlag(true);
+    Core::LinAlg::Matrix<nnode * dofpn, 1> disp_totlag(Core::LinAlg::Initialization::zero);
 
 #ifdef BEAM3EBAUTOMATICDIFF
     std::vector<FAD> disp_totlag_fad(nnode * dofpn, 0.0);
@@ -1021,8 +1014,8 @@ void Discret::Elements::Beam3eb::calc_internal_and_inertia_forces_and_stiff(
 
 #ifdef INEXTENSIBLE
     std::vector<FAD> lm_fad(3, 0.0);
-    Core::LinAlg::Matrix<15, 1, FAD> Res_inextensibility(true);
-    Core::LinAlg::Matrix<15, 15, FAD> R_inextensibility(true);
+    Core::LinAlg::Matrix<15, 1, FAD> Res_inextensibility(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<15, 15, FAD> R_inextensibility(Core::LinAlg::Initialization::zero);
 #endif
 
     Core::LinAlg::Matrix<3, 1> r_;
@@ -1040,7 +1033,7 @@ void Discret::Elements::Beam3eb::calc_internal_and_inertia_forces_and_stiff(
 
 #ifdef BEAM3EBAUTOMATICDIFF
     Core::LinAlg::Matrix<3, 1, FAD> rx_fad;
-    Core::LinAlg::Matrix<3, 1, FAD> ortho_normal(true);
+    Core::LinAlg::Matrix<3, 1, FAD> ortho_normal(Core::LinAlg::Initialization::zero);
     FAD rxrx_fad;
 #endif
 
@@ -1095,10 +1088,11 @@ void Discret::Elements::Beam3eb::calc_internal_and_inertia_forces_and_stiff(
     Core::LinAlg::Matrix<nnode * dofpn, nnode * dofpn> R_tension_ANS;
     R_tension_ANS.clear();
     double epsilon_ANS = 0.0;
-    Core::LinAlg::Matrix<1, nnode * dofpn> lin_epsilon_ANS(true);
+    Core::LinAlg::Matrix<1, nnode * dofpn> lin_epsilon_ANS(Core::LinAlg::Initialization::zero);
 
 #ifdef BEAM3EBAUTOMATICDIFF
-    Core::LinAlg::Matrix<1, nnode * dofpn, FAD> lin_epsilon_ANS_fad(true);
+    Core::LinAlg::Matrix<1, nnode * dofpn, FAD> lin_epsilon_ANS_fad(
+        Core::LinAlg::Initialization::zero);
 
     Core::LinAlg::Matrix<nnode * dofpn, 1, FAD> Res_tension_ANS_fad;
     Res_tension_ANS_fad.clear();
@@ -1162,14 +1156,15 @@ void Discret::Elements::Beam3eb::calc_internal_and_inertia_forces_and_stiff(
 
     // Calculate epsilon at collocation points
 #ifdef ANS_BEAM3EB
-    Core::LinAlg::Matrix<3, 1> epsilon_cp(true);
-    Core::LinAlg::Matrix<3, 3> tangent_cp(true);
-    Core::LinAlg::Matrix<3, NODALDOFS * 6> lin_epsilon_cp(true);
+    Core::LinAlg::Matrix<3, 1> epsilon_cp(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<3, 3> tangent_cp(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<3, NODALDOFS * 6> lin_epsilon_cp(Core::LinAlg::Initialization::zero);
 
 #ifdef BEAM3EBAUTOMATICDIFF
-    Core::LinAlg::Matrix<3, 1, FAD> epsilon_cp_fad(true);
-    Core::LinAlg::Matrix<3, 3, FAD> tangent_cp_fad(true);
-    Core::LinAlg::Matrix<3, NODALDOFS * 6, FAD> lin_epsilon_cp_fad(true);
+    Core::LinAlg::Matrix<3, 1, FAD> epsilon_cp_fad(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<3, 3, FAD> tangent_cp_fad(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<3, NODALDOFS * 6, FAD> lin_epsilon_cp_fad(
+        Core::LinAlg::Initialization::zero);
 #endif
 
     N_i_x.clear();
@@ -1281,7 +1276,7 @@ void Discret::Elements::Beam3eb::calc_internal_and_inertia_forces_and_stiff(
 #ifdef SWITCHINEXTENSIBLEON
     if (force != nullptr)
     {
-      // shifting values from fixed size vector to epetra vector *force
+      // shifting values from fixed size vector to flexible size vector *force
       for (int i = 0; i < 15; i++)
       {
         (*force)(i) += Res_inextensibility(i).val();
@@ -1587,7 +1582,7 @@ void Discret::Elements::Beam3eb::calc_internal_and_inertia_forces_and_stiff(
         R_bending.scale(EI * wgt / jacobi_);
 
 #ifndef INEXTENSIBLE
-        // shifting values from fixed size matrix to epetra matrix *stiffmatrix
+        // shifting values from fixed size matrix to flexible size matrix *stiffmatrix
         for (int i = 0; i < dofpn * nnode; i++)
         {
           for (int j = 0; j < dofpn * nnode; j++)
@@ -1604,7 +1599,7 @@ void Discret::Elements::Beam3eb::calc_internal_and_inertia_forces_and_stiff(
           }
         }  // for(int i = 0; i < dofpn*nnode; i++)
 #else
-        // shifting values from fixed size matrix to epetra matrix *stiffmatrix
+        // shifting values from fixed size matrix to flexible size matrix *stiffmatrix
         int i1 = 0;
         int j1 = 0;
         for (int i = 0; i < 12; i++)
@@ -1668,7 +1663,7 @@ void Discret::Elements::Beam3eb::calc_internal_and_inertia_forces_and_stiff(
         Res_tension.scale(EA * wgt);
 
 #ifndef INEXTENSIBLE
-        // shifting values from fixed size vector to epetra vector *force
+        // shifting values from fixed size vector to flexible size vector *force
         for (int i = 0; i < dofpn * nnode; i++)
         {
 #ifndef ANS_BEAM3EB
@@ -1683,7 +1678,7 @@ void Discret::Elements::Beam3eb::calc_internal_and_inertia_forces_and_stiff(
         }
 #else
         int i1 = 0;
-        // shifting values from fixed size vector to epetra vector *force
+        // shifting values from fixed size vector to flexible size vector *force
         for (int i = 0; i < dofpn * nnode; i++)
         {
           if (i < 6)
@@ -1745,8 +1740,8 @@ void Discret::Elements::Beam3eb::calc_internal_and_inertia_forces_and_stiff(
     // Loop through all GP and calculate their contribution to the mass matrix
     for (int numgp = 0; numgp < gausspoints.nquad; numgp++)
     {
-      Core::LinAlg::Matrix<3, 1> r_t(true);
-      Core::LinAlg::Matrix<3, 1> r(true);
+      Core::LinAlg::Matrix<3, 1> r_t(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<3, 1> r(Core::LinAlg::Initialization::zero);
 
       N_i.clear();
       N_mass.clear();
@@ -1809,8 +1804,8 @@ void Discret::Elements::Beam3eb::calc_internal_and_inertia_forces_and_stiff(
 
       ekin_ += 0.5 * wgt * jacobi_ * mass_inertia_translational * std::pow(r_t.norm2(), 2.0);
 
-      Core::LinAlg::Matrix<3, 1> dL(true);
-      Core::LinAlg::Matrix<3, 3> S_r(true);
+      Core::LinAlg::Matrix<3, 1> dL(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<3, 3> S_r(Core::LinAlg::Initialization::zero);
       Core::LargeRotations::computespin(S_r, r);
       dL.multiply(S_r, r_t);
       dL.scale(mass_inertia_translational);
@@ -1888,8 +1883,8 @@ void Discret::Elements::Beam3eb::evaluate_ptc(
   if (nnode > 2) FOUR_C_THROW("PTC implemented for 2-noded elements only");
   for (int node = 0; node < nnode; node++)
   {
-    Core::LinAlg::Matrix<3, 1> t0(true);
-    Core::LinAlg::Matrix<3, 1> t(true);
+    Core::LinAlg::Matrix<3, 1> t0(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<3, 1> t(Core::LinAlg::Initialization::zero);
     for (int i = 0; i < 3; i++)
     {
       t0(i) = t0_(i, node);
@@ -1978,32 +1973,32 @@ void Discret::Elements::Beam3eb::evaluate_translational_damping(
 
   // get damping coefficients for translational and rotational degrees of freedom (the latter is
   // unused in this element)
-  Core::LinAlg::Matrix<ndim, 1> gamma(true);
+  Core::LinAlg::Matrix<ndim, 1> gamma(Core::LinAlg::Initialization::zero);
   get_damping_coefficients(gamma);
 
   // velocity and gradient of background velocity field
-  Core::LinAlg::Matrix<ndim, 1> velbackground(true);
-  Core::LinAlg::Matrix<ndim, ndim> velbackgroundgrad(true);
+  Core::LinAlg::Matrix<ndim, 1> velbackground(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<ndim, ndim> velbackgroundgrad(Core::LinAlg::Initialization::zero);
 
   // evaluation point in physical space corresponding to a certain Gauss point in parameter space
-  Core::LinAlg::Matrix<ndim, 1> evaluationpoint(true);
+  Core::LinAlg::Matrix<ndim, 1> evaluationpoint(Core::LinAlg::Initialization::zero);
   // tangent vector (derivative of beam centerline curve r with respect to arc-length parameter s)
-  Core::LinAlg::Matrix<ndim, 1> r_s(true);
+  Core::LinAlg::Matrix<ndim, 1> r_s(Core::LinAlg::Initialization::zero);
   // velocity of beam centerline point relative to background fluid velocity
-  Core::LinAlg::Matrix<ndim, 1> vel_rel(true);
+  Core::LinAlg::Matrix<ndim, 1> vel_rel(Core::LinAlg::Initialization::zero);
 
   // viscous force vector per unit length at current GP
-  Core::LinAlg::Matrix<ndim, 1> f_visc(true);
+  Core::LinAlg::Matrix<ndim, 1> f_visc(Core::LinAlg::Initialization::zero);
   // damping matrix
-  Core::LinAlg::Matrix<ndim, ndim> damp_mat(true);
+  Core::LinAlg::Matrix<ndim, ndim> damp_mat(Core::LinAlg::Initialization::zero);
 
   // get Gauss points and weights
   Core::FE::IntegrationPoints1D gausspoints = Core::FE::IntegrationPoints1D(mygaussruleeb);
 
   // matrix to store individual Hermite shape functions and their derivatives evaluated at a certain
   // Gauss point
-  Core::LinAlg::Matrix<1, nnode * vpernode> N_i(true);
-  Core::LinAlg::Matrix<1, nnode * vpernode> N_i_xi(true);
+  Core::LinAlg::Matrix<1, nnode * vpernode> N_i(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<1, nnode * vpernode> N_i_xi(Core::LinAlg::Initialization::zero);
 
 
   for (int gp = 0; gp < gausspoints.nquad; gp++)
@@ -2048,7 +2043,7 @@ void Discret::Elements::Beam3eb::evaluate_translational_damping(
     if (stiffmatrix != nullptr)
     {
       // compute matrix product of damping matrix and gradient of background velocity
-      Core::LinAlg::Matrix<ndim, ndim> dampmatvelbackgroundgrad(true);
+      Core::LinAlg::Matrix<ndim, ndim> dampmatvelbackgroundgrad(Core::LinAlg::Initialization::zero);
       dampmatvelbackgroundgrad.multiply(damp_mat, velbackgroundgrad);
 
       // loop over all shape functions in row dimension
@@ -2086,10 +2081,10 @@ void Discret::Elements::Beam3eb::evaluate_stochastic_forces(
     Core::LinAlg::SerialDenseVector* force)        //!< element internal force vector
 {
   // damping coefficients for three translational and one rotatinal degree of freedom
-  Core::LinAlg::Matrix<3, 1> gamma(true);
+  Core::LinAlg::Matrix<3, 1> gamma(Core::LinAlg::Initialization::zero);
   get_damping_coefficients(gamma);
 
-  /*get pointer at Epetra multivector in parameter list linking to random numbers for stochastic
+  /*get pointer at multivector in parameter list linking to random numbers for stochastic
    * forces with zero mean and standard deviation (2*kT / dt)^0.5; note carefully: a space between
    * the two subsequal ">" signs is mandatory for the C++ parser in order to avoid confusion with
    * ">>" for streams*/
@@ -2097,13 +2092,13 @@ void Discret::Elements::Beam3eb::evaluate_stochastic_forces(
       brownian_dyn_params_interface().get_random_forces();
 
   // tangent vector (derivative of beam centerline curve r with respect to arc-length parameter s)
-  Core::LinAlg::Matrix<ndim, 1> r_s(true);
+  Core::LinAlg::Matrix<ndim, 1> r_s(Core::LinAlg::Initialization::zero);
 
   // my random number vector at current GP
-  Core::LinAlg::Matrix<ndim, 1> randnumvec(true);
+  Core::LinAlg::Matrix<ndim, 1> randnumvec(Core::LinAlg::Initialization::zero);
 
   // stochastic force vector per unit length at current GP
-  Core::LinAlg::Matrix<ndim, 1> f_stoch(true);
+  Core::LinAlg::Matrix<ndim, 1> f_stoch(Core::LinAlg::Initialization::zero);
 
 
   // get Gauss points and weights for evaluation of damping matrix
@@ -2190,7 +2185,7 @@ void Discret::Elements::Beam3eb::calc_brownian_forces_and_stiff(Teuchos::Paramet
     un_shift_node_position(disp, *brownian_dyn_params_interface().get_periodic_bounding_box());
 
   // update current total position state of element
-  Core::LinAlg::Matrix<nnode * vpernode * ndim, 1> disp_totlag(true);
+  Core::LinAlg::Matrix<nnode * vpernode * ndim, 1> disp_totlag(Core::LinAlg::Initialization::zero);
   update_disp_totlag<nnode, vpernode * ndim>(disp, disp_totlag);
 
   // export current velocity state of element to fixed size matrix
@@ -2213,16 +2208,16 @@ double Discret::Elements::Beam3eb::get_axial_strain(
 {
   // Todo implement and call more general method from Beam3Base
 
-  Core::LinAlg::Matrix<3, 1> r_s(true);
-  Core::LinAlg::Matrix<1, 4> N_i_x(true);
+  Core::LinAlg::Matrix<3, 1> r_s(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<1, 4> N_i_x(Core::LinAlg::Initialization::zero);
   const Core::FE::CellType distype = shape();
   // First get shape functions
   Core::FE::shape_function_hermite_1d_deriv1(N_i_x, xi, jacobi_ * 2.0, distype);
 
   for (int i = 0; i < 2 * NODALDOFS; i++) N_i_x(i) = N_i_x(i) / jacobi_;
 
-  Core::LinAlg::Matrix<3, 1> epsilon_cp(true);
-  Core::LinAlg::Matrix<3, 3> tangent_cp(true);
+  Core::LinAlg::Matrix<3, 1> epsilon_cp(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 3> tangent_cp(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; i++)
   {
     tangent_cp(i, 0) = disp_totlag(i + 3);
@@ -2238,7 +2233,7 @@ double Discret::Elements::Beam3eb::get_axial_strain(
     epsilon_cp(i) = std::pow(epsilon_cp(i), 0.5) - 1.0;
   }
 
-  Core::LinAlg::Matrix<1, 3> L_i(true);
+  Core::LinAlg::Matrix<1, 3> L_i(Core::LinAlg::Initialization::zero);
   Core::FE::shape_function_1d(L_i, xi, Core::FE::CellType::line3);
   double epsilon = 0.0;
   for (int i = 0; i < ANSVALUES; i++) epsilon += L_i(i) * epsilon_cp(i);

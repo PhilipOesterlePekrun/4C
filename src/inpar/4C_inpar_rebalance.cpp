@@ -7,37 +7,36 @@
 
 #include "4C_inpar_rebalance.hpp"
 
+#include "4C_io_input_spec_builders.hpp"
 #include "4C_rebalance.hpp"
-#include "4C_utils_parameter_list.hpp"
-
 FOUR_C_NAMESPACE_OPEN
 
-void Inpar::Rebalance::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::Rebalance::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
-  using Teuchos::tuple;
+  using namespace Core::IO::InputSpecBuilders;
 
-  Teuchos::ParameterList& meshpartitioning = list.sublist("MESH PARTITIONING", false, "");
+  list["MESH PARTITIONING"] = group("MESH PARTITIONING",
+      {
 
-  setStringToIntegralParameter<Core::Rebalance::RebalanceType>("METHOD", "hypergraph",
-      "Type of rebalance/partition algorithm to be used for decomposing the entire mesh into "
-      "subdomains for parallel computing.",
-      tuple<std::string>("none", "hypergraph", "recursive_coordinate_bisection", "monolithic"),
-      tuple<Core::Rebalance::RebalanceType>(Core::Rebalance::RebalanceType::none,
-          Core::Rebalance::RebalanceType::hypergraph,
-          Core::Rebalance::RebalanceType::recursive_coordinate_bisection,
-          Core::Rebalance::RebalanceType::monolithic),
-      &meshpartitioning);
+          parameter<Core::Rebalance::RebalanceType>("METHOD",
+              {.description = "Type of rebalance/partition algorithm to be used for decomposing "
+                              "the entire mesh into subdomains for parallel computing.",
+                  .default_value = Core::Rebalance::RebalanceType::hypergraph}),
 
-  Core::Utils::double_parameter("IMBALANCE_TOL", 1.1,
-      "Tolerance for relative imbalance of subdomain sizes for graph partitioning of unstructured "
-      "meshes read from input files.",
-      &meshpartitioning);
+          parameter<double>("IMBALANCE_TOL",
+              {.description =
+                      "Tolerance for relative imbalance of subdomain sizes for graph partitioning "
+                      "of unstructured meshes read from input files.",
+                  .default_value = 1.1}),
 
-  Core::Utils::int_parameter("MIN_ELE_PER_PROC", 0,
-      "This parameter defines the minimum number of elements to be assigned to any MPI rank during "
-      "redistribution. Use 0 to not interfere with the minimal size of a subdomain.",
-      &meshpartitioning);
+          parameter<int>("MIN_ELE_PER_PROC",
+              {.description =
+                      "This parameter defines the minimum number of elements to be assigned to any "
+                      "MPI rank during redistribution. Use 0 to not interfere with the minimal "
+                      "size "
+                      "of a subdomain.",
+                  .default_value = 0})},
+      {.defaultable = true});
 }
 
 FOUR_C_NAMESPACE_CLOSE

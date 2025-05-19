@@ -45,36 +45,36 @@ void Mat::Elastic::CoupAnisoPow::unpack_summand(Core::Communication::UnpackBuffe
 void Mat::Elastic::CoupAnisoPow::setup(
     int numgp, const Core::IO::InputParameterContainer& container)
 {
-  // path if fibers aren't given in .dat file
+  // path if fibers aren't given in input file
   if (params_->init_ == 0)
   {
     // fibers aligned in YZ-plane with gamma around Z in global cartesian cosy
-    Core::LinAlg::Matrix<3, 3> Id(true);
+    Core::LinAlg::Matrix<3, 3> Id(Core::LinAlg::Initialization::zero);
     for (int i = 0; i < 3; i++) Id(i, i) = 1.0;
     set_fiber_vecs(-1.0, Id, Id);
   }
 
-  // path if fibers are given in .dat file
+  // path if fibers are given in input file
   else if (params_->init_ == 1)
   {
     std::ostringstream ss;
     ss << params_->fibernumber_;
     std::string fibername = "FIBER" + ss.str();  // FIBER Name
     // CIR-AXI-RAD nomenclature
-    if (container.get_if<std::vector<double>>("RAD") != nullptr and
-        container.get_if<std::vector<double>>("AXI") != nullptr and
-        container.get_if<std::vector<double>>("CIR") != nullptr)
+    if (container.get<std::optional<std::vector<double>>>("RAD").has_value() and
+        container.get<std::optional<std::vector<double>>>("AXI").has_value() and
+        container.get<std::optional<std::vector<double>>>("CIR").has_value())
     {
       // Read in of data
-      Core::LinAlg::Matrix<3, 3> locsys(true);
+      Core::LinAlg::Matrix<3, 3> locsys(Core::LinAlg::Initialization::zero);
       read_rad_axi_cir(container, locsys);
-      Core::LinAlg::Matrix<3, 3> Id(true);
+      Core::LinAlg::Matrix<3, 3> Id(Core::LinAlg::Initialization::zero);
       for (int i = 0; i < 3; i++) Id(i, i) = 1.0;
       // final setup of fiber data
       set_fiber_vecs(0.0, locsys, Id);
     }
     // FIBERi nomenclature
-    else if (container.get_if<std::vector<double>>(fibername) != nullptr)
+    else if (container.get<std::optional<std::vector<double>>>(fibername).has_value())
     {
       // Read in of data
       read_fiber(container, fibername, a_);
@@ -173,15 +173,15 @@ void Mat::Elastic::CoupAnisoPow::set_fiber_vecs(const double newgamma,
       gamma = newgamma;
   }
 
-  Core::LinAlg::Matrix<3, 1> ca(true);
+  Core::LinAlg::Matrix<3, 1> ca(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; ++i)
   {
     // a = cos gamma e3 + sin gamma e2
     ca(i) = cos(gamma) * locsys(i, 2) + sin(gamma) * locsys(i, 1);
   }
   // pull back in reference configuration
-  Core::LinAlg::Matrix<3, 1> a_0(true);
-  Core::LinAlg::Matrix<3, 3> idefgrd(true);
+  Core::LinAlg::Matrix<3, 1> a_0(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 3> idefgrd(Core::LinAlg::Initialization::zero);
   idefgrd.invert(defgrd);
 
   a_0.multiply(idefgrd, ca);

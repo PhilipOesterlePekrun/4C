@@ -7,7 +7,7 @@
 
 #include "4C_contact_meshtying_poro_lagrange_strategy.hpp"
 
-#include "4C_inpar_contact.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
 
@@ -17,8 +17,8 @@ FOUR_C_NAMESPACE_OPEN
 /*----------------------------------------------------------------------*
  | ctor (public)                                      h.Willmann    2015|
  *----------------------------------------------------------------------*/
-CONTACT::PoroMtLagrangeStrategy::PoroMtLagrangeStrategy(const Epetra_Map* dof_row_map,
-    const Epetra_Map* NodeRowMap, Teuchos::ParameterList params,
+CONTACT::PoroMtLagrangeStrategy::PoroMtLagrangeStrategy(const Core::LinAlg::Map* dof_row_map,
+    const Core::LinAlg::Map* NodeRowMap, Teuchos::ParameterList params,
     std::vector<std::shared_ptr<Mortar::Interface>> interface, int dim, MPI_Comm comm,
     double alphaf, int maxdof)
     : MtLagrangeStrategy(dof_row_map, NodeRowMap, params, interface, dim, comm, alphaf, maxdof)
@@ -36,7 +36,7 @@ void CONTACT::PoroMtLagrangeStrategy::initialize_poro_mt(
   std::shared_ptr<Core::LinAlg::SparseMatrix> kteffmatrix =
       std::dynamic_pointer_cast<Core::LinAlg::SparseMatrix>(kteffoffdiag);
 
-  fvelrow_ = std::make_shared<Epetra_Map>(kteffmatrix->OperatorDomainMap());
+  fvelrow_ = std::make_shared<Core::LinAlg::Map>(kteffmatrix->OperatorDomainMap());
 }
 
 
@@ -47,7 +47,7 @@ void CONTACT::PoroMtLagrangeStrategy::evaluate_meshtying_poro_off_diag(
     std::shared_ptr<Core::LinAlg::SparseMatrix>& kteffoffdiag)
 {
   // system type
-  auto systype = Teuchos::getIntegralValue<Inpar::CONTACT::SystemType>(params(), "SYSTEM");
+  auto systype = Teuchos::getIntegralValue<CONTACT::SystemType>(params(), "SYSTEM");
 
   // shape function
   auto shapefcn = Teuchos::getIntegralValue<Inpar::Mortar::ShapeFcn>(params(), "LM_SHAPEFCN");
@@ -57,8 +57,8 @@ void CONTACT::PoroMtLagrangeStrategy::evaluate_meshtying_poro_off_diag(
   // CASE A: CONDENSED SYSTEM (DUAL)
   //**********************************************************************
   //**********************************************************************
-  if (systype == Inpar::CONTACT::system_condensed ||
-      systype == Inpar::CONTACT::system_condensed_lagmult)
+  if (systype == CONTACT::SystemType::condensed ||
+      systype == CONTACT::SystemType::condensed_lagmult)
   {
     // double-check if this is a dual LM system
     if (shapefcn != Inpar::Mortar::shape_dual && shapefcn != Inpar::Mortar::shape_petrovgalerkin)
@@ -82,8 +82,8 @@ void CONTACT::PoroMtLagrangeStrategy::evaluate_meshtying_poro_off_diag(
 
 
     // some temporary std::shared_ptrs
-    std::shared_ptr<Epetra_Map> tempmap1;
-    std::shared_ptr<Epetra_Map> tempmap2;
+    std::shared_ptr<Core::LinAlg::Map> tempmap1;
+    std::shared_ptr<Core::LinAlg::Map> tempmap2;
     std::shared_ptr<Core::LinAlg::SparseMatrix> tempmtx1;
     std::shared_ptr<Core::LinAlg::SparseMatrix> tempmtx2;
     std::shared_ptr<Core::LinAlg::SparseMatrix> tempmtx3;
@@ -164,18 +164,18 @@ void CONTACT::PoroMtLagrangeStrategy::recover_coupling_matrix_partof_lmp(
     Core::LinAlg::Vector<double>& veli)
 {
   std::shared_ptr<Core::LinAlg::Vector<double>> zfluid =
-      std::make_shared<Core::LinAlg::Vector<double>>(z_->Map(), true);
+      std::make_shared<Core::LinAlg::Vector<double>>(z_->get_block_map(), true);
 
   Core::LinAlg::Vector<double> mod(*gsdofrowmap_);
 
   cs_->multiply(false, veli, mod);
-  zfluid->Update(-1.0, mod, 1.0);
+  zfluid->update(-1.0, mod, 1.0);
   std::shared_ptr<Core::LinAlg::Vector<double>> zcopy =
       std::make_shared<Core::LinAlg::Vector<double>>(*zfluid);
   get_d_inverse()->multiply(true, *zcopy, *zfluid);
-  zfluid->Scale(1 / (1 - alphaf_));
+  zfluid->scale(1 / (1 - alphaf_));
 
-  z_->Update(1.0, *zfluid, 1.0);  // Add FluidCoupling Contribution to LM!
+  z_->update(1.0, *zfluid, 1.0);  // Add FluidCoupling Contribution to LM!
 }
 
 FOUR_C_NAMESPACE_CLOSE

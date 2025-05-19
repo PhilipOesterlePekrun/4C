@@ -191,7 +191,7 @@ void Mortar::BinaryTreeNode::divide_tree_node()
 
       int gid = elelist()[i];
       Core::Elements::Element* element = discret().g_element(gid);
-      if (!element) FOUR_C_THROW("Cannot find element with gid %\n", gid);
+      if (!element) FOUR_C_THROW("Cannot find element with gid {}", gid);
       Core::Nodes::Node** nodes = element->points();
 
       // vector of values of Hesse-Normalform of nodes of elements
@@ -376,8 +376,8 @@ void Mortar::BinaryTreeNode::print_type()
  |  ctor BinaryTree(public)                                   popp 10/08|
  *----------------------------------------------------------------------*/
 Mortar::BinaryTree::BinaryTree(Core::FE::Discretization& discret,
-    std::shared_ptr<Epetra_Map> selements, std::shared_ptr<Epetra_Map> melements, int dim,
-    double eps, Inpar::Mortar::BinaryTreeUpdateType updatetype, bool useauxpos)
+    std::shared_ptr<Core::LinAlg::Map> selements, std::shared_ptr<Core::LinAlg::Map> melements,
+    int dim, double eps, Inpar::Mortar::BinaryTreeUpdateType updatetype, bool useauxpos)
     : Mortar::BaseBinaryTree(discret, dim, eps),
       selements_(selements),
       melements_(melements),
@@ -544,7 +544,7 @@ void Mortar::BinaryTree::init_search_elements()
   {
     int gid = selements_->GID(i);
     Core::Elements::Element* ele = discret().g_element(gid);
-    if (!ele) FOUR_C_THROW("Cannot find ele with gid %i", gid);
+    if (!ele) FOUR_C_THROW("Cannot find ele with gid {}", gid);
     Mortar::Element* sele = dynamic_cast<Mortar::Element*>(ele);
 
     sele->mo_data().search_elements().resize(0);
@@ -581,12 +581,6 @@ void Mortar::BinaryTree::evaluate_search()
       break;
   }
 
-#ifdef MORTARGMSHCTN
-  for (int i = 0; i < (int)(binarytree_->coupling_map().size()); i++)
-    binarytree_->coupling_map()[i].clear();
-  binarytree_->coupling_map().clear();
-  binarytree_->coupling_map().resize(2);
-#endif
   // evaluate search algorithm
   evaluate_search(sroot_, mroot_);
 
@@ -611,7 +605,7 @@ void Mortar::BinaryTree::set_enlarge()
   {
     int gid = selements_->GID(i);
     Core::Elements::Element* element = discret().g_element(gid);
-    if (!element) FOUR_C_THROW("Cannot find element with gid %\n", gid);
+    if (!element) FOUR_C_THROW("Cannot find element with gid {}", gid);
     Mortar::Element* mrtrelement = dynamic_cast<Mortar::Element*>(element);
     double mincurrent = mrtrelement->min_edge_size();
     if (mincurrent < lmin) lmin = mincurrent;
@@ -622,7 +616,7 @@ void Mortar::BinaryTree::set_enlarge()
   {
     int gid = melements_->GID(i);
     Core::Elements::Element* element = discret().g_element(gid);
-    if (!element) FOUR_C_THROW("Cannot find element with gid %\n", gid);
+    if (!element) FOUR_C_THROW("Cannot find element with gid {}", gid);
     Mortar::Element* mrtrelement = dynamic_cast<Mortar::Element*>(element);
     double mincurrent = mrtrelement->min_edge_size();
     if (mincurrent < lmin) lmin = mincurrent;
@@ -795,15 +789,6 @@ void Mortar::BinaryTree::evaluate_search(
       selement->add_search_elements(mgid);
     }
   }
-
-#ifdef MORTARGMSHCTN  // for plotting contacting treenodes
-  if (streenode->Type() == SLAVE_LEAF && mtreenode->Type() == MASTER_LEAF &&
-      nintercepts == kdop_ / 2)
-  {
-    couplingmap_[0].push_back(streenode);
-    couplingmap_[1].push_back(mtreenode);
-  }
-#endif  // #ifdef MORTARGMSHCTN
 
   return;
 }

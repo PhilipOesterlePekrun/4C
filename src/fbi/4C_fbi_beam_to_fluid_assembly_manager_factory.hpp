@@ -37,7 +37,7 @@ namespace BeamInteraction
 {
   class BeamContactPair;
 
-  namespace SUBMODELEVALUATOR
+  namespace SubmodelEvaluator
   {
     class PartitionedBeamInteractionAssemblyManager;
   }
@@ -63,12 +63,12 @@ namespace BeamInteraction
      *
      * \param[in] params_ptr Container containing the Fluid beam interaction parameters
      * \param[in] interaction_pairs Vector of possible fluid beam interaction pairs
-     * \params[in] assemblystrategy object handling the assembly into the global fluid matrix
+     * \param[in] assemblystrategy object handling the assembly into the global fluid matrix
      *
      * \return beam interaction assembly manager
      */
     static std::shared_ptr<
-        BeamInteraction::SUBMODELEVALUATOR::PartitionedBeamInteractionAssemblyManager>
+        BeamInteraction::SubmodelEvaluator::PartitionedBeamInteractionAssemblyManager>
     create_assembly_manager(std::shared_ptr<const Core::FE::Discretization> discretization1,
         std::shared_ptr<const Core::FE::Discretization> discretization2,
         std::vector<std::shared_ptr<BeamInteraction::BeamContactPair>> interaction_pairs,

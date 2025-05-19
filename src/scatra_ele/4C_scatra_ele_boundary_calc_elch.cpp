@@ -39,16 +39,16 @@ Discret::Elements::ScaTraEleBoundaryCalcElch<distype, probdim>::ScaTraEleBoundar
  *----------------------------------------------------------------------*/
 template <Core::FE::CellType distype, int probdim>
 int Discret::Elements::ScaTraEleBoundaryCalcElch<distype, probdim>::evaluate_action(
-    Core::Elements::FaceElement* ele,                 //!< boundary element
-    Teuchos::ParameterList& params,                   //!< parameter list
-    Core::FE::Discretization& discretization,         //!< discretization
-    ScaTra::BoundaryAction action,                    //!< action
-    Core::Elements::LocationArray& la,                //!< location array
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,  //!< element matrix 1
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,  //!< element matrix 2
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,  //!< element right-hand side vector 1
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,  //!< element right-hand side vector 2
-    Core::LinAlg::SerialDenseVector& elevec3_epetra   //!< element right-hand side vector 3
+    Core::Elements::FaceElement* ele,          //!< boundary element
+    Teuchos::ParameterList& params,            //!< parameter list
+    Core::FE::Discretization& discretization,  //!< discretization
+    ScaTra::BoundaryAction action,             //!< action
+    Core::Elements::LocationArray& la,         //!< location array
+    Core::LinAlg::SerialDenseMatrix& elemat1,  //!< element matrix 1
+    Core::LinAlg::SerialDenseMatrix& elemat2,  //!< element matrix 2
+    Core::LinAlg::SerialDenseVector& elevec1,  //!< element right-hand side vector 1
+    Core::LinAlg::SerialDenseVector& elevec2,  //!< element right-hand side vector 2
+    Core::LinAlg::SerialDenseVector& elevec3   //!< element right-hand side vector 3
 )
 {
   // determine and evaluate action
@@ -56,22 +56,22 @@ int Discret::Elements::ScaTraEleBoundaryCalcElch<distype, probdim>::evaluate_act
   {
     case ScaTra::BoundaryAction::calc_elch_linearize_nernst:
     {
-      calc_nernst_linearization(ele, params, discretization, la, elemat1_epetra, elevec1_epetra);
+      calc_nernst_linearization(ele, params, discretization, la, elemat1, elevec1);
 
       break;
     }
 
     case ScaTra::BoundaryAction::calc_elch_cell_voltage:
     {
-      calc_cell_voltage(ele, params, discretization, la, elevec1_epetra);
+      calc_cell_voltage(ele, params, discretization, la, elevec1);
 
       break;
     }
 
     default:
     {
-      my::evaluate_action(ele, params, discretization, action, la, elemat1_epetra, elemat2_epetra,
-          elevec1_epetra, elevec2_epetra, elevec3_epetra);
+      my::evaluate_action(
+          ele, params, discretization, action, la, elemat1, elemat2, elevec1, elevec2, elevec3);
 
       break;
     }
@@ -86,19 +86,19 @@ int Discret::Elements::ScaTraEleBoundaryCalcElch<distype, probdim>::evaluate_act
  *----------------------------------------------------------------------*/
 template <Core::FE::CellType distype, int probdim>
 void Discret::Elements::ScaTraEleBoundaryCalcElch<distype, probdim>::calc_elch_boundary_kinetics(
-    Core::Elements::FaceElement* ele,                 ///< current element
-    Teuchos::ParameterList& params,                   ///< parameter list
-    Core::FE::Discretization& discretization,         ///< discretization
-    Core::Elements::LocationArray& la,                ///< location array
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,  ///< element matrix
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,  ///< element right-hand side vector
+    Core::Elements::FaceElement* ele,          ///< current element
+    Teuchos::ParameterList& params,            ///< parameter list
+    Core::FE::Discretization& discretization,  ///< discretization
+    Core::Elements::LocationArray& la,         ///< location array
+    Core::LinAlg::SerialDenseMatrix& elemat1,  ///< element matrix
+    Core::LinAlg::SerialDenseVector& elevec1,  ///< element right-hand side vector
     const double scalar  ///< scaling factor for element matrix and right-hand side contributions
 )
 {
   // state and history variables at element nodes
   my::extract_node_values(discretization, la);
   std::vector<Core::LinAlg::Matrix<nen_, 1>> ehist(
-      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true));
+      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
   my::extract_node_values(ehist, discretization, la, "hist");
 
   // get current condition
@@ -107,9 +107,9 @@ void Discret::Elements::ScaTraEleBoundaryCalcElch<distype, probdim>::calc_elch_b
   if (cond == nullptr) FOUR_C_THROW("Cannot access condition 'ElchBoundaryKinetics'");
 
   // access parameters of the condition
-  const auto kinetics = cond->parameters().get<int>("KINETIC_MODEL");
+  const auto kinetics = cond->parameters().get<Inpar::ElCh::ElectrodeKinetics>("KINETIC_MODEL");
   auto pot0 = cond->parameters().get<double>("POT");
-  const auto curvenum = cond->parameters().get<Core::IO::Noneable<int>>("FUNCT");
+  const auto curvenum = cond->parameters().get<std::optional<int>>("FUNCT");
   const auto nume = cond->parameters().get<int>("E-");
   // if zero=1=true, the current flow across the electrode is zero (comparable to do-nothing Neuman
   // condition) but the electrode status is evaluated
@@ -124,8 +124,8 @@ void Discret::Elements::ScaTraEleBoundaryCalcElch<distype, probdim>::calc_elch_b
   const auto* stoich = &cond->parameters().get<std::vector<int>>("STOICH");
   if ((unsigned int)my::numscal_ != (*stoich).size())
     FOUR_C_THROW(
-        "Electrode kinetics: number of stoichiometry coefficients %u does not match"
-        " the number of ionic species %d",
+        "Electrode kinetics: number of stoichiometry coefficients {} does not match"
+        " the number of ionic species {}",
         (*stoich).size(), my::numscal_);
 
   // the classical implementations of kinetic electrode models does not support
@@ -178,22 +178,21 @@ void Discret::Elements::ScaTraEleBoundaryCalcElch<distype, probdim>::calc_elch_b
 
     if (zerocur == 0)
     {
-      evaluate_elch_boundary_kinetics(ele, elemat1_epetra, elevec1_epetra, my::ephinp_, ehist,
-          timefac, ele->parent_element()->material(), cond, nume, *stoich, kinetics, pot0, frt,
-          scalar);
+      evaluate_elch_boundary_kinetics(ele, elemat1, elevec1, my::ephinp_, ehist, timefac,
+          ele->parent_element()->material(), cond, nume, *stoich, kinetics, pot0, frt, scalar);
     }
 
     // realize correct scaling of rhs contribution for gen.alpha case
     // with dt*(gamma/alpha_M) = timefac/alpha_F
     // matrix contributions are already scaled correctly with
     // timefac=dt*(gamma*alpha_F/alpha_M)
-    elevec1_epetra.scale(rhsfac);
+    elevec1.scale(rhsfac);
   }
   else
   {
     // extract local values from the global vector
     std::vector<Core::LinAlg::Matrix<nen_, 1>> ephidtnp(
-        my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true));
+        my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
     my::extract_node_values(ephidtnp, discretization, la, "phidtnp");
 
     if (not is_stationary)
@@ -205,8 +204,8 @@ void Discret::Elements::ScaTraEleBoundaryCalcElch<distype, probdim>::calc_elch_b
       if (timefac < 0.) FOUR_C_THROW("time factor is negative.");
     }
 
-    evaluate_electrode_status(ele, elevec1_epetra, params, *cond, my::ephinp_, ephidtnp, kinetics,
-        *stoich, nume, pot0, frt, timefac, scalar);
+    evaluate_electrode_status(ele, elevec1, params, *cond, my::ephinp_, ephidtnp, kinetics, *stoich,
+        nume, pot0, frt, timefac, scalar);
   }
 
   return;
@@ -220,14 +219,13 @@ template <Core::FE::CellType distype, int probdim>
 void Discret::Elements::ScaTraEleBoundaryCalcElch<distype, probdim>::calc_nernst_linearization(
     Core::Elements::FaceElement* ele, Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, Core::Elements::LocationArray& la,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseVector& elevec1)
 {
   std::shared_ptr<Core::Conditions::Condition> cond =
       params.get<std::shared_ptr<Core::Conditions::Condition>>("condition");
   if (cond == nullptr) FOUR_C_THROW("Cannot access condition 'ElchBoundaryKinetics'");
 
-  const auto kinetics = cond->parameters().get<int>("KINETIC_MODEL");
+  const auto kinetics = cond->parameters().get<Inpar::ElCh::ElectrodeKinetics>("KINETIC_MODEL");
 
   // Nernst-BC
   if (kinetics == Inpar::ElCh::nernst)
@@ -237,7 +235,7 @@ void Discret::Elements::ScaTraEleBoundaryCalcElch<distype, probdim>::calc_nernst
 
     // access parameters of the condition
     auto pot0 = cond->parameters().get<double>("POT");
-    const auto curvenum = cond->parameters().get<Core::IO::Noneable<int>>("FUNCT");
+    const auto curvenum = cond->parameters().get<std::optional<int>>("FUNCT");
     const auto nume = cond->parameters().get<int>("E-");
     const auto e0 = cond->parameters().get<double>("E0");
     const auto c0 = cond->parameters().get<double>("C0");
@@ -250,8 +248,8 @@ void Discret::Elements::ScaTraEleBoundaryCalcElch<distype, probdim>::calc_nernst
     const auto* stoich = &cond->parameters().get<std::vector<int>>("STOICH");
     if ((unsigned int)my::numscal_ != (*stoich).size())
       FOUR_C_THROW(
-          "Electrode kinetics: number of stoichiometry coefficients %u does not match"
-          " the number of ionic species %d",
+          "Electrode kinetics: number of stoichiometry coefficients {} does not match"
+          " the number of ionic species {}",
           (*stoich).size(), my::numscal_);
 
     // access input parameter
@@ -296,20 +294,20 @@ void Discret::Elements::ScaTraEleBoundaryCalcElch<distype, probdim>::calc_nernst
         const double potint = my::funct_.dot(my::ephinp_[my::numscal_]);
 
         if (c0 < 1e-12)
-          FOUR_C_THROW("reference concentration is too small (c0 < 1.0E-12) : %f", c0);
+          FOUR_C_THROW("reference concentration is too small (c0 < 1.0E-12) : {}", c0);
 
         for (int vi = 0; vi < nen_; ++vi)
         {
           for (int ui = 0; ui < nen_; ++ui)
           {
-            elemat1_epetra(vi * my::numdofpernode_ + my::numscal_, ui * my::numdofpernode_ + k) +=
+            elemat1(vi * my::numdofpernode_ + my::numscal_, ui * my::numdofpernode_ + k) +=
                 fac * my::funct_(vi) / (frt * conint[k] * nume) * my::funct_(ui);
-            elemat1_epetra(vi * my::numdofpernode_ + my::numscal_,
+            elemat1(vi * my::numdofpernode_ + my::numscal_,
                 ui * my::numdofpernode_ + my::numscal_) += fac * my::funct_(vi) * my::funct_(ui);
           }
 
           // -----right-hand-side
-          elevec1_epetra[vi * my::numdofpernode_ + my::numscal_] +=
+          elevec1[vi * my::numdofpernode_ + my::numscal_] +=
               fac * my::funct_(vi) * (pot0 - e0 - potint - log(conint[k] / c0) / (frt * nume));
         }
       }  // end of loop over integration points gpid

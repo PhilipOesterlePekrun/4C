@@ -83,7 +83,7 @@ std::shared_ptr<Core::LinAlg::SparseOperator> ALE::Meshtying::setup(
   // std::cout << "number of s dof   " << gsdofrowmap_->NumGlobalElements() << std::endl;
 
   // generate map for blockmatrix
-  std::vector<std::shared_ptr<const Epetra_Map>> alemaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> alemaps;
   alemaps.push_back(gndofrowmap_);
   alemaps.push_back(gmdofrowmap_);
   alemaps.push_back(gsdofrowmap_);
@@ -140,7 +140,7 @@ std::shared_ptr<Core::LinAlg::SparseOperator> ALE::Meshtying::setup(
 std::shared_ptr<Core::LinAlg::SparseOperator> ALE::Meshtying::msht_split()
 {
   // generate map for blockmatrix
-  std::vector<std::shared_ptr<const Epetra_Map>> alemaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> alemaps;
   alemaps.push_back(gndofrowmap_);
   alemaps.push_back(gmdofrowmap_);
   alemaps.push_back(gsdofrowmap_);
@@ -175,7 +175,7 @@ std::shared_ptr<Core::LinAlg::SparseOperator> ALE::Meshtying::msht_split()
 /*------------------------------------------------------------------------------*/
 /*  Check if Dirichlet BC are defined on the master                 wirtz 01/16 */
 /*------------------------------------------------------------------------------*/
-void ALE::Meshtying::dirichlet_on_master(std::shared_ptr<const Epetra_Map> bmaps)
+void ALE::Meshtying::dirichlet_on_master(std::shared_ptr<const Core::LinAlg::Map> bmaps)
 {
   // This method checks if Dirichlet or Dirichlet-like boundary conditions are defined
   // on the master side of the internal interface.
@@ -187,16 +187,16 @@ void ALE::Meshtying::dirichlet_on_master(std::shared_ptr<const Epetra_Map> bmaps
   //      (in project_master_to_slave_for_overlapping_bc()) (-> disabled)
   //      -> DC also influence slave nodes which are not part of the inflow
   //
-  //      if(msht_ != Inpar::ALE::no_meshtying)
+  //      if(msht_ != ALE::no_meshtying)
   //        meshtying_->project_master_to_slave_for_overlapping_bc(dispnp_, dbcmaps_->cond_map());
   //
   // (c)  DC are included in the condensation process (-> actual strategy)
 
-  std::vector<std::shared_ptr<const Epetra_Map>> intersectionmaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> intersectionmaps;
   intersectionmaps.push_back(bmaps);
-  std::shared_ptr<const Epetra_Map> gmdofrowmap = gmdofrowmap_;
+  std::shared_ptr<const Core::LinAlg::Map> gmdofrowmap = gmdofrowmap_;
   intersectionmaps.push_back(gmdofrowmap);
-  std::shared_ptr<Epetra_Map> intersectionmap =
+  std::shared_ptr<Core::LinAlg::Map> intersectionmap =
       Core::LinAlg::MultiMapExtractor::intersect_maps(intersectionmaps);
 
   if (intersectionmap->NumGlobalElements() != 0)
@@ -311,7 +311,7 @@ void ALE::Meshtying::msht_split(std::shared_ptr<Core::LinAlg::SparseOperator>& s
   if (is_multifield_)
   {
     // generate map for blockmatrix
-    std::vector<std::shared_ptr<const Epetra_Map>> alemaps;
+    std::vector<std::shared_ptr<const Core::LinAlg::Map>> alemaps;
     alemaps.push_back(gndofrowmap_);
     alemaps.push_back(gmdofrowmap_);
     alemaps.push_back(gsdofrowmap_);
@@ -356,7 +356,7 @@ void ALE::Meshtying::multifield_split(std::shared_ptr<Core::LinAlg::SparseOperat
         std::dynamic_pointer_cast<Core::LinAlg::BlockSparseMatrixBase>(sysmat);
 
     Core::LinAlg::Vector<double> ones(sysmatnew->matrix(2, 2).row_map());
-    ones.PutScalar(1.0);
+    ones.put_scalar(1.0);
 
     Core::LinAlg::SparseMatrix onesdiag(ones);
     onesdiag.complete();
@@ -382,7 +382,7 @@ void ALE::Meshtying::multifield_split(std::shared_ptr<Core::LinAlg::SparseOperat
     std::shared_ptr<Core::LinAlg::SparseMatrix> mergedmatrix = sysmatnew->merge();
 
     Core::LinAlg::MapExtractor extractor(
-        *multifield_interface_.full_map(), multifield_interface_.Map(1));
+        *multifield_interface_.full_map(), multifield_interface_.map(1));
 
     std::shared_ptr<Core::LinAlg::BlockSparseMatrix<ALE::Utils::InterfaceSplitStrategy>> mat =
         Core::LinAlg::split_matrix<ALE::Utils::InterfaceSplitStrategy>(
@@ -575,18 +575,18 @@ void ALE::Meshtying::condensation_operation_block_matrix(
   P->multiply(true, *(splitres[2]), fm_mod);
 
   // r_m: insert Dirichlet boundary conditions
-  if (dconmaster_ == true and firstnonliniter_ == true) fm_mod.Update(-1.0, *dcmm, 1.0);
+  if (dconmaster_ == true and firstnonliniter_ == true) fm_mod.update(-1.0, *dcmm, 1.0);
 
   // export and add r_m subvector to residual
   Core::LinAlg::Vector<double> fm_modexp(*dofrowmap_);
   Core::LinAlg::export_to(fm_mod, fm_modexp);
-  residual->Update(1.0, fm_modexp, 1.0);
+  residual->update(1.0, fm_modexp, 1.0);
 
   if (dconmaster_ == true and firstnonliniter_ == true)
   {
     Core::LinAlg::Vector<double> fn_exp(*dofrowmap_, true);
     Core::LinAlg::export_to(*dcnm, fn_exp);
-    residual->Update(-1.0, fn_exp, 1.0);
+    residual->update(-1.0, fn_exp, 1.0);
   }
 
   // export r_s = zero to residual
@@ -606,7 +606,7 @@ void ALE::Meshtying::update_slave_dof(std::shared_ptr<Core::LinAlg::Vector<doubl
   TEUCHOS_FUNC_TIME_MONITOR("Meshtying:  3.4)   - Update slave DOF");
 
   // get dof row map
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   // split incremental and displacement vector
   std::vector<std::shared_ptr<Core::LinAlg::Vector<double>>> splitinc(3);
@@ -637,35 +637,35 @@ void ALE::Meshtying::update_slave_dof(std::shared_ptr<Core::LinAlg::Vector<doubl
   P->multiply(false, *(splitinc[1]), fs_mod);
 
   // delta_vp^s: subtract vp_i^s
-  fs_mod.Update(-1.0, *(splitdisp[2]), 1.0);
+  fs_mod.update(-1.0, *(splitdisp[2]), 1.0);
 
   // delta_vp^s: add P*vp_i^m
   Core::LinAlg::Vector<double> fs_mod_m(*gsdofrowmap_, true);
   P->multiply(false, *(splitdisp[1]), fs_mod_m);
-  fs_mod.Update(1.0, fs_mod_m, 1.0);
+  fs_mod.update(1.0, fs_mod_m, 1.0);
 
   // set Dirichlet boundary conditions, if any
   if (dconmaster_ == true and firstnonliniter_ == true)
   {
     Core::LinAlg::Vector<double> fsdc_mod(*gsdofrowmap_, true);
     P->multiply(false, *(splitdcmaster[1]), fsdc_mod);
-    fs_mod.Update(1.0, fsdc_mod, 1.0);
+    fs_mod.update(1.0, fsdc_mod, 1.0);
   }
 
   // export interior degrees of freedom
   Core::LinAlg::Vector<double> fnexp(*dofrowmap);
   Core::LinAlg::export_to(*(splitinc[0]), fnexp);
-  incnew->Update(1.0, fnexp, 1.0);
+  incnew->update(1.0, fnexp, 1.0);
 
   // export master degrees of freedom
   Core::LinAlg::Vector<double> fmexp(*dofrowmap);
   Core::LinAlg::export_to(*(splitinc[1]), fmexp);
-  incnew->Update(1.0, fmexp, 1.0);
+  incnew->update(1.0, fmexp, 1.0);
 
   // export slave degrees of freedom
   Core::LinAlg::Vector<double> fs_modexp(*dofrowmap);
   Core::LinAlg::export_to(fs_mod, fs_modexp);
-  incnew->Update(1.0, fs_modexp, 1.0);
+  incnew->update(1.0, fs_modexp, 1.0);
 
   // set iteration counter for Dirichlet boundary conditions, if any
   if (dconmaster_ == true and firstnonliniter_ == true) firstnonliniter_ = false;
@@ -711,10 +711,10 @@ int ALE::Meshtying::solve_meshtying(Core::LinAlg::Solver& solver,
     split_vector_based_on3x3(*residual, *res);
 
     // assign blocks to the solution matrix
-    sysmatsolve->assign(0, 0, Core::LinAlg::View, sysmatnew->matrix(0, 0));
-    sysmatsolve->assign(0, 1, Core::LinAlg::View, sysmatnew->matrix(0, 1));
-    sysmatsolve->assign(1, 0, Core::LinAlg::View, sysmatnew->matrix(1, 0));
-    sysmatsolve->assign(1, 1, Core::LinAlg::View, sysmatnew->matrix(1, 1));
+    sysmatsolve->assign(0, 0, Core::LinAlg::DataAccess::View, sysmatnew->matrix(0, 0));
+    sysmatsolve->assign(0, 1, Core::LinAlg::DataAccess::View, sysmatnew->matrix(0, 1));
+    sysmatsolve->assign(1, 0, Core::LinAlg::DataAccess::View, sysmatnew->matrix(1, 0));
+    sysmatsolve->assign(1, 1, Core::LinAlg::DataAccess::View, sysmatnew->matrix(1, 1));
     sysmatsolve->complete();
 
     mergedmatrix = sysmatsolve->merge();

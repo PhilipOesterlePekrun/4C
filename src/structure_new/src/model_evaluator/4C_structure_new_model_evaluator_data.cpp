@@ -15,9 +15,11 @@
 #include "4C_solver_nonlin_nox_statustest_normf.hpp"
 #include "4C_solver_nonlin_nox_statustest_normupdate.hpp"
 #include "4C_solver_nonlin_nox_statustest_normwrms.hpp"
+#include "4C_structure_new_discretization_runtime_output_params.hpp"
 #include "4C_structure_new_impl_generic.hpp"
 #include "4C_structure_new_nln_solver_nox.hpp"
 #include "4C_structure_new_nln_solver_utils.hpp"
+#include "4C_structure_new_timint_basedataio_runtime_vtk_output.hpp"
 #include "4C_structure_new_timint_implicit.hpp"
 
 
@@ -60,8 +62,8 @@ namespace
     if (length != static_cast<int>(mysize.size()) or tag != frompid)
       FOUR_C_THROW(
           "Size information got mixed up!\n"
-          "Received length = %d, Expected length = %d \n"
-          "Received tag    = %d, Expected tag    = %d",
+          "Received length = {}, Expected length = {} \n"
+          "Received tag    = {}, Expected tag    = {}",
           length, mysize.size(), tag, frompid);
 
     exporter.wait(sizerequest);
@@ -71,8 +73,8 @@ namespace
     if (length != receivedsize[0] or tag != frompid * 10)
       FOUR_C_THROW(
           "Data information got mixed up! \n"
-          "Received length = %d, Expected length = %d \n"
-          "Received tag    = %d, Expected tag    = %d",
+          "Received length = {}, Expected length = {} \n"
+          "Received tag    = {}, Expected tag    = {}",
           length, receivedsize[0], tag, frompid * 10);
 
     exporter.wait(datarequest);
@@ -169,7 +171,6 @@ Solid::ModelEvaluator::Data::Data()
       delta_time_(-1.0),
       step_length_(-1.0),
       is_default_step_(true),
-      num_corr_mod_newton_(0),
       corr_type_(NOX::Nln::CorrectionType::vague),
       timintfactor_disp_(-1.0),
       timintfactor_vel_(-1.0),
@@ -186,7 +187,7 @@ Solid::ModelEvaluator::Data::Data()
       io_ptr_(nullptr),
       gstate_ptr_(nullptr),
       timint_ptr_(nullptr),
-      comm_ptr_(nullptr),
+      comm_(MPI_COMM_NULL),
       beam_data_ptr_(nullptr),
       contact_data_ptr_(nullptr),
       model_ptr_(nullptr)
@@ -203,7 +204,7 @@ void Solid::ModelEvaluator::Data::init(
   io_ptr_ = timint_ptr->get_data_io_ptr();
   gstate_ptr_ = timint_ptr->get_data_global_state_ptr();
   timint_ptr_ = timint_ptr;
-  comm_ptr_ = timint_ptr->get_data_global_state().get_comm_ptr();
+  comm_ = timint_ptr->get_data_global_state().get_comm_ptr();
   isinit_ = true;
 }
 
@@ -299,14 +300,14 @@ void Solid::ModelEvaluator::Data::fill_norm_type_maps()
          * during the summation. */
         double atol = NOX::Nln::Aux::get_norm_wrms_class_variable(ostatus, *qiter, "ATOL");
         if (atol < 0.0)
-          FOUR_C_THROW("The absolute wrms tolerance of the quantity %s is missing.",
-              NOX::Nln::StatusTest::quantity_type_to_string(*qiter).c_str());
+          FOUR_C_THROW("The absolute wrms tolerance of the quantity {} is missing.",
+              NOX::Nln::StatusTest::quantity_type_to_string(*qiter));
         else
           atol_wrms_[*qiter] = atol;
         double rtol = NOX::Nln::Aux::get_norm_wrms_class_variable(ostatus, *qiter, "RTOL");
         if (rtol < 0.0)
-          FOUR_C_THROW("The relative wrms tolerance of the quantity %s is missing.",
-              NOX::Nln::StatusTest::quantity_type_to_string(*qiter).c_str());
+          FOUR_C_THROW("The relative wrms tolerance of the quantity {} is missing.",
+              NOX::Nln::StatusTest::quantity_type_to_string(*qiter));
         else
           rtol_wrms_[*qiter] = rtol;
       }
@@ -334,7 +335,7 @@ void Solid::ModelEvaluator::Data::collect_norm_types_over_all_procs(
 
   const quantity_norm_type_map mynormtypes(normtypes);
   quantity_norm_type_map& gnormtypes = const_cast<quantity_norm_type_map&>(normtypes);
-  collect_data(comm_ptr_, mynormtypes, gnormtypes);
+  collect_data(comm_, mynormtypes, gnormtypes);
 }
 
 /*----------------------------------------------------------------------------*
@@ -383,7 +384,7 @@ void Solid::ModelEvaluator::Data::sum_into_my_update_norm(
     const double* my_update_values, const double* my_new_sol_values, const double& step_length,
     const int& owner)
 {
-  if (owner != Core::Communication::my_mpi_rank(comm_ptr_)) return;
+  if (owner != Core::Communication::my_mpi_rank(comm_)) return;
   // --- standard update norms
   enum ::NOX::Abstract::Vector::NormType normtype = ::NOX::Abstract::Vector::TwoNorm;
   if (get_update_norm_type(qtype, normtype))
@@ -405,7 +406,7 @@ void Solid::ModelEvaluator::Data::sum_into_my_previous_sol_norm(
     const enum NOX::Nln::StatusTest::QuantityType& qtype, const int& numentries,
     const double* my_old_sol_values, const int& owner)
 {
-  if (owner != Core::Communication::my_mpi_rank(comm_ptr_)) return;
+  if (owner != Core::Communication::my_mpi_rank(comm_)) return;
 
   enum ::NOX::Abstract::Vector::NormType normtype = ::NOX::Abstract::Vector::TwoNorm;
   if (not get_update_norm_type(qtype, normtype)) return;
@@ -520,14 +521,6 @@ std::shared_ptr<std::vector<char>>& Solid::ModelEvaluator::Data::stress_data_ptr
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-const Core::LinAlg::Vector<double>& Solid::ModelEvaluator::Data::current_element_volume_data() const
-{
-  FOUR_C_ASSERT(elevolumes_ptr_, "Undefined reference to element volume data!");
-  return *elevolumes_ptr_;
-}
-
-/*----------------------------------------------------------------------------*
- *----------------------------------------------------------------------------*/
 const std::vector<char>& Solid::ModelEvaluator::Data::stress_data() const
 {
   FOUR_C_ASSERT(stressdata_ptr_, "Undefined reference to the stress data!");
@@ -584,18 +577,18 @@ const std::vector<char>& Solid::ModelEvaluator::Data::coupling_stress_data() con
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-std::shared_ptr<std::vector<char>>& Solid::ModelEvaluator::Data::opt_quantity_data_ptr()
+std::shared_ptr<std::vector<char>> Solid::ModelEvaluator::Data::opt_quantity_data_ptr()
 {
   check_init_setup();
-  return optquantitydata_ptr_;
+  return opt_quantity_data_ptr_;
 }
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
 const std::vector<char>& Solid::ModelEvaluator::Data::opt_quantity_data() const
 {
-  FOUR_C_ASSERT(optquantitydata_ptr_, "Undefined reference to the optional quantity data!");
-  return *optquantitydata_ptr_;
+  FOUR_C_ASSERT(opt_quantity_data_ptr_, "Undefined reference to the optional quantity data!");
+  return *opt_quantity_data_ptr_;
 }
 
 /*----------------------------------------------------------------------------*
@@ -635,7 +628,8 @@ enum Inpar::Solid::StressType Solid::ModelEvaluator::Data::get_coupling_stress_o
 enum Inpar::Solid::OptQuantityType Solid::ModelEvaluator::Data::get_opt_quantity_output_type() const
 {
   check_init_setup();
-  return io_ptr_->get_opt_quantity_output_type();
+
+  return io_ptr_->get_runtime_output_params()->get_structure_params()->output_optional_quantity();
 }
 
 std::shared_ptr<Solid::ModelEvaluator::GaussPointDataOutputManager>&
@@ -658,8 +652,8 @@ double Solid::ModelEvaluator::Data::get_energy_data(enum Solid::EnergyType type)
 {
   auto check = get_energy_data().find(type);
   if (check == get_energy_data().cend())
-    FOUR_C_THROW("Couldn't find the energy contribution: \"%s\".",
-        Solid::energy_type_to_string(type).c_str());
+    FOUR_C_THROW(
+        "Couldn't find the energy contribution: \"{}\".", Solid::energy_type_to_string(type));
 
   return check->second;
 }
@@ -730,7 +724,7 @@ int Solid::ModelEvaluator::Data::get_nln_iter() const
     std::shared_ptr<const Solid::Nln::SOLVER::Generic> nlnsolver_ptr =
         timint_impl_ptr->get_nln_solver_ptr();
     /* If we are still in the setup process we return -1. This will happen
-     * for the equilibrate_initial_state() call in dynamic simulations. */
+     * for the compute_mass_matrix_and_init_acc() call in dynamic simulations. */
     if (!nlnsolver_ptr) return -1;
     nox_nln_ptr = std::dynamic_pointer_cast<const Solid::Nln::SOLVER::Nox>(nlnsolver_ptr);
     if (nox_nln_ptr) isnox = true;

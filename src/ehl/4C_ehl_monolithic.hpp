@@ -15,11 +15,10 @@
 #include "4C_config.hpp"
 
 #include "4C_ehl_base.hpp"
-#include "4C_inpar_ehl.hpp"
-#include "4C_inpar_lubrication.hpp"
+#include "4C_ehl_input.hpp"
 #include "4C_inpar_structure.hpp"
+#include "4C_lubrication_input.hpp"
 
-#include <Epetra_FEVector.h>
 #include <Teuchos_Time.hpp>
 
 FOUR_C_NAMESPACE_OPEN
@@ -82,9 +81,6 @@ namespace EHL
   //!
   //!  \note There is the Algorithm class for general purpose EHL algorithms.
   //!  This simplifies the monolithic implementation.
-  //!
-  //!  \author wirtz
-  //!  \date 01/16
   class Monolithic : public Base
   {
    public:
@@ -164,7 +160,6 @@ namespace EHL
 
     //! is convergence reached of iterative solution technique?
     //! keep your fingers crossed...
-    //! \author lw (originally in STR) \date 12/07
     bool converged();
 
     //! outer iteration loop
@@ -173,16 +168,13 @@ namespace EHL
     //! @name Output
 
     //! print to screen information about residual forces and displacements
-    //! \author lw (originally in STR) \date 12/07
     void print_newton_iter();
 
     //! contains text to print_newton_iter
-    //! \author lw (originally in STR) \date 12/07
     void print_newton_iter_text(FILE* ofile  //!< output file handle
     );
 
     //! contains header to print_newton_iter
-    //! \author lw (originally) \date 12/07
     void print_newton_iter_header(FILE* ofile  //!< output file handle
     );
 
@@ -190,8 +182,8 @@ namespace EHL
     void print_newton_conv();
 
     //! Determine norm of force residual
-    double calculate_vector_norm(const enum Inpar::EHL::VectorNorm norm,  //!< norm to use
-        Core::LinAlg::Vector<double>& vect  //!< the vector of interest
+    double calculate_vector_norm(const enum EHL::VectorNorm norm,  //!< norm to use
+        Core::LinAlg::Vector<double>& vect                         //!< the vector of interest
     );
 
     //@}
@@ -231,7 +223,7 @@ namespace EHL
     //! @name Access methods for subclasses
 
     //! full monolithic dof row map
-    std::shared_ptr<const Epetra_Map> dof_row_map() const;
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map() const;
 
     //! set full monolithic dof row map
     /*!
@@ -239,11 +231,11 @@ namespace EHL
      defines the number of blocks, their maps and the block order. The block
      maps must be row maps by themselves and must not contain identical GIDs.
     */
-    void set_dof_row_maps(const std::vector<std::shared_ptr<const Epetra_Map>>& maps);
+    void set_dof_row_maps(const std::vector<std::shared_ptr<const Core::LinAlg::Map>>& maps);
 
     //! combined DBC map
     //! unique map of all dofs that should be constrained with DBC
-    std::shared_ptr<Epetra_Map> combined_dbc_map();
+    std::shared_ptr<Core::LinAlg::Map> combined_dbc_map();
 
     //! extractor to communicate between full monolithic map and block maps
     std::shared_ptr<Core::LinAlg::MultiMapExtractor> extractor() const { return blockrowdofmap_; }
@@ -300,20 +292,19 @@ namespace EHL
 
     //! @name iterative solution technique
 
-    enum Inpar::EHL::ConvNorm normtypeinc_;       //!< convergence check for increments
-    enum Inpar::EHL::ConvNorm normtyperhs_;       //!< convergence check for residual forces
+    enum EHL::ConvNorm normtypeinc_;              //!< convergence check for increments
+    enum EHL::ConvNorm normtyperhs_;              //!< convergence check for residual forces
     enum Inpar::Solid::ConvNorm normtypedisi_;    //!< convergence check for residual displacements
     enum Inpar::Solid::ConvNorm normtypestrrhs_;  //!< convergence check for residual forces
-    enum Inpar::Lubrication::ConvNorm normtypeprei_;  //!< convergence check for residual pressures
-    enum Inpar::Lubrication::ConvNorm
+    enum Lubrication::ConvNorm normtypeprei_;     //!< convergence check for residual pressures
+    enum Lubrication::ConvNorm
         normtypelubricationrhs_;  //!< convergence check for residual lubrication forces
 
-    enum Inpar::EHL::BinaryOp combincrhs_;  //!< binary operator to combine increments and forces
+    enum EHL::BinaryOp combincrhs_;  //!< binary operator to combine increments and forces
 
-    enum Inpar::EHL::VectorNorm iternorm_;     //!< vector norm to check EHL values with
-    enum Inpar::EHL::VectorNorm iternormstr_;  //!< vector norm to check structural values with
-    enum Inpar::EHL::VectorNorm
-        iternormlubrication_;  //!< vector norm to check lubrication values with
+    enum EHL::VectorNorm iternorm_;             //!< vector norm to check EHL values with
+    enum EHL::VectorNorm iternormstr_;          //!< vector norm to check structural values with
+    enum EHL::VectorNorm iternormlubrication_;  //!< vector norm to check lubrication values with
 
     double tolinc_;             //!< tolerance for increment
     double tolrhs_;             //!< tolerance for rhs

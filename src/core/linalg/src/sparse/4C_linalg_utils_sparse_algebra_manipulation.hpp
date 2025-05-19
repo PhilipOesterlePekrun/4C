@@ -11,14 +11,14 @@
 #include "4C_config.hpp"
 
 #include "4C_linalg_blocksparsematrix.hpp"
+#include "4C_linalg_graph.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_sparsematrix.hpp"
 #include "4C_linalg_vector.hpp"
 
-#include <Epetra_CrsGraph.h>
 #include <Epetra_CrsMatrix.h>
 #include <Epetra_Export.h>
 #include <Epetra_Import.h>
-#include <Epetra_Map.h>
 
 #include <memory>
 
@@ -67,9 +67,9 @@ namespace Core::LinAlg
    *
    *  \return the extracted partial Core::LinAlg::Vector<double> as RCP
    *
-   *  \author hiermeier \date 03/17 */
+   *  */
   std::unique_ptr<Core::LinAlg::Vector<double>> extract_my_vector(
-      const Core::LinAlg::Vector<double>& source, const Epetra_Map& target_map);
+      const Core::LinAlg::Vector<double>& source, const Core::LinAlg::Map& target_map);
 
   /*! \brief Extract a partial Eptra_Vector from a given source vector
    *         on each proc without communication
@@ -77,7 +77,7 @@ namespace Core::LinAlg
    *  \param source (in) : source vector ( read-only )
    *  \param target (out): this target vector is going to be filled
    *
-   *  \author hiermeier \date 03/17 */
+   *  */
   void extract_my_vector(
       const Core::LinAlg::Vector<double>& source, Core::LinAlg::Vector<double>& target);
 
@@ -104,7 +104,7 @@ namespace Core::LinAlg
    *
    *  \return Returned the filtered sparse matrix graph.
    */
-  std::shared_ptr<Epetra_CrsGraph> threshold_matrix_graph(
+  std::shared_ptr<Core::LinAlg::Graph> threshold_matrix_graph(
       const Core::LinAlg::SparseMatrix& A, const double threshold);
 
   /*! \brief Enrich a matrix graph based on it's powers.
@@ -114,27 +114,7 @@ namespace Core::LinAlg
    *
    *  \return Returned the enriched graph G(A^(power))
    */
-  std::shared_ptr<Epetra_CrsGraph> enrich_matrix_graph(const SparseMatrix& A, int power);
-
-  /*!
-   \brief split a matrix into a 2x2 block system where the rowmap of one of the blocks is given
-          and return a block matrix
-
-   Splits a given matrix into a 2x2 block system where the rowmap of one of the blocks is given
-   on input. Blocks A11 and A22 are assumed to be square.
-   All values on entry have to be nullptr except the given rowmap and matrix A.
-   Note that either A11rowmap or A22rowmap or both have to be nonzero. In case
-   both rowmaps are supplied they have to be an exact and nonoverlapping split of A->RowMap().
-   Matrix blocks are fill_complete() on exit.
-
-   \param A         : Matrix A on input
-   \param Ablock    : Blockmatrix version of A to be calculated
-   \param A11rowmap : rowmap of A11 or null
-   \param A22rowmap : rowmap of A22 or null
-   */
-  bool split_matrix2x2(std::shared_ptr<Epetra_CrsMatrix> A,
-      std::shared_ptr<BlockSparseMatrix<DefaultBlockMatrixStrategy>>& Ablock,
-      std::shared_ptr<Epetra_Map>& A11rowmap, std::shared_ptr<Epetra_Map>& A22rowmap);
+  std::shared_ptr<Core::LinAlg::Graph> enrich_matrix_graph(const SparseMatrix& A, int power);
 
   /*!
    \brief split a matrix into a 2x2 block system
@@ -158,8 +138,9 @@ namespace Core::LinAlg
    \param A22          : on exit matrix block A22
    */
   bool split_matrix2x2(std::shared_ptr<Core::LinAlg::SparseMatrix> A,
-      std::shared_ptr<Epetra_Map>& A11rowmap, std::shared_ptr<Epetra_Map>& A22rowmap,
-      std::shared_ptr<Epetra_Map>& A11domainmap, std::shared_ptr<Epetra_Map>& A22domainmap,
+      std::shared_ptr<Core::LinAlg::Map>& A11rowmap, std::shared_ptr<Core::LinAlg::Map>& A22rowmap,
+      std::shared_ptr<Core::LinAlg::Map>& A11domainmap,
+      std::shared_ptr<Core::LinAlg::Map>& A22domainmap,
       std::shared_ptr<Core::LinAlg::SparseMatrix>& A11,
       std::shared_ptr<Core::LinAlg::SparseMatrix>& A12,
       std::shared_ptr<Core::LinAlg::SparseMatrix>& A21,
@@ -206,7 +187,7 @@ namespace Core::LinAlg
       split_matrixmxn(ASparse, *blockA);
     else
       FOUR_C_THROW(
-          "Invalid number %d of row blocks or %d of column blocks for splitting operation!",
+          "Invalid number {} of row blocks or {} of column blocks for splitting operation!",
           rangemaps.num_maps(), domainmaps.num_maps());
 
     return blockA;
@@ -221,12 +202,12 @@ namespace Core::LinAlg
    *  Return 0, if successful. If the given matrix is already filled, the method
    *  returns -1. In this case you should use replace_diagonal_values(), instead.
    *
-   *  \author hiermeier \date 03/17 */
+   *  */
   int insert_my_row_diagonal_into_unfilled_matrix(
       Core::LinAlg::SparseMatrix& mat, const Core::LinAlg::Vector<double>& diag);
 
   /*!
-   \brief Split an Epetra_Map and return the part complementary to \c Agiven
+   \brief Split an Core::LinAlg::Map and return the part complementary to \c Agiven
 
    Splits \c Amap into 2 maps, where one is given on input and the other map
    is created as complementary map. The complementary map is returned.
@@ -235,10 +216,11 @@ namespace Core::LinAlg
    \param[in] Agiven    : on entry submap that is given and part of Amap
    \return the remainder map of Amap that is not overlapping with Agiven
    */
-  std::shared_ptr<Epetra_Map> split_map(const Epetra_Map& Amap, const Epetra_Map& Agiven);
+  std::shared_ptr<Core::LinAlg::Map> split_map(
+      const Core::LinAlg::Map& Amap, const Core::LinAlg::Map& Agiven);
 
   /*!
-   \brief merges two given Epetra_Maps
+   \brief merges two given Core::LinAlg::Maps
 
    merges input map1 and input map2, both of which have to be unique,
    but may be overlapping, to a new map and returns std::shared_ptr to it.
@@ -249,11 +231,11 @@ namespace Core::LinAlg
    map is overlapping (default = true, overlap allowed)
    \return the (sorted) merged map of input maps map1 and map2
    */
-  std::shared_ptr<Epetra_Map> merge_map(
-      const Epetra_Map& map1, const Epetra_Map& map2, bool overlap = true);
+  std::shared_ptr<Core::LinAlg::Map> merge_map(
+      const Core::LinAlg::Map& map1, const Core::LinAlg::Map& map2, bool overlap = true);
 
   /*!
-   \brief find the intersection set of two given Epetra_Maps
+   \brief find the intersection set of two given Core::LinAlg::Maps
 
    Find the insection set of input map1 and input map2.
 
@@ -261,11 +243,12 @@ namespace Core::LinAlg
    \param map2         : second map
    \return the (sorted) intersection map of input maps map1 and map2
    */
-  std::shared_ptr<Epetra_Map> intersect_map(const Epetra_Map& map1, const Epetra_Map& map2);
+  std::shared_ptr<Core::LinAlg::Map> intersect_map(
+      const Core::LinAlg::Map& map1, const Core::LinAlg::Map& map2);
 
 
   /*!
-   \brief merges two given Epetra_Maps
+   \brief merges two given Core::LinAlg::Maps
 
    merges input map1 and input map2 (given as std::shared_ptr), both of which
    have to be unique, but may be overlapping, to a new map and returns
@@ -278,8 +261,8 @@ namespace Core::LinAlg
    map is overlapping (default = true, overlap allowed)
    \return the (sorted) merged map of input maps map1 and map2
    */
-  std::shared_ptr<Epetra_Map> merge_map(const std::shared_ptr<const Epetra_Map>& map1,
-      const std::shared_ptr<const Epetra_Map>& map2, bool overlap = true);
+  std::shared_ptr<Core::LinAlg::Map> merge_map(const std::shared_ptr<const Core::LinAlg::Map>& map1,
+      const std::shared_ptr<const Core::LinAlg::Map>& map2, bool overlap = true);
 
   /*!
      \brief split a vector into 2 non-overlapping pieces (std::shared_ptr version)
@@ -292,9 +275,9 @@ namespace Core::LinAlg
      \param x2      : second vector to be extracted
 
      */
-  bool split_vector(const Epetra_Map& xmap, const Core::LinAlg::Vector<double>& x,
-      std::shared_ptr<Epetra_Map>& x1map, std::shared_ptr<Core::LinAlg::Vector<double>>& x1,
-      std::shared_ptr<Epetra_Map>& x2map, std::shared_ptr<Core::LinAlg::Vector<double>>& x2);
+  bool split_vector(const Core::LinAlg::Map& xmap, const Core::LinAlg::Vector<double>& x,
+      std::shared_ptr<Core::LinAlg::Map>& x1map, std::shared_ptr<Core::LinAlg::Vector<double>>& x1,
+      std::shared_ptr<Core::LinAlg::Map>& x2map, std::shared_ptr<Core::LinAlg::Vector<double>>& x2);
 
   /*!
    \brief split a vector into 2 non-overlapping pieces (std::shared_ptr version)
@@ -307,9 +290,11 @@ namespace Core::LinAlg
    \param x2      : second vector to be extracted
 
    */
-  bool split_vector(const Epetra_Map& xmap, const Core::LinAlg::Vector<double>& x,
-      std::shared_ptr<const Epetra_Map>& x1map, std::shared_ptr<Core::LinAlg::Vector<double>>& x1,
-      std::shared_ptr<const Epetra_Map>& x2map, std::shared_ptr<Core::LinAlg::Vector<double>>& x2);
+  bool split_vector(const Core::LinAlg::Map& xmap, const Core::LinAlg::Vector<double>& x,
+      std::shared_ptr<const Core::LinAlg::Map>& x1map,
+      std::shared_ptr<Core::LinAlg::Vector<double>>& x1,
+      std::shared_ptr<const Core::LinAlg::Map>& x2map,
+      std::shared_ptr<Core::LinAlg::Vector<double>>& x2);
 
   /*! \brief Write values from a std::vector to a Core::LinAlg::MultiVector<double>
    *
@@ -317,12 +302,12 @@ namespace Core::LinAlg
    * Core::LinAlg::MultiVector<double> consists of several single vectors put together after each
    * other.
    *
-   *  \param(in) stdVector:         A std::vector<double> to read data from.
-   *  \param(in) epetraMultiVector: A Core::LinAlg::MultiVector<double> to write data to.
-   *  \param(in) blockSize:         Block size of the Core::LinAlg::MultiVector<double>.
+   *  \param(in) std_vector:   A std::vector<double> to read data from.
+   *  \param(in) multi_vector: A Core::LinAlg::MultiVector<double> to write data to.
+   *  \param(in) block_size:   Block size of the Core::LinAlg::MultiVector<double>.
    */
-  void std_vector_to_epetra_multi_vector(const std::vector<double>& stdVector,
-      Core::LinAlg::MultiVector<double>& epetraMultiVector, const int blockSize);
+  void std_vector_to_multi_vector(const std::vector<double>& std_vector,
+      Core::LinAlg::MultiVector<double>& multi_vector, const int block_size);
 
   /*! \brief Write values from a std::vector to a Core::LinAlg::MultiVector<double>
    *
@@ -330,13 +315,12 @@ namespace Core::LinAlg
    * Core::LinAlg::MultiVector<double> consists of several single vectors put together after each
    * other.
    *
-   *  \param(in) epetraMultiVector: A Core::LinAlg::MultiVector<double> to read data from.
-   *  \param(in) stdVector:         A std::vector<double> to read data to.
-   *  \param(in) blockSize:         Block size of the Core::LinAlg::MultiVector<double>.
+   *  \param(in) multi_vector: A Core::LinAlg::MultiVector<double> to read data from.
+   *  \param(in) std_vector:   A std::vector<double> to read data to.
+   *  \param(in) block_size:   Block size of the Core::LinAlg::MultiVector<double>.
    */
-  void epetra_multi_vector_to_std_vector(const Core::LinAlg::MultiVector<double>& epetraMultiVector,
-      std::vector<double>& stdVector, const int blockSize);
-
+  void multi_vector_to_std_vector(const Core::LinAlg::MultiVector<double>& multi_vector,
+      std::vector<double>& std_vector, const int block_size);
 
 
 }  // namespace Core::LinAlg

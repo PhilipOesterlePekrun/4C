@@ -9,10 +9,12 @@
 
 #include "4C_fem_general_node.hpp"
 #include "4C_fluid_ele_action.hpp"
+#include "4C_fluid_ele_parameter_poro.hpp"
 #include "4C_global_data.hpp"
 #include "4C_io.hpp"
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
 #include "4C_poroelast_utils.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -77,8 +79,6 @@ void FLD::TimIntPoro::set_element_custom_parameter()
 {
   Teuchos::ParameterList eleparams;
 
-  eleparams.set<FLD::Action>("action", FLD::set_poro_parameter);
-
   // set general element parameters
   eleparams.set("form of convective term", convform_);
   eleparams.set<Inpar::FLUID::LinearisationAction>("Linearisation", newton_);
@@ -95,8 +95,10 @@ void FLD::TimIntPoro::set_element_custom_parameter()
       params_->sublist("RESIDUAL-BASED STABILIZATION");
   eleparams.sublist("EDGE-BASED STABILIZATION") = params_->sublist("EDGE-BASED STABILIZATION");
 
-  // call standard loop over elements
-  discret_->evaluate(eleparams, nullptr, nullptr, nullptr, nullptr, nullptr);
+  Discret::Elements::FluidEleParameterPoro* fldpara =
+      Discret::Elements::FluidEleParameterPoro::instance();
+  fldpara->set_element_poro_parameter(
+      eleparams, Core::Communication::my_mpi_rank(discret_->get_comm()));
 }
 
 void FLD::TimIntPoro::set_initial_porosity_field(
@@ -108,7 +110,7 @@ void FLD::TimIntPoro::set_initial_porosity_field(
   {
     case Inpar::PoroElast::initfield_field_by_function:
     {
-      const Epetra_Map* dofrowmap = discret_->dof_row_map();
+      const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
       // loop all nodes on the processor
       for (int lnodeid = 0; lnodeid < discret_->num_my_row_nodes(); lnodeid++)
@@ -131,7 +133,7 @@ void FLD::TimIntPoro::set_initial_porosity_field(
           const int dofgid = nodedofset[k];
           int doflid = dofrowmap->LID(dofgid);
           // evaluate component k of spatial function
-          int err = init_porosity_field_->ReplaceMyValues(1, &initialval, &doflid);
+          int err = init_porosity_field_->replace_local_values(1, &initialval, &doflid);
           if (err != 0) FOUR_C_THROW("dof not on proc");
         }
       }
@@ -139,7 +141,7 @@ void FLD::TimIntPoro::set_initial_porosity_field(
       break;
     }
     default:
-      FOUR_C_THROW("Unknown option for initial field: %d", init);
+      FOUR_C_THROW("Unknown option for initial field: {}", init);
       break;
   }
 }
@@ -159,8 +161,8 @@ void FLD::TimIntPoro::update_iter_incrementally(
 
     // only one step theta
     // new end-point accelerations
-    aux->Update(1.0 / (theta_ * dta_), *velnp_, -1.0 / (theta_ * dta_), *veln_, 0.0);
-    aux->Update(-(1.0 - theta_) / theta_, *accn_, 1.0);
+    aux->update(1.0 / (theta_ * dta_), *velnp_, -1.0 / (theta_ * dta_), *veln_, 0.0);
+    aux->update(-(1.0 - theta_) / theta_, *accn_, 1.0);
     // put only to free/non-DBC DOFs
     dbcmaps_->insert_cond_vector(*dbcmaps_->extract_cond_vector(*accnp_), *aux);
     *accnp_ = *aux;
@@ -175,7 +177,7 @@ void FLD::TimIntPoro::output()
   {
     std::shared_ptr<Core::LinAlg::Vector<double>> convel =
         std::make_shared<Core::LinAlg::Vector<double>>(*velnp_);
-    convel->Update(-1.0, *gridv_, 1.0);
+    convel->update(-1.0, *gridv_, 1.0);
     output_->write_vector("convel", convel);
     output_->write_vector("gridv", gridv_);
   }
@@ -191,10 +193,10 @@ void FLD::TimIntPoro::set_custom_ele_params_assemble_mat_and_rhs(Teuchos::Parame
   eleparams.set<Inpar::FLUID::PhysicalType>("Physical Type", physicaltype_);
 
   // just for poroelasticity
-  discret_->set_state("dispn", dispn_);
-  discret_->set_state("accnp", accnp_);
-  discret_->set_state("accn", accn_);
-  discret_->set_state("gridvn", gridvn_);
+  discret_->set_state("dispn", *dispn_);
+  discret_->set_state("accnp", *accnp_);
+  discret_->set_state("accn", *accn_);
+  discret_->set_state("gridvn", *gridvn_);
 
   eleparams.set("total time", time_);
   eleparams.set("delta time", dta_);
@@ -219,10 +221,10 @@ void FLD::TimIntPoro::poro_int_update()
     eleparams.set<Inpar::FLUID::PhysicalType>("Physical Type", physicaltype_);
 
     discret_->clear_state();
-    discret_->set_state("dispnp", dispnp_);
-    discret_->set_state("gridv", gridv_);
-    discret_->set_state("velnp", velnp_);
-    discret_->set_state("scaaf", scaaf_);
+    discret_->set_state("dispnp", *dispnp_);
+    discret_->set_state("gridv", *gridv_);
+    discret_->set_state("velnp", *velnp_);
+    discret_->set_state("scaaf", *scaaf_);
     discret_->evaluate_condition(
         eleparams, sysmat_, nullptr, residual_, nullptr, nullptr, condname);
     discret_->clear_state();
@@ -241,9 +243,9 @@ void FLD::TimIntPoro::poro_int_update()
     eleparams.set<Inpar::FLUID::PhysicalType>("Physical Type", physicaltype_);
 
     discret_->clear_state();
-    discret_->set_state("dispnp", dispnp_);
-    discret_->set_state("gridv", gridv_);
-    discret_->set_state("velnp", velnp_);
+    discret_->set_state("dispnp", *dispnp_);
+    discret_->set_state("gridv", *gridv_);
+    discret_->set_state("velnp", *velnp_);
     discret_->evaluate_condition(
         eleparams, sysmat_, nullptr, residual_, nullptr, nullptr, condname);
     discret_->clear_state();

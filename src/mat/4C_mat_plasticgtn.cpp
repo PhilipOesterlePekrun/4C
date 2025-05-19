@@ -24,6 +24,7 @@
 #include "4C_mat_stvenantkirchhoff.hpp"
 #include "4C_material_base.hpp"
 #include "4C_material_parameter_base.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 #include "4C_utils_local_newton.hpp"
 
@@ -42,6 +43,7 @@ Mat::PAR::PlasticGTN::PlasticGTN(const Core::Mat::PAR::Parameter::Data& matdata)
       functionID_hardening_(matdata.parameters.get<int>("HARDENING_FUNC")),
       fc_(matdata.parameters.get<double>("FC")),
       kappa_(matdata.parameters.get<double>("KAPPA")),
+      ef_(matdata.parameters.get<double>("EF")),
       f0_(matdata.parameters.get<double>("F0")),
       fn_(matdata.parameters.get<double>("FN")),
       sn_(matdata.parameters.get<double>("SN")),
@@ -97,7 +99,6 @@ void Mat::PlasticGTN::unpack(Core::Communication::UnpackBuffer& buffer)
 {
   isinit_ = true;
 
-
   Core::Communication::extract_and_assert_id(buffer, unique_par_object_id());
 
   int matid;
@@ -113,8 +114,18 @@ void Mat::PlasticGTN::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::PlasticGTN*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
+
+      // Extract the function for hardening again for unpack.
+      const int functionID_hardening =
+          params_->functionID_hardening_;  // function number for isotropic hardening
+      if (functionID_hardening != 0)
+      {
+        hardening_function_ =
+            &Global::Problem::instance()->function_by_id<Core::Utils::FunctionOfAnything>(
+                functionID_hardening);
+      }
     }
 
     int histsize;
@@ -134,7 +145,7 @@ void Mat::PlasticGTN::unpack(Core::Communication::UnpackBuffer& buffer)
     epbar_n1_ = std::vector<double>();
     for (int var = 0; var < histsize; ++var)
     {
-      Core::LinAlg::Matrix<3, 3> tmp_vect(true);
+      Core::LinAlg::Matrix<3, 3> tmp_vect(Core::LinAlg::Initialization::zero);
       double tmp_scalar = 0.0;
 
       extract_from_pack(buffer, tmp_vect);
@@ -484,25 +495,62 @@ double Mat::PlasticGTN::compute_fstar(const double f) const
 {
   const double fC = params_->fc_;
   const double kappa = params_->kappa_;
+  const double ef = params_->ef_;
 
-  if (f <= fC)
+  if (f <= fC - ef)
+  {
     return f;
-  else
+  }
+  else if (f >= fC + ef)
+  {
     return fC + kappa * (f - fC);
+  }
+  else
+  {
+    return (kappa - 1.0) / (4 * ef) * pow(f - fC, 2) + (kappa + 1.0) / 2 * (f - fC) + fC +
+           (kappa - 1) * ef / 4;
+  }
 }
 
 double Mat::PlasticGTN::compute_dfstar_df(const double f) const
 {
   const double fC = params_->fc_;
   const double kappa = params_->kappa_;
+  const double ef = params_->ef_;
 
-  if (f <= fC)
+  if (f <= fC - ef)
+  {
     return 1.0;
-  else
+  }
+  else if (f >= fC + ef)
+  {
     return kappa;
+  }
+  else
+  {
+    return (kappa - 1.0) / (2 * ef) * (f - fC) + (kappa + 1.0) / 2;
+  }
 }
 
-double Mat::PlasticGTN::compute_d2fstar_df2(const double f) const { return 0.0; }
+double Mat::PlasticGTN::compute_d2fstar_df2(const double f) const
+{
+  const double fC = params_->fc_;
+  const double kappa = params_->kappa_;
+  const double ef = params_->ef_;
+
+  if (f <= fC - ef)
+  {
+    return 0.0;
+  }
+  else if (f >= fC + ef)
+  {
+    return 0.0;
+  }
+  else
+  {
+    return (kappa - 1.0) / (2 * ef);
+  }
+}
 
 double Mat::PlasticGTN::compute_damage_nucleation(const double alpha) const
 {
@@ -678,9 +726,9 @@ double Mat::PlasticGTN::yield_derivative(const double alpha) const
   const double isohard = params_->isohard_;  // linear isotropic hardening
   std::vector<std::pair<std::string, double>> dp;
   dp.emplace_back("epsp", alpha);
-  const double y_d = hardening_function_
-                         ? hardening_function_->evaluate(dp, {}, 1)  // using hardening function
-                         : isohard;  // otherwise, use linear hardening
+  const double y_d = hardening_function_ ? hardening_function_->evaluate_derivative(
+                                               dp, {}, 0)[0]  // using hardening function
+                                         : isohard;           // otherwise, use linear hardening
   return y_d;
 }
 

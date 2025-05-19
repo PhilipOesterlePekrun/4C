@@ -11,6 +11,7 @@
 #include "4C_global_data.hpp"
 #include "4C_io.hpp"
 #include "4C_lubrication_ele_action.hpp"
+#include "4C_lubrication_ele_parameter.hpp"
 
 #include <Teuchos_TimeMonitor.hpp>
 
@@ -57,8 +58,6 @@ void Lubrication::TimIntStationary::init()
 void Lubrication::TimIntStationary::set_element_time_parameter() const
 {
   Teuchos::ParameterList eleparams;
-
-  eleparams.set<Lubrication::Action>("action", Lubrication::set_time_parameter);
   eleparams.set<bool>("using generalized-alpha time integration", false);
   eleparams.set<bool>("using stationary formulation", true);
   eleparams.set<double>("time-step length", dta_);
@@ -66,8 +65,8 @@ void Lubrication::TimIntStationary::set_element_time_parameter() const
   eleparams.set<double>("time factor", 1.0);
   eleparams.set<double>("alpha_F", 1.0);
 
-  // call standard loop over elements
-  discret_->evaluate(eleparams, nullptr, nullptr, nullptr, nullptr, nullptr);
+  Discret::Elements::LubricationEleParameter::instance(discret_->name())
+      ->set_time_parameters(eleparams);
 }
 
 
@@ -85,7 +84,7 @@ void Lubrication::TimIntStationary::set_time_for_neumann_evaluation(Teuchos::Par
  *----------------------------------------------------------------------*/
 void Lubrication::TimIntStationary::add_neumann_to_residual()
 {
-  residual_->Update(1.0, *neumann_loads_, 1.0);
+  residual_->update(1.0, *neumann_loads_, 1.0);
 }
 
 
@@ -96,7 +95,7 @@ void Lubrication::TimIntStationary::add_neumann_to_residual()
 void Lubrication::TimIntStationary::add_time_integration_specific_vectors(
     bool forcedincrementalsolver)
 {
-  discret_->set_state("prenp", prenp_);
+  discret_->set_state("prenp", *prenp_);
 }
 
 
@@ -135,7 +134,7 @@ void Lubrication::TimIntStationary::update_iter_incrementally()
 {
   //! new end-point temperatures
   //! T_{n+1}^{<k+1>} := T_{n+1}^{<k>} + IncT_{n+1}^{<k>}
-  prenp_->Update(1.0, *prei_, 1.0);
+  prenp_->update(1.0, *prei_, 1.0);
 }  // update_iter_incrementally()
 
 FOUR_C_NAMESPACE_CLOSE

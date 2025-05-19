@@ -21,7 +21,6 @@
 #include "4C_linalg_vector.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
 
-#include <Epetra_MpiComm.h>
 #include <Teuchos_TimeMonitor.hpp>
 
 #include <ctime>
@@ -446,14 +445,12 @@ namespace FLD
     Therefore, we need to reset the solution back to the initial solution of the
     time step.
 
-    \author mayr.mt
-    \date 08/2013
     */
     void reset_step() override
     {
-      accnp_->Update(1.0, *accn_, 0.0);
-      velnp_->Update(1.0, *veln_, 0.0);
-      dispnp_->Update(1.0, *dispn_, 0.0);
+      accnp_->update(1.0, *accn_, 0.0);
+      velnp_->update(1.0, *veln_, 0.0);
+      dispnp_->update(1.0, *dispn_, 0.0);
 
       return;
     }
@@ -467,7 +464,6 @@ namespace FLD
      *
      *  Currently, this is needed for time step size adaptivity in FSI.
      *
-     *  \author mayr.mt \date 08/2013
      */
     void reset_time(const double dtold) override { set_time_step(time() - dtold, step() - 1); }
 
@@ -643,7 +639,7 @@ namespace FLD
       // separation matrix depends on the number of proc here
       if (turbmodel_ == Inpar::FLUID::multifractal_subgrid_scales and
           params_->sublist("MULTIFRACTAL SUBGRID SCALES").get<bool>("SET_FINE_SCALE_VEL"))
-        fsvelaf_->PutScalar(0.01);
+        fsvelaf_->put_scalar(0.01);
 
       return fsvelaf_;
     }
@@ -660,7 +656,7 @@ namespace FLD
     /// subjected to Dirichlet boundary conditions. For instance, the method is
     /// called by the staggered FSI in which the velocities on the FSI
     /// interface are prescribed by the other fields.
-    void add_dirich_cond(const std::shared_ptr<const Epetra_Map> maptoadd) override;
+    void add_dirich_cond(const std::shared_ptr<const Core::LinAlg::Map> maptoadd) override;
 
     /// Contract the Dirichlet DOF set
     ///
@@ -671,7 +667,7 @@ namespace FLD
     /// subjected to Dirichlet boundary conditions. This method is
     /// called solely by immersed FSI to remove the Dirichlet values from
     /// the previous solution step before a new set is prescribed.
-    void remove_dirich_cond(const std::shared_ptr<const Epetra_Map> maptoremove) override;
+    void remove_dirich_cond(const std::shared_ptr<const Core::LinAlg::Map> maptoremove) override;
 
     /// Extract the Dirichlet toggle vector based on Dirichlet BC maps
     ///
@@ -720,7 +716,7 @@ namespace FLD
     //! Create mesh displacement at time level t_{n+1}
     virtual std::shared_ptr<Core::LinAlg::Vector<double>> create_dispnp()
     {
-      const Epetra_Map* aledofrowmap = discret_->dof_row_map(ndsale_);
+      const Core::LinAlg::Map* aledofrowmap = discret_->dof_row_map(ndsale_);
       dispnp_ = Core::LinAlg::create_vector(*aledofrowmap, true);
       return dispnp_;
     }
@@ -731,7 +727,7 @@ namespace FLD
     //! Create mesh displacement at time level t_{n}
     virtual std::shared_ptr<Core::LinAlg::Vector<double>> create_dispn()
     {
-      const Epetra_Map* aledofrowmap = discret_->dof_row_map(ndsale_);
+      const Core::LinAlg::Map* aledofrowmap = discret_->dof_row_map(ndsale_);
       dispn_ = Core::LinAlg::create_vector(*aledofrowmap, true);
       return dispn_;
     }
@@ -756,9 +752,9 @@ namespace FLD
     {
       return velpressplitter_;
     };
-    std::shared_ptr<const Epetra_Map> velocity_row_map() override;
-    std::shared_ptr<const Epetra_Map> pressure_row_map() override;
-    //  virtual void SetMeshMap(std::shared_ptr<const Epetra_Map> mm);
+    std::shared_ptr<const Core::LinAlg::Map> velocity_row_map() override;
+    std::shared_ptr<const Core::LinAlg::Map> pressure_row_map() override;
+    //  virtual void SetMeshMap(std::shared_ptr<const Core::LinAlg::Map> mm);
     //  double TimeScaling() const;
 
     /// Use residual_scaling() to convert the implemented fluid residual to an actual force with
@@ -823,7 +819,7 @@ namespace FLD
     */
     void set_velocity_field(std::shared_ptr<const Core::LinAlg::Vector<double>> setvelnp) override
     {
-      velnp_->Update(1.0, *setvelnp, 0.0);
+      velnp_->update(1.0, *setvelnp, 0.0);
       return;
     }
 
@@ -1418,7 +1414,6 @@ namespace FLD
      *  with the velocity vector \f$u\f$ and the mass matrix \f$M\f$. Then, it is
      *  written to an output file.
      *
-     *  \author mayr.mt \date 05/2014
      */
     virtual void write_output_kinetic_energy();
 

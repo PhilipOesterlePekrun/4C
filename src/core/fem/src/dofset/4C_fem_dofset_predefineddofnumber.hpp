@@ -95,11 +95,11 @@ namespace Core::DOFSets
     }
 
     /// Add Dof Set to list #static_dofsets_
-    void add_dof_setto_list() override
+    void add_dof_set_to_list() override
     {
       if (unique_gids_)
         // add to static list -> the auxiliary dofs will get unique gids
-        DofSet::add_dof_setto_list();
+        DofSet::add_dof_set_to_list();
       else
         // do nothing -> probably gids assigned to auxiliary dofs will not be unique
         return;
@@ -111,7 +111,7 @@ namespace Core::DOFSets
     {
       // redistribute internal vectors if necessary
       if (numdofpernodenodewise_ != nullptr and
-          not numdofpernodenodewise_->Map().SameAs(*dis.node_col_map()))
+          not numdofpernodenodewise_->get_map().SameAs(*dis.node_col_map()))
       {
         Core::LinAlg::Vector<int> numdofpernodenodewise_rowmap(*dis.node_row_map());
         Core::LinAlg::export_to(*numdofpernodenodewise_, numdofpernodenodewise_rowmap);
@@ -119,7 +119,7 @@ namespace Core::DOFSets
         Core::LinAlg::export_to(numdofpernodenodewise_rowmap, *numdofpernodenodewise_);
       }
       if (numdofperelementelewise_ != nullptr and
-          not numdofperelementelewise_->Map().SameAs(*dis.element_col_map()))
+          not numdofperelementelewise_->get_map().SameAs(*dis.element_col_map()))
       {
         Core::LinAlg::Vector<int> numdofperelementelewise_rowmap(*dis.element_row_map());
         Core::LinAlg::export_to(*numdofperelementelewise_, numdofperelementelewise_rowmap);

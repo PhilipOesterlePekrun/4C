@@ -49,9 +49,9 @@ void Solid::TimeInt::Explicit::setup()
   enum Inpar::Solid::NonlinSolTech nlnSolverType = data_sdyn().get_nln_solver_type();
   if (nlnSolverType != Inpar::Solid::soltech_singlestep)
   {
-    std::cout << "WARNING!!!Nonlinear solver for explicit dynamics is given (in the dat file) as "
-              << Inpar::Solid::nonlin_sol_tech_string(nlnSolverType)
-              << ". This is not compatible. singlestep solver will be selected." << std::endl;
+    std::cout << "WARNING!!!Nonlinear solver for explicit dynamics is given (in the input file) as "
+              << nlnSolverType << ". This is not compatible. singlestep solver will be selected."
+              << std::endl;
     nlnSolverType = Inpar::Solid::soltech_singlestep;
   }
   nlnsolver_ptr_ = Solid::Nln::SOLVER::build_nln_solver(nlnSolverType);
@@ -109,7 +109,7 @@ void Solid::TimeInt::Explicit::evaluate()
 {
   check_init_setup();
   throw_if_state_not_in_sync_with_nox_group();
-  ::NOX::Abstract::Group& grp = nln_solver().solution_group();
+  ::NOX::Abstract::Group& grp = nln_solver().get_solution_group();
 
   auto* grp_ptr = dynamic_cast<NOX::Nln::Group*>(&grp);
   if (grp_ptr == nullptr) FOUR_C_THROW("Dynamic cast failed!");
@@ -209,7 +209,7 @@ Inpar::Solid::StcScale Solid::TimeInt::Explicit::get_stc_algo()
 {
   check_init_setup();
   FOUR_C_THROW("get_stc_algo() has not been tested for explicit time integration.");
-  return Inpar::Solid::stc_none;
+  return Inpar::Solid::stc_inactive;
 };
 
 

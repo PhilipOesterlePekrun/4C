@@ -15,7 +15,7 @@
 #include "4C_utils_exceptions.hpp"
 #include "4C_utils_string.hpp"
 
-#include <boost/algorithm/string.hpp>
+#include <Teuchos_StrUtils.hpp>
 
 #include <format>
 
@@ -40,7 +40,7 @@ namespace RTD
     if (row.size() != tablewidth_)
     {
       FOUR_C_THROW(
-          "Trying to add %i row elements into a table with %i rows", row.size(), tablewidth_);
+          "Trying to add {} row elements into a table with {} rows", row.size(), tablewidth_);
     }
     tablerows_.push_back(row);
   }
@@ -51,8 +51,8 @@ namespace RTD
     if (widths.size() != tablewidth_)
     {
       FOUR_C_THROW(
-          "Number of given cell widths (%i) "
-          "does not correspond to the number of rows (%i)",
+          "Number of given cell widths ({}) "
+          "does not correspond to the number of rows ({})",
           widths.size(), tablewidth_);
     }
     widths_ = widths;
@@ -145,7 +145,7 @@ namespace RTD
     stream << line << "\n";
     if (level > headerchar.size())
     {
-      FOUR_C_THROW("Header level for ReadTheDocs output must be [0,3], but is %i", level);
+      FOUR_C_THROW("Header level for ReadTheDocs output must be [0,3], but is {}", level);
     }
     stream << std::string(headerlength, headerchar[level]);
     stream << "\n\n";
@@ -154,21 +154,21 @@ namespace RTD
   /*----------------------------------------------------------------------*/
   void write_paragraph(std::ostream& stream, std::string paragraph, size_t indent)
   {
-    size_t mathstartpos = paragraph.find("\f$");
+    size_t mathstartpos = paragraph.find("$");
     size_t mathendpos = 0;
     while (mathstartpos != paragraph.npos)
     {
-      mathendpos = paragraph.find("\f$", mathstartpos + 1);
+      mathendpos = paragraph.find("$", mathstartpos + 1);
       if (mathendpos == paragraph.npos)
       {
         FOUR_C_THROW(
             "Math tags in a ReadTheDocs paragraph must occur pairwise. "
-            "Error found in: \n" +
+            "Error found in: {}\n",
             paragraph);
       }
-      paragraph.replace(mathendpos, 2, "`");
-      paragraph.replace(mathstartpos, 2, ":math:`");
-      mathstartpos = paragraph.find("\f$");
+      paragraph.replace(mathendpos, 1, "`");
+      paragraph.replace(mathstartpos, 1, ":math:`");
+      mathstartpos = paragraph.find("$");
     }
     stream << std::string(" ", indent) << paragraph << "\n\n";
   }
@@ -220,7 +220,7 @@ namespace RTD
         const unsigned celldimension = Core::FE::get_dimension(celltype);
         if (celldimension != outputdim) continue;
 
-        std::string celltypelinkname = boost::algorithm::to_lower_copy(celltypename);
+        std::string celltypelinkname = Core::Utils::to_lower(celltypename);
         write_linktarget(stream, celltypelinkname);
         write_header(stream, 3, celltypename);
 
@@ -258,10 +258,36 @@ namespace RTD
     }
   }
 
+  void write_single_material_read_the_docs(
+      std::ostream& stream, const Core::IO::InputSpec& material)
+  {
+    /* Each entry consists of a number of fields:
+    - header
+    - description
+    - code line
+    - parameter description */
+
+    // the Material title
+    write_linktarget(stream, material.impl().name());
+    write_header(stream, 1, material.impl().name());
+
+    // the description of the material
+    std::string materialDescription = material.impl().description();
+    write_paragraph(stream, materialDescription);
+
+    std::stringstream specs_string;
+    material.print_as_dat(specs_string);
+
+    // Split on newline because this is what the write_code function expects
+    std::vector<std::string> specs_list = Core::Utils::split(specs_string.str(), "\n");
+
+    write_code(stream, specs_list);
+  }
+
   /*----------------------------------------------------------------------*/
   /*----------------------------------------------------------------------*/
-  void write_material_reference(
-      std::ostream& stream, const std::vector<std::shared_ptr<Mat::MaterialDefinition>>& matlist)
+  void write_material_reference(std::ostream& stream,
+      const std::unordered_map<Core::Materials::MaterialType, Core::IO::InputSpec>& materials)
   {
     write_linktarget(stream, "materialsreference");
     write_header(stream, 0, "Material reference");
@@ -269,9 +295,9 @@ namespace RTD
     std::vector<std::string> materialsectionstring{std::string(58, '-') + "MATERIALS"};
     write_code(stream, materialsectionstring);
 
-    for (auto& material : matlist)
+    for (auto& material : materials)
     {
-      write_single_material_read_the_docs(stream, material);
+      write_single_material_read_the_docs(stream, material.second);
     }
     //
     // adding the section for the CLONING MATERIAL MAP
@@ -296,55 +322,6 @@ namespace RTD
   }
 
 
-  void write_single_material_read_the_docs(
-      std::ostream& stream, const std::shared_ptr<Mat::MaterialDefinition> material)
-  {
-    /* Each entry consists of a number of fields:
-    - header
-    - description
-    - code line
-    - parameter description */
-
-    // the Material title
-    write_linktarget(stream, material->name());
-    write_header(stream, 1, material->name());
-
-    // the description of the material
-    std::string materialDescription = material->description();
-    write_paragraph(stream, materialDescription);
-
-    // Also: create the table from the parameter descriptions
-    const unsigned tablesize = 3;
-    Table parametertable(tablesize);
-    std::vector<std::string> tablerow(tablesize);
-    tablerow = {"Parameter", "optional", "Description"};
-    parametertable.add_row(tablerow);
-
-
-    for (const auto& spec : material->specs())
-    {
-      std::vector<std::string> table_row;
-      table_row.push_back(spec.impl().name());
-      table_row.emplace_back((spec.impl().required() ? "" : "yes"));
-      table_row.push_back(spec.impl().description());
-
-      parametertable.add_row(table_row);
-    }
-
-    //
-    // Now printing the parameter table
-    parametertable.set_widths({10, 10, 50});
-    parametertable.add_directive("header-rows", "1");
-
-    if (parametertable.get_rows() == 1)
-    {
-      tablerow = {"no parameters", "", ""};
-      parametertable.add_row(tablerow);
-    }
-    parametertable.print(stream);
-
-    return;
-  }
   /*----------------------------------------------------------------------*/
   /*----------------------------------------------------------------------*/
   void write_header_reference(
@@ -375,7 +352,8 @@ namespace RTD
           issubsection = true;
         }
         fullname += name;
-        std::string linktarget = boost::algorithm::replace_all_copy(fullname, "/", "_");
+        std::string linktarget = fullname;
+        std::ranges::replace(linktarget, '/', '_');
         linktarget = Teuchos::StrUtils::removeAllSpaces(Core::Utils::to_lower(linktarget));
 
         if (entry.isList())  // it is a section header
@@ -392,13 +370,6 @@ namespace RTD
           std::vector<std::string> codelines;
           codelines.push_back("--" + std::string(std::max<int>(65 - l, 0), '-') + fullname);
           write_code(stream, codelines);
-
-          if (Core::IO::need_to_print_equal_sign(list.sublist(name)))
-          {
-            write_note(stream,
-                "   The parameters in this section need an equal sign (=) "
-                "between the parameter name and its value!");
-          }
 
           write_header_reference(stream, list.sublist(name), fullname);
         }
@@ -473,26 +444,6 @@ namespace RTD
     unsigned l = sectionname.length();
     std::vector<std::string> conditioncode{
         "--" + std::string(std::max<int>(65 - l, 0), '-') + sectionname};
-    // second line: geometry type
-    std::string name;
-    switch (condition.geometry_type())
-    {
-      case Core::Conditions::geometry_type_point:
-        conditioncode.push_back("DPOINT  0");
-        break;
-      case Core::Conditions::geometry_type_line:
-        conditioncode.push_back("DLINE  0");
-        break;
-      case Core::Conditions::geometry_type_surface:
-        conditioncode.push_back("DSURF  0");
-        break;
-      case Core::Conditions::geometry_type_volume:
-        conditioncode.push_back("DVOL  0");
-        break;
-      default:
-        FOUR_C_THROW("geometry type unspecified");
-        break;
-    }
     write_code(stream, conditioncode);
 
     // Avoid writing an empty code block if there are no specs for this condition
@@ -684,5 +635,25 @@ namespace RTD
       yamlfile << yamlcelltypestring;
     }
   }
+  void replace_restructuredtext_keys(std::string& documentation_string)
+  {
+    size_t mathstartpos = documentation_string.find("$");
+    size_t mathendpos = 0;
+    while (mathstartpos != documentation_string.npos)
+    {
+      mathendpos = documentation_string.find("$", mathstartpos + 1);
+      if (mathendpos == documentation_string.npos)
+      {
+        FOUR_C_THROW(
+            "Math tags in a ReadTheDocs paragraph must occur pairwise. "
+            "Error found in: {}\n",
+            documentation_string);
+      }
+      documentation_string.replace(mathendpos, 1, "`");
+      documentation_string.replace(mathstartpos, 1, ":math:`");
+      mathstartpos = documentation_string.find("$");
+    }
+  }
+
 }  // namespace RTD
 FOUR_C_NAMESPACE_CLOSE

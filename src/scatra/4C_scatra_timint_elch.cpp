@@ -22,11 +22,14 @@
 #include "4C_mat_list.hpp"
 #include "4C_rebalance_binning_based.hpp"
 #include "4C_scatra_ele_action.hpp"
+#include "4C_scatra_ele_parameter_elch.hpp"
+#include "4C_scatra_ele_parameter_elch_diffcond.hpp"
 #include "4C_scatra_resulttest_elch.hpp"
 #include "4C_scatra_timint_elch_service.hpp"
 #include "4C_scatra_timint_meshtying_strategy_fluid_elch.hpp"
 #include "4C_scatra_timint_meshtying_strategy_s2i_elch.hpp"
 #include "4C_scatra_timint_meshtying_strategy_std_elch.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function_of_time.hpp"
 #include "4C_utils_parameter_list.hpp"
 
@@ -138,7 +141,7 @@ void ScaTra::ScaTraTimIntElch::setup()
   // additional flux terms / currents across Dirichlet boundaries for the standard element call
   std::shared_ptr<Core::LinAlg::Vector<double>> dirichones =
       Core::LinAlg::create_vector(*(dbcmaps_->cond_map()), false);
-  dirichones->PutScalar(1.0);
+  dirichones->put_scalar(1.0);
   dctoggle_ = Core::LinAlg::create_vector(*(discret_->dof_row_map()), true);
   dbcmaps_->insert_cond_vector(*dirichones, *dctoggle_);
 
@@ -308,10 +311,10 @@ void ScaTra::ScaTraTimIntElch::setup()
             "no CCCV half-cycle boundary conditions!");
       }
       if (!cccvcyclingcondition.parameters()
-              .get<Core::IO::Noneable<int>>("CONDITION_ID_FOR_CHARGE")
+              .get<std::optional<int>>("CONDITION_ID_FOR_CHARGE")
               .has_value() or
           !cccvcyclingcondition.parameters()
-              .get<Core::IO::Noneable<int>>("CONDITION_ID_FOR_DISCHARGE")
+              .get<std::optional<int>>("CONDITION_ID_FOR_DISCHARGE")
               .has_value())
       {
         FOUR_C_THROW(
@@ -358,9 +361,9 @@ void ScaTra::ScaTraTimIntElch::setup_conc_pot_split()
     }
   }
 
-  auto concdofmap = std::make_shared<Epetra_Map>(-1, static_cast<int>(conc_dofs.size()),
+  auto concdofmap = std::make_shared<Core::LinAlg::Map>(-1, static_cast<int>(conc_dofs.size()),
       conc_dofs.data(), 0, Core::Communication::as_epetra_comm(discret_->get_comm()));
-  auto potdofmap = std::make_shared<Epetra_Map>(-1, static_cast<int>(pot_dofs.size()),
+  auto potdofmap = std::make_shared<Core::LinAlg::Map>(-1, static_cast<int>(pot_dofs.size()),
       pot_dofs.data(), 0, Core::Communication::as_epetra_comm(discret_->get_comm()));
 
   // set up concentration-potential splitter
@@ -394,12 +397,12 @@ void ScaTra::ScaTraTimIntElch::setup_conc_pot_pot_split()
   }
 
   // transform sets to maps
-  std::vector<std::shared_ptr<const Epetra_Map>> maps(3, nullptr);
-  maps[0] = std::make_shared<Epetra_Map>(-1, static_cast<int>(conc_dofs.size()), conc_dofs.data(),
-      0, Core::Communication::as_epetra_comm(discret_->get_comm()));
-  maps[1] = std::make_shared<Epetra_Map>(-1, static_cast<int>(pot_el_dofs.size()),
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> maps(3, nullptr);
+  maps[0] = std::make_shared<Core::LinAlg::Map>(-1, static_cast<int>(conc_dofs.size()),
+      conc_dofs.data(), 0, Core::Communication::as_epetra_comm(discret_->get_comm()));
+  maps[1] = std::make_shared<Core::LinAlg::Map>(-1, static_cast<int>(pot_el_dofs.size()),
       pot_el_dofs.data(), 0, Core::Communication::as_epetra_comm(discret_->get_comm()));
-  maps[2] = std::make_shared<Epetra_Map>(-1, static_cast<int>(pot_ed_dofs.size()),
+  maps[2] = std::make_shared<Core::LinAlg::Map>(-1, static_cast<int>(pot_ed_dofs.size()),
       pot_ed_dofs.data(), 0, Core::Communication::as_epetra_comm(discret_->get_comm()));
 
   // set up concentration-potential-potential splitter
@@ -412,19 +415,6 @@ void ScaTra::ScaTraTimIntElch::setup_conc_pot_pot_split()
 void ScaTra::ScaTraTimIntElch::set_element_specific_scatra_parameters(
     Teuchos::ParameterList& eleparams) const
 {
-  // overwrite action type
-  if (elchparams_->get<bool>("DIFFCOND_FORMULATION"))
-  {
-    Core::Utils::add_enum_class_to_parameter_list<ScaTra::Action>(
-        "action", ScaTra::Action::set_diffcond_scatra_parameter, eleparams);
-
-    // parameters for diffusion-conduction formulation
-    eleparams.sublist("DIFFCOND") = elchparams_->sublist("DIFFCOND");
-  }
-  else
-    Core::Utils::add_enum_class_to_parameter_list<ScaTra::Action>(
-        "action", ScaTra::Action::set_elch_scatra_parameter, eleparams);
-
   // general elch parameters
   eleparams.set<double>("faraday", elchparams_->get<double>("FARADAY_CONSTANT"));
   eleparams.set<double>("gas_constant", elchparams_->get<double>("GAS_CONSTANT"));
@@ -432,6 +422,18 @@ void ScaTra::ScaTraTimIntElch::set_element_specific_scatra_parameters(
   eleparams.set<double>("temperature", temperature_);
   eleparams.set<Inpar::ElCh::EquPot>("equpot", equpot_);
   eleparams.set<bool>("boundaryfluxcoupling", elchparams_->get<bool>("COUPLE_BOUNDARY_FLUXES"));
+
+  // set additional, problem-dependent parameters
+  Discret::Elements::ScaTraEleParameterElch::instance(discret_->name())->set_parameters(eleparams);
+
+  if (elchparams_->get<bool>("DIFFCOND_FORMULATION"))
+  {
+    // parameters for diffusion-conduction formulation
+    eleparams.sublist("DIFFCOND") = elchparams_->sublist("DIFFCOND");
+
+    Discret::Elements::ScaTraEleParameterElchDiffCond::instance(discret_->name())
+        ->set_parameters(eleparams);
+  }
 }
 
 /*----------------------------------------------------------------------*
@@ -495,7 +497,7 @@ double ScaTra::ScaTraTimIntElch::extrapolate_state_adapt_time_step(double dt)
   // If so, adapt time step
   switch (cccv_condition_->get_cccv_half_cycle_phase())
   {
-    case Inpar::ElCh::CCCVHalfCyclePhase::initital_relaxation:
+    case Inpar::ElCh::CCCVHalfCyclePhase::initial_relaxation:
     {
       const double time_new = time_ + 2 * dt;                     // extrapolate
       if (time_new >= cccv_condition_->get_initial_relax_time())  // check
@@ -563,7 +565,7 @@ void ScaTra::ScaTraTimIntElch::add_problem_specific_parameters_and_vectors(
     Teuchos::ParameterList& params  //!< parameter list
 )
 {
-  discret_->set_state("dctoggle", dctoggle_);
+  discret_->set_state("dctoggle", *dctoggle_);
 }
 
 /*----------------------------------------------------------------------*
@@ -698,7 +700,7 @@ void ScaTra::ScaTraTimIntElch::evaluate_error_compared_to_analytical_sol()
       eleparams.set<Inpar::ScaTra::CalcError>("calcerrorflag", calcerror_);
 
       // set vector values needed by elements
-      discret_->set_state("phinp", phinp_);
+      discret_->set_state("phinp", *phinp_);
 
       // get (squared) error values
       std::shared_ptr<Core::LinAlg::SerialDenseVector> errors =
@@ -746,7 +748,7 @@ void ScaTra::ScaTraTimIntElch::evaluate_error_compared_to_analytical_sol()
       eleparams.set<Inpar::ScaTra::CalcError>("calcerrorflag", calcerror_);
 
       // set vector values needed by elements
-      discret_->set_state("phinp", phinp_);
+      discret_->set_state("phinp", *phinp_);
 
       // get (squared) error values
       std::shared_ptr<Core::LinAlg::SerialDenseVector> errors =
@@ -778,7 +780,7 @@ void ScaTra::ScaTraTimIntElch::evaluate_error_compared_to_analytical_sol()
       eleparams.set<Inpar::ScaTra::CalcError>("calcerrorflag", calcerror_);
 
       // set vector values needed by elements
-      discret_->set_state("phinp", phinp_);
+      discret_->set_state("phinp", *phinp_);
 
       // get (squared) error values
       std::shared_ptr<Core::LinAlg::SerialDenseVector> errors =
@@ -891,9 +893,9 @@ void ScaTra::ScaTraTimIntElch::read_restart_problem_specific(
   for (auto* s2ikinetics_cond : s2ikinetics_conditions)
   {
     // only slave side has relevant information
-    if (s2ikinetics_cond->parameters().get<int>("INTERFACE_SIDE") ==
+    if (s2ikinetics_cond->parameters().get<Inpar::S2I::InterfaceSides>("INTERFACE_SIDE") ==
             static_cast<int>(Inpar::S2I::side_slave) and
-        s2ikinetics_cond->parameters().get<int>("KINETIC_MODEL") ==
+        s2ikinetics_cond->parameters().get<Inpar::S2I::KineticModels>("KINETIC_MODEL") ==
             static_cast<int>(Inpar::S2I::kinetics_butlervolmerreducedcapacitance))
     {
       reader.read_vector(phidtnp_, "phidtnp");
@@ -986,9 +988,9 @@ ScaTra::ScaTraTimIntElch::evaluate_single_electrode_info(
     const int condid, const std::string& condstring)
 {
   // set vector values needed by elements
-  discret_->set_state("phinp", phinp_);
+  discret_->set_state("phinp", *phinp_);
   // needed for double-layer capacity!
-  discret_->set_state("phidtnp", phidtnp_);
+  discret_->set_state("phidtnp", *phidtnp_);
 
   // create parameter list
   Teuchos::ParameterList eleparams;
@@ -1001,7 +1003,7 @@ ScaTra::ScaTraTimIntElch::evaluate_single_electrode_info(
     Core::Utils::add_enum_class_to_parameter_list<ScaTra::BoundaryAction>(
         "action", ScaTra::BoundaryAction::calc_elch_boundary_kinetics, eleparams);
   else
-    FOUR_C_THROW("Invalid action " + condstring + " for output of electrode status information!");
+    FOUR_C_THROW("Invalid action {} for output of electrode status information!", condstring);
 
   eleparams.set("calc_status", true);  // just want to have a status output!
 
@@ -1041,8 +1043,8 @@ ScaTra::ScaTraTimIntElch::evaluate_single_electrode_info_point(
     std::shared_ptr<Core::Conditions::Condition> condition)
 {
   // add state vectors to discretization
-  discret_->set_state("phinp", phinp_);
-  discret_->set_state("phidtnp", phidtnp_);  // needed for double layer capacity
+  discret_->set_state("phinp", *phinp_);
+  discret_->set_state("phidtnp", *phidtnp_);  // needed for double layer capacity
 
   // add state vectors according to time integration scheme
   add_time_integration_specific_vectors();
@@ -1096,7 +1098,7 @@ ScaTra::ScaTraTimIntElch::evaluate_single_electrode_info_point(
 
     // safety checks
     if (node == nullptr)
-      FOUR_C_THROW("Cannot find node with global ID %d on discretization!", nodeid);
+      FOUR_C_THROW("Cannot find node with global ID {} on discretization!", nodeid);
     if (node->num_element() != 1)
     {
       FOUR_C_THROW(
@@ -1109,7 +1111,7 @@ ScaTra::ScaTraTimIntElch::evaluate_single_electrode_info_point(
 
     // determine location information
     Core::Elements::LocationArray la(discret_->num_dof_sets());
-    element->location_vector(*discret_, la, false);
+    element->location_vector(*discret_, la);
 
     // dummy matrix and right-hand side vector
     Core::LinAlg::SerialDenseMatrix elematrix_dummy;
@@ -1121,7 +1123,7 @@ ScaTra::ScaTraTimIntElch::evaluate_single_electrode_info_point(
 
     // safety check
     if (error)
-      FOUR_C_THROW("Element with global ID %d returned error code %d on processor %d!",
+      FOUR_C_THROW("Element with global ID {} returned error code {} on processor {}!",
           element->id(), error, Core::Communication::my_mpi_rank(discret_->get_comm()));
   }
 
@@ -1358,8 +1360,8 @@ void ScaTra::ScaTraTimIntElch::evaluate_electrode_info_interior()
       const int condid = condition->parameters().get<int>("ConditionID");
 
       // add state vectors to discretization
-      discret_->set_state("phinp", phinp_);
-      discret_->set_state("phidtnp", phidtnp_);
+      discret_->set_state("phinp", *phinp_);
+      discret_->set_state("phidtnp", *phidtnp_);
 
       // create parameter list
       Teuchos::ParameterList condparams;
@@ -1481,7 +1483,7 @@ void ScaTra::ScaTraTimIntElch::evaluate_cell_voltage()
       if (conditionspoint.empty())
       {
         // add state vector to discretization
-        discret_->set_state("phinp", phinp_);
+        discret_->set_state("phinp", *phinp_);
 
         // create parameter list
         Teuchos::ParameterList condparams;
@@ -1528,7 +1530,7 @@ void ScaTra::ScaTraTimIntElch::evaluate_cell_voltage()
           Core::Nodes::Node* node = discret_->g_node(nodeid);
           if (node == nullptr)
             FOUR_C_THROW(
-                "Cannot extract node with global ID %d from scalar transport discretization!",
+                "Cannot extract node with global ID {} from scalar transport discretization!",
                 nodeid);
 
           // extract degrees of freedom from node
@@ -1537,7 +1539,7 @@ void ScaTra::ScaTraTimIntElch::evaluate_cell_voltage()
           // extract local ID of degree of freedom associated with electrode potential
           const int lid = discret_->dof_row_map()->LID(*dofs.rbegin());
           if (lid < 0)
-            FOUR_C_THROW("Cannot extract degree of freedom with global ID %d!", *dofs.rbegin());
+            FOUR_C_THROW("Cannot extract degree of freedom with global ID {}!", *dofs.rbegin());
 
           // extract electrode potential
           potential = (*phinp_)[lid];
@@ -1627,9 +1629,9 @@ void ScaTra::ScaTraTimIntElch::write_restart() const
   for (auto* s2ikinetics_cond : s2ikinetics_conditions)
   {
     // only slave side has relevant information
-    if (s2ikinetics_cond->parameters().get<int>("INTERFACE_SIDE") ==
+    if (s2ikinetics_cond->parameters().get<Inpar::S2I::InterfaceSides>("INTERFACE_SIDE") ==
             static_cast<int>(Inpar::S2I::side_slave) and
-        s2ikinetics_cond->parameters().get<int>("KINETIC_MODEL") ==
+        s2ikinetics_cond->parameters().get<Inpar::S2I::KineticModels>("KINETIC_MODEL") ==
             static_cast<int>(Inpar::S2I::kinetics_butlervolmerreducedcapacitance))
     {
       output_->write_vector("phidtnp", phidtnp_);
@@ -1660,10 +1662,10 @@ void ScaTra::ScaTraTimIntElch::collect_runtime_output_data()
 void ScaTra::ScaTraTimIntElch::setup_nat_conv()
 {
   // calculate the initial mean concentration value
-  if (num_scal() < 1) FOUR_C_THROW("Error since numscal = %d. Not allowed since < 1", num_scal());
+  if (num_scal() < 1) FOUR_C_THROW("Error since numscal = {}. Not allowed since < 1", num_scal());
   c0_.resize(num_scal());
 
-  discret_->set_state("phinp", phinp_);
+  discret_->set_state("phinp", *phinp_);
 
   // set action for elements
   Teuchos::ParameterList eleparams;
@@ -1720,7 +1722,7 @@ void ScaTra::ScaTraTimIntElch::setup_nat_conv()
     densific_[0] = actmat->densification();
 
     if (densific_[0] < 0.0) FOUR_C_THROW("received negative densification value");
-    if (num_scal() > 1) FOUR_C_THROW("Single species calculation but numscal = %d > 1", num_scal());
+    if (num_scal() > 1) FOUR_C_THROW("Single species calculation but numscal = {} > 1", num_scal());
   }
   else
     FOUR_C_THROW("Material type is not allowed!");
@@ -1826,7 +1828,8 @@ void ScaTra::ScaTraTimIntElch::init_nernst_bc()
   for (unsigned icond = 0; icond < Elchcond.size(); ++icond)
   {
     // check if Nernst-BC is defined on electrode kinetics condition
-    if (Elchcond[icond]->parameters().get<int>("KINETIC_MODEL") == Inpar::ElCh::nernst)
+    if (Elchcond[icond]->parameters().get<Inpar::ElCh::ElectrodeKinetics>("KINETIC_MODEL") ==
+        Inpar::ElCh::nernst)
     {
       // safety check
       if (!Elchcond[icond]->geometry_description())
@@ -1855,7 +1858,7 @@ void ScaTra::ScaTraTimIntElch::init_nernst_bc()
 
             // define electrode kinetics toggle
             // later on this toggle is used to blank the sysmat and rhs
-            ektoggle_->ReplaceGlobalValues(1, &one, &nodedofs[num_scal()]);
+            ektoggle_->replace_global_values(1, &one, &nodedofs[num_scal()]);
           }
         }
       }
@@ -1865,7 +1868,7 @@ void ScaTra::ScaTraTimIntElch::init_nernst_bc()
   }
 
   // At element level the Nernst condition has to be handled like a DC
-  if (ektoggle_ != nullptr) dctoggle_->Update(1.0, *ektoggle_, 1.0);
+  if (ektoggle_ != nullptr) dctoggle_->update(1.0, *ektoggle_, 1.0);
 }
 
 /*----------------------------------------------------------------------------------------*
@@ -1975,17 +1978,17 @@ void ScaTra::ScaTraTimIntElch::calc_initial_potential_field()
     std::shared_ptr<Core::LinAlg::Vector<double>> pot_vector =
         splitter_->extract_cond_vector(*phinp_);
     double pot_state_L2(0.0);
-    pot_vector->Norm2(&pot_state_L2);
+    pot_vector->norm_2(&pot_state_L2);
 
     // compute L2 norm of electric potential residual vector
     splitter_->extract_cond_vector(*residual_, *pot_vector);
     double pot_res_L2(0.);
-    pot_vector->Norm2(&pot_res_L2);
+    pot_vector->norm_2(&pot_res_L2);
 
     // compute L2 norm of electric potential increment vector
     splitter_->extract_cond_vector(*increment_, *pot_vector);
     double pot_inc_L2(0.);
-    pot_vector->Norm2(&pot_inc_L2);
+    pot_vector->norm_2(&pot_inc_L2);
 
     // care for the case that nothing really happens in the potential field
     if (pot_state_L2 < 1e-5) pot_state_L2 = 1.0;
@@ -2075,7 +2078,7 @@ void ScaTra::ScaTraTimIntElch::calc_initial_potential_field()
       FOUR_C_THROW("calculated vector norm is INF.");
 
     // zero out increment vector
-    increment_->PutScalar(0.);
+    increment_->put_scalar(0.);
 
     // store time before solving global system of equations
     const double time = Teuchos::Time::wallTime();
@@ -2096,7 +2099,7 @@ void ScaTra::ScaTraTimIntElch::calc_initial_potential_field()
     splitter_->add_cond_vector(*splitter_->extract_cond_vector(*increment_), *phinp_);
 
     // copy initial state vector
-    phin_->Update(1., *phinp_, 0.);
+    phin_->update(1., *phinp_, 0.);
 
     // update state vectors for intermediate time steps (only for generalized alpha)
     compute_intermediate_values();
@@ -2417,7 +2420,7 @@ bool ScaTra::ScaTraTimIntElch::apply_galvanostatic_control()
         // safety check
         if (abs((currtangent)[condid_cathode]) < 1e-13)
           FOUR_C_THROW(
-              "Tangent in galvanostatic control is near zero: %lf", (currtangent)[condid_cathode]);
+              "Tangent in galvanostatic control is near zero: {}", (currtangent)[condid_cathode]);
       }
 
       // calculate the cell potential increment due to ohmic resistance
@@ -2503,8 +2506,8 @@ bool ScaTra::ScaTraTimIntElch::apply_galvanostatic_control()
       else
       {
         FOUR_C_THROW(
-            "The combination of the parameter GSTAT_APPROX_ELECT_RESIST %i and the number of "
-            "electrodes %i\n is not valid!",
+            "The combination of the parameter GSTAT_APPROX_ELECT_RESIST {} and the number of "
+            "electrodes {}\n is not valid!",
             approxelctresist, conditions.size());
       }
 
@@ -2697,7 +2700,7 @@ void ScaTra::ScaTraTimIntElch::evaluate_electrode_boundary_kinetics_point_condit
 
       // safety checks
       if (node == nullptr)
-        FOUR_C_THROW("Cannot find node with global ID %d on discretization!", nodeid);
+        FOUR_C_THROW("Cannot find node with global ID {} on discretization!", nodeid);
       if (node->num_element() != 1)
       {
         FOUR_C_THROW(
@@ -2710,7 +2713,7 @@ void ScaTra::ScaTraTimIntElch::evaluate_electrode_boundary_kinetics_point_condit
 
       // determine location information
       Core::Elements::LocationArray la(discret_->num_dof_sets());
-      element->location_vector(*discret_, la, false);
+      element->location_vector(*discret_, la);
 
       // initialize element matrix
       const int size = (int)la[0].lm_.size();
@@ -2737,7 +2740,7 @@ void ScaTra::ScaTraTimIntElch::evaluate_electrode_boundary_kinetics_point_condit
 
       // safety check
       if (error)
-        FOUR_C_THROW("Element with global ID %d returned error code %d on processor %d!",
+        FOUR_C_THROW("Element with global ID {} returned error code {} on processor {}!",
             element->id(), error, Core::Communication::my_mpi_rank(discret_->get_comm()));
 
       // assemble element matrix and right-hand side vector into global system of equations
@@ -2767,7 +2770,7 @@ void ScaTra::ScaTraTimIntElch::linearization_nernst_condition()
 
   // add element parameters and set state vectors according to time-integration scheme
   // we need here concentration at t+np
-  discret_->set_state("phinp", phinp_);
+  discret_->set_state("phinp", *phinp_);
 
   std::string condstring("ElchBoundaryKinetics");
   // evaluate ElchBoundaryKinetics conditions at time t_{n+1} or t_{n+alpha_F}
@@ -2917,7 +2920,7 @@ void ScaTra::ScaTraTimIntElch::apply_dirichlet_bc(const double time,
                 dbcgids.insert(gid);
 
                 // apply cutoff voltage as Dirichlet boundary condition
-                phinp->ReplaceGlobalValue(gid, 0, cutoff_voltage);
+                phinp->replace_global_value(gid, 0, cutoff_voltage);
               }
             }
           }  // loop over all nodes
@@ -2927,9 +2930,9 @@ void ScaTra::ScaTraTimIntElch::apply_dirichlet_bc(const double time,
         }  // relevant condition
       }  // loop over all conditions
 
-      // transform set into vector and then into Epetra map
+      // transform set into vector and then into map
       std::vector<int> dbcgidsvec(dbcgids.begin(), dbcgids.end());
-      auto dbcmap = std::make_shared<Epetra_Map>(-1, static_cast<int>(dbcgids.size()),
+      auto dbcmap = std::make_shared<Core::LinAlg::Map>(-1, static_cast<int>(dbcgids.size()),
           dbcgidsvec.data(), dof_row_map()->IndexBase(), dof_row_map()->Comm());
 
       // merge map with existing map for Dirichlet boundary conditions
@@ -2976,7 +2979,7 @@ void ScaTra::ScaTraTimIntElch::apply_neumann_bc(
             // condition.
             const std::vector<int> onoff = {0, 1};
             const std::vector<double> val = {0.0, condition->parameters().get<double>("CURRENT")};
-            const std::vector<Core::IO::Noneable<int>> funct = {0, 0};
+            const std::vector<std::optional<int>> funct = {0, 0};
             condition->parameters().add("NUMDOF", 2);
             condition->parameters().add("FUNCT", funct);
             condition->parameters().add("ONOFF", onoff);
@@ -3025,7 +3028,7 @@ void ScaTra::ScaTraTimIntElch::apply_neumann_bc(
                                      ? *node->x().data() * *node->x().data() * four_pi
                                      : 1.0;
 
-              neumann_loads->SumIntoMyValue(dof_lid, 0, neumann_value * fac);
+              neumann_loads->sum_into_local_value(dof_lid, 0, neumann_value * fac);
             }
           }
 
@@ -3074,12 +3077,12 @@ void ScaTra::ScaTraTimIntElch::perform_aitken_relaxation(
       // compute L2 norm of difference between current and previous increments of current degree
       // of freedom
       double phinp_inc_diff_L2(0.);
-      phinp_inc_diff_dof->Norm2(&phinp_inc_diff_L2);
+      phinp_inc_diff_dof->norm_2(&phinp_inc_diff_L2);
 
       // compute dot product between increment of current degree of freedom and difference between
       // current and previous increments of current degree of freedom
       double phinp_inc_dot_phinp_inc_diff(0.);
-      if (phinp_inc_diff_dof->Dot(*phinp_inc_dof, &phinp_inc_dot_phinp_inc_diff))
+      if (phinp_inc_diff_dof->dot(*phinp_inc_dof, &phinp_inc_dot_phinp_inc_diff))
         FOUR_C_THROW("Couldn't compute dot product!");
 
       // compute Aitken relaxation factor for current degree of freedom
@@ -3160,7 +3163,7 @@ int ScaTra::ScalarHandlerElch::num_scal_in_condition(const Core::Conditions::Con
  *-----------------------------------------------------------------------------*/
 void ScaTra::ScaTraTimIntElch::build_block_maps(
     const std::vector<std::shared_ptr<Core::Conditions::Condition>>& partitioningconditions,
-    std::vector<std::shared_ptr<const Epetra_Map>>& blockmaps) const
+    std::vector<std::shared_ptr<const Core::LinAlg::Map>>& blockmaps) const
 {
   if (matrix_type() == Core::LinAlg::MatrixType::block_condition_dof)
   {
@@ -3198,8 +3201,9 @@ void ScaTra::ScaTraTimIntElch::build_block_maps(
         std::unordered_set<int> dof_set(dofs.begin(), dofs.end());
         FOUR_C_ASSERT(dof_set.size() == dofs.size(), "The dofs are not unique");
 #endif
-        blockmaps.emplace_back(std::make_shared<Epetra_Map>(-1, static_cast<int>(dofs.size()),
-            dofs.data(), 0, Core::Communication::as_epetra_comm(discret_->get_comm())));
+        blockmaps.emplace_back(
+            std::make_shared<Core::LinAlg::Map>(-1, static_cast<int>(dofs.size()), dofs.data(), 0,
+                Core::Communication::as_epetra_comm(discret_->get_comm())));
       }
     }
   }
@@ -3239,14 +3243,14 @@ void ScaTra::ScaTraTimIntElch::reduce_dimension_null_space_blocks(
 
     const int dimns = mueluparams.get<int>("null space: dimension");
     std::vector<double> nullspace(nspVector->MyLength() * nspVector->NumVectors());
-    Core::LinAlg::epetra_multi_vector_to_std_vector(*nspVector, nullspace, dimns);
+    Core::LinAlg::multi_vector_to_std_vector(*nspVector, nullspace, dimns);
 
     // null space associated with concentration dofs
     if (iblock % 2 == 0)
     {
       // remove zero null space vector associated with electric potential dofs by truncating
       // null space
-      nullspace.resize(block_maps()->Map(iblock)->NumMyElements());
+      nullspace.resize(block_maps()->map(iblock)->NumMyElements());
     }
     // null space associated with electric potential dofs
     else
@@ -3254,7 +3258,7 @@ void ScaTra::ScaTraTimIntElch::reduce_dimension_null_space_blocks(
       // remove zero null space vector(s) associated with concentration dofs and retain only
       // the last null space vector associated with electric potential dofs
       nullspace.erase(
-          nullspace.begin(), nullspace.end() - block_maps()->Map(iblock)->NumMyElements());
+          nullspace.begin(), nullspace.end() - block_maps()->map(iblock)->NumMyElements());
     }
 
     // decrease null space dimension and number of partial differential equations by one
@@ -3267,8 +3271,8 @@ void ScaTra::ScaTraTimIntElch::reduce_dimension_null_space_blocks(
     const int dimnsnew = mueluparams.get<int>("null space: dimension");
     std::shared_ptr<Core::LinAlg::MultiVector<double>> nspVectornew =
         std::make_shared<Core::LinAlg::MultiVector<double>>(
-            *(block_maps()->Map(iblock)), dimnsnew, true);
-    Core::LinAlg::std_vector_to_epetra_multi_vector(nullspace, *nspVectornew, dimnsnew);
+            *(block_maps()->map(iblock)), dimnsnew, true);
+    Core::LinAlg::std_vector_to_multi_vector(nullspace, *nspVectornew, dimnsnew);
 
     mueluparams.set<std::shared_ptr<Core::LinAlg::MultiVector<double>>>("nullspace", nspVectornew);
   }
@@ -3288,7 +3292,7 @@ double ScaTra::ScaTraTimIntElch::get_current_temperature() const
 {
   double temperature(-1.0);
 
-  // if no function is defined we use the value set in the dat-file
+  // if no function is defined we use the value set in the input file
   if (temperature_funct_num_ == -1)
     temperature = elchparams_->get<double>("TEMPERATURE");
   else
@@ -3316,7 +3320,7 @@ void ScaTra::ScaTraTimIntElch::evaluate_cccv_phase()
 
     // which mode was last converged step? Is this phase over? Is the current half cycle over?
     if (cccv_condition_->get_cccv_half_cycle_phase() ==
-        Inpar::ElCh::CCCVHalfCyclePhase::initital_relaxation)
+        Inpar::ElCh::CCCVHalfCyclePhase::initial_relaxation)
     {
       // or-case is required to be independent of the time step size
       if (cccv_condition_->is_initial_relaxation(time_, dt()) or (time_ == 0.0))

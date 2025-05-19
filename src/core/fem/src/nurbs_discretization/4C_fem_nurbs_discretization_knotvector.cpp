@@ -118,7 +118,7 @@ void Core::FE::Nurbs::Knotvector::convert_ele_gid_to_knot_ids(
 {
   if ((int)loc_cart_id.size() != dim_)
   {
-    FOUR_C_THROW("size vector not of appropriate size (%d,%d)\n", (int)loc_cart_id.size(), dim_);
+    FOUR_C_THROW("size vector not of appropriate size ({},{})\n", (int)loc_cart_id.size(), dim_);
   }
 
   if (filled_ == false)
@@ -551,7 +551,7 @@ void Core::FE::Nurbs::Knotvector::set_knots(const int& direction, const int& npa
   }
   else
   {
-    FOUR_C_THROW("unknown knotvector-type '%s'\n", knotvectortype.c_str());
+    FOUR_C_THROW("unknown knotvector-type '{}'\n", knotvectortype);
   }
 
   // set the degree of the added knotvector
@@ -646,7 +646,7 @@ void Core::FE::Nurbs::Knotvector::finish_knots(const int smallest_gid_in_dis)
       // has it the correct size?
       if ((int)(*((knot_values_[np])[rr])).size() != (n_x_m_x_l_[np])[rr])
       {
-        FOUR_C_THROW("knotvector size mismatch to n_x_m_x_l_ %d!=%d\n",
+        FOUR_C_THROW("knotvector size mismatch to n_x_m_x_l_ {}!={}\n",
             (*((knot_values_[np])[rr])).size(), (n_x_m_x_l_[np])[rr]);
       }
 
@@ -664,8 +664,9 @@ void Core::FE::Nurbs::Knotvector::finish_knots(const int smallest_gid_in_dis)
 
         for (int mm = 1; mm < (degree_[np])[rr] + 1; ++mm)
         {
-          double db = abs((*((knot_values_[np])[rr]))[mm] - firstval);
-          double de = abs((*((knot_values_[np])[rr]))[(n_x_m_x_l_[np])[rr] - 1 - mm] - lastval);
+          double db = std::abs((*((knot_values_[np])[rr]))[mm] - firstval);
+          double de =
+              std::abs((*((knot_values_[np])[rr]))[(n_x_m_x_l_[np])[rr] - 1 - mm] - lastval);
 
           if (de > 1e-9 || db > 1e-9)
           {
@@ -683,7 +684,7 @@ void Core::FE::Nurbs::Knotvector::finish_knots(const int smallest_gid_in_dis)
           double db = (*((knot_values_[np])[rr]))[mm] - (*((knot_values_[np])[rr]))[mm - 1];
           double de = (*((knot_values_[np])[rr]))[(n_x_m_x_l_[np])[rr] - mm] -
                       (*((knot_values_[np])[rr]))[(n_x_m_x_l_[np])[rr] - 1 - mm];
-          if (abs(de - db) > 1e-9)
+          if (std::abs(de - db) > 1e-9)
           {
             FOUR_C_THROW("periodic knotvector doesn't obey periodicity\n");
           }

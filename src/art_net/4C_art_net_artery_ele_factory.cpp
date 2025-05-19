@@ -10,6 +10,7 @@
 #include "4C_art_net_artery_ele_calc_lin_exp.hpp"
 #include "4C_art_net_artery_ele_calc_pres_based.hpp"
 #include "4C_art_net_artery_ele_interface.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -65,7 +66,7 @@ Discret::Elements::ArteryEleInterface* Discret::Elements::ArtNetFactory::define_
     }
     default:
     {
-      FOUR_C_THROW("Defined problem type %d does not exist!!", problem);
+      FOUR_C_THROW("Defined problem type {} does not exist!!", problem);
       break;
     }
   }

@@ -21,6 +21,7 @@ SHAPEFCT                        Nurbs
 NUMSTRUCDIS                     1
 --------------------------------------------------------------------SOLVER 1
 SOLVER                          Belos
+IFPACK_XML_FILE                 xml/preconditioner/ifpack.xml
 --------------------------------------------------------------------SOLVER 2
 NAME                            nurbs_ls_dbc
 SOLVER                          Belos
@@ -29,7 +30,7 @@ SOLVER_XML_FILE                 xml/linear_solver/iterative_gmres_template.xml
 DO_LS_DBC_PROJECTION            Yes
 SOLVER_LS_DBC_PROJECTION        2
 ----------------------------------------------------------STRUCTURAL DYNAMIC
-DAMPING                         no
+DAMPING                         None
 DIVERCONT                       stop
 DYNAMICTYPE                      OneStepTheta
 ITERNORM                        L2
@@ -53,7 +54,7 @@ RESEVERYERGY                     0
 RESTARTEVERY                     1
 RESULTSEVERY                     1
 STC_LAYER                       1
-STC_SCALING                     no
+STC_SCALING                     Inactive
 TIMESTEP                        0.1
 TOLCONSTR                       1e-06
 TOLDISP                         1e-6
@@ -78,18 +79,16 @@ STRUCTURE DIS structure NODE 4433 QUANTITY dispz VALUE -1.35222703202944855e-01 
 STRUCTURE DIS structure NODE 3876 QUANTITY dispz VALUE -2.44717418524232344e-01 TOLERANCE 1e-8
 STRUCTURE DIS structure NODE 2323 QUANTITY dispz VALUE -1.74736143972716612e-01 TOLERANCE 1e-8
 -----------------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF                           7
 //E 5 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
-E 13 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
-E 21 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
-E 29 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
-E 6 - NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 10.0 FUNCT 0 0 1
-E 14 - NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 10.0 FUNCT 0 0 1
-E 22 - NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 10.0 FUNCT 0 0 1
-E 30 - NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 10.0 FUNCT 0 0 1
+E 13 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 21 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 29 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 6 NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 10.0 FUNCT 0 0 1
+E 14 NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 10.0 FUNCT 0 0 1
+E 22 NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 10.0 FUNCT 0 0 1
+E 30 NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 10.0 FUNCT 0 0 1
 -----------------------------------------------DESIGN SURF NURBS LS DIRICH CONDITIONS
-DSURF                           1
-E 5 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 5 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 -----------------------------------------------------------------NODE COORDS
 CP 1 COORD +2.000000e+00 +0.000000e+00 -1.046667e-01 +1.000000e+00
 CP 2 COORD +2.000000e+00 +3.004422e-01 -1.046667e-01 +9.414214e-01

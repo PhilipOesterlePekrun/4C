@@ -102,11 +102,11 @@ NORM_PRES                       Abs
 NORM_RESF                       Abs
 NUMSTEP                         200
 PREDICT                         ConstDis
-RESEVERYERGY                     0
-RESTARTEVERY                     1
-RESULTSEVERY                     1
+RESEVERYERGY                    0
+RESTARTEVERY                    1
+RESULTSEVERY                    1
 STC_LAYER                       1
-STC_SCALING                     no
+STC_SCALING                     Inactive
 TIMESTEP                        0.05
 TOLCONSTR                       1e-08
 TOLDISP                         1e-10
@@ -172,12 +172,11 @@ AZOUTPUT                        0
 AZSOLVE                         GMRES
 AZPREC                          ILU
 AZREUSE                         0
-IFPACKGFILL                     0
 AZTOL                           1.0E-9
 AZCONV                          AZ_r0
 AZITER                          1000
 AZSUB                           40
-IFPACKOVERLAP                   0
+IFPACK_XML_FILE                 xml/preconditioner/ifpack.xml
 --------------------------------------------------------CLONING MATERIAL MAP
 SRC_FIELD structure SRC_MAT 1 TAR_FIELD porofluid TAR_MAT 4
 SRC_FIELD structure SRC_MAT 1 TAR_FIELD scatra TAR_MAT 5
@@ -221,7 +220,7 @@ SCATRA DIS scatra NODE 3750 QUANTITY phi3 VALUE 4.05824301887131327e+01 TOLERANC
 SCATRA DIS scatra NODE 3798 QUANTITY phi3 VALUE 7.22765478570622975e+01 TOLERANCE 1e-8
 SCATRA DIS scatra NODE 3845 QUANTITY phi5 VALUE 1.28241685198337119e+00 TOLERANCE 1e-8
 SCATRA DIS scatra NODE 3893 QUANTITY phi5 VALUE 5.59398625840065056e-01 TOLERANCE 1e-8
-SCATRA DIS scatra SPECIAL QUANTITY numiterlastnewton VALUE 1 TOLERANCE 1.0e-12
+SCATRA DIS scatra SPECIAL true QUANTITY numiterlastnewton VALUE 1 TOLERANCE 1.0e-12
 ----------------------------------------------------------------------FUNCT1
 COMPONENT 0 SYMBOLIC_FUNCTION_OF_SPACE_TIME 0.1
 COMPONENT 1 SYMBOLIC_FUNCTION_OF_SPACE_TIME 100.1
@@ -233,57 +232,51 @@ COMPONENT 0 SYMBOLIC_FUNCTION_OF_SPACE_TIME 0.5
 ----------------------------------------------------------------------FUNCT3
 COMPONENT 0 SYMBOLIC_FUNCTION_OF_SPACE_TIME -1/121*(y-11)*(y+11)
 -------------------------------------DESIGN LINE DIRICH CONDITIONS
-DLINE  8
 // ECM_left
-E 1 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 1 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 // ECM_right
-E 2 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 2 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 // ECM_top
-E 3 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 3 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 // ECM_bottom
-E 4 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 4 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 // cell_top
-E 6 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 6 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 // cell_bottom
-E 7 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 7 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 // cell_left
-E 8 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 8 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 // cell_right
-E 5 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 5 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 -------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF  1
 // ECM
-E 1 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 1 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 ---------------------------DESIGN LINE TRANSPORT DIRICH CONDITIONS
-DLINE  2
 // ECM_right
-E 2 - NUMDOF 5 ONOFF 1 1 1 0 0 VAL 0.1 100.1 0.1 1.0 0.5 FUNCT 0 0 0 0 0
+E 2 NUMDOF 5 ONOFF 1 1 1 0 0 VAL 0.1 100.1 0.1 1.0 0.5 FUNCT 0 0 0 0 0
 // cell_right
-E 5 - NUMDOF 5 ONOFF 1 0 0 0 0 VAL 100.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0
+E 5 NUMDOF 5 ONOFF 1 0 0 0 0 VAL 100.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0
 --------------------------------DESIGN LINE PORO DIRICH CONDITIONS
-DLINE  7
 // ECM_right
-E 2 - NUMDOF 3 ONOFF 1 1 0 VAL -1.0 0.0 0.0 FUNCT 3 0 0
+E 2 NUMDOF 3 ONOFF 1 1 0 VAL -1.0 0.0 0.0 FUNCT 3 0 0
 // ECM_top
-E 3 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 3 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 // ECM_bottom
-E 4 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 4 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 // cell_top
-E 6 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 6 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 // cell_bottom
-E 7 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 7 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 // cell_left
-E 8 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 8 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 // cell_right
-E 5 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 5 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 ------------------------------DESIGN SURF INITIAL FIELD CONDITIONS
-DSURF  1
 // ECM
-E 1 - FIELD Porosity FUNCT 2
+E 1 FIELD Porosity FUNCT 2
 -----------------------------DESIGN SURFACE POROCOUPLING CONDITION
-DSURF  1
 // ECM
-E 1 -
+E 1
 -----------------------------------------------DLINE-NODE TOPOLOGY
 NODE    1 DLINE 1
 NODE    2 DLINE 1

@@ -38,12 +38,10 @@ void Discret::Elements::MembraneScatra<distype>::pre_evaluate(Teuchos::Parameter
       std::shared_ptr<const Core::LinAlg::Vector<double>> scalarnp =
           discretization.get_state(1, scalarfield);
 
-      if (scalarnp == nullptr) FOUR_C_THROW("can not get state vector %s", scalarfield.c_str());
+      if (scalarnp == nullptr) FOUR_C_THROW("can not get state vector {}", scalarfield);
 
       // extract local values of the global vectors
-      std::vector<double> myscalar(la[1].lm_.size(), 0.0);
-
-      Core::FE::extract_my_values(*scalarnp, myscalar, la[1].lm_);
+      std::vector<double> myscalar = Core::FE::extract_values(*scalarnp, la[1].lm_);
 
       // element vector for k-th scalar
       std::vector<Core::LinAlg::Matrix<Membrane<distype>::numnod_, 1>> elescalar(numscal);
@@ -64,7 +62,8 @@ void Discret::Elements::MembraneScatra<distype>::pre_evaluate(Teuchos::Parameter
               numgp, std::vector<double>(numscal, 0.0));
 
       // allocate vector for shape functions and matrix for derivatives at gp
-      Core::LinAlg::Matrix<Membrane<distype>::numnod_, 1> shapefcts(true);
+      Core::LinAlg::Matrix<Membrane<distype>::numnod_, 1> shapefcts(
+          Core::LinAlg::Initialization::zero);
 
       // loop over gauss points
       for (int gp = 0; gp < numgp; ++gp)
@@ -103,17 +102,15 @@ void Discret::Elements::MembraneScatra<distype>::pre_evaluate(Teuchos::Parameter
 template <Core::FE::CellType distype>
 int Discret::Elements::MembraneScatra<distype>::evaluate(Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, Core::Elements::LocationArray& la,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3)
 {
   // in some cases we need to write/change some data before evaluating
   pre_evaluate(params, discretization, la);
 
-  Membrane<distype>::evaluate(params, discretization, la[0].lm_, elemat1_epetra, elemat2_epetra,
-      elevec1_epetra, elevec2_epetra, elevec3_epetra);
+  Membrane<distype>::evaluate(
+      params, discretization, la[0].lm_, elemat1, elemat2, elevec1, elevec2, elevec3);
 
   return 0;
 }

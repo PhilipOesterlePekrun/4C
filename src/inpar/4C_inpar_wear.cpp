@@ -7,67 +7,99 @@
 
 #include "4C_inpar_wear.hpp"
 
-#include "4C_utils_parameter_list.hpp"
-
+#include "4C_io_input_spec_builders.hpp"
 FOUR_C_NAMESPACE_OPEN
 
 
 
-void Inpar::Wear::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::Wear::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
-  using Teuchos::tuple;
+  using namespace Core::IO::InputSpecBuilders;
 
   /* parameters for wear */
-  Teuchos::ParameterList& wear = list.sublist("WEAR", false, "");
+  list["WEAR"] = group("WEAR",
+      {
 
-  setStringToIntegralParameter<WearLaw>("WEARLAW", "None", "Type of wear law",
-      tuple<std::string>("None", "none", "Archard", "archard"),
-      tuple<WearLaw>(wear_none, wear_none, wear_archard, wear_archard), &wear);
+          deprecated_selection<WearLaw>("WEARLAW",
+              {
+                  {"None", wear_none},
+                  {"none", wear_none},
+                  {"Archard", wear_archard},
+                  {"archard", wear_archard},
+              },
+              {.description = "Type of wear law", .default_value = wear_none}),
 
-  Core::Utils::bool_parameter("MATCHINGGRID", "Yes", "is matching grid", &wear);
 
-  setStringToIntegralParameter<WearShape>("WEAR_SHAPEFCN", "std",
-      "Type of employed set of shape functions for wear",
-      tuple<std::string>("Dual", "dual", "Standard", "standard", "std"),
-      tuple<WearShape>(wear_shape_dual, wear_shape_dual, wear_shape_standard, wear_shape_standard,
-          wear_shape_standard),
-      &wear);
+          parameter<bool>(
+              "MATCHINGGRID", {.description = "is matching grid", .default_value = true}),
 
-  Core::Utils::double_parameter("WEARCOEFF", 0.0, "Wear coefficient for slave surface", &wear);
-  Core::Utils::double_parameter(
-      "WEARCOEFF_MASTER", 0.0, "Wear coefficient for master surface", &wear);
-  Core::Utils::double_parameter(
-      "WEAR_TIMERATIO", 1.0, "Time step ratio between wear and spatial time scale", &wear);
-  Core::Utils::double_parameter("SSSLIP", 1.0, "Fixed slip for steady state wear", &wear);
+          deprecated_selection<WearShape>("WEAR_SHAPEFCN",
+              {
+                  {"Dual", wear_shape_dual},
+                  {"dual", wear_shape_dual},
+                  {"Standard", wear_shape_standard},
+                  {"standard", wear_shape_standard},
+                  {"std", wear_shape_standard},
+              },
+              {.description = "Type of employed set of shape functions for wear",
+                  .default_value = wear_shape_standard}),
 
-  Core::Utils::bool_parameter("SSWEAR", "No", "flag for steady state wear", &wear);
+          parameter<double>("WEARCOEFF",
+              {.description = "Wear coefficient for slave surface", .default_value = 0.0}),
+          parameter<double>("WEARCOEFF_MASTER",
+              {.description = "Wear coefficient for master surface", .default_value = 0.0}),
+          parameter<double>("WEAR_TIMERATIO",
+              {.description = "Time step ratio between wear and spatial time scale",
+                  .default_value = 1.0}),
+          parameter<double>(
+              "SSSLIP", {.description = "Fixed slip for steady state wear", .default_value = 1.0}),
 
-  Core::Utils::bool_parameter(
-      "VOLMASS_OUTPUT", "No", "flag for output of mass/volume in ref,mat and cur. conf.", &wear);
+          parameter<bool>(
+              "SSWEAR", {.description = "flag for steady state wear", .default_value = false}),
 
-  setStringToIntegralParameter<WearSide>("WEAR_SIDE", "slave", "Definition of wear side",
-      tuple<std::string>("s", "slave", "Slave", "both", "slave_master", "sm"),
-      tuple<WearSide>(wear_slave, wear_slave, wear_slave, wear_both, wear_both, wear_both), &wear);
+          deprecated_selection<WearSide>("WEAR_SIDE",
+              {
+                  {"s", wear_slave},
+                  {"slave", wear_slave},
+                  {"Slave", wear_slave},
+                  {"both", wear_both},
+                  {"slave_master", wear_both},
+                  {"sm", wear_both},
+              },
+              {.description = "Definition of wear side", .default_value = wear_slave}),
 
-  setStringToIntegralParameter<WearType>("WEARTYPE", "internal_state",
-      "Definition of wear algorithm",
-      tuple<std::string>("intstate", "is", "internal_state", "primvar", "pv", "primary_variable"),
-      tuple<WearType>(
-          wear_intstate, wear_intstate, wear_intstate, wear_primvar, wear_primvar, wear_primvar),
-      &wear);
+          deprecated_selection<WearType>("WEARTYPE",
+              {
+                  {"intstate", wear_intstate},
+                  {"is", wear_intstate},
+                  {"internal_state", wear_intstate},
+                  {"primvar", wear_primvar},
+                  {"pv", wear_primvar},
+                  {"primary_variable", wear_primvar},
+              },
+              {.description = "Definition of wear algorithm", .default_value = wear_intstate}),
 
-  setStringToIntegralParameter<WearTimInt>("WEARTIMINT", "explicit",
-      "Definition of wear time integration",
-      tuple<std::string>("explicit", "e", "expl", "implicit", "i", "impl"),
-      tuple<WearTimInt>(wear_expl, wear_expl, wear_expl, wear_impl, wear_impl, wear_impl), &wear);
+          deprecated_selection<WearTimInt>("WEARTIMINT",
+              {
+                  {"explicit", wear_expl},
+                  {"e", wear_expl},
+                  {"expl", wear_expl},
+                  {"implicit", wear_impl},
+                  {"i", wear_impl},
+                  {"impl", wear_impl},
+              },
+              {.description = "Definition of wear time integration", .default_value = wear_expl}),
 
-  setStringToIntegralParameter<WearTimeScale>("WEAR_TIMESCALE", "equal",
-      "Definition wear time scale compares to std. time scale",
-      tuple<std::string>("equal", "e", "different", "d"),
-      tuple<WearTimeScale>(
-          wear_time_equal, wear_time_equal, wear_time_different, wear_time_different),
-      &wear);
+          deprecated_selection<WearTimeScale>("WEAR_TIMESCALE",
+              {
+                  {"equal", wear_time_equal},
+                  {"e", wear_time_equal},
+                  {"different", wear_time_different},
+                  {"d", wear_time_different},
+              },
+              {.description = "Definition wear time scale compares to std. time scale",
+                  .default_value = wear_time_equal})},
+      {.defaultable = true});
 }
 
 FOUR_C_NAMESPACE_CLOSE

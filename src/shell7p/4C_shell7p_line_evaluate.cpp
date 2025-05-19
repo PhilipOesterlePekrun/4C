@@ -29,13 +29,12 @@ int Discret::Elements::Shell7pLine::evaluate_neumann(Teuchos::ParameterList& par
   std::shared_ptr<const Core::LinAlg::Vector<double>> disp =
       discretization.get_state("displacement");
   if (disp == nullptr) FOUR_C_THROW("Cannot get state vector 'displacement'");
-  std::vector<double> displacements(dof_index_array.size());
-  Core::FE::extract_my_values(*disp, displacements, dof_index_array);
+  std::vector<double> displacements = Core::FE::extract_values(*disp, dof_index_array);
 
   // get values and switches from the condition
   const auto onoff = condition.parameters().get<std::vector<int>>("ONOFF");
   const auto val = condition.parameters().get<std::vector<double>>("VAL");
-  const auto spa_func = condition.parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+  const auto spa_func = condition.parameters().get<std::vector<std::optional<int>>>("FUNCT");
 
   // time curve business
   // find out whether we will use a time curve

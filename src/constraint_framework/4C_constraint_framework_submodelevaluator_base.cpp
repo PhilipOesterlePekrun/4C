@@ -20,7 +20,7 @@
 FOUR_C_NAMESPACE_OPEN
 
 
-bool CONSTRAINTS::SUBMODELEVALUATOR::ConstraintBase::evaluate_force_stiff(
+bool Constraints::SubmodelEvaluator::ConstraintBase::evaluate_force_stiff(
     const Core::LinAlg::Vector<double>& displacement_vector,
     std::shared_ptr<Solid::TimeInt::BaseDataGlobalState>& global_state_ptr,
     std::shared_ptr<Core::LinAlg::SparseMatrix> me_stiff_ptr,
@@ -54,7 +54,7 @@ bool CONSTRAINTS::SUBMODELEVALUATOR::ConstraintBase::evaluate_force_stiff(
   return true;
 }
 
-void CONSTRAINTS::SUBMODELEVALUATOR::ConstraintBase::evaluate_coupling_terms(
+void Constraints::SubmodelEvaluator::ConstraintBase::evaluate_coupling_terms(
     Solid::TimeInt::BaseDataGlobalState& gstate)
 {
   // Get the number of multipoint equations
@@ -62,7 +62,7 @@ void CONSTRAINTS::SUBMODELEVALUATOR::ConstraintBase::evaluate_coupling_terms(
   for (const auto& mpc : listMPCs_) ncon_ += mpc->get_number_of_mp_cs();
 
   // ToDo: Add an offset to the constraint dof map.
-  n_condition_map_ = std::make_shared<Epetra_Map>(ncon_, 0, stiff_ptr_->Comm());
+  n_condition_map_ = std::make_shared<Core::LinAlg::Map>(ncon_, 0, stiff_ptr_->Comm());
 
   // initialise all global coupling objects
   constraint_vector_ = std::make_shared<Core::LinAlg::Vector<double>>(*n_condition_map_, true);
@@ -78,7 +78,7 @@ void CONSTRAINTS::SUBMODELEVALUATOR::ConstraintBase::evaluate_coupling_terms(
   {
     obj->evaluate_equation(*Q_dd_, *Q_dL_, *Q_Ld_, *constraint_vector_, *dis_np);
   }
-  Core::IO::cout(Core::IO::verbose) << "Evaluated all constraint objects" << Core::IO::endl;
+  Core::IO::cout(Core::IO::debug) << "Evaluated all constraint objects" << Core::IO::endl;
 
   // Complete
   Q_dd_->complete();

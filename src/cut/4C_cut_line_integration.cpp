@@ -1387,7 +1387,6 @@ namespace
     }
 
     FOUR_C_THROW("The base function for boundarycell integration undefined");
-    exit(1);
     return 0.0;
   }
 
@@ -1960,7 +1959,6 @@ namespace
       return basef_surf;
     }
     FOUR_C_THROW("The base function for boundarycell integration undefined");
-    exit(1);
     return 0.0;
   }
 
@@ -2528,7 +2526,6 @@ namespace
       return basef_surf;
     }
     FOUR_C_THROW("The base function for boundarycell integration undefined");
-    exit(1);
     return 0.0;
   }
 }  // namespace
@@ -2605,7 +2602,7 @@ double LineIntegration::integrate_line()
 void LineIntegration::transform(const Core::LinAlg::Matrix<2, 2>& xyze, const double& eta,
     Core::LinAlg::Matrix<2, 1>& x_gp_lin, Core::LinAlg::Matrix<2, 1>& normal, double& drs)
 {
-  const int numnodes = Core::FE::num_nodes<Core::FE::CellType::line2>;
+  const int numnodes = Core::FE::num_nodes(Core::FE::CellType::line2);
   Core::LinAlg::Matrix<numnodes, 1> funct;
   Core::LinAlg::Matrix<1, numnodes> deriv;
   Core::LinAlg::Matrix<1, 1> metrictensor;

@@ -7,10 +7,11 @@
 
 #include "4C_contact_defines.hpp"
 #include "4C_contact_friction_node.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_contact_integrator.hpp"
 #include "4C_contact_selfcontact_binarytree.hpp"
 #include "4C_contact_wear_interface.hpp"
-#include "4C_inpar_contact.hpp"
+#include "4C_fem_discretization.hpp"
 #include "4C_io_control.hpp"
 #include "4C_linalg_utils_densematrix_communication.hpp"
 #include "4C_mortar_defines.hpp"
@@ -27,8 +28,8 @@ FOUR_C_NAMESPACE_OPEN
 void Wear::WearInterface::fd_check_gap_deriv()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -303,8 +304,8 @@ void Wear::WearInterface::fd_check_gap_deriv()
 void Wear::WearInterface::fd_check_gap_deriv_w()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -416,8 +417,8 @@ void Wear::WearInterface::fd_check_gap_deriv_w()
 void Wear::WearInterface::fd_check_deriv_e_d(Core::LinAlg::SparseMatrix& linedis)
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -427,7 +428,7 @@ void Wear::WearInterface::fd_check_deriv_e_d(Core::LinAlg::SparseMatrix& linedis
   std::vector<double> newt(nrow);
 
   int dim = n_dim();
-  typedef std::map<int, double>::const_iterator CI;
+  using CI = std::map<int, double>::const_iterator;
 
   // store reference
   // loop over proc's slave nodes
@@ -732,8 +733,8 @@ void Wear::WearInterface::fd_check_deriv_e_d(Core::LinAlg::SparseMatrix& linedis
 void Wear::WearInterface::fd_check_deriv_e_d_master(Core::LinAlg::SparseMatrix& linedis)
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -743,7 +744,7 @@ void Wear::WearInterface::fd_check_deriv_e_d_master(Core::LinAlg::SparseMatrix& 
   std::vector<double> newt(nrow);
 
   int dim = n_dim();
-  typedef std::map<int, double>::const_iterator CI;
+  using CI = std::map<int, double>::const_iterator;
 
   // store reference
   // loop over proc's slave nodes
@@ -1048,8 +1049,8 @@ void Wear::WearInterface::fd_check_deriv_e_d_master(Core::LinAlg::SparseMatrix& 
 void Wear::WearInterface::fd_check_deriv_t_d(Core::LinAlg::SparseMatrix& lintdis)
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -1062,7 +1063,7 @@ void Wear::WearInterface::fd_check_deriv_t_d(Core::LinAlg::SparseMatrix& lintdis
   std::vector<double> newt(nrow);
 
   int dim = n_dim();
-  typedef std::map<int, double>::const_iterator CI;
+  using CI = std::map<int, double>::const_iterator;
 
   // store reference
   // loop over proc's slave nodes
@@ -1241,8 +1242,8 @@ void Wear::WearInterface::fd_check_deriv_t_d(Core::LinAlg::SparseMatrix& lintdis
 void Wear::WearInterface::fd_check_deriv_t_d_master(Core::LinAlg::SparseMatrix& lintdis)
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -1255,7 +1256,7 @@ void Wear::WearInterface::fd_check_deriv_t_d_master(Core::LinAlg::SparseMatrix& 
   std::vector<double> newt(nrow);
 
   int dim = n_dim();
-  typedef std::map<int, double>::const_iterator CI;
+  using CI = std::map<int, double>::const_iterator;
 
   // store reference
   // loop over proc's slave nodes
@@ -1437,14 +1438,13 @@ void Wear::WearInterface::fd_check_slip_deriv(Core::LinAlg::SparseMatrix& linsli
     Core::LinAlg::SparseMatrix& linslipDISglobal, Core::LinAlg::SparseMatrix& linslipWglobal)
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
   // information from interface contact parameter list
-  auto ftype =
-      Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(interface_params(), "FRICTION");
+  auto ftype = Teuchos::getIntegralValue<CONTACT::FrictionType>(interface_params(), "FRICTION");
   double frbound = interface_params().get<double>("FRBOUND");
   double frcoeff = interface_params().get<double>("FRCOEFF");
   double ct = interface_params().get<double>("SEMI_SMOOTH_CT");
@@ -1541,12 +1541,12 @@ void Wear::WearInterface::fd_check_slip_deriv(Core::LinAlg::SparseMatrix& linsli
     }  // if cnode == Slip
 
     // store C in vector
-    if (ftype == Inpar::CONTACT::friction_tresca)
+    if (ftype == CONTACT::FrictionType::tresca)
     {
       refCtxi[i] = euclidean * ztxi - frbound * (ztxi + ct * jumptxi);
       refCteta[i] = euclidean * zteta - frbound * (zteta + ct * jumpteta);
     }
-    else if (ftype == Inpar::CONTACT::friction_coulomb)
+    else if (ftype == CONTACT::FrictionType::coulomb)
     {
       refCtxi[i] = euclidean * ztxi - (frcoeff * znor) * (ztxi + ct * jumptxi);
       refCteta[i] = euclidean * zteta - (frcoeff * znor) * (zteta + ct * jumpteta);
@@ -1671,12 +1671,12 @@ void Wear::WearInterface::fd_check_slip_deriv(Core::LinAlg::SparseMatrix& linsli
       }  // if cnode == Slip
 
       // store C in vector
-      if (ftype == Inpar::CONTACT::friction_tresca)
+      if (ftype == CONTACT::FrictionType::tresca)
       {
         newCtxi[k] = euclidean * ztxi - frbound * (ztxi + ct * jumptxi);
         newCteta[k] = euclidean * zteta - frbound * (zteta + ct * jumpteta);
       }
-      else if (ftype == Inpar::CONTACT::friction_coulomb)
+      else if (ftype == CONTACT::FrictionType::coulomb)
       {
         newCtxi[k] = euclidean * ztxi - (frcoeff * znor) * (ztxi + ct * jumptxi);
         newCteta[k] = euclidean * zteta - (frcoeff * znor) * (zteta + ct * jumpteta);
@@ -1908,12 +1908,12 @@ void Wear::WearInterface::fd_check_slip_deriv(Core::LinAlg::SparseMatrix& linsli
       }  // if cnode == Slip
 
       // store C in vector
-      if (ftype == Inpar::CONTACT::friction_tresca)
+      if (ftype == CONTACT::FrictionType::tresca)
       {
         newCtxi[k] = euclidean * ztxi - frbound * (ztxi + ct * jumptxi);
         newCteta[k] = euclidean * zteta - frbound * (zteta + ct * jumpteta);
       }
-      else if (ftype == Inpar::CONTACT::friction_coulomb)
+      else if (ftype == CONTACT::FrictionType::coulomb)
       {
         newCtxi[k] = euclidean * ztxi - (frcoeff * znor) * (ztxi + ct * jumptxi);
         newCteta[k] = euclidean * zteta - (frcoeff * znor) * (zteta + ct * jumpteta);
@@ -2147,12 +2147,12 @@ void Wear::WearInterface::fd_check_slip_deriv(Core::LinAlg::SparseMatrix& linsli
       }  // if cnode == Slip
 
       // store C in vector
-      if (ftype == Inpar::CONTACT::friction_tresca)
+      if (ftype == CONTACT::FrictionType::tresca)
       {
         newCtxi[k] = euclidean * ztxi - frbound * (ztxi + ct * jumptxi);
         newCteta[k] = euclidean * zteta - frbound * (zteta + ct * jumpteta);
       }
-      else if (ftype == Inpar::CONTACT::friction_coulomb)
+      else if (ftype == CONTACT::FrictionType::coulomb)
       {
         newCtxi[k] = euclidean * ztxi - (frcoeff * znor) * (ztxi + ct * jumptxi);
         newCteta[k] = euclidean * zteta - (frcoeff * znor) * (zteta + ct * jumpteta);
@@ -2375,12 +2375,12 @@ void Wear::WearInterface::fd_check_slip_deriv(Core::LinAlg::SparseMatrix& linsli
       }  // if cnode == Slip
 
       // store C in vector
-      if (ftype == Inpar::CONTACT::friction_tresca)
+      if (ftype == CONTACT::FrictionType::tresca)
       {
         newCtxi[k] = euclidean * ztxi - frbound * (ztxi + ct * jumptxi);
         newCteta[k] = euclidean * zteta - frbound * (zteta + ct * jumpteta);
       }
-      else if (ftype == Inpar::CONTACT::friction_coulomb)
+      else if (ftype == CONTACT::FrictionType::coulomb)
       {
         newCtxi[k] = euclidean * ztxi - (frcoeff * znor) * (ztxi + ct * jumptxi);
         newCteta[k] = euclidean * zteta - (frcoeff * znor) * (zteta + ct * jumpteta);
@@ -2495,8 +2495,8 @@ void Wear::WearInterface::fd_check_slip_deriv(Core::LinAlg::SparseMatrix& linsli
 void Wear::WearInterface::fd_check_mortar_t_deriv()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -2518,9 +2518,6 @@ void Wear::WearInterface::fd_check_mortar_t_deriv()
     Core::Nodes::Node* node = idiscret_->g_node(gid);
     if (!node) FOUR_C_THROW("Cannot find node with gid %", gid);
     CONTACT::FriNode* cnode = dynamic_cast<CONTACT::FriNode*>(node);
-
-    // typedef std::map<int,std::map<int,double> >::const_iterator CID;
-    // typedef std::map<int,double>::const_iterator CI;
 
     if ((int)(cnode->wear_data().get_t().size()) == 0) continue;
 
@@ -2585,7 +2582,7 @@ void Wear::WearInterface::fd_check_mortar_t_deriv()
 
       if ((int)(kcnode->wear_data().get_t().size()) == 0) continue;
 
-      typedef std::map<int, double>::const_iterator CI;
+      using CI = std::map<int, double>::const_iterator;
 
       for (int d = 0; d < 1; d++)
       {
@@ -2666,8 +2663,8 @@ void Wear::WearInterface::fd_check_mortar_t_deriv()
 void Wear::WearInterface::fd_check_mortar_t_master_deriv()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -2689,9 +2686,6 @@ void Wear::WearInterface::fd_check_mortar_t_master_deriv()
     Core::Nodes::Node* node = idiscret_->g_node(gid);
     if (!node) FOUR_C_THROW("Cannot find node with gid %", gid);
     CONTACT::FriNode* cnode = dynamic_cast<CONTACT::FriNode*>(node);
-
-    // typedef std::map<int,std::map<int,double> >::const_iterator CID;
-    // typedef std::map<int,double>::const_iterator CI;
 
     if ((int)(cnode->wear_data().get_t().size()) == 0) continue;
 
@@ -2756,7 +2750,7 @@ void Wear::WearInterface::fd_check_mortar_t_master_deriv()
 
       if ((int)(kcnode->wear_data().get_t().size()) == 0) continue;
 
-      typedef std::map<int, double>::const_iterator CI;
+      using CI = std::map<int, double>::const_iterator;
 
       for (int d = 0; d < 1; d++)
       {
@@ -2870,7 +2864,7 @@ void Wear::WearInterface::fd_check_mortar_t_master_deriv()
 
       if ((int)(kcnode->wear_data().get_t().size()) == 0) continue;
 
-      typedef std::map<int, double>::const_iterator CI;
+      using CI = std::map<int, double>::const_iterator;
 
       for (int d = 0; d < 1; d++)
       {
@@ -2951,8 +2945,8 @@ void Wear::WearInterface::fd_check_mortar_t_master_deriv()
 void Wear::WearInterface::fd_check_mortar_e_deriv()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -2975,16 +2969,10 @@ void Wear::WearInterface::fd_check_mortar_e_deriv()
     if (!node) FOUR_C_THROW("Cannot find node with gid %", gid);
     CONTACT::FriNode* cnode = dynamic_cast<CONTACT::FriNode*>(node);
 
-    // typedef std::map<int,std::map<int,double> >::const_iterator CID;
-    // typedef std::map<int,double>::const_iterator CI;
-
     if ((int)(cnode->wear_data().get_e().size()) == 0) continue;
 
-    //    for( int d=0; d<dim; d++ )
-    //    {
     int dof = cnode->dofs()[0];
     refE[dof] = cnode->wear_data().get_e()[0];
-    //    }
 
     refDerivE[gid] = cnode->wear_data().get_deriv_e();
   }
@@ -3041,7 +3029,7 @@ void Wear::WearInterface::fd_check_mortar_e_deriv()
 
       if ((int)(kcnode->wear_data().get_e().size()) == 0) continue;
 
-      typedef std::map<int, double>::const_iterator CI;
+      using CI = std::map<int, double>::const_iterator;
 
       for (int d = 0; d < 1; d++)
       {
@@ -3122,8 +3110,8 @@ void Wear::WearInterface::fd_check_mortar_e_deriv()
 void Wear::WearInterface::fd_check_mortar_e_master_deriv()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -3145,9 +3133,6 @@ void Wear::WearInterface::fd_check_mortar_e_master_deriv()
     Core::Nodes::Node* node = idiscret_->g_node(gid);
     if (!node) FOUR_C_THROW("Cannot find node with gid %", gid);
     CONTACT::FriNode* cnode = dynamic_cast<CONTACT::FriNode*>(node);
-
-    // typedef std::map<int,std::map<int,double> >::const_iterator CID;
-    // typedef std::map<int,double>::const_iterator CI;
 
     if ((int)(cnode->wear_data().get_e().size()) == 0) continue;
 
@@ -3212,7 +3197,7 @@ void Wear::WearInterface::fd_check_mortar_e_master_deriv()
 
       if ((int)(kcnode->wear_data().get_e().size()) == 0) continue;
 
-      typedef std::map<int, double>::const_iterator CI;
+      using CI = std::map<int, double>::const_iterator;
 
       for (int d = 0; d < 1; d++)
       {
@@ -3327,7 +3312,7 @@ void Wear::WearInterface::fd_check_mortar_e_master_deriv()
 
       if ((int)(kcnode->wear_data().get_e().size()) == 0) continue;
 
-      typedef std::map<int, double>::const_iterator CI;
+      using CI = std::map<int, double>::const_iterator;
 
       for (int d = 0; d < 1; d++)
       {
@@ -3410,8 +3395,8 @@ void Wear::WearInterface::fd_check_wear_deriv_lm()
   double wcoeff = interface_params().get<double>("WEARCOEFF");
 
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -3562,8 +3547,8 @@ void Wear::WearInterface::fd_check_wear_deriv()
   double wcoeff = interface_params().get<double>("WEARCOEFF");
 
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 

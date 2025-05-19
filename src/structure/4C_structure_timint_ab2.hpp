@@ -25,8 +25,7 @@ namespace Solid
    * \brief Adams-Bashforth2: 2nd order accurate,
    *                          explicit time integrator,
    *                          linear 2-step method
-   * \author bborn
-   * \date 06/08
+
    */
   class TimIntAB2 : public TimIntExpl
   {
@@ -71,8 +70,8 @@ namespace Solid
 
     \warning none
     \return bool
-    \date 08/16
-    \author rauch  */
+
+    */
     void init(const Teuchos::ParameterList& timeparams, const Teuchos::ParameterList& sdynparams,
         const Teuchos::ParameterList& xparams, std::shared_ptr<Core::FE::Discretization> actdis,
         std::shared_ptr<Core::LinAlg::Solver> solver) override;
@@ -93,8 +92,8 @@ namespace Solid
 
     \warning none
     \return void
-    \date 08/16
-    \author rauch  */
+
+    */
     void setup() override;
 
     //@}
@@ -123,7 +122,10 @@ namespace Solid
     //@{
 
     //! Return time integrator name
-    enum Inpar::Solid::DynamicType method_name() const override { return Inpar::Solid::dyna_ab2; }
+    enum Inpar::Solid::DynamicType method_name() const override
+    {
+      return Inpar::Solid::DynamicType::AdamsBashforth2;
+    }
 
     //! Provide number of steps, e.g. a single-step method returns 1,
     //! a m-multistep method returns m

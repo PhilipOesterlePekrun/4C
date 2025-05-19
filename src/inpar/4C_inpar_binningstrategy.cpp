@@ -8,45 +8,46 @@
 #include "4C_inpar_binningstrategy.hpp"
 
 #include "4C_binstrategy.hpp"
-#include "4C_utils_parameter_list.hpp"
-
+#include "4C_io_input_spec_builders.hpp"
 FOUR_C_NAMESPACE_OPEN
 
 
 
-void Inpar::BINSTRATEGY::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::BINSTRATEGY::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
-  using Teuchos::tuple;
+  using namespace Core::IO::InputSpecBuilders;
 
-  Teuchos::ParameterList& binningstrategy = list.sublist("BINNING STRATEGY", false, "");
+  list["BINNING STRATEGY"] = group("BINNING STRATEGY",
+      {
+
+          parameter<double>("BIN_SIZE_LOWER_BOUND",
+              {.description =
+                      "Lower bound for bin size. Exact bin size is computed via (Domain edge "
+                      "length)/BIN_SIZE_LOWER_BOUND. This also determines the number of bins in "
+                      "each spatial direction",
+                  .default_value = -1.0}),
+
+          parameter<std::string>("BIN_PER_DIR",
+              {.description =
+                      "Number of bins per direction (x, y, z) in particle simulations. Either "
+                      "Define this value or  BIN_SIZE_LOWER_BOUND",
+                  .default_value = "-1 -1 -1"}),
 
 
-  Core::Utils::double_parameter("BIN_SIZE_LOWER_BOUND", -1.0,
-      "Lower bound for bin size. Exact bin size is computed via (Domain edge "
-      "length)/BIN_SIZE_LOWER_BOUND. This also determines the number of bins in each spatial "
-      "direction",
-      &binningstrategy);
+          parameter<std::string>("PERIODICONOFF",
+              {.description = "Turn on/off periodic boundary conditions in each spatial direction",
+                  .default_value = "0 0 0"}),
 
-  Core::Utils::string_parameter("BIN_PER_DIR", "-1 -1 -1",
-      "Number of bins per direction (x, y, z) in particle simulations. Either Define this value or "
-      "BIN_SIZE_LOWER_BOUND",
-      &binningstrategy);
+          parameter<std::string>("DOMAINBOUNDINGBOX",
+              {.description = "Bounding box for computational domain using binning "
+                              "strategy. Specify diagonal corner  points",
+                  .default_value = "1e12 1e12 1e12 1e12 1e12 1e12"}),
 
-  Core::Utils::string_parameter("PERIODICONOFF", "0 0 0",
-      "Turn on/off periodic boundary conditions in each spatial direction", &binningstrategy);
 
-  Core::Utils::string_parameter("DOMAINBOUNDINGBOX", "1e12 1e12 1e12 1e12 1e12 1e12",
-      "Bounding box for computational domain using binning strategy. Specify diagonal corner "
-      "points",
-      &binningstrategy);
-
-  setStringToIntegralParameter<Core::Binstrategy::WriteBins>("WRITEBINS", "none",
-      "Write none, row or column bins for visualization",
-      tuple<std::string>("none", "rows", "cols"),
-      tuple<Core::Binstrategy::WriteBins>(Core::Binstrategy::WriteBins::none,
-          Core::Binstrategy::WriteBins::rows, Core::Binstrategy::WriteBins::cols),
-      &binningstrategy);
+          parameter<Core::Binstrategy::WriteBins>(
+              "WRITEBINS", {.description = "Write none, row or column bins for visualization",
+                               .default_value = Core::Binstrategy::WriteBins::none})},
+      {.defaultable = true});
 }
 
 FOUR_C_NAMESPACE_CLOSE

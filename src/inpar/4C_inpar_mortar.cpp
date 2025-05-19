@@ -9,155 +9,209 @@
 
 #include "4C_fem_condition_definition.hpp"
 #include "4C_io_input_spec_builders.hpp"
-#include "4C_utils_parameter_list.hpp"
-
 FOUR_C_NAMESPACE_OPEN
 
 
 
-void Inpar::Mortar::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::Mortar::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
-  using Teuchos::tuple;
+  using namespace Core::IO::InputSpecBuilders;
 
   /* parameters for mortar coupling */
-  Teuchos::ParameterList& mortar = list.sublist("MORTAR COUPLING", false, "");
+  list["MORTAR COUPLING"] = group("MORTAR COUPLING",
+      {
 
-  setStringToIntegralParameter<Inpar::Mortar::ShapeFcn>("LM_SHAPEFCN", "Dual",
-      "Type of employed set of shape functions",
-      tuple<std::string>(
-          "Dual", "dual", "Standard", "standard", "std", "PetrovGalerkin", "petrovgalerkin", "pg"),
-      tuple<Inpar::Mortar::ShapeFcn>(shape_dual, shape_dual, shape_standard, shape_standard,
-          shape_standard, shape_petrovgalerkin, shape_petrovgalerkin, shape_petrovgalerkin),
-      &mortar);
+          deprecated_selection<Inpar::Mortar::ShapeFcn>("LM_SHAPEFCN",
+              {
+                  {"Dual", shape_dual},
+                  {"dual", shape_dual},
+                  {"Standard", shape_standard},
+                  {"standard", shape_standard},
+                  {"std", shape_standard},
+                  {"PetrovGalerkin", shape_petrovgalerkin},
+                  {"petrovgalerkin", shape_petrovgalerkin},
+                  {"pg", shape_petrovgalerkin},
+              },
+              {.description = "Type of employed set of shape functions",
+                  .default_value = shape_dual}),
 
-  setStringToIntegralParameter<Inpar::Mortar::SearchAlgorithm>("SEARCH_ALGORITHM", "Binarytree",
-      "Type of contact search",
-      tuple<std::string>("BruteForce", "bruteforce", "BruteForceEleBased", "bruteforceelebased",
-          "BinaryTree", "Binarytree", "binarytree"),
-      tuple<Inpar::Mortar::SearchAlgorithm>(search_bfele, search_bfele, search_bfele, search_bfele,
-          search_binarytree, search_binarytree, search_binarytree),
-      &mortar);
+          deprecated_selection<Inpar::Mortar::SearchAlgorithm>("SEARCH_ALGORITHM",
+              {
+                  {"BruteForce", search_bfele},
+                  {"bruteforce", search_bfele},
+                  {"BruteForceEleBased", search_bfele},
+                  {"bruteforceelebased", search_bfele},
+                  {"BinaryTree", search_binarytree},
+                  {"Binarytree", search_binarytree},
+                  {"binarytree", search_binarytree},
+              },
+              {.description = "Type of contact search", .default_value = search_binarytree}),
 
-  setStringToIntegralParameter<Inpar::Mortar::BinaryTreeUpdateType>("BINARYTREE_UPDATETYPE",
-      "BottomUp", "Type of binary tree update, which is either a bottom up or a top down approach.",
-      tuple<std::string>("BottomUp", "TopDown"),
-      tuple<Inpar::Mortar::BinaryTreeUpdateType>(binarytree_bottom_up, binarytree_top_down),
-      &mortar);
 
-  Core::Utils::double_parameter(
-      "SEARCH_PARAM", 0.3, "Radius / Bounding volume inflation for contact search", &mortar);
+          deprecated_selection<Inpar::Mortar::BinaryTreeUpdateType>("BINARYTREE_UPDATETYPE",
+              {
+                  {"BottomUp", binarytree_bottom_up},
+                  {"TopDown", binarytree_top_down},
+              },
+              {.description = "Type of binary tree update, which is either a bottom up or a top "
+                              "down approach.",
+                  .default_value = binarytree_bottom_up}),
 
-  Core::Utils::bool_parameter("SEARCH_USE_AUX_POS", "Yes",
-      "If chosen auxiliary position is used for computing dops", &mortar);
+          parameter<double>("SEARCH_PARAM",
+              {.description = "Radius / Bounding volume inflation for contact search",
+                  .default_value = 0.3}),
 
-  setStringToIntegralParameter<Inpar::Mortar::LagMultQuad>("LM_QUAD", "undefined",
-      "Type of LM interpolation for quadratic FE",
-      tuple<std::string>(
-          "undefined", "quad", "quadratic", "pwlin", "piecewiselinear", "lin", "linear", "const"),
-      tuple<Inpar::Mortar::LagMultQuad>(lagmult_undefined, lagmult_quad, lagmult_quad,
-          lagmult_pwlin, lagmult_pwlin, lagmult_lin, lagmult_lin, lagmult_const),
-      &mortar);
+          parameter<bool>("SEARCH_USE_AUX_POS",
+              {.description = "If chosen auxiliary position is used for computing dops",
+                  .default_value = true}),
 
-  Core::Utils::bool_parameter("CROSSPOINTS", "No",
-      "If chosen, multipliers are removed from crosspoints / edge nodes", &mortar);
+          deprecated_selection<Inpar::Mortar::LagMultQuad>("LM_QUAD",
+              {
+                  {"undefined", lagmult_undefined},
+                  {"quad", lagmult_quad},
+                  {"quadratic", lagmult_quad},
+                  {"pwlin", lagmult_pwlin},
+                  {"piecewiselinear", lagmult_pwlin},
+                  {"lin", lagmult_lin},
+                  {"linear", lagmult_lin},
+                  {"const", lagmult_const},
+              },
+              {.description = "Type of LM interpolation for quadratic FE",
+                  .default_value = lagmult_undefined}),
 
-  setStringToIntegralParameter<Inpar::Mortar::ConsistentDualType>("LM_DUAL_CONSISTENT", "boundary",
-      "For which elements should the dual basis be calculated on EXACTLY the same GPs as the "
-      "contact terms",
-      tuple<std::string>("none", "boundary", "all"),
-      tuple<Inpar::Mortar::ConsistentDualType>(
-          consistent_none, consistent_boundary, consistent_all),
-      &mortar);
+          parameter<bool>("CROSSPOINTS",
+              {.description = "If chosen, multipliers are removed from crosspoints / edge nodes",
+                  .default_value = false}),
 
-  setStringToIntegralParameter<Inpar::Mortar::MeshRelocation>("MESH_RELOCATION", "Initial",
-      "Type of mesh relocation",
-      tuple<std::string>("Initial", "initial", "Every_Timestep", "every_timestep", "No", "no"),
-      tuple<Inpar::Mortar::MeshRelocation>(relocation_initial, relocation_initial,
-          relocation_timestep, relocation_timestep, relocation_none, relocation_none),
-      &mortar);
 
-  setStringToIntegralParameter<Inpar::Mortar::AlgorithmType>("ALGORITHM", "Mortar",
-      "Type of meshtying/contact algorithm",
-      tuple<std::string>("mortar", "Mortar", "nts", "NTS", "gpts", "GPTS", "lts", "LTS", "ltl",
-          "LTL", "stl", "STL"),
-      tuple<Inpar::Mortar::AlgorithmType>(algorithm_mortar, algorithm_mortar, algorithm_nts,
-          algorithm_nts, algorithm_gpts, algorithm_gpts, algorithm_lts, algorithm_lts,
-          algorithm_ltl, algorithm_ltl, algorithm_stl, algorithm_stl),
-      &mortar);
+          deprecated_selection<Inpar::Mortar::ConsistentDualType>("LM_DUAL_CONSISTENT",
+              {
+                  {"none", consistent_none},
+                  {"boundary", consistent_boundary},
+                  {"all", consistent_all},
+              },
+              {.description =
+                      "For which elements should the dual basis be calculated on EXACTLY the "
+                      "same GPs as the contact terms",
+                  .default_value = consistent_boundary}),
 
-  setStringToIntegralParameter<Inpar::Mortar::IntType>("INTTYPE", "Segments",
-      "Type of numerical integration scheme",
-      tuple<std::string>(
-          "Segments", "segments", "Elements", "elements", "Elements_BS", "elements_BS"),
-      tuple<Inpar::Mortar::IntType>(inttype_segments, inttype_segments, inttype_elements,
-          inttype_elements, inttype_elements_BS, inttype_elements_BS),
-      &mortar);
+          deprecated_selection<Inpar::Mortar::MeshRelocation>("MESH_RELOCATION",
+              {
+                  {"Initial", relocation_initial},
+                  {"Every_Timestep", relocation_timestep},
+                  {"None", relocation_none},
+              },
+              {.description = "Type of mesh relocation", .default_value = relocation_initial}),
 
-  Core::Utils::int_parameter(
-      "NUMGP_PER_DIM", 0, "Number of employed integration points per dimension", &mortar);
+          deprecated_selection<Inpar::Mortar::AlgorithmType>("ALGORITHM",
+              {
+                  {"mortar", algorithm_mortar},
+                  {"Mortar", algorithm_mortar},
+                  {"nts", algorithm_nts},
+                  {"NTS", algorithm_nts},
+                  {"gpts", algorithm_gpts},
+                  {"GPTS", algorithm_gpts},
+                  {"lts", algorithm_lts},
+                  {"LTS", algorithm_lts},
+                  {"ltl", algorithm_ltl},
+                  {"LTL", algorithm_ltl},
+                  {"stl", algorithm_stl},
+                  {"STL", algorithm_stl},
+              },
+              {.description = "Type of meshtying/contact algorithm",
+                  .default_value = algorithm_mortar}),
 
-  setStringToIntegralParameter<Inpar::Mortar::Triangulation>("TRIANGULATION", "Delaunay",
-      "Type of triangulation for segment-based integration",
-      tuple<std::string>("Delaunay", "delaunay", "Center", "center"),
-      tuple<Inpar::Mortar::Triangulation>(triangulation_delaunay, triangulation_delaunay,
-          triangulation_center, triangulation_center),
-      &mortar);
+          deprecated_selection<Inpar::Mortar::IntType>("INTTYPE",
+              {
+                  {"Segments", inttype_segments},
+                  {"segments", inttype_segments},
+                  {"Elements", inttype_elements},
+                  {"elements", inttype_elements},
+                  {"Elements_BS", inttype_elements_BS},
+                  {"elements_BS", inttype_elements_BS},
+              },
+              {.description = "Type of numerical integration scheme",
+                  .default_value = inttype_segments}),
 
-  Core::Utils::bool_parameter("RESTART_WITH_MESHTYING", "No",
-      "Must be chosen if a non-meshtying simulation is to be restarted with meshtying", &mortar);
+          parameter<int>("NUMGP_PER_DIM",
+              {.description = "Number of employed integration points per dimension",
+                  .default_value = 0}),
 
-  Core::Utils::bool_parameter("OUTPUT_INTERFACES", "No",
-      "Write output for each mortar interface separately.\nThis is an additional feature, purely "
-      "to enhance visualization. Currently, this is limited to solid meshtying and contact w/o "
-      "friction.",
-      &mortar);
+          deprecated_selection<Inpar::Mortar::Triangulation>("TRIANGULATION",
+              {
+                  {"Delaunay", triangulation_delaunay},
+                  {"delaunay", triangulation_delaunay},
+                  {"Center", triangulation_center},
+                  {"center", triangulation_center},
+              },
+              {.description = "Type of triangulation for segment-based integration",
+                  .default_value = triangulation_delaunay}),
 
-  /*--------------------------------------------------------------------*/
+          parameter<bool>("RESTART_WITH_MESHTYING",
+              {.description = "Must be chosen if a non-meshtying simulation is to be restarted "
+                              "with meshtying",
+                  .default_value = false}),
+
+          parameter<bool>("OUTPUT_INTERFACES",
+              {.description =
+                      "Write output for each mortar interface separately.\nThis is an additional "
+                      "feature, purely to enhance visualization. Currently, this is limited to "
+                      "solid meshtying and contact w/o friction.",
+                  .default_value = false})},
+      {.defaultable =
+              true}); /*--------------------------------------------------------------------*/
   // parameters for parallel redistribution of mortar interfaces
-  Teuchos::ParameterList& parallelRedist = mortar.sublist("PARALLEL REDISTRIBUTION", false,
-      "Parameters to control parallel redistribution of mortar interfaces");
+  list["MORTAR COUPLING/PARALLEL REDISTRIBUTION"] = group("MORTAR COUPLING/PARALLEL REDISTRIBUTION",
+      {
 
-  Core::Utils::bool_parameter("EXPLOIT_PROXIMITY", "Yes",
-      "Exploit information on geometric proximity to split slave interface into close and "
-      "non-close parts and redistribute them independently. [Contact only]",
-      &parallelRedist);
+          parameter<bool>("EXPLOIT_PROXIMITY",
+              {.description = "Exploit information on geometric proximity to split slave interface "
+                              "into close and "
+                              "non-close parts and redistribute them independently. [Contact only]",
+                  .default_value = true}),
 
-  setStringToIntegralParameter<ExtendGhosting>("GHOSTING_STRATEGY", "redundant_master",
-      "Type of interface ghosting and ghosting extension algorithm",
-      tuple<std::string>("redundant_all", "redundant_master", "round_robin", "binning"),
-      tuple<ExtendGhosting>(ExtendGhosting::redundant_all, ExtendGhosting::redundant_master,
-          ExtendGhosting::roundrobin, ExtendGhosting::binning),
-      &parallelRedist);
+          deprecated_selection<ExtendGhosting>("GHOSTING_STRATEGY",
+              {
+                  {"redundant_all", ExtendGhosting::redundant_all},
+                  {"redundant_master", ExtendGhosting::redundant_master},
+                  {"round_robin", ExtendGhosting::roundrobin},
+                  {"binning", ExtendGhosting::binning},
+              },
+              {.description = "Type of interface ghosting and ghosting extension algorithm",
+                  .default_value = ExtendGhosting::redundant_master}),
 
-  Core::Utils::double_parameter("IMBALANCE_TOL", 1.1,
-      "Max. relative imbalance of subdomain size after redistribution", &parallelRedist);
+          parameter<double>("IMBALANCE_TOL",
+              {.description = "Max. relative imbalance of subdomain size after redistribution",
+                  .default_value = 1.1}),
 
-  Core::Utils::double_parameter("MAX_BALANCE_EVAL_TIME", 2.0,
-      "Max-to-min ratio of contact evaluation time per processor to trigger parallel "
-      "redistribution",
-      &parallelRedist);
+          parameter<double>("MAX_BALANCE_EVAL_TIME",
+              {.description = "Max-to-min ratio of contact evaluation time per "
+                              "processor to trigger parallel redistribution",
+                  .default_value = 2.0}),
 
-  Core::Utils::double_parameter("MAX_BALANCE_SLAVE_ELES", 0.5,
-      "Max-to-min ratio of mortar slave elements per processor to trigger parallel "
-      "redistribution",
-      &parallelRedist);
+          parameter<double>("MAX_BALANCE_SLAVE_ELES",
+              {.description = "Max-to-min ratio of mortar slave elements per "
+                              "processor to trigger parallel redistribution",
+                  .default_value = 0.5}),
 
-  Core::Utils::int_parameter("MIN_ELEPROC", 0,
-      "Minimum no. of elements per processor for parallel redistribution", &parallelRedist);
+          parameter<int>("MIN_ELEPROC",
+              {.description = "Minimum no. of elements per processor for parallel redistribution",
+                  .default_value = 0}),
 
-  setStringToIntegralParameter<ParallelRedist>("PARALLEL_REDIST", "Static",
-      "Type of redistribution algorithm",
-      tuple<std::string>("None", "none", "No", "no", "Static", "static", "Dynamic", "dynamic"),
-      tuple<ParallelRedist>(ParallelRedist::redist_none, ParallelRedist::redist_none,
-          ParallelRedist::redist_none, ParallelRedist::redist_none, ParallelRedist::redist_static,
-          ParallelRedist::redist_static, ParallelRedist::redist_dynamic,
-          ParallelRedist::redist_dynamic),
-      &parallelRedist);
+          deprecated_selection<ParallelRedist>("PARALLEL_REDIST",
+              {
+                  {"None", ParallelRedist::redist_none},
+                  {"Static", ParallelRedist::redist_static},
+                  {"Dynamic", ParallelRedist::redist_dynamic},
+              },
+              {.description = "Type of redistribution algorithm",
+                  .default_value = ParallelRedist::redist_static}),
 
-  Core::Utils::bool_parameter("PRINT_DISTRIBUTION", "Yes",
-      "Print details of the parallel distribution, i.e. number of nodes/elements for each rank.",
-      &parallelRedist);
+          parameter<bool>("PRINT_DISTRIBUTION",
+              {.description = "Print details of the parallel distribution, i.e. "
+                              "number of nodes/elements for each rank.",
+                  .default_value = true})},
+      {.defaultable = true});
 }
 
 void Inpar::Mortar::set_valid_conditions(
@@ -177,36 +231,32 @@ void Inpar::Mortar::set_valid_conditions(
 
   const auto make_contact = [&condlist](Core::Conditions::ConditionDefinition& cond)
   {
-    cond.add_component(entry<int>("InterfaceID"));
-    cond.add_component(selection<std::string>(
+    cond.add_component(parameter<int>("InterfaceID"));
+    cond.add_component(deprecated_selection<std::string>(
         "Side", {"Master", "Slave", "Selfcontact"}, {.description = "interface side"}));
-    cond.add_component(selection<std::string>("Initialization", {"Inactive", "Active"},
+    cond.add_component(deprecated_selection<std::string>("Initialization", {"Inactive", "Active"},
         {.description = "initialization", .default_value = "Inactive"}));
 
-    cond.add_component(entry<double>(
+    cond.add_component(parameter<double>(
         "FrCoeffOrBound", {.description = "friction coefficient bound", .default_value = 0.0}));
-    cond.add_component(
-        entry<double>("AdhesionBound", {.description = "adhesion bound", .default_value = 0.0}));
+    cond.add_component(parameter<double>(
+        "AdhesionBound", {.description = "adhesion bound", .default_value = 0.0}));
 
-    cond.add_component(selection<std::string>("Application",
+    cond.add_component(deprecated_selection<std::string>("Application",
         {"Solidcontact", "Beamtosolidcontact", "Beamtosolidmeshtying"},
         {.description = "application", .default_value = "Solidcontact"}));
 
     // optional DBC handling
-    cond.add_component(selection<int>("DbcHandling",
-        {{"DoNothing", static_cast<int>(DBCHandling::do_nothing)},
-            {"RemoveDBCSlaveNodes",
-                static_cast<int>(DBCHandling::remove_dbc_nodes_from_slave_side)}},
-        {.description = "DbcHandling",
-            .default_value = static_cast<int>(DBCHandling::do_nothing)}));
-    cond.add_component(entry<double>(
+    cond.add_component(parameter<DBCHandling>(
+        "DbcHandling", {.description = "DbcHandling", .default_value = DBCHandling::DoNothing}));
+    cond.add_component(parameter<double>(
         "TwoHalfPass", {.description = "optional two half pass approach", .default_value = 0.0}));
-    cond.add_component(entry<double>("RefConfCheckNonSmoothSelfContactSurface",
+    cond.add_component(parameter<double>("RefConfCheckNonSmoothSelfContactSurface",
         {.description =
                 "optional reference configuration check for non-smooth self contact surfaces",
             .default_value = 0.0}));
-    cond.add_component(entry<Noneable<int>>("ConstitutiveLawID",
-        {.description = "material id of the constitutive law", .default_value = 0}));
+    cond.add_component(parameter<std::optional<int>>(
+        "ConstitutiveLawID", {.description = "material id of the constitutive law"}));
     condlist.push_back(cond);
   };
 
@@ -226,10 +276,10 @@ void Inpar::Mortar::set_valid_conditions(
 
     const auto make_mortar = [&condlist](Core::Conditions::ConditionDefinition& cond)
     {
-      cond.add_component(entry<int>("InterfaceID"));
-      cond.add_component(
-          selection<std::string>("Side", {"Master", "Slave"}, {.description = "interface side"}));
-      cond.add_component(selection<std::string>("Initialization", {"Inactive", "Active"},
+      cond.add_component(parameter<int>("InterfaceID"));
+      cond.add_component(deprecated_selection<std::string>(
+          "Side", {"Master", "Slave"}, {.description = "interface side"}));
+      cond.add_component(deprecated_selection<std::string>("Initialization", {"Inactive", "Active"},
           {.description = "initialization", .default_value = "Inactive"}));
 
       condlist.push_back(cond);
@@ -254,7 +304,7 @@ void Inpar::Mortar::set_valid_conditions(
 
   const auto make_mrtrsym = [&condlist](Core::Conditions::ConditionDefinition& cond)
   {
-    cond.add_component(entry<std::vector<int>>("ONOFF", {.description = "", .size = 3}));
+    cond.add_component(parameter<std::vector<int>>("ONOFF", {.description = "", .size = 3}));
 
     condlist.push_back(cond);
   };
@@ -292,10 +342,10 @@ void Inpar::Mortar::set_valid_conditions(
 
     const auto make_mortar_multi = [&condlist](Core::Conditions::ConditionDefinition& cond)
     {
-      cond.add_component(entry<int>("InterfaceID"));
-      cond.add_component(
-          selection<std::string>("Side", {"Master", "Slave"}, {.description = "interface side"}));
-      cond.add_component(selection<std::string>("Initialization", {"Inactive", "Active"},
+      cond.add_component(parameter<int>("InterfaceID"));
+      cond.add_component(deprecated_selection<std::string>(
+          "Side", {"Master", "Slave"}, {.description = "interface side"}));
+      cond.add_component(deprecated_selection<std::string>("Initialization", {"Inactive", "Active"},
           {.description = "initialization", .default_value = "Inactive"}));
 
       condlist.push_back(cond);

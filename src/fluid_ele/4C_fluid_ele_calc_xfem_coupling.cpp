@@ -9,6 +9,7 @@
 
 #include "4C_bele_bele3.hpp"
 #include "4C_fluid_ele_calc_xfem_coupling_impl.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -47,7 +48,7 @@ void SlaveElementInterface<distype>::define_state_names(
       break;
     }
     default:
-      FOUR_C_THROW("Unsupported element shape %d", slave_distype);
+      FOUR_C_THROW("Unsupported element shape {}", slave_distype);
       break;
   }
 }
@@ -71,38 +72,26 @@ SlaveElementInterface<distype>::create_slave_element_representation(
   {
     switch (slave_ele->shape())
     {
-        //      case Core::FE::CellType::tri3:
-        //      {
-        //        typedef
-        //        SlaveElementRepresentation<distype,Core::FE::CellType::tri3,3>
-        //        SlaveEleType; sla = new SlaveEleType(slave_xyz); break;
-        //      }
-        //      case Core::FE::CellType::tri6:
-        //      {
-        //        typedef
-        //        SlaveElementRepresentation<distype,Core::FE::CellType::tri6,3>
-        //        SlaveEleType; sla = new SlaveEleType(slave_xyz); break;
-        //      }
       case Core::FE::CellType::quad4:
       {
-        typedef SlaveElementRepresentation<distype, Core::FE::CellType::quad4, 3> SlaveEleType;
+        using SlaveEleType = SlaveElementRepresentation<distype, Core::FE::CellType::quad4, 3>;
         sla = new SlaveEleType(slave_xyz);
         break;
       }
       case Core::FE::CellType::quad8:
       {
-        typedef SlaveElementRepresentation<distype, Core::FE::CellType::quad8, 3> SlaveEleType;
+        using SlaveEleType = SlaveElementRepresentation<distype, Core::FE::CellType::quad8, 3>;
         sla = new SlaveEleType(slave_xyz);
         break;
       }
       case Core::FE::CellType::quad9:
       {
-        typedef SlaveElementRepresentation<distype, Core::FE::CellType::quad9, 3> SlaveEleType;
+        using SlaveEleType = SlaveElementRepresentation<distype, Core::FE::CellType::quad9, 3>;
         sla = new SlaveEleType(slave_xyz);
         break;
       }
       default:
-        FOUR_C_THROW("Unsupported boundary element shape %d", slave_ele->shape());
+        FOUR_C_THROW("Unsupported boundary element shape {}", slave_ele->shape());
         break;
     }
   }
@@ -111,56 +100,44 @@ SlaveElementInterface<distype>::create_slave_element_representation(
   {
     switch (slave_ele->shape())
     {
-        //      case Core::FE::CellType::tri3:
-        //      {
-        //        typedef
-        //        SlaveElementRepresentation<distype,Core::FE::CellType::tri3,4>
-        //        SlaveEleType; sla = new SlaveEleType(slave_xyz); break;
-        //      }
-        //      case Core::FE::CellType::tri6:
-        //      {
-        //        typedef
-        //        SlaveElementRepresentation<distype,Core::FE::CellType::tri6,4>
-        //        SlaveEleType; sla = new SlaveEleType(slave_xyz); break;
-        //      }
       case Core::FE::CellType::quad4:
       {
-        typedef SlaveElementRepresentation<distype, Core::FE::CellType::quad4, 4> SlaveEleType;
+        using SlaveEleType = SlaveElementRepresentation<distype, Core::FE::CellType::quad4, 4>;
         sla = new SlaveEleType(slave_xyz);
         break;
       }
       case Core::FE::CellType::quad8:
       {
-        typedef SlaveElementRepresentation<distype, Core::FE::CellType::quad8, 4> SlaveEleType;
+        using SlaveEleType = SlaveElementRepresentation<distype, Core::FE::CellType::quad8, 4>;
         sla = new SlaveEleType(slave_xyz);
         break;
       }
       case Core::FE::CellType::quad9:
       {
-        typedef SlaveElementRepresentation<distype, Core::FE::CellType::quad9, 4> SlaveEleType;
+        using SlaveEleType = SlaveElementRepresentation<distype, Core::FE::CellType::quad9, 4>;
         sla = new SlaveEleType(slave_xyz);
         break;
       }
       case Core::FE::CellType::hex8:
       {
-        typedef SlaveElementRepresentation<distype, Core::FE::CellType::hex8, 4> SlaveEleType;
+        using SlaveEleType = SlaveElementRepresentation<distype, Core::FE::CellType::hex8, 4>;
         sla = new SlaveEleType(slave_xyz);
         break;
       }
       case Core::FE::CellType::hex20:
       {
-        typedef SlaveElementRepresentation<distype, Core::FE::CellType::hex20, 4> SlaveEleType;
+        using SlaveEleType = SlaveElementRepresentation<distype, Core::FE::CellType::hex20, 4>;
         sla = new SlaveEleType(slave_xyz);
         break;
       }
       case Core::FE::CellType::hex27:
       {
-        typedef SlaveElementRepresentation<distype, Core::FE::CellType::hex27, 4> SlaveEleType;
+        using SlaveEleType = SlaveElementRepresentation<distype, Core::FE::CellType::hex27, 4>;
         sla = new SlaveEleType(slave_xyz);
         break;
       }
       default:
-        FOUR_C_THROW("unsupported boundary element shape %d", slave_ele->shape());
+        FOUR_C_THROW("unsupported boundary element shape {}", slave_ele->shape());
         break;
     }
   }
@@ -177,7 +154,7 @@ NitscheInterface<distype>::create_nitsche_coupling_x_fluid_wdbc(
     const Discret::Elements::FluidEleParameterXFEM& fldparaxfem)
 {
   NitscheInterface* nit = nullptr;
-  typedef NitscheCoupling<distype, Core::FE::CellType::dis_none, 3> NitscheCouplType;
+  using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::dis_none, 3>;
   nit = new NitscheCouplType(C_umum, rhC_um, fldparaxfem);
 
   return std::shared_ptr<NitscheInterface<distype>>(nit);
@@ -202,36 +179,26 @@ NitscheInterface<distype>::create_nitsche_coupling_x_fluid_wdbc(Core::Elements::
   {
     switch (bele->shape())
     {
-      //      case Core::FE::CellType::tri3:
-      //      {
-      //        typedef NitscheCoupling<distype,Core::FE::CellType::tri3,3>
-      //        NitscheCouplType; nit = new NitscheCouplType(bele_xyz,C_umum,rhC_um,); break;
-      //      }
-      //      case Core::FE::CellType::tri6:
-      //      {
-      //        typedef NitscheCoupling<distype,Core::FE::CellType::tri6,3>
-      //        NitscheCouplType; nit = new NitscheCouplType(bele_xyz,C_umum,rhC_um,); break;
-      //      }
       case Core::FE::CellType::quad4:
       {
-        typedef NitscheCoupling<distype, Core::FE::CellType::quad4, 3> NitscheCouplType;
+        using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::quad4, 3>;
         nit = new NitscheCouplType(bele_xyz, C_umum, rhC_um, fldparaxfem);
         break;
       }
       case Core::FE::CellType::quad8:
       {
-        typedef NitscheCoupling<distype, Core::FE::CellType::quad8, 3> NitscheCouplType;
+        using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::quad8, 3>;
         nit = new NitscheCouplType(bele_xyz, C_umum, rhC_um, fldparaxfem);
         break;
       }
       case Core::FE::CellType::quad9:
       {
-        typedef NitscheCoupling<distype, Core::FE::CellType::quad9, 3> NitscheCouplType;
+        using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::quad9, 3>;
         nit = new NitscheCouplType(bele_xyz, C_umum, rhC_um, fldparaxfem);
         break;
       }
       default:
-        FOUR_C_THROW("Unsupported boundary element shape %d", bele->shape());
+        FOUR_C_THROW("Unsupported boundary element shape {}", bele->shape());
         break;
     }
   }
@@ -239,41 +206,31 @@ NitscheInterface<distype>::create_nitsche_coupling_x_fluid_wdbc(Core::Elements::
   {
     switch (bele->shape())
     {
-      //      case Core::FE::CellType::tri3:
-      //      {
-      //        typedef NitscheCoupling<distype,Core::FE::CellType::tri3,3>
-      //        NitscheCouplType; nit = new NitscheCouplType(bele_xyz,C_umum,rhC_um,); break;
-      //      }
-      //      case Core::FE::CellType::tri6:
-      //      {
-      //        typedef NitscheCoupling<distype,Core::FE::CellType::tri6,3>
-      //        NitscheCouplType; nit = new NitscheCouplType(bele_xyz,C_umum,rhC_um,); break;
-      //      }
       case Core::FE::CellType::quad4:
       {
-        typedef NitscheCoupling<distype, Core::FE::CellType::quad4, 4> NitscheCouplType;
+        using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::quad4, 4>;
         nit = new NitscheCouplType(bele_xyz, C_umum, rhC_um, fldparaxfem);
         break;
       }
       case Core::FE::CellType::quad8:
       {
-        typedef NitscheCoupling<distype, Core::FE::CellType::quad8, 4> NitscheCouplType;
+        using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::quad8, 4>;
         nit = new NitscheCouplType(bele_xyz, C_umum, rhC_um, fldparaxfem);
         break;
       }
       case Core::FE::CellType::quad9:
       {
-        typedef NitscheCoupling<distype, Core::FE::CellType::quad9, 4> NitscheCouplType;
+        using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::quad9, 4>;
         nit = new NitscheCouplType(bele_xyz, C_umum, rhC_um, fldparaxfem);
         break;
       }
       default:
-        FOUR_C_THROW("Unsupported boundary element shape %d", bele->shape());
+        FOUR_C_THROW("Unsupported boundary element shape {}", bele->shape());
         break;
     }
   }
   else
-    FOUR_C_THROW("Unsupported number of %d nodes for coupling slave element.", numdofpernode);
+    FOUR_C_THROW("Unsupported number of {} nodes for coupling slave element.", numdofpernode);
 
   return std::shared_ptr<NitscheInterface<distype>>(nit);
 }
@@ -300,43 +257,29 @@ NitscheInterface<distype>::create_nitsche_coupling_x_fluid_sided(Core::Elements:
   {
     switch (bele->shape())
     {
-        //    case Core::FE::CellType::tri3:
-        //    {
-        //      typedef NitscheCoupling<distype,Core::FE::CellType::tri3,3>
-        //      NitscheCouplType; nit = new
-        //      NitscheCouplType(bele_xyz,C_umum,C_usum,C_umus,C_usus,rhC_um,rhC_us,is_viscAdjointSymmetric);
-        //      break;
-        //    }
-        //    case Core::FE::CellType::tri6:
-        //    {
-        //      typedef NitscheCoupling<distype,Core::FE::CellType::tri6,3>
-        //      NitscheCouplType; nit = new
-        //      NitscheCouplType(bele_xyz,C_umum,C_usum,C_umus,C_usus,rhC_um,rhC_us,is_viscAdjointSymmetric);
-        //      break;
-        //    }
       case Core::FE::CellType::quad4:
       {
-        typedef NitscheCoupling<distype, Core::FE::CellType::quad4, 3> NitscheCouplType;
+        using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::quad4, 3>;
         nit = new NitscheCouplType(
             bele_xyz, C_umum, C_usum, C_umus, C_usus, rhC_um, rhC_us, fldparaxfem);
         break;
       }
       case Core::FE::CellType::quad8:
       {
-        typedef NitscheCoupling<distype, Core::FE::CellType::quad8, 3> NitscheCouplType;
+        using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::quad8, 3>;
         nit = new NitscheCouplType(
             bele_xyz, C_umum, C_usum, C_umus, C_usus, rhC_um, rhC_us, fldparaxfem);
         break;
       }
       case Core::FE::CellType::quad9:
       {
-        typedef NitscheCoupling<distype, Core::FE::CellType::quad9, 3> NitscheCouplType;
+        using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::quad9, 3>;
         nit = new NitscheCouplType(
             bele_xyz, C_umum, C_usum, C_umus, C_usus, rhC_um, rhC_us, fldparaxfem);
         break;
       }
       default:
-        FOUR_C_THROW("Unsupported boundary element shape %d", bele->shape());
+        FOUR_C_THROW("Unsupported boundary element shape {}", bele->shape());
         break;
     }
   }
@@ -344,48 +287,34 @@ NitscheInterface<distype>::create_nitsche_coupling_x_fluid_sided(Core::Elements:
   {
     switch (bele->shape())
     {
-      //    case Core::FE::CellType::tri3:
-      //    {
-      //      typedef NitscheCoupling<distype,Core::FE::CellType::tri3,4>
-      //      NitscheCouplType; nit = new
-      //      NitscheCouplType(bele_xyz,C_umum,C_usum,C_umus,C_usus,rhC_um,rhC_us,is_viscAdjointSymmetric);
-      //      break;
-      //    }
-      //    case Core::FE::CellType::tri6:
-      //    {
-      //      typedef NitscheCoupling<distype,Core::FE::CellType::tri6,4>
-      //      NitscheCouplType; nit = new
-      //      NitscheCouplType(bele_xyz,C_umum,C_usum,C_umus,C_usus,rhC_um,rhC_us,is_viscAdjointSymmetric);
-      //      break;
-      //    }
       case Core::FE::CellType::quad4:
       {
-        typedef NitscheCoupling<distype, Core::FE::CellType::quad4, 4> NitscheCouplType;
+        using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::quad4, 4>;
         nit = new NitscheCouplType(
             bele_xyz, C_umum, C_usum, C_umus, C_usus, rhC_um, rhC_us, fldparaxfem);
         break;
       }
       case Core::FE::CellType::quad8:
       {
-        typedef NitscheCoupling<distype, Core::FE::CellType::quad8, 4> NitscheCouplType;
+        using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::quad8, 4>;
         nit = new NitscheCouplType(
             bele_xyz, C_umum, C_usum, C_umus, C_usus, rhC_um, rhC_us, fldparaxfem);
         break;
       }
       case Core::FE::CellType::quad9:
       {
-        typedef NitscheCoupling<distype, Core::FE::CellType::quad9, 4> NitscheCouplType;
+        using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::quad9, 4>;
         nit = new NitscheCouplType(
             bele_xyz, C_umum, C_usum, C_umus, C_usus, rhC_um, rhC_us, fldparaxfem);
         break;
       }
       default:
-        FOUR_C_THROW("Unsupported boundary element shape %d", bele->shape());
+        FOUR_C_THROW("Unsupported boundary element shape {}", bele->shape());
         break;
     }
   }
   else
-    FOUR_C_THROW("Unsupported number of %d nodes for coupling slave element.", numdofpernode);
+    FOUR_C_THROW("Unsupported number of {} nodes for coupling slave element.", numdofpernode);
 
   return std::shared_ptr<NitscheInterface<distype>>(nit);
 }
@@ -410,43 +339,29 @@ NitscheInterface<distype>::create_nitsche_coupling_two_sided(Core::Elements::Ele
   {
     switch (vele->shape())
     {
-        //    case Core::FE::CellType::tet4:
-        //    {
-        //      typedef NitscheCoupling<distype,Core::FE::CellType::tet4,4>
-        //      NitscheCouplType; nit = new
-        //      NitscheCouplType(vele_xyz,C_umum,C_usum,C_umus,C_usus,rhC_um,rhC_us,is_viscAdjointSymmetric);
-        //      break;
-        //    }
-        //    case Core::FE::CellType::tet10:
-        //    {
-        //      typedef NitscheCoupling<distype,Core::FE::CellType::tet10,4>
-        //      NitscheCouplType; nit = new
-        //      NitscheCouplType(vele_xyz,C_umum,C_usum,C_umus,C_usus,rhC_um,rhC_us,is_viscAdjointSymmetric);
-        //      break;
-        //    }
       case Core::FE::CellType::hex8:
       {
-        typedef NitscheCoupling<distype, Core::FE::CellType::hex8, 4> NitscheCouplType;
+        using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::hex8, 4>;
         nit = new NitscheCouplType(
             vele_xyz, C_umum, C_usum, C_umus, C_usus, rhC_um, rhC_us, fldparaxfem);
         break;
       }
       case Core::FE::CellType::hex20:
       {
-        typedef NitscheCoupling<distype, Core::FE::CellType::hex20, 4> NitscheCouplType;
+        using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::hex20, 4>;
         nit = new NitscheCouplType(
             vele_xyz, C_umum, C_usum, C_umus, C_usus, rhC_um, rhC_us, fldparaxfem);
         break;
       }
       case Core::FE::CellType::hex27:
       {
-        typedef NitscheCoupling<distype, Core::FE::CellType::hex27, 4> NitscheCouplType;
+        using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::hex27, 4>;
         nit = new NitscheCouplType(
             vele_xyz, C_umum, C_usum, C_umus, C_usus, rhC_um, rhC_us, fldparaxfem);
         break;
       }
       default:
-        FOUR_C_THROW("Unsupported volume element shape %d.", vele->shape());
+        FOUR_C_THROW("Unsupported volume element shape {}.", vele->shape());
         break;
     }
   }
@@ -456,14 +371,14 @@ NitscheInterface<distype>::create_nitsche_coupling_two_sided(Core::Elements::Ele
     {
       case Core::FE::CellType::hex8:
       {
-        typedef NitscheCoupling<distype, Core::FE::CellType::hex8, 3> NitscheCouplType;
+        using NitscheCouplType = NitscheCoupling<distype, Core::FE::CellType::hex8, 3>;
         nit = new NitscheCouplType(
             vele_xyz, C_umum, C_usum, C_umus, C_usus, rhC_um, rhC_us, fldparaxfem);
         break;
       }
       default:
         // expecting 3 dofs per slave element node as this is fluid-solid coupling
-        FOUR_C_THROW("Unsupported volume element shape %d.", vele->shape());
+        FOUR_C_THROW("Unsupported volume element shape {}.", vele->shape());
         break;
     }
   }
@@ -482,7 +397,7 @@ HybridLMInterface<distype>::create_hybrid_lm_coupling_x_fluid_wdbc(
 )
 {
   HybridLMInterface* hybridlm = nullptr;
-  typedef HybridLMCoupling<distype, Core::FE::CellType::dis_none, 3> HybridLMCouplType;
+  using HybridLMCouplType = HybridLMCoupling<distype, Core::FE::CellType::dis_none, 3>;
   hybridlm = new HybridLMCouplType(is_viscAdjointSymmetric);
 
   return std::shared_ptr<HybridLMInterface<distype>>(hybridlm);
@@ -505,41 +420,31 @@ HybridLMInterface<distype>::create_hybrid_lm_coupling_x_fluid_wdbc(
   // coupling
   if (numdofpernode != 3)
   {
-    FOUR_C_THROW("Unsupported number of %d nodes for standard Dirichlet coupling.", numdofpernode);
+    FOUR_C_THROW("Unsupported number of {} nodes for standard Dirichlet coupling.", numdofpernode);
   }
 
   switch (bele->shape())
   {
-      //    case Core::FE::CellType::tri3:
-      //    {
-      //      typedef HybridLMCoupling<distype,Core::FE::CellType::tri3,3>
-      //      HybridLMCouplType; return Teuchos::rcp(new HybridLMCouplType(bele_xyz)); break;
-      //    }
-      //    case Core::FE::CellType::tri6:
-      //    {
-      //      typedef HybridLMCoupling<distype,Core::FE::CellType::tri6,3>
-      //      HybridLMCouplType; return Teuchos::rcp(new HybridLMCouplType(bele_xyz)); break;
-      //    }
     case Core::FE::CellType::quad4:
     {
-      typedef HybridLMCoupling<distype, Core::FE::CellType::quad4, 3> HybridLMCouplType;
+      using HybridLMCouplType = HybridLMCoupling<distype, Core::FE::CellType::quad4, 3>;
       return std::make_shared<HybridLMCouplType>(bele_xyz, is_viscAdjointSymmetric);
       break;
     }
     case Core::FE::CellType::quad8:
     {
-      typedef HybridLMCoupling<distype, Core::FE::CellType::quad8, 3> HybridLMCouplType;
+      using HybridLMCouplType = HybridLMCoupling<distype, Core::FE::CellType::quad8, 3>;
       return std::make_shared<HybridLMCouplType>(bele_xyz, is_viscAdjointSymmetric);
       break;
     }
     case Core::FE::CellType::quad9:
     {
-      typedef HybridLMCoupling<distype, Core::FE::CellType::quad9, 3> HybridLMCouplType;
+      using HybridLMCouplType = HybridLMCoupling<distype, Core::FE::CellType::quad9, 3>;
       return std::make_shared<HybridLMCouplType>(bele_xyz, is_viscAdjointSymmetric);
       break;
     }
     default:
-      FOUR_C_THROW("Unsupported boundary element shape %d", bele->shape());
+      FOUR_C_THROW("Unsupported boundary element shape {}", bele->shape());
       break;
   }
 
@@ -573,43 +478,29 @@ HybridLMInterface<distype>::create_hybrid_lm_coupling_x_fluid_sided(
   {
     switch (bele->shape())
     {
-        //    case Core::FE::CellType::tri3:
-        //    {
-        //      typedef HybridLMCoupling<distype,Core::FE::CellType::tri3,3>
-        //      HybridLMCouplType; hlm = new
-        //      HybridLMCouplType(bele_xyz,C_usum,C_umus,rhC_us,G_s_us,G_us_s,is_viscAdjointSymmetric);
-        //      break;
-        //    }
-        //    case Core::FE::CellType::tri6:
-        //    {
-        //      typedef HybridLMCoupling<distype,Core::FE::CellType::tri6,3>
-        //      HybridLMCouplType; hlm = new
-        //      HybridLMCouplType(bele_xyz,C_usum,C_umus,rhC_us,G_s_us,G_us_s,is_viscAdjointSymmetric);
-        //      break;
-        //    }
       case Core::FE::CellType::quad4:
       {
-        typedef HybridLMCoupling<distype, Core::FE::CellType::quad4, 3> HybridLMCouplType;
+        using HybridLMCouplType = HybridLMCoupling<distype, Core::FE::CellType::quad4, 3>;
         hlm = new HybridLMCouplType(
             bele_xyz, C_usum, C_umus, rhC_us, G_s_us, G_us_s, is_viscAdjointSymmetric);
         break;
       }
       case Core::FE::CellType::quad8:
       {
-        typedef HybridLMCoupling<distype, Core::FE::CellType::quad8, 3> HybridLMCouplType;
+        using HybridLMCouplType = HybridLMCoupling<distype, Core::FE::CellType::quad8, 3>;
         hlm = new HybridLMCouplType(
             bele_xyz, C_usum, C_umus, rhC_us, G_s_us, G_us_s, is_viscAdjointSymmetric);
         break;
       }
       case Core::FE::CellType::quad9:
       {
-        typedef HybridLMCoupling<distype, Core::FE::CellType::quad9, 3> HybridLMCouplType;
+        using HybridLMCouplType = HybridLMCoupling<distype, Core::FE::CellType::quad9, 3>;
         hlm = new HybridLMCouplType(
             bele_xyz, C_usum, C_umus, rhC_us, G_s_us, G_us_s, is_viscAdjointSymmetric);
         break;
       }
       default:
-        FOUR_C_THROW("Unsupported boundary element shape %d", bele->shape());
+        FOUR_C_THROW("Unsupported boundary element shape {}", bele->shape());
         break;
     }
   }
@@ -617,48 +508,34 @@ HybridLMInterface<distype>::create_hybrid_lm_coupling_x_fluid_sided(
   {
     switch (bele->shape())
     {
-        //      case Core::FE::CellType::tri3:
-        //      {
-        //        typedef HybridLMCoupling<distype,Core::FE::CellType::tri3,4>
-        //        HybridLMCouplType; hlm = new
-        //        HybridLMCouplType(bele_xyz,C_usum,C_umus,rhC_us,G_s_us,G_us_s,is_viscAdjointSymmetric);
-        //        break;
-        //      }
-        //      case Core::FE::CellType::tri6:
-        //      {
-        //        typedef HybridLMCoupling<distype,Core::FE::CellType::tri6,4>
-        //        HybridLMCouplType; hlm = new
-        //        HybridLMCouplType(bele_xyz,C_usum,C_umus,rhC_us,G_s_us,G_us_s,is_viscAdjointSymmetric);
-        //        break;
-        //      }
       case Core::FE::CellType::quad4:
       {
-        typedef HybridLMCoupling<distype, Core::FE::CellType::quad4, 4> HybridLMCouplType;
+        using HybridLMCouplType = HybridLMCoupling<distype, Core::FE::CellType::quad4, 4>;
         hlm = new HybridLMCouplType(
             bele_xyz, C_usum, C_umus, rhC_us, G_s_us, G_us_s, is_viscAdjointSymmetric);
         break;
       }
       case Core::FE::CellType::quad8:
       {
-        typedef HybridLMCoupling<distype, Core::FE::CellType::quad8, 4> HybridLMCouplType;
+        using HybridLMCouplType = HybridLMCoupling<distype, Core::FE::CellType::quad8, 4>;
         hlm = new HybridLMCouplType(
             bele_xyz, C_usum, C_umus, rhC_us, G_s_us, G_us_s, is_viscAdjointSymmetric);
         break;
       }
       case Core::FE::CellType::quad9:
       {
-        typedef HybridLMCoupling<distype, Core::FE::CellType::quad9, 4> HybridLMCouplType;
+        using HybridLMCouplType = HybridLMCoupling<distype, Core::FE::CellType::quad9, 4>;
         hlm = new HybridLMCouplType(
             bele_xyz, C_usum, C_umus, rhC_us, G_s_us, G_us_s, is_viscAdjointSymmetric);
         break;
       }
       default:
-        FOUR_C_THROW("Unsupported boundary element shape %d", bele->shape());
+        FOUR_C_THROW("Unsupported boundary element shape {}", bele->shape());
         break;
     }
   }
   else
-    FOUR_C_THROW("Unsupported number of %d nodes for coupling slave element.", numdofpernode);
+    FOUR_C_THROW("Unsupported number of {} nodes for coupling slave element.", numdofpernode);
 
   return std::shared_ptr<HybridLMInterface<distype>>(hlm);
 }

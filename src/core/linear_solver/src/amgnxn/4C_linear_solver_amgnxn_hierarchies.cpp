@@ -227,8 +227,8 @@ void Core::LinearSolver::AMGNxN::Hierarchies::setup()
           NumLevel_this_block, Teuchos::null);
 
       // some local typedefs
-      typedef Xpetra::Matrix<Scalar, LocalOrdinal, GlobalOrdinal, Node> Matrix;
-      typedef MueLu::SmootherBase<Scalar, LocalOrdinal, GlobalOrdinal, Node> SmootherBase;
+      using Matrix = Xpetra::Matrix<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
+      using SmootherBase = MueLu::SmootherBase<Scalar, LocalOrdinal, GlobalOrdinal, Node>;
 
       Teuchos::RCP<Matrix> myA = Teuchos::null;
       Teuchos::RCP<Epetra_CrsMatrix> myAcrs = Teuchos::null;
@@ -247,8 +247,8 @@ void Core::LinearSolver::AMGNxN::Hierarchies::setup()
           myA = this_level->Get<Teuchos::RCP<Matrix>>("A");
           myAcrs = MueLuUtils::Op2NonConstEpetraCrs(myA);
           myAspa = Teuchos::make_rcp<Core::LinAlg::SparseMatrix>(
-              Core::Utils::shared_ptr_from_ref(*myAcrs), Core::LinAlg::Copy, explicitdirichlet,
-              savegraph);
+              Core::Utils::shared_ptr_from_ref(*myAcrs), Core::LinAlg::DataAccess::Copy,
+              explicitdirichlet, savegraph);
           A_level[level] = myAspa;
         }
         else
@@ -282,8 +282,8 @@ void Core::LinearSolver::AMGNxN::Hierarchies::setup()
             myA = this_level->Get<Teuchos::RCP<Matrix>>("P");
             myAcrs = MueLuUtils::Op2NonConstEpetraCrs(myA);
             myAspa = Teuchos::make_rcp<Core::LinAlg::SparseMatrix>(
-                Core::Utils::shared_ptr_from_ref(*myAcrs), Core::LinAlg::Copy, explicitdirichlet,
-                savegraph);
+                Core::Utils::shared_ptr_from_ref(*myAcrs), Core::LinAlg::DataAccess::Copy,
+                explicitdirichlet, savegraph);
             P_level[level - 1] = myAspa;
           }
           else
@@ -294,8 +294,8 @@ void Core::LinearSolver::AMGNxN::Hierarchies::setup()
             myA = this_level->Get<Teuchos::RCP<Matrix>>("R");
             myAcrs = MueLuUtils::Op2NonConstEpetraCrs(myA);
             myAspa = Teuchos::make_rcp<Core::LinAlg::SparseMatrix>(
-                Core::Utils::shared_ptr_from_ref(*myAcrs), Core::LinAlg::Copy, explicitdirichlet,
-                savegraph);
+                Core::Utils::shared_ptr_from_ref(*myAcrs), Core::LinAlg::DataAccess::Copy,
+                explicitdirichlet, savegraph);
             R_level[level - 1] = myAspa;
           }
           else
@@ -351,7 +351,7 @@ Core::LinearSolver::AMGNxN::Hierarchies::build_mue_lu_hierarchy(
     if (numdf == 1) offsetFineLevel = 0;
 
     // Prepare operator for MueLu
-    Teuchos::RCP<Epetra_CrsMatrix> A_crs = Teuchos::rcp_dynamic_cast<Epetra_CrsMatrix>(A_eop);
+    auto A_crs = Teuchos::rcp_dynamic_cast<Epetra_CrsMatrix>(A_eop);
     if (A_crs == Teuchos::null)
       FOUR_C_THROW("Make sure that the input matrix is a Epetra_CrsMatrix (or derived)");
     Teuchos::RCP<Xpetra::CrsMatrix<Scalar, LocalOrdinal, GlobalOrdinal, Node>> mueluA =

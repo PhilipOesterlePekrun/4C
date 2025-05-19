@@ -11,10 +11,10 @@
 #include "4C_post_processor_single_field_writers.hpp"
 #include "4C_post_writer_base.hpp"
 #include "4C_scatra_ele.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_exceptions.hpp"
 #include "4C_utils_singleton_owner.hpp"
 
-#include <Epetra_MpiComm.h>
 
 using namespace FourC;
 namespace
@@ -91,8 +91,8 @@ namespace
         // Regular solid/structure output
         {
           PostField* structurefield = problem.get_discretization(0);
-          StructureFilter structwriter(structurefield, problem.outname(), problem.stresstype(),
-              problem.straintype(), problem.optquantitytype());
+          StructureFilter structwriter(
+              structurefield, problem.outname(), problem.stresstype(), problem.straintype());
           structwriter.write_files();
         }
 
@@ -216,8 +216,8 @@ namespace
           else if (disname == "structure")
           {
             PostField* structure = problem.get_discretization(i);
-            StructureFilter writer(structure, problem.outname(), problem.stresstype(),
-                problem.straintype(), problem.optquantitytype());
+            StructureFilter writer(
+                structure, problem.outname(), problem.stresstype(), problem.straintype());
             writer.write_files();
           }
           else
@@ -225,19 +225,6 @@ namespace
             FOUR_C_THROW("Particle problem has illegal discretization name!");
           }
         }
-        break;
-      }
-      case Core::ProblemType::redairways_tissue:
-      {
-        PostField* structfield = problem.get_discretization(0);
-        StructureFilter structwriter(
-            structfield, problem.outname(), problem.stresstype(), problem.straintype());
-        structwriter.write_files();
-
-        PostField* fluidfield = problem.get_discretization(1);
-        StructureFilter fluidwriter(
-            fluidfield, problem.outname(), problem.stresstype(), problem.straintype());
-        fluidwriter.write_files();
         break;
       }
       case Core::ProblemType::ale:
@@ -252,73 +239,6 @@ namespace
         PostField* lubricationfield = problem.get_discretization(0);
         LubricationFilter lubricationwriter(lubricationfield, problem.outname());
         lubricationwriter.write_files();
-        break;
-      }
-      case Core::ProblemType::porofluidmultiphase:
-      {
-        std::string basename = problem.outname();
-
-        // write output for artery
-        if (problem.num_discr() == 2)
-        {
-          PostField* field = problem.get_discretization(1);
-          // AnyFilter writer(field, problem.outname());
-          StructureFilter writer(field, basename, problem.stresstype(), problem.straintype());
-          writer.write_files();
-        }
-        break;
-      }
-      case Core::ProblemType::poromultiphase:
-      {
-        std::string basename = problem.outname();
-
-        PostField* structfield = problem.get_discretization(0);
-        StructureFilter structwriter(
-            structfield, basename, problem.stresstype(), problem.straintype());
-        structwriter.write_files();
-
-        if (problem.num_discr() == 3)
-        {
-          // artery
-          PostField* field = problem.get_discretization(2);
-          // AnyFilter writer(field, problem.outname());
-          StructureFilter writer(field, basename, problem.stresstype(), problem.straintype());
-          writer.write_files();
-        }
-        break;
-      }
-      case Core::ProblemType::poromultiphasescatra:
-      {
-        std::string basename = problem.outname();
-
-        PostField* structfield = problem.get_discretization(0);
-        StructureFilter structwriter(
-            structfield, basename, problem.stresstype(), problem.straintype());
-        structwriter.write_files();
-
-        // no artery discretization
-        if (problem.num_discr() == 3)
-        {
-          // runtime output is used for scatra
-        }
-        else if (problem.num_discr() == 4)
-        {
-          // artery
-          PostField* field = problem.get_discretization(2);
-          // AnyFilter writer(field, problem.outname());
-          StructureFilter writer(field, basename, problem.stresstype(), problem.straintype());
-          writer.write_files();
-        }
-        else if (problem.num_discr() == 5)
-        {
-          // artery
-          PostField* field = problem.get_discretization(2);
-          // AnyFilter writer(field, problem.outname());
-          StructureFilter writer(field, basename, problem.stresstype(), problem.straintype());
-          writer.write_files();
-        }
-        else
-          FOUR_C_THROW("wrong number of discretizations");
         break;
       }
       case Core::ProblemType::cardiac_monodomain:
@@ -338,13 +258,12 @@ namespace
           // runtime output is used for scatra
         }
         else
-          FOUR_C_THROW("number of fields does not match: got %d", numfields);
+          FOUR_C_THROW("number of fields does not match: got {}", numfields);
 
         break;
       }
       case Core::ProblemType::fsi_xfem:
       case Core::ProblemType::fpsi_xfem:
-      case Core::ProblemType::fluid_xfem_ls:
       {
         std::cout
             << "|=============================================================================|"
@@ -397,7 +316,7 @@ namespace
           }
           else
             FOUR_C_THROW(
-                "You try to postprocess a discretization with name %s, maybe you should add it "
+                "You try to postprocess a discretization with name {}, maybe you should add it "
                 "here?",
                 disname.c_str());
         }
@@ -419,7 +338,7 @@ namespace
                     << std::endl;
         }
 
-        if (numfield == 0) FOUR_C_THROW("we expect at least a fluid field, numfield=%i", numfield);
+        if (numfield == 0) FOUR_C_THROW("we expect at least a fluid field, numfield={}", numfield);
         std::string basename = problem.outname();
 
         // XFluid in the standard case, embedded fluid for XFF
@@ -500,7 +419,7 @@ namespace
           // runtime output is used for scatra
         }
         else
-          FOUR_C_THROW("number of fields does not match: got %d", numfield);
+          FOUR_C_THROW("number of fields does not match: got {}", numfield);
         break;
       }
       case Core::ProblemType::art_net:
@@ -646,13 +565,6 @@ namespace
 
         break;
       }
-      case Core::ProblemType::elemag:
-      {
-        PostField* field = problem.get_discretization(0);
-        ElemagFilter writer(field, problem.outname());
-        writer.write_files();
-        break;
-      }
       case Core::ProblemType::none:
       {
         // Special problem type that contains one discretization and any number
@@ -663,7 +575,7 @@ namespace
         break;
       }
       default:
-        FOUR_C_THROW("problem type %d not yet supported", problem.problemtype());
+        FOUR_C_THROW("problem type {} not yet supported", problem.problemtype());
         break;
     }
   }
@@ -686,8 +598,6 @@ namespace
 
  Select the appropriate filter and run!
 
- \author kronbichler
- \date 03/14
  */
 int main(int argc, char** argv)
 {
@@ -703,7 +613,7 @@ int main(int argc, char** argv)
     if (filter == "ensight" || filter == "vtu" || filter == "vtu_node_based" || filter == "vti")
       run_ensight_vtu_filter(problem);
     else
-      FOUR_C_THROW("Unknown filter %s given, supported filters: [ensight|vtu|vti]", filter.c_str());
+      FOUR_C_THROW("Unknown filter {} given, supported filters: [ensight|vtu|vti]", filter);
 
   }  // try
   catch (Core::Exception& err)

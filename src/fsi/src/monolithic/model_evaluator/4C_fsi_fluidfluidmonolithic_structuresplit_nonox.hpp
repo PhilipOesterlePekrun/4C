@@ -22,8 +22,6 @@ namespace FSI
     Here the structural matrix is split whereas the fluid matrix is taken as
     it is.
 
-    \author Shadan Shahmiri
-    \date  11/2011
   */
   class FluidFluidMonolithicStructureSplitNoNOX : public MonolithicNoNOX
   {
@@ -70,7 +68,7 @@ namespace FSI
         Core::LinAlg::Vector<double>& x, Core::LinAlg::Vector<double>& b);
 
     /// create merged map with Dirichlet-constrained DOF from all fields
-    std::shared_ptr<Epetra_Map> combined_dbc_map() override;
+    std::shared_ptr<Core::LinAlg::Map> combined_dbc_map() override;
 
     //! Extract the three field vectors from a given composed vector
     //!
@@ -105,8 +103,7 @@ namespace FSI
     /*!
      * In case of a change in the fluid DOF row maps during the Newton loop (full Newton approach),
      * reset vectors accordingly.
-     * \author kruse
-     * \date 05/14
+
      */
     void handle_fluid_dof_map_change_in_newton() override;
 
@@ -115,8 +112,7 @@ namespace FSI
      * \param (in) : DOF map of fluid increment vector
      * \return : true, in case of a mismatch between map of increment vector
      * and inner fluid DOF map after evaluation
-     * \author kruse
-     * \date 05/14
+
      */
     bool has_fluid_dof_map_changed(const Epetra_BlockMap& fluidincrementmap) override;
 

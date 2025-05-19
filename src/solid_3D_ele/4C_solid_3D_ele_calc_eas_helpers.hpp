@@ -11,9 +11,12 @@
 #include "4C_config.hpp"
 
 #include "4C_fem_general_cell_type_traits.hpp"
+#include "4C_fem_general_extract_values.hpp"
 #include "4C_linalg_fixedsizematrix.hpp"
 #include "4C_linalg_fixedsizematrix_generators.hpp"
 #include "4C_solid_3D_ele_calc_lib.hpp"
+
+#include <cstring>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -74,7 +77,7 @@ namespace Discret::Elements
   };
 
   template <Core::FE::CellType celltype>
-  inline static constexpr int num_nodes = Core::FE::num_nodes<celltype>;
+  inline static constexpr int num_nodes = Core::FE::num_nodes(celltype);
 
   template <Core::FE::CellType celltype>
   inline static constexpr int num_dim = Core::FE::dim<celltype>;
@@ -93,20 +96,20 @@ namespace Discret::Elements
     constexpr static int num_eas = Discret::Elements::EasTypeToNumEas<eastype>::num_eas;
 
     /// inverse EAS matrix K_{alpha alpha}
-    Core::LinAlg::Matrix<num_eas, num_eas> invKaa{true};
+    Core::LinAlg::Matrix<num_eas, num_eas> invKaa{Core::LinAlg::Initialization::zero};
 
     /// EAS matrix K_{d alpha}
-    Core::LinAlg::Matrix<Core::FE::num_nodes<celltype> * Core::FE::dim<celltype>, num_eas> Kda{
-        true};
+    Core::LinAlg::Matrix<Core::FE::num_nodes(celltype) * Core::FE::dim<celltype>, num_eas> Kda{
+        Core::LinAlg::Initialization::zero};
 
     /// EAS enhancement vector s
-    Core::LinAlg::Matrix<num_eas, 1> s{true};
+    Core::LinAlg::Matrix<num_eas, 1> s{Core::LinAlg::Initialization::zero};
 
     /// discrete enhanced strain scalars increment
-    Core::LinAlg::Matrix<num_eas, 1> alpha_inc{true};
+    Core::LinAlg::Matrix<num_eas, 1> alpha_inc{Core::LinAlg::Initialization::zero};
 
     /// discrete enhanced strain scalars alpha
-    Core::LinAlg::Matrix<num_eas, 1> alpha{true};
+    Core::LinAlg::Matrix<num_eas, 1> alpha{Core::LinAlg::Initialization::zero};
   };
 
   template <Core::FE::CellType celltype>
@@ -163,11 +166,12 @@ namespace Discret::Elements
       const Core::FE::Discretization& discretization, const std::vector<int>& lm)
   {
     auto residual_from_dis = discretization.get_state("residual displacement");
-    std::vector<double> residual(lm.size());
-    Core::FE::extract_my_values(*residual_from_dis, residual, lm);
-    Core::LinAlg::Matrix<Discret::Elements::num_dof_per_ele<celltype>, 1> displ_inc(false);
-    for (int i = 0; i < Discret::Elements::num_dof_per_ele<celltype>; ++i)
-      displ_inc(i) = residual[i];
+    const std::array residual =
+        Core::FE::extract_values_as_array<Discret::Elements::num_dof_per_ele<celltype>>(
+            *residual_from_dis, lm);
+    Core::LinAlg::Matrix<Discret::Elements::num_dof_per_ele<celltype>, 1> displ_inc(
+        Core::LinAlg::Initialization::uninitialized);
+    std::memcpy(displ_inc.data(), residual.data(), sizeof(double) * residual.size());
 
     return displ_inc;
   }
@@ -254,7 +258,7 @@ namespace Discret::Elements
   {
     Core::LinAlg::Matrix<Discret::Elements::num_str<celltype>,
         Discret::Elements::EasTypeToNumEas<eastype>::num_eas>
-        M(true);
+        M(Core::LinAlg::Initialization::zero);
 
     switch (eastype)
     {
@@ -445,7 +449,8 @@ namespace Discret::Elements
           Discret::Elements::EasTypeToNumEas<eastype>::num_eas>& Mtilde,
       const Core::LinAlg::Matrix<Discret::Elements::EasTypeToNumEas<eastype>::num_eas, 1>& alpha)
   {
-    Core::LinAlg::Matrix<Discret::Elements::num_str<celltype>, 1> enhanced_gl_strain(false);
+    Core::LinAlg::Matrix<Discret::Elements::num_str<celltype>, 1> enhanced_gl_strain(
+        Core::LinAlg::Initialization::uninitialized);
     enhanced_gl_strain.multiply(Mtilde, alpha);
     return enhanced_gl_strain;
   }
@@ -506,7 +511,7 @@ namespace Discret::Elements
     // invert the matrix. At this point, this is still Kaa and NOT invKaa.
     Core::LinAlg::Matrix<Discret::Elements::num_str<celltype>,
         Discret::Elements::EasTypeToNumEas<eastype>::num_eas>
-        cmatM(true);
+        cmatM(Core::LinAlg::Initialization::zero);
     cmatM.multiply(stress.cmat_, Mtilde);
     eas_iteration_data.invKaa.multiply_tn(integration_factor, Mtilde, cmatM, 1.);
 
@@ -563,7 +568,7 @@ namespace Discret::Elements
   struct EASKinematics
   {
     static constexpr int num_str = Core::FE::dim<celltype> * (Core::FE::dim<celltype> + 1) / 2;
-    static constexpr int num_dof_per_ele = Core::FE::num_nodes<celltype> * Core::FE::dim<celltype>;
+    static constexpr int num_dof_per_ele = Core::FE::num_nodes(celltype) * Core::FE::dim<celltype>;
     Core::LinAlg::Matrix<num_str, num_dof_per_ele> b_op{};
     Core::LinAlg::Matrix<num_str, 1> enhanced_gl{};
     Core::LinAlg::Matrix<Core::FE::dim<celltype>, Core::FE::dim<celltype>>

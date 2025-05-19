@@ -16,6 +16,7 @@
 #include "4C_inpar_particle.hpp"
 #include "4C_particle_engine_enums.hpp"
 #include "4C_particle_engine_typedefs.hpp"
+#include "4C_utils_parameter_list.fwd.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -59,7 +60,6 @@ namespace ParticleInteraction
     /*!
      * \brief destructor
      *
-     * \author Sebastian Fuchs \date 12/2020
      *
      * \note At compile-time a complete type of class T as used in class member
      *       std::unique_ptr<T> ptr_T_ is required

@@ -281,7 +281,6 @@ std::vector<double> Cut::FacetIntegration::compute_alpha(
   else
   {
     FOUR_C_THROW("The facet integration type undefined");
-    exit(1);
   }
   return alfa;
 }
@@ -428,7 +427,6 @@ double Cut::FacetIntegration::integrate_facet()
     if (projType != Cut::proj_x and projType != Cut::proj_y and projType != Cut::proj_z)
     {
       FOUR_C_THROW("projection plane is not defined");
-      exit(1);
     }
 
     boundary_facet_integration(cornersLocal, facet_integ, projType);
@@ -527,7 +525,6 @@ void Cut::FacetIntegration::boundary_facet_integration(
     else
     {
       FOUR_C_THROW("The facet integration type not supported");
-      exit(1);
     }
   }
 
@@ -597,7 +594,8 @@ void Cut::FacetIntegration::divergence_integration_rule(
         ++iquad)
     {
       double drs = 0.0;
-      Core::LinAlg::Matrix<3, 1> x_gp_loc(true), normal(true);
+      Core::LinAlg::Matrix<3, 1> x_gp_loc(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<3, 1> normal(Core::LinAlg::Initialization::zero);
       const Core::LinAlg::Matrix<2, 1> eta(iquad.point());
 
       switch (bcell->shape())
@@ -845,7 +843,7 @@ void Cut::FacetIntegration::divergence_integration_rule_new(
       for (std::vector<std::vector<Point*>>::iterator k = facetSplit.begin(); k != facetSplit.end();
           k++)
       {
-        Core::LinAlg::Matrix<3, 1> midpt(true);
+        Core::LinAlg::Matrix<3, 1> midpt(Core::LinAlg::Initialization::zero);
 
         std::vector<std::vector<double>> corners_split;
         for (std::vector<Point*>::iterator l = (*k).begin(); l != (*k).end(); l++)
@@ -865,7 +863,7 @@ void Cut::FacetIntegration::divergence_integration_rule_new(
     }
     else
     {
-      Core::LinAlg::Matrix<3, 1> midpt(true);
+      Core::LinAlg::Matrix<3, 1> midpt(Core::LinAlg::Initialization::zero);
       bcell->element_center(midpt);
       Cut::Output::GmshTriSideDump(file, bcell->Points());
       Cut::Output::GmshVector(file, midpt, Cut::Output::GetEqOfPlane(bcell->Points()), true);
@@ -881,7 +879,8 @@ void Cut::FacetIntegration::divergence_integration_rule_new(
         ++iquad)
     {
       double drs = 0.0;
-      Core::LinAlg::Matrix<3, 1> x_gp_loc(true), normal(true);
+      Core::LinAlg::Matrix<3, 1> x_gp_loc(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<3, 1> normal(Core::LinAlg::Initialization::zero);
       const Core::LinAlg::Matrix<2, 1> eta(iquad.point());
 
       switch (bcell->shape())
@@ -907,9 +906,8 @@ void Cut::FacetIntegration::divergence_integration_rule_new(
           break;
         }
         default:
-          FOUR_C_THROW("unsupported integration cell type ( cell type = %s )",
-              Core::FE::cell_type_to_string(bcell->shape()).c_str());
-          exit(EXIT_FAILURE);
+          FOUR_C_THROW("unsupported integration cell type ( cell type = {} )",
+              Core::FE::cell_type_to_string(bcell->shape()));
       }
       double wei = iquad.weight() * drs * normalX;
 

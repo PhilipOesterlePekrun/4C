@@ -62,7 +62,7 @@ namespace CONTACT
     \brief Standard Constructor
 
     Creates the strategy object and initializes all global variables, including
-    all necessary Epetra_Maps and global vector and matrix quantities.
+    all necessary Core::LinAlg::Maps and global vector and matrix quantities.
 
     \param[in] dof_row_map Dof row map of underlying problem
     \param[in] NodeRowMap Node row map of underlying problem
@@ -73,7 +73,7 @@ namespace CONTACT
     \param[in] alphaf Mid-point for Generalized-alpha time integration
     \param[in] maxdof Highest DOF number in global problem
     */
-    MtAbstractStrategy(const Epetra_Map* dof_row_map, const Epetra_Map* NodeRowMap,
+    MtAbstractStrategy(const Core::LinAlg::Map* dof_row_map, const Core::LinAlg::Map* NodeRowMap,
         Teuchos::ParameterList params, std::vector<std::shared_ptr<Mortar::Interface>> interface,
         const int spatialDim, const MPI_Comm& comm, const double alphaf, const int maxdof);
 
@@ -132,9 +132,10 @@ namespace CONTACT
     @param InnerDofMap Dof row map of interior volume
     @param ActiveDofMap Dof row map of active slave contact interface
     */
-    void collect_maps_for_preconditioner(std::shared_ptr<Epetra_Map>& MasterDofMap,
-        std::shared_ptr<Epetra_Map>& SlaveDofMap, std::shared_ptr<Epetra_Map>& InnerDofMap,
-        std::shared_ptr<Epetra_Map>& ActiveDofMap) const override;
+    void collect_maps_for_preconditioner(std::shared_ptr<Core::LinAlg::Map>& MasterDofMap,
+        std::shared_ptr<Core::LinAlg::Map>& SlaveDofMap,
+        std::shared_ptr<Core::LinAlg::Map>& InnerDofMap,
+        std::shared_ptr<Core::LinAlg::Map>& ActiveDofMap) const override;
 
     /*!
     \brief Return mortar matrix D
@@ -207,8 +208,8 @@ namespace CONTACT
     /*! \brief Reset call at the beginning of the apply_force(), apply_stiff() and
      * apply_force_stiff() [derived]
      *
-     *  \date 02/2016
-     *  \author hiermeier */
+
+     *  */
     virtual void reset(const Core::LinAlg::Vector<double>& dis)
     {
       FOUR_C_THROW("Not yet considered for meshtying!");
@@ -219,8 +220,8 @@ namespace CONTACT
      *  Evaluation of the right-hand-side only. Necessary and meaningful for line search strategies
      *  for example.
      *
-     *  \date 03/2016
-     *  \author hiermeier */
+
+     *  */
     virtual bool apply_force()
     {
       FOUR_C_THROW("Not yet considered for msht!");
@@ -233,8 +234,8 @@ namespace CONTACT
      * method also, when we are only interested in the jacobian, since the created overhead is
      * negligible.
      *
-     *  \date 03/2016
-     *  \author hiermeier */
+
+     *  */
     virtual bool apply_force_stiff()
     {
       FOUR_C_THROW("Not yet considered for msht!");
@@ -334,20 +335,6 @@ namespace CONTACT
     //! @name Output
 
     /*!
-    \brief Compute interface forces and moments
-
-    Compute current interface forces and moments at n+1-alphaf using current
-    Lagrange multiplier values and current Mortar matrices D and M at n+1. When
-    doing dynamics with alpha_f > 0, this also uses the old LM and Mortar
-    matrices of the last converged time / load step n (TR-like interpolation).
-
-    \param fresm (in): residual / force vector at state n+1 of current Newton step
-    \param output (in): flag indicating whether force output shall be written
-
-    */
-    void interface_forces(bool output = false) override;
-
-    /*!
     \brief Print interfaces
 
     \param[in] os Output stream used for printing
@@ -372,20 +359,6 @@ namespace CONTACT
 
     //! @}
 
-    //! @name Debugging methods
-    //! @{
-
-    /*!
-    \brief Visualize contact stuff with gmsh
-
-    \param step (in): current time step index
-    \param iter (in): current nonlinear iteration index
-
-    */
-    void visualize_gmsh(const int step, const int iter) const override;
-
-    //! @}
-
     //! @name Preconditioner methods
     //! @{
 
@@ -407,8 +380,9 @@ namespace CONTACT
      * (2) innerDofMap
      * (3) activeDofMap
      *
-     * \author hiermeier */
-    void fill_maps_for_preconditioner(std::vector<Teuchos::RCP<Epetra_Map>>& maps) const override;
+     * */
+    void fill_maps_for_preconditioner(
+        std::vector<Teuchos::RCP<Core::LinAlg::Map>>& maps) const override;
 
     //! compute the preconditioner operator
     bool computePreconditioner(const Epetra_Vector& x, Epetra_Operator& M,
@@ -510,20 +484,23 @@ namespace CONTACT
     void evaluate_reference_state() override {}
     void evaluate_relative_movement() override {}
     void predict_relative_movement() override {}
-    std::shared_ptr<const Epetra_Map> slave_row_nodes_ptr() const override { return gsnoderowmap_; }
-    std::shared_ptr<const Epetra_Map> active_row_nodes() const override { return nullptr; }
-    std::shared_ptr<const Epetra_Map> active_row_dofs() const override { return nullptr; }
-    std::shared_ptr<const Epetra_Map> non_redist_slave_row_dofs() const override
+    std::shared_ptr<const Core::LinAlg::Map> slave_row_nodes_ptr() const override
+    {
+      return gsnoderowmap_;
+    }
+    std::shared_ptr<const Core::LinAlg::Map> active_row_nodes() const override { return nullptr; }
+    std::shared_ptr<const Core::LinAlg::Map> active_row_dofs() const override { return nullptr; }
+    std::shared_ptr<const Core::LinAlg::Map> non_redist_slave_row_dofs() const override
     {
       return non_redist_gsdofrowmap_;
     }
-    std::shared_ptr<const Epetra_Map> non_redist_master_row_dofs() const override
+    std::shared_ptr<const Core::LinAlg::Map> non_redist_master_row_dofs() const override
     {
       return non_redist_gmdofrowmap_;
     }
-    std::shared_ptr<const Epetra_Map> slip_row_nodes() const override { return nullptr; }
-    std::shared_ptr<const Epetra_Map> slave_dof_row_map_ptr() const { return gsdofrowmap_; }
-    std::shared_ptr<const Epetra_Map> master_dof_row_map_ptr() const { return gmdofrowmap_; }
+    std::shared_ptr<const Core::LinAlg::Map> slip_row_nodes() const override { return nullptr; }
+    std::shared_ptr<const Core::LinAlg::Map> slave_dof_row_map_ptr() const { return gsdofrowmap_; }
+    std::shared_ptr<const Core::LinAlg::Map> master_dof_row_map_ptr() const { return gmdofrowmap_; }
 
     //! @}
 
@@ -543,8 +520,8 @@ namespace CONTACT
      *
      *  \param bt (in): Desired vector block type, e.g. displ, constraint, ...
      *
-     *  \date 05/2016
-     *  \author hiermeier */
+
+     *  */
     virtual std::shared_ptr<const Core::LinAlg::Vector<double>> get_rhs_block_ptr(
         const enum CONTACT::VecBlockType& bt) const = 0;
 
@@ -555,20 +532,23 @@ namespace CONTACT
      *
      *  \param bt (in): Desired matrix block type, e.g. displ_displ, displ_lm, ...
      *
-     *  \date 05/2016
-     *  \author hiermeier */
+
+     *  */
     virtual std::shared_ptr<Core::LinAlg::SparseMatrix> get_matrix_block_ptr(
         const enum CONTACT::MatBlockType& bt) const = 0;
 
     /*! \brief Return the current (maybe redistributed) Lagrange multiplier dof row map
      *
      */
-    virtual std::shared_ptr<const Epetra_Map> lm_dof_row_map_ptr() const { return glmdofrowmap_; };
+    virtual std::shared_ptr<const Core::LinAlg::Map> lm_dof_row_map_ptr() const
+    {
+      return glmdofrowmap_;
+    };
 
     /*! \brief Return the non-redistributed Lagrange multiplier dof row map
      *
      */
-    virtual std::shared_ptr<const Epetra_Map> non_redist_lm_dof_row_map_ptr() const
+    virtual std::shared_ptr<const Core::LinAlg::Map> non_redist_lm_dof_row_map_ptr() const
     {
       return non_redist_glmdofrowmap_;
     };
@@ -694,43 +674,43 @@ namespace CONTACT
     std::vector<std::shared_ptr<Mortar::Interface>> interface_;
 
     //! Global Lagrange multiplier dof row map (of all interfaces)
-    std::shared_ptr<Epetra_Map> glmdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> glmdofrowmap_;
 
     //! Global slave dof row map (of all interfaces)
-    std::shared_ptr<Epetra_Map> gsdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> gsdofrowmap_;
 
     //! Global master dof row map (of all interfaces)
-    std::shared_ptr<Epetra_Map> gmdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> gmdofrowmap_;
 
     //! Global internal dof row map (of all interfaces)
-    std::shared_ptr<Epetra_Map> gndofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> gndofrowmap_;
 
     //! Global slave and master dof row map (slave+master map)
-    std::shared_ptr<Epetra_Map> gsmdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> gsmdofrowmap_;
 
     //! Global displacement dof row map (s+m+n map)
-    std::shared_ptr<Epetra_Map> gdisprowmap_;
+    std::shared_ptr<Core::LinAlg::Map> gdisprowmap_;
 
     //! Global slave node row map (of all interfaces)
-    std::shared_ptr<Epetra_Map> gsnoderowmap_;
+    std::shared_ptr<Core::LinAlg::Map> gsnoderowmap_;
 
     //! Global master node row map (of all interfaces)
-    std::shared_ptr<Epetra_Map> gmnoderowmap_;
+    std::shared_ptr<Core::LinAlg::Map> gmnoderowmap_;
 
     //! @name Parallel redistribution
     //!@{
 
     //! Global Lagrange multiplier dof row map (before parallel redistribution)
-    std::shared_ptr<Epetra_Map> non_redist_glmdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> non_redist_glmdofrowmap_;
 
     //! Global slave dof row map (before parallel redistribution)
-    std::shared_ptr<Epetra_Map> non_redist_gsdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> non_redist_gsdofrowmap_;
 
     //! Global master dof row map (before parallel redistribution)
-    std::shared_ptr<Epetra_Map> non_redist_gmdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> non_redist_gmdofrowmap_;
 
     //! Global slave and master dof row map (before parallel redistribution)
-    std::shared_ptr<Epetra_Map> non_redist_gsmdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map> non_redist_gsmdofrowmap_;
 
     //! Global dirichlet toggle of all slave dofs (before parallel redistribution)
     std::shared_ptr<Core::LinAlg::Vector<double>> non_redist_gsdirichtoggle_;
@@ -741,7 +721,7 @@ namespace CONTACT
     //!@{
 
     //! Initial element column map for binning strategy (slave and master)
-    std::vector<std::shared_ptr<Epetra_Map>> initial_elecolmap_;
+    std::vector<std::shared_ptr<Core::LinAlg::Map>> initial_elecolmap_;
 
     //! Global Mortar matrix \f$D\f$
     std::shared_ptr<Core::LinAlg::SparseMatrix> dmatrix_;

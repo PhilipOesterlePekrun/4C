@@ -10,8 +10,9 @@
 
 #include "4C_config.hpp"
 
-#include "4C_utils_parameter_list.fwd.hpp"
+#include "4C_io_input_spec.hpp"
 
+#include <map>
 #include <vector>
 
 FOUR_C_NAMESPACE_OPEN
@@ -140,12 +141,12 @@ namespace Inpar
     /// Enum to encode handling of Dirichlet boundary conditions at contact interfaces
     enum class DBCHandling : int
     {
-      do_nothing,
-      remove_dbc_nodes_from_slave_side  // ToDo (mayr.mt) Remove? Do not change DBCs at runtime!
+      DoNothing,
+      RemoveDBCSlaveNodes  // ToDo (mayr.mt) Remove? Do not change DBCs at runtime!
     };
 
     /// set the mortar parameters
-    void set_valid_parameters(Teuchos::ParameterList& list);
+    void set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list);
 
     /// set specific mortar conditions
     void set_valid_conditions(std::vector<Core::Conditions::ConditionDefinition>& condlist);

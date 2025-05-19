@@ -12,11 +12,10 @@
 /* headers */
 #include "4C_config.hpp"
 
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_utils_exceptions.hpp"
 #include "4C_utils_shared_ptr_from_ref.hpp"
-
-#include <Epetra_Map.h>
 
 #include <memory>
 #include <vector>
@@ -42,8 +41,7 @@ namespace TimeStepping
    * can provide the data on which a multi-step auxiliary integrator
    * can work.
    *
-   * \author bborn
-   * \date 07/08
+
    */
   template <typename STATE>
   class TimIntMStepBase
@@ -56,7 +54,7 @@ namespace TimeStepping
     STATE& operator[](const int step  //!< inquiry step
     )
     {
-      if (not step_exists(step)) FOUR_C_THROW("Step %d is not admissible", step);
+      if (not step_exists(step)) FOUR_C_THROW("Step {} is not admissible", step);
       return state_[index_by_step(step)];
     }
 
@@ -64,7 +62,7 @@ namespace TimeStepping
     const STATE& operator[](const int step  //!< inquiry step
     ) const
     {
-      if (not step_exists(step)) FOUR_C_THROW("Step %d is not admissible", step);
+      if (not step_exists(step)) FOUR_C_THROW("Step {} is not admissible", step);
       return state_[index_by_step(step)];
     }
 
@@ -72,7 +70,7 @@ namespace TimeStepping
     std::shared_ptr<STATE> operator()(const int step  //!< inquiry step
     )
     {
-      if (not step_exists(step)) FOUR_C_THROW("Step %d is not admissible", step);
+      if (not step_exists(step)) FOUR_C_THROW("Step {} is not admissible", step);
       return Core::Utils::shared_ptr_from_ref(state_[index_by_step(step)]);
     }
 
@@ -189,7 +187,7 @@ namespace TimeStepping
   {
    protected:
     //! template base class
-    typedef TimIntMStepBase<STATE> MStepBase;
+    using MStepBase = TimIntMStepBase<STATE>;
 
    public:
     //! @name Life
@@ -281,7 +279,7 @@ namespace TimeStepping
   {
    protected:
     //! base template class
-    typedef TimIntMStepBase<Core::LinAlg::Vector<double>> MStepBase;
+    using MStepBase = TimIntMStepBase<Core::LinAlg::Vector<double>>;
 
    public:
     //! @name Life
@@ -291,10 +289,10 @@ namespace TimeStepping
     TimIntMStep() : MStepBase::TimIntMStepBase() { ; }
 
     //! Constructor
-    TimIntMStep(const int steppast,   //!< lower index bound
-        const int stepfuture,         //!< higher index bound, >= lower bound
-        const Epetra_Map* dofrowmap,  //!< vector layout from discretization
-        const bool inittozero         //!< initialise to zero, if true
+    TimIntMStep(const int steppast,          //!< lower index bound
+        const int stepfuture,                //!< higher index bound, >= lower bound
+        const Core::LinAlg::Map* dofrowmap,  //!< vector layout from discretization
+        const bool inittozero                //!< initialise to zero, if true
         )
         : MStepBase(steppast, stepfuture)
     {
@@ -312,10 +310,10 @@ namespace TimeStepping
      *  State vectors are added and placed according to their
      *  indices #steppast to #stepfuture
      */
-    void resize(const int steppast,   //!< lower index bound
-        const int stepfuture,         //!< higher index bound, >= lower bound
-        const Epetra_Map* dofrowmap,  //!< vector layout from discretization
-        const bool inittozero         //!< initialise to zero, if true
+    void resize(const int steppast,          //!< lower index bound
+        const int stepfuture,                //!< higher index bound, >= lower bound
+        const Core::LinAlg::Map* dofrowmap,  //!< vector layout from discretization
+        const bool inittozero                //!< initialise to zero, if true
     )
     {
       // check this
@@ -344,7 +342,7 @@ namespace TimeStepping
      *  State vectors cleared and rebuild with given map
      *  take care that underlying discret_ contains the same maps
      */
-    void replace_maps(const Epetra_Map* dofrowmap  //!< new vector layout
+    void replace_maps(const Core::LinAlg::Map* dofrowmap  //!< new vector layout
     )
     {
       state_.clear();
@@ -374,9 +372,9 @@ namespace TimeStepping
     {
       for (int ind = 0; ind < MStepBase::steps_ - 1; ++ind)
       {
-        (MStepBase::state_[ind]).Update(1.0, (MStepBase::state_[ind + 1]), 0.0);
+        (MStepBase::state_[ind]).update(1.0, (MStepBase::state_[ind + 1]), 0.0);
       }
-      (MStepBase::state_[steps_ - 1]).Update(1.0, staten, 0.0);
+      (MStepBase::state_[steps_ - 1]).update(1.0, staten, 0.0);
 
       return;
     }

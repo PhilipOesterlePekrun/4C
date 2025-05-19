@@ -90,7 +90,7 @@ void FLD::XFluidFluid::create_initial_state()
   XFluid::create_initial_state();
 
   if (Teuchos::getIntegralValue<Inpar::FLUID::CalcError>(*params_, "calculate error") !=
-      Inpar::FLUID::no_error_calculation)
+      Inpar::FLUID::no)
   {
     mc_xff_->redistribute_for_error_calculation();
   }
@@ -98,7 +98,7 @@ void FLD::XFluidFluid::create_initial_state()
   // recreate internal faces of DiscretizationFaces (as the distribution of the embedded
   // discretization may have changed)
   if (Teuchos::getIntegralValue<Inpar::FLUID::CalcError>(*params_, "calculate error") !=
-          Inpar::FLUID::no_error_calculation ||
+          Inpar::FLUID::no ||
       mc_xff_->get_averaging_strategy() == Inpar::XFEM::Embedded_Sided ||
       mc_xff_->get_averaging_strategy() == Inpar::XFEM::Mean)
   {
@@ -227,7 +227,7 @@ void FLD::XFluidFluid::evaluate(std::shared_ptr<const Core::LinAlg::Vector<doubl
     stepinc_emb = xff_state_->xffluidsplitter_->extract_fluid_vector(*stepinc);
 
     // compute increment
-    xff_state_->xffluidincvel_->Update(1.0, *stepinc, -1.0, *stepinc_, 0.0);
+    xff_state_->xffluidincvel_->update(1.0, *stepinc, -1.0, *stepinc_, 0.0);
 
     xff_state_->xffluiddbcmaps_->insert_cond_vector(
         *xff_state_->xffluiddbcmaps_->extract_cond_vector(*xff_state_->xffluidzeros_),
@@ -242,7 +242,7 @@ void FLD::XFluidFluid::evaluate(std::shared_ptr<const Core::LinAlg::Vector<doubl
   {
     mc_xff_->reset_evaluated_trace_estimates();
     if (ale_embfluid_)
-      embedded_fluid_->discretization()->set_state("dispnp", embedded_fluid_->dispnp());
+      embedded_fluid_->discretization()->set_state("dispnp", *embedded_fluid_->dispnp());
   }
 
   // evaluation of background fluid (new cut for full Newton approach)
@@ -250,29 +250,29 @@ void FLD::XFluidFluid::evaluate(std::shared_ptr<const Core::LinAlg::Vector<doubl
   XFluid::evaluate();
 
   // update step increment
-  stepinc_->Update(1.0, *xff_state_->xffluidvelnp_, -1.0, *xff_state_->xffluidveln_, 0.0);
+  stepinc_->update(1.0, *xff_state_->xffluidvelnp_, -1.0, *xff_state_->xffluidveln_, 0.0);
 
   if (active_shapederivatives_)
   {
     extended_shapederivatives_->add(*embedded_fluid_->shape_derivatives(), false, 1.0, 0.0);
   }
 
-  xff_state_->xffluidincvel_->PutScalar(0.0);
+  xff_state_->xffluidincvel_->put_scalar(0.0);
 
   xff_state_->trueresidual_ =
       std::make_shared<Core::LinAlg::Vector<double>>(*xff_state_->xffluidresidual_);
-  xff_state_->trueresidual_->PutScalar(residual_scaling());
+  xff_state_->trueresidual_->put_scalar(residual_scaling());
 }
 
 void FLD::XFluidFluid::time_update()
 {
   embedded_fluid_->time_update();
   XFluid::time_update();
-  xff_state_->xffluidveln_->Update(1.0, *xff_state_->xffluidvelnp_, 0.0);
+  xff_state_->xffluidveln_->update(1.0, *xff_state_->xffluidvelnp_, 0.0);
 }
 
 std::shared_ptr<Core::LinAlg::BlockSparseMatrixBase> FLD::XFluidFluid::block_system_matrix(
-    std::shared_ptr<Epetra_Map> innermap, std::shared_ptr<Epetra_Map> condmap)
+    std::shared_ptr<Core::LinAlg::Map> innermap, std::shared_ptr<Core::LinAlg::Map> condmap)
 {
   // Map of fluid FSI DOFs: condmap
   // Map of inner fluid DOFs: innermap
@@ -294,12 +294,12 @@ std::shared_ptr<Core::LinAlg::BlockSparseMatrixBase> FLD::XFluidFluid::block_sys
   return blockmat;
 }
 
-std::shared_ptr<const Epetra_Map> FLD::XFluidFluid::pressure_row_map()
+std::shared_ptr<const Core::LinAlg::Map> FLD::XFluidFluid::pressure_row_map()
 {
   return xff_state_->xffluidvelpressplitter_->cond_map();
 }
 
-std::shared_ptr<const Epetra_Map> FLD::XFluidFluid::velocity_row_map()
+std::shared_ptr<const Core::LinAlg::Map> FLD::XFluidFluid::velocity_row_map()
 {
   return xff_state_->xffluidvelpressplitter_->other_map();
 }
@@ -372,11 +372,11 @@ void FLD::XFluidFluid::assemble_mat_and_rhs(int itnum  ///< iteration number
     mc_xff_->get_coupling_dis()->clear_state();
     // set velocity and displacement state for embedded fluid
     embedded_fluid_->set_state_tim_int();
-    mc_xff_->get_coupling_dis()->set_state("veln", embedded_fluid_->veln());
+    mc_xff_->get_coupling_dis()->set_state("veln", *embedded_fluid_->veln());
 
     if (ale_embfluid_)
     {
-      mc_xff_->get_coupling_dis()->set_state("dispnp", embedded_fluid_->dispnp());
+      mc_xff_->get_coupling_dis()->set_state("dispnp", *embedded_fluid_->dispnp());
     }
   }
 
@@ -398,16 +398,16 @@ void FLD::XFluidFluid::assemble_mat_and_rhs(int itnum  ///< iteration number
 
   {
     // adding rhC_s_ (coupling contribution) to residual of embedded fluid
-    for (int iter = 0; iter < coup_state->rhC_s_->MyLength(); ++iter)
+    for (int iter = 0; iter < coup_state->rhC_s_->local_length(); ++iter)
     {
-      const int rhsgid = coup_state->rhC_s_->Map().GID(iter);
-      if (coup_state->rhC_s_->Map().MyGID(rhsgid) == false)
+      const int rhsgid = coup_state->rhC_s_->get_block_map().GID(iter);
+      if (coup_state->rhC_s_->get_block_map().MyGID(rhsgid) == false)
         FOUR_C_THROW("rhC_s_ should be on all processors");
-      if (embedded_fluid_->residual()->Map().MyGID(rhsgid))
-        (*embedded_fluid_->residual())[embedded_fluid_->residual()->Map().LID(rhsgid)] +=
-            (*coup_state->rhC_s_)[coup_state->rhC_s_->Map().LID(rhsgid)];
+      if (embedded_fluid_->residual()->get_block_map().MyGID(rhsgid))
+        (*embedded_fluid_->residual())[embedded_fluid_->residual()->get_block_map().LID(rhsgid)] +=
+            (*coup_state->rhC_s_)[coup_state->rhC_s_->get_block_map().LID(rhsgid)];
       else
-        FOUR_C_THROW("Interface dof %d does not belong to embedded discretization!", rhsgid);
+        FOUR_C_THROW("Interface dof {} does not belong to embedded discretization!", rhsgid);
     }
   }
 
@@ -429,14 +429,14 @@ void FLD::XFluidFluid::assemble_mat_and_rhs(int itnum  ///< iteration number
       std::dynamic_pointer_cast<Core::LinAlg::BlockSparseMatrixBase>(xff_state_->xffluidsysmat_);
   if (sysmat_block != nullptr)
   {
-    sysmat_block->assign(1, 1, Core::LinAlg::View, *xff_state_->sysmat_);
-    sysmat_block->assign(1, 0, Core::LinAlg::View, *coup_state->C_xs_);
-    sysmat_block->assign(0, 1, Core::LinAlg::View, *coup_state->C_sx_);
+    sysmat_block->assign(1, 1, Core::LinAlg::DataAccess::View, *xff_state_->sysmat_);
+    sysmat_block->assign(1, 0, Core::LinAlg::DataAccess::View, *coup_state->C_xs_);
+    sysmat_block->assign(0, 1, Core::LinAlg::DataAccess::View, *coup_state->C_sx_);
     embedded_fluid_->system_matrix()->un_complete();
     embedded_fluid_->system_matrix()->add(*coup_state->C_ss_, false, 1.0, 1.0);
     std::shared_ptr<Core::LinAlg::SparseMatrix> alesysmat_sparse =
         std::dynamic_pointer_cast<Core::LinAlg::SparseMatrix>(embedded_fluid_->system_matrix());
-    sysmat_block->assign(0, 0, Core::LinAlg::View, *alesysmat_sparse);
+    sysmat_block->assign(0, 0, Core::LinAlg::DataAccess::View, *alesysmat_sparse);
   }
   else
   {
@@ -459,7 +459,7 @@ void FLD::XFluidFluid::prepare_shape_derivatives(
 {
   if (!active_shapederivatives_) return;
 
-  // here we initialize the shapederivates
+  // here we initialize the shapederivatives
   // REMARK: the shape derivatives matrix results from linearization w.r.t. ALE-displacements
   // and therefore solely knows ALE-dof - here we use "extended shapederivatives" including
   // background fluid entries, that are set to zero
@@ -477,11 +477,11 @@ void FLD::XFluidFluid::update_by_increment()
   // Update merged
   XFluid::update_by_increment();
   // update xfluid
-  xff_state_->velnp_->Update(
+  xff_state_->velnp_->update(
       1.0, *xff_state_->xffluidsplitter_->extract_x_fluid_vector(*xff_state_->xffluidvelnp_), 0.0);
   // update embedded fluid
   // embedded_fluid_->IterUpdate(xff_state_->xffluidsplitter_->extract_fluid_vector(xff_state_->xffluidincvel_));
-  embedded_fluid_->write_access_velnp()->Update(
+  embedded_fluid_->write_access_velnp()->update(
       1.0, *xff_state_->xffluidsplitter_->extract_fluid_vector(*xff_state_->xffluidvelnp_), 0.0);
 }
 
@@ -490,7 +490,7 @@ void FLD::XFluidFluid::update_by_increment()
 void FLD::XFluidFluid::add_eos_pres_stab_to_emb_layer()
 {
   if (ale_embfluid_)
-    embedded_fluid_->discretization()->set_state("gridv", embedded_fluid_->grid_vel());
+    embedded_fluid_->discretization()->set_state("gridv", *embedded_fluid_->grid_vel());
 
   Teuchos::ParameterList faceparams;
 
@@ -505,20 +505,10 @@ void FLD::XFluidFluid::add_eos_pres_stab_to_emb_layer()
       Core::LinAlg::create_vector(*xdiscret->dof_col_map(), true);
 
   //------------------------------------------------------------
-  const Epetra_Map* rmap = nullptr;
+  auto rmap = Core::LinAlg::Map(embedded_fluid_->system_matrix()->OperatorRangeMap());
 
-  // TODO: do not create a new matrix all the time, why not creating an epetraFE matrix in
-  // fluidimplicit directly?
-  std::shared_ptr<Epetra_FECrsMatrix> sysmat_FE;
-
-  rmap = &(embedded_fluid_->system_matrix()->OperatorRangeMap());
-  sysmat_FE = std::make_shared<Epetra_FECrsMatrix>(::Copy, *rmap, 256, false);
-
-  // TODO: think about the dirichlet and savegraph flags when ApplyDirichlet or Zero is called
-  std::shared_ptr<Core::LinAlg::SparseMatrix> sysmat_linalg =
-      std::make_shared<Core::LinAlg::SparseMatrix>(
-          std::static_pointer_cast<Epetra_CrsMatrix>(sysmat_FE), Core::LinAlg::View, true, true,
-          Core::LinAlg::SparseMatrix::FE_MATRIX);
+  auto sysmat_linalg = std::make_shared<Core::LinAlg::SparseMatrix>(
+      rmap, 256, true, true, Core::LinAlg::SparseMatrix::FE_MATRIX);
 
   //------------------------------------------------------------
   // loop over row faces
@@ -543,11 +533,11 @@ void FLD::XFluidFluid::add_eos_pres_stab_to_emb_layer()
   //------------------------------------------------------------
   // need to export residual_col to embedded fluid residual
   {
-    Core::LinAlg::Vector<double> res_tmp(embedded_fluid_->residual()->Map(), true);
-    Epetra_Export exporter(residual_col->Map(), res_tmp.Map());
-    int err = res_tmp.Export(*residual_col, exporter, Add);
-    if (err) FOUR_C_THROW("Export using exporter returned err=%d", err);
-    embedded_fluid_->residual()->Update(1.0, res_tmp, 1.0);
+    Core::LinAlg::Vector<double> res_tmp(embedded_fluid_->residual()->get_block_map(), true);
+    Epetra_Export exporter(residual_col->get_block_map(), res_tmp.get_block_map());
+    int err = res_tmp.export_to(*residual_col, exporter, Add);
+    if (err) FOUR_C_THROW("Export using exporter returned err={}", err);
+    embedded_fluid_->residual()->update(1.0, res_tmp, 1.0);
   }
 
   mc_xff_->get_coupling_dis()->clear_state();
@@ -623,14 +613,16 @@ void FLD::XFluidFluid::output()
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
 void FLD::XFluidFluid::update_monolithic_fluid_solution(
-    const std::shared_ptr<const Epetra_Map>& fsidofmap)
+    const std::shared_ptr<const Core::LinAlg::Map>& fsidofmap)
 {
   // manipulate the dbc map extractor
-  std::shared_ptr<const Epetra_Map> dbcmap = embedded_fluid_->get_dbc_map_extractor()->cond_map();
-  std::vector<std::shared_ptr<const Epetra_Map>> condmaps;
+  std::shared_ptr<const Core::LinAlg::Map> dbcmap =
+      embedded_fluid_->get_dbc_map_extractor()->cond_map();
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> condmaps;
   condmaps.push_back(dbcmap);
   condmaps.push_back(fsidofmap);
-  std::shared_ptr<Epetra_Map> condmerged = Core::LinAlg::MultiMapExtractor::merge_maps(condmaps);
+  std::shared_ptr<Core::LinAlg::Map> condmerged =
+      Core::LinAlg::MultiMapExtractor::merge_maps(condmaps);
 
   Core::LinAlg::MapExtractor fsidbcmapex(*(embedded_fluid_->dof_row_map()), condmerged);
 
@@ -691,7 +683,7 @@ std::shared_ptr<std::vector<double>> FLD::XFluidFluid::evaluate_error_compared_t
   const auto calcerr =
       Teuchos::getIntegralValue<Inpar::FLUID::CalcError>(*params_, "calculate error");
 
-  if (calcerr == Inpar::FLUID::no_error_calculation) return nullptr;
+  if (calcerr == Inpar::FLUID::no) return nullptr;
   // set the time to evaluate errors
   //
 
@@ -802,10 +794,10 @@ std::shared_ptr<std::vector<double>> FLD::XFluidFluid::evaluate_error_compared_t
 
   // set vector values needed by elements
   discret_->clear_state();
-  discret_->set_state("u and p at time n+1 (converged)", state_->velnp_);
+  discret_->set_state("u and p at time n+1 (converged)", *state_->velnp_);
 
   mc_xff_->get_cond_dis()->clear_state();
-  mc_xff_->get_cond_dis()->set_state("velaf", embedded_fluid_->velnp());
+  mc_xff_->get_cond_dis()->set_state("velaf", *embedded_fluid_->velnp());
   // mc_xff_->GetCondDis()->set_state("dispnp", embedded_fluid_->Dispnp());
 
   mc_xff_->set_state();
@@ -819,7 +811,7 @@ std::shared_ptr<std::vector<double>> FLD::XFluidFluid::evaluate_error_compared_t
   //---------------------------------------------
   // set vector values needed by elements
   mc_xff_->get_cond_dis()->clear_state();
-  mc_xff_->get_cond_dis()->set_state("u and p at time n+1 (converged)", embedded_fluid_->velnp());
+  mc_xff_->get_cond_dis()->set_state("u and p at time n+1 (converged)", *embedded_fluid_->velnp());
 
   // evaluate domain error norms and interface/boundary error norms at XFEM-interface
   // loop row elements
@@ -839,7 +831,7 @@ std::shared_ptr<std::vector<double>> FLD::XFluidFluid::evaluate_error_compared_t
     Core::Elements::LocationArray la(1);
 
     // get element location vector, dirichlet flags and ownerships
-    actele->location_vector(*mc_xff_->get_cond_dis(), la, false);
+    actele->location_vector(*mc_xff_->get_cond_dis(), la);
 
     Core::LinAlg::SerialDenseMatrix elemat1;
     Core::LinAlg::SerialDenseMatrix elemat2;

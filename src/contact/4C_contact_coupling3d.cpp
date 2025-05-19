@@ -8,12 +8,12 @@
 #include "4C_contact_coupling3d.hpp"
 
 #include "4C_contact_element.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_contact_integrator.hpp"
 #include "4C_contact_integrator_factory.hpp"
 #include "4C_contact_interpolator.hpp"
 #include "4C_contact_node.hpp"
 #include "4C_fem_discretization.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_linalg_serialdensematrix.hpp"
 #include "4C_linalg_serialdensevector.hpp"
 #include "4C_linalg_utils_densematrix_inverse.hpp"
@@ -30,7 +30,7 @@ FOUR_C_NAMESPACE_OPEN
 CONTACT::Coupling3d::Coupling3d(Core::FE::Discretization& idiscret, int dim, bool quad,
     Teuchos::ParameterList& params, Mortar::Element& sele, Mortar::Element& mele)
     : Mortar::Coupling3d(idiscret, dim, quad, params, sele, mele),
-      stype_(Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(params, "STRATEGY"))
+      stype_(Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(params, "STRATEGY"))
 {
   // empty constructor
 
@@ -107,10 +107,6 @@ bool CONTACT::Coupling3d::integrate_cells(
     // integrate cell only if it has a non-zero area
     if (cells()[i]->area() < MORTARINTLIM * slave_element_area()) continue;
 
-    // debug output of integration cells in GMSH
-#ifdef MORTARGMSHCELLS
-    GmshOutputCells(i);
-#endif
     // set segmentation status of all slave nodes
     // (hassegment_ of a slave node is true if ANY segment/cell
     // is integrated that contributes to this slave node)
@@ -388,8 +384,8 @@ bool CONTACT::Coupling3d::slave_vertex_linearization(
     sIntEle->node_linearization(nodelin);
 
   // map iterator
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator
-      _CI;  // linearization of element center Auxc()
+  using _CI = Core::Gen::Pairedvector<int,
+      double>::const_iterator;  // linearization of element center Auxc()
   std ::vector<Core::Gen::Pairedvector<int, double>> linauxc(
       3, slave_element().num_node());  // assume 3 dofs per node
 
@@ -527,8 +523,8 @@ bool CONTACT::Coupling3d::master_vertex_linearization(
     sIntEle->node_linearization(snodelin);
 
   // map iterator
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator
-      _CI;  // linearization of element center Auxc()
+  using _CI = Core::Gen::Pairedvector<int,
+      double>::const_iterator;  // linearization of element center Auxc()
   std ::vector<Core::Gen::Pairedvector<int, double>> linauxc(
       3, slave_element().num_node());  // assume 3 dofs per node
 
@@ -643,7 +639,7 @@ bool CONTACT::Coupling3d::lineclip_vertex_linearization(const Mortar::Vertex& cu
   const int nmrows = master_int_element().num_node();
 
   // iterator
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator _CI;
+  using _CI = Core::Gen::Pairedvector<int, double>::const_iterator;
 
   // compute factor Z
   std::array<double, 3> crossZ = {0.0, 0.0, 0.0};
@@ -844,7 +840,7 @@ bool CONTACT::Coupling3d::center_linearization(
 {
   // preparations
   int clipsize = (int)(clip().size());
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator CI;
+  using CI = Core::Gen::Pairedvector<int, double>::const_iterator;
 
   // number of nodes
   const int nsrows = slave_element().num_node();
@@ -1065,7 +1061,7 @@ CONTACT::Coupling3dManager::Coupling3dManager(Core::FE::Discretization& idiscret
       sele_(sele),
       mele_(mele),
       ncells_(0),
-      stype_(Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(params, "STRATEGY"))
+      stype_(Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(params, "STRATEGY"))
 {
   return;
 }
@@ -1259,7 +1255,7 @@ bool CONTACT::Coupling3dManager::evaluate_coupling(
     FOUR_C_THROW("chose contact algorithm not supported!");
 
   // interpolate temperatures in TSI case
-  if (imortar_.get<int>("PROBTYPE") == Inpar::CONTACT::tsi)
+  if (imortar_.get<CONTACT::Problemtype>("PROBTYPE") == CONTACT::Problemtype::tsi)
     NTS::Interpolator(imortar_, dim_)
         .interpolate_master_temp_3d(slave_element(), master_elements());
 
@@ -1693,7 +1689,7 @@ void CONTACT::Coupling3dManager::consistent_dual_shape()
 
   // various variables
   double detg = 0.0;
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator _CI;
+  using _CI = Core::Gen::Pairedvector<int, double>::const_iterator;
 
   // initialize matrices de and me
   Core::LinAlg::SerialDenseMatrix me(nnodes, nnodes, true);
@@ -1932,8 +1928,8 @@ void CONTACT::Coupling3dManager::consistent_dual_shape()
   // (this is done according to a quite complex formula, which
   // we get from the linearization of the biorthogonality condition:
   // Lin (Me * Ae = De) -> Lin(Ae)=Lin(De)*Inv(Me)-Ae*Lin(Me)*Inv(Me) )
-  typedef Core::Gen::Pairedvector<int,
-      Core::LinAlg::Matrix<max_nnodes + 1, max_nnodes>>::const_iterator _CIM;
+  using _CIM = Core::Gen::Pairedvector<int,
+      Core::LinAlg::Matrix<max_nnodes + 1, max_nnodes>>::const_iterator;
   for (_CIM p = derivde_new.begin(); p != derivde_new.end(); ++p)
   {
     Core::LinAlg::Matrix<max_nnodes + 1, max_nnodes>& dtmp = derivde_new[p->first];

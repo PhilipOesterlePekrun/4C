@@ -27,15 +27,16 @@ namespace
   //! physical space
   template <typename Pointtype>
   void map_from_parametric_to_physical_space(
-      GEOMETRYPAIR::ElementData<Pointtype, double> element_data,
+      GeometryPair::ElementData<Pointtype, double> element_data,
       Core::LinAlg::Matrix<Pointtype::element_dim_, 1>& point_param_space,
       Core::LinAlg::Matrix<Pointtype::n_dof_, 1, double> nodal_values,
       Core::LinAlg::Matrix<Pointtype::spatial_dim_, 1, double>& point_physical_space)
   {
     // Evaluate the shape functions on the given point
-    Core::LinAlg::Matrix<1, Pointtype::n_nodes_ * Pointtype::n_val_, double> shape_fun(true);
+    Core::LinAlg::Matrix<1, Pointtype::n_nodes_ * Pointtype::n_val_, double> shape_fun(
+        Core::LinAlg::Initialization::zero);
 
-    GEOMETRYPAIR::EvaluateShapeFunction<Pointtype>::evaluate(
+    GeometryPair::EvaluateShapeFunction<Pointtype>::evaluate(
         shape_fun, point_param_space, element_data.shape_function_data_);
 
     // Map the point to the physical system by multiplying the shape
@@ -49,10 +50,10 @@ namespace
 }  // namespace
 
 template <typename Interface, typename Background, typename Mortar>
-CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface, Background,
+Constraints::EmbeddedMesh::SurfaceToBackgroundCouplingPairMortar<Interface, Background,
     Mortar>::SurfaceToBackgroundCouplingPairMortar(std::shared_ptr<Core::Elements::Element>
                                                        element1,
-    Core::Elements::Element* element2, CONSTRAINTS::EMBEDDEDMESH::EmbeddedMeshParams& params_ptr,
+    Core::Elements::Element* element2, Constraints::EmbeddedMesh::EmbeddedMeshParams& params_ptr,
     std::shared_ptr<Cut::CutWizard>& cutwizard_ptr,
     std::vector<std::shared_ptr<Cut::BoundaryCell>>& boundary_cells)
     : SolidInteractionPair(element1, element2, params_ptr, cutwizard_ptr, boundary_cells)
@@ -65,13 +66,13 @@ CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface, Back
   params_ = params_ptr;
 
   // Initialize the element positions and displacement containers
-  ele1pos_ = GEOMETRYPAIR::InitializeElementData<Interface, double>::initialize(&this->element_1());
+  ele1pos_ = GeometryPair::InitializeElementData<Interface, double>::initialize(&this->element_1());
   ele2pos_ =
-      GEOMETRYPAIR::InitializeElementData<Background, double>::initialize(&this->element_2());
+      GeometryPair::InitializeElementData<Background, double>::initialize(&this->element_2());
 
-  ele1dis_ = GEOMETRYPAIR::InitializeElementData<Interface, double>::initialize(&this->element_1());
+  ele1dis_ = GeometryPair::InitializeElementData<Interface, double>::initialize(&this->element_1());
   ele2dis_ =
-      GEOMETRYPAIR::InitializeElementData<Background, double>::initialize(&this->element_2());
+      GeometryPair::InitializeElementData<Background, double>::initialize(&this->element_2());
 
   // Write the initial position of the elements
   for (int node_ele1 = 0; node_ele1 < element_1().num_point(); node_ele1++)
@@ -99,11 +100,11 @@ CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface, Back
 }
 
 template <typename Interface, typename Background, typename Mortar>
-void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface, Background,
+void Constraints::EmbeddedMesh::SurfaceToBackgroundCouplingPairMortar<Interface, Background,
     Mortar>::get_pair_visualization(Core::IO::VisualizationData&
                                         lagrange_multipliers_visualization_data,
     std::shared_ptr<Core::LinAlg::Vector<double>> lambda,
-    const CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager* mortar_manager,
+    const Constraints::EmbeddedMesh::SolidToSolidMortarManager* mortar_manager,
     std::shared_ptr<std::unordered_set<int>> interface_tracker)
 {
   // Get the visualization vectors.
@@ -119,8 +120,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface,
   // Get the lambda GIDs of this pair.
   std::vector<int> lambda_row;
   get_mortar_gid(mortar_manager, this, Mortar::n_dof_, &lambda_row);
-  std::vector<double> lambda_pair;
-  Core::FE::extract_my_values(*lambda, lambda_pair, lambda_row);
+  std::vector<double> lambda_pair = Core::FE::extract_values(*lambda, lambda_row);
   for (unsigned int i_dof = 0; i_dof < Mortar::n_dof_; i_dof++)
     q_lambda(i_dof) = lambda_pair[i_dof];
 
@@ -162,16 +162,16 @@ void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface,
 }
 
 template <typename Interface, typename Background, typename Mortar>
-void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface, Background,
+void Constraints::EmbeddedMesh::SurfaceToBackgroundCouplingPairMortar<Interface, Background,
     Mortar>::set_current_element_position(Core::FE::Discretization const& discret,
     const Core::LinAlg::Vector<double>& displacement_vector)
 {
   std::vector<double> interface_dofvec_timestep = std::vector<double>();
   std::vector<double> background_dofvec_timestep = std::vector<double>();
 
-  CONSTRAINTS::EMBEDDEDMESH::get_current_element_displacement(
+  Constraints::EmbeddedMesh::get_current_element_displacement(
       discret, &element_1(), displacement_vector, interface_dofvec_timestep);
-  CONSTRAINTS::EMBEDDEDMESH::get_current_element_displacement(
+  Constraints::EmbeddedMesh::get_current_element_displacement(
       discret, &element_2(), displacement_vector, background_dofvec_timestep);
 
   // Get the initial positions of the first element
@@ -195,11 +195,11 @@ void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface,
 
 template <typename Surface, Core::FE::CellType boundarycell_distype>
 std::shared_ptr<Core::FE::GaussPoints> project_boundary_cell_gauss_rule_on_interface(
-    Cut::BoundaryCell* boundary_cell, GEOMETRYPAIR::ElementData<Surface, double>& ele1pos)
+    Cut::BoundaryCell* boundary_cell, GeometryPair::ElementData<Surface, double>& ele1pos)
 {
   // Get the coordinates of the vertices of the boundary cell
   const Core::LinAlg::SerialDenseMatrix vertices_boundary_cell = boundary_cell->coordinates();
-  const unsigned num_vertices = Core::FE::num_nodes<boundarycell_distype>;
+  const unsigned num_vertices = Core::FE::num_nodes(boundarycell_distype);
   Core::LinAlg::Matrix<2, num_vertices> projected_vertices_xi;
 
   for (unsigned i_vertex = 0; i_vertex < num_vertices; i_vertex++)
@@ -210,13 +210,13 @@ std::shared_ptr<Core::FE::GaussPoints> project_boundary_cell_gauss_rule_on_inter
     for (int i_dim = 0; i_dim < 3; i_dim++)
       vertex_to_project(i_dim) = vertices_boundary_cell(i_dim, i_vertex);
 
-    GEOMETRYPAIR::ProjectionResult temp_projection_result;
-    GEOMETRYPAIR::project_point_to_surface(
+    GeometryPair::ProjectionResult temp_projection_result;
+    GeometryPair::project_point_to_surface(
         vertex_to_project, ele1pos, xi_interface, temp_projection_result);
 
-    if (temp_projection_result == GEOMETRYPAIR::ProjectionResult::projection_not_found)
+    if (temp_projection_result == GeometryPair::ProjectionResult::projection_not_found)
       FOUR_C_THROW("No projection was found. ");
-    else if (temp_projection_result == GEOMETRYPAIR::ProjectionResult::projection_found_not_valid)
+    else if (temp_projection_result == GeometryPair::ProjectionResult::projection_found_not_valid)
       std::cout << "WARNING: a projection was found but it is not valid\n";
 
     projected_vertices_xi(0, i_vertex) = xi_interface(0);
@@ -258,7 +258,7 @@ std::shared_ptr<Core::FE::GaussPoints> project_boundary_cell_gauss_rule_on_inter
 }
 
 template <typename Interface, typename Background, typename Mortar>
-void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface, Background,
+void Constraints::EmbeddedMesh::SurfaceToBackgroundCouplingPairMortar<Interface, Background,
     Mortar>::set_gauss_rule_for_interface_and_background()
 {
   // Variables before iterating over boundary cells
@@ -301,10 +301,10 @@ void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface,
       xi_interface(1) = gps_boundarycell->point(it_gp)[1];
 
       // Project gauss points on the background element and write them
-      GEOMETRYPAIR::evaluate_position(xi_interface, ele1pos_, interface_position);
+      GeometryPair::evaluate_position(xi_interface, ele1pos_, interface_position);
 
-      GEOMETRYPAIR::ProjectionResult temp_projection_result;
-      GEOMETRYPAIR::project_point_to_volume(
+      GeometryPair::ProjectionResult temp_projection_result;
+      GeometryPair::project_point_to_volume(
           interface_position, ele2pos_, xi_background, temp_projection_result);
 
       // Write the weight
@@ -315,19 +315,23 @@ void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface,
 }
 
 template <typename Interface, typename Background, typename Mortar>
-void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface, Background,
+void Constraints::EmbeddedMesh::SurfaceToBackgroundCouplingPairMortar<Interface, Background,
     Mortar>::evaluate_and_assemble_mortar_contributions(const Core::FE::Discretization& discret,
-    const CONSTRAINTS::EMBEDDEDMESH::SolidToSolidMortarManager* mortar_manager,
+    const Constraints::EmbeddedMesh::SolidToSolidMortarManager* mortar_manager,
     Core::LinAlg::SparseMatrix& global_g_bl, Core::LinAlg::SparseMatrix& global_g_bg,
     Core::LinAlg::SparseMatrix& global_fbl_l, Core::LinAlg::SparseMatrix& global_fbg_l,
     Epetra_FEVector& global_constraint, Epetra_FEVector& global_kappa,
     Epetra_FEVector& global_lambda_active)
 {
   // Initialize variables for local mortar matrices.
-  Core::LinAlg::Matrix<Mortar::n_dof_, Interface::n_dof_, double> local_D(false);
-  Core::LinAlg::Matrix<Mortar::n_dof_, Background::n_dof_, double> local_M(false);
-  Core::LinAlg::Matrix<Mortar::n_dof_, 1, double> local_kappa(false);
-  Core::LinAlg::Matrix<Mortar::n_dof_, 1, double> local_constraint(false);
+  Core::LinAlg::Matrix<Mortar::n_dof_, Interface::n_dof_, double> local_D(
+      Core::LinAlg::Initialization::uninitialized);
+  Core::LinAlg::Matrix<Mortar::n_dof_, Background::n_dof_, double> local_M(
+      Core::LinAlg::Initialization::uninitialized);
+  Core::LinAlg::Matrix<Mortar::n_dof_, 1, double> local_kappa(
+      Core::LinAlg::Initialization::uninitialized);
+  Core::LinAlg::Matrix<Mortar::n_dof_, 1, double> local_constraint(
+      Core::LinAlg::Initialization::uninitialized);
 
   // Evaluate the local mortar contributions
   evaluate_dm(local_D, local_M, local_kappa, local_constraint);
@@ -339,7 +343,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface,
 }
 
 template <typename Interface, typename Background, typename Mortar>
-void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface, Background,
+void Constraints::EmbeddedMesh::SurfaceToBackgroundCouplingPairMortar<Interface, Background,
     Mortar>::get_projected_gauss_rule_in_cut_element(Core::IO::VisualizationData&
         cut_element_integration_points_visualization_data)
 {
@@ -369,7 +373,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface,
       gp_projected_cutelement(1, 0) = gp.point()[1];
       gp_projected_cutelement(2, 0) = gp.point()[2];
 
-      Core::LinAlg::Matrix<3, 1, double> point_coord(true);
+      Core::LinAlg::Matrix<3, 1, double> point_coord(Core::LinAlg::Initialization::zero);
 
       map_from_parametric_to_physical_space<Background>(
           ele2pos_, gp_projected_cutelement, this->ele2pos_.element_position_, point_coord);
@@ -389,7 +393,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface,
 }
 
 template <typename Interface, typename Background, typename Mortar>
-void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface, Background,
+void Constraints::EmbeddedMesh::SurfaceToBackgroundCouplingPairMortar<Interface, Background,
     Mortar>::
     get_projected_gauss_rule_on_interface(
         Core::IO::VisualizationData& background_integration_points_visualization_data,
@@ -430,8 +434,8 @@ void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface,
   {
     auto& [xi_interface, xi_background, weight] = interface_integration_points_[it_gp];
 
-    Core::LinAlg::Matrix<3, 1, double> interface_point_coord(true);
-    Core::LinAlg::Matrix<3, 1, double> background_point_coord(true);
+    Core::LinAlg::Matrix<3, 1, double> interface_point_coord(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<3, 1, double> background_point_coord(Core::LinAlg::Initialization::zero);
 
     map_from_parametric_to_physical_space<Interface>(
         ele1pos_, xi_interface, this->ele1pos_.element_position_, interface_point_coord);
@@ -441,7 +445,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface,
 
     // Do check to see if the physical position of the gauss point of interface
     // and background are the same
-    Core::LinAlg::Matrix<3, 1, double> vec(true);
+    Core::LinAlg::Matrix<3, 1, double> vec(Core::LinAlg::Initialization::zero);
     for (int i_dim = 0; i_dim < 3; ++i_dim)
       vec(i_dim) = interface_point_coord(i_dim) - background_point_coord(i_dim);
     double norm2 = vec.norm2();
@@ -451,7 +455,7 @@ void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface,
       FOUR_C_THROW(
           "The physical coordinates of the gauss points of the "
           "interface and background do not "
-          "coincide. The difference is %f.",
+          "coincide. The difference is {}.",
           norm2);
     }
 
@@ -519,7 +523,7 @@ template <Core::FE::CellType celldistype>
 double calculate_determinant_interface_element(
     const Core::LinAlg::Matrix<2, 1>& eta, const Core::Elements::Element& interface_element)
 {
-  const int numnodes = Core::FE::num_nodes<celldistype>;
+  const int numnodes = Core::FE::num_nodes(celldistype);
   Core::LinAlg::Matrix<3, numnodes> xyze;
 
   // Get the position of the nodes of the interface element
@@ -535,7 +539,7 @@ double calculate_determinant_interface_element(
   // Evaluate the shape functions and its derivatives on eta
   if (celldistype == Core::FE::CellType::nurbs9)
   {
-    Core::LinAlg::Matrix<9, 1, double> cp_weights(true);
+    Core::LinAlg::Matrix<9, 1, double> cp_weights(Core::LinAlg::Initialization::zero);
     std::vector<Core::LinAlg::SerialDenseVector> myknots(2);
     std::vector<Core::LinAlg::SerialDenseVector> mypknots(3);
 
@@ -591,7 +595,7 @@ double get_determinant_interface_element(
 }
 
 template <typename Interface, typename Background, typename Mortar>
-void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface, Background,
+void Constraints::EmbeddedMesh::SurfaceToBackgroundCouplingPairMortar<Interface, Background,
     Mortar>::evaluate_dm(Core::LinAlg::Matrix<Mortar::n_dof_, Interface::n_dof_, double>& local_D,
     Core::LinAlg::Matrix<Mortar::n_dof_, Background::n_dof_, double>& local_M,
     Core::LinAlg::Matrix<Mortar::n_dof_, 1, double>& local_kappa,
@@ -604,9 +608,12 @@ void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface,
   local_constraint.put_scalar(0.0);
 
   // Initialize variables for shape function values.
-  Core::LinAlg::Matrix<1, Mortar::n_nodes_ * Mortar::n_val_, double> N_mortar(true);
-  Core::LinAlg::Matrix<1, Interface::n_nodes_ * Interface::n_val_, double> N_interface(true);
-  Core::LinAlg::Matrix<1, Background::n_nodes_ * Background::n_val_, double> N_background(true);
+  Core::LinAlg::Matrix<1, Mortar::n_nodes_ * Mortar::n_val_, double> N_mortar(
+      Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<1, Interface::n_nodes_ * Interface::n_val_, double> N_interface(
+      Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<1, Background::n_nodes_ * Background::n_val_, double> N_background(
+      Core::LinAlg::Initialization::zero);
 
   // Calculate the mortar matrices.
   // Gauss point loop
@@ -622,11 +629,11 @@ void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface,
     N_interface.clear();
     N_background.clear();
 
-    GEOMETRYPAIR::EvaluateShapeFunction<Mortar>::evaluate(
+    GeometryPair::EvaluateShapeFunction<Mortar>::evaluate(
         N_mortar, xi_interface, ele1pos_.shape_function_data_);
-    GEOMETRYPAIR::EvaluateShapeFunction<Interface>::evaluate(
+    GeometryPair::EvaluateShapeFunction<Interface>::evaluate(
         N_interface, xi_interface, ele1pos_.shape_function_data_);
-    GEOMETRYPAIR::EvaluateShapeFunction<Background>::evaluate(
+    GeometryPair::EvaluateShapeFunction<Background>::evaluate(
         N_background, xi_background, ele2pos_.shape_function_data_);
 
     // Fill in the local templated mortar matrix D.
@@ -679,15 +686,16 @@ void CONSTRAINTS::EMBEDDEDMESH::SurfaceToBackgroundCouplingPairMortar<Interface,
 /**
  * Explicit template initialization of template class.
  */
-namespace CONSTRAINTS::EMBEDDEDMESH
+namespace Constraints::EmbeddedMesh
 {
-  using namespace GEOMETRYPAIR;
+  using namespace GeometryPair;
 
   template class SurfaceToBackgroundCouplingPairMortar<t_quad4, t_hex8, t_quad4>;
   template class SurfaceToBackgroundCouplingPairMortar<t_nurbs9, t_hex8, t_nurbs9>;
+  template class SurfaceToBackgroundCouplingPairMortar<t_nurbs9, t_wedge6, t_nurbs9>;
   template class SurfaceToBackgroundCouplingPairMortar<t_quad4, t_nurbs27, t_quad4>;
   template class SurfaceToBackgroundCouplingPairMortar<t_nurbs9, t_nurbs27, t_nurbs9>;
 
-}  // namespace CONSTRAINTS::EMBEDDEDMESH
+}  // namespace Constraints::EmbeddedMesh
 
 FOUR_C_NAMESPACE_CLOSE

@@ -14,6 +14,7 @@
 #include "4C_io_pstream.hpp"
 #include "4C_linalg_fixedsizematrix_tensor_products.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -23,17 +24,17 @@ FOUR_C_NAMESPACE_OPEN
 Mat::PAR::AAAneohooke::AAAneohooke(const Core::Mat::PAR::Parameter::Data& matdata)
     : Parameter(matdata)
 {
-  Epetra_Map dummy_map(1, 1, 0,
+  Core::LinAlg::Map dummy_map(1, 1, 0,
       Core::Communication::as_epetra_comm(
           (Global::Problem::instance()->get_communicators()->local_comm())));
   for (int i = first; i <= last; i++)
   {
     matparams_.push_back(std::make_shared<Core::LinAlg::Vector<double>>(dummy_map, true));
   }
-  matparams_.at(young)->PutScalar(matdata.parameters.get<double>("YOUNG"));
-  matparams_.at(nue)->PutScalar(matdata.parameters.get<double>("NUE"));
-  matparams_.at(beta)->PutScalar(matdata.parameters.get<double>("BETA"));
-  matparams_.at(density)->PutScalar(matdata.parameters.get<double>("DENS"));
+  matparams_.at(young)->put_scalar(matdata.parameters.get<double>("YOUNG"));
+  matparams_.at(nue)->put_scalar(matdata.parameters.get<double>("NUE"));
+  matparams_.at(beta)->put_scalar(matdata.parameters.get<double>("BETA"));
+  matparams_.at(density)->put_scalar(matdata.parameters.get<double>("DENS"));
 }
 
 
@@ -100,7 +101,7 @@ void Mat::AAAneohooke::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::AAAneohooke*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
 }
@@ -172,7 +173,7 @@ void Mat::AAAneohooke::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
 
   //--------------------------------------------------------------------------------------
   // build identity tensor I
-  Core::LinAlg::Matrix<6, 1> identity(true);
+  Core::LinAlg::Matrix<6, 1> identity(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; i++) identity(i) = 1.0;
 
   // right Cauchy-Green Tensor  C = 2 * E + I
@@ -194,7 +195,7 @@ void Mat::AAAneohooke::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
 
   //--------------------------------------------------------------------------------------
   // invert C
-  Core::LinAlg::Matrix<6, 1> invc(false);
+  Core::LinAlg::Matrix<6, 1> invc(Core::LinAlg::Initialization::uninitialized);
 
   double invdet = 1. / iiinv;
 
@@ -342,7 +343,7 @@ void Mat::AAAneohooke::strain_energy(
   double komp = (nue != 0.5) ? 2.0 * alpha / (1.0 - 2.0 * nue) : 0.0;  // bulk modulus
 
   // build identity tensor I
-  Core::LinAlg::Matrix<6, 1> identity(true);
+  Core::LinAlg::Matrix<6, 1> identity(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; i++) identity(i) = 1.0;
 
   // right Cauchy-Green Tensor  C = 2 * E + I

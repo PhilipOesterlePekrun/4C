@@ -25,8 +25,8 @@ FOUR_C_NAMESPACE_OPEN
     knot values are mapped to.
 */
 /*----------------------------------------------------------------------*/
-void EnsightWriter::write_coordinates_for_nurbs_shapefunctions(
-    std::ofstream& geofile, Core::FE::Discretization& dis, std::shared_ptr<Epetra_Map>& proc0map)
+void EnsightWriter::write_coordinates_for_nurbs_shapefunctions(std::ofstream& geofile,
+    Core::FE::Discretization& dis, std::shared_ptr<Core::LinAlg::Map>& proc0map)
 {
   using namespace FourC;
 
@@ -83,7 +83,7 @@ void EnsightWriter::write_coordinates_for_nurbs_shapefunctions(
   }
 
   // get element map
-  const Epetra_Map* elementmap = nurbsdis->element_row_map();
+  const Core::LinAlg::Map* elementmap = nurbsdis->element_row_map();
 
   // loop all available elements
   for (int iele = 0; iele < elementmap->NumMyElements(); ++iele)
@@ -1340,7 +1340,7 @@ void EnsightWriter::write_coordinates_for_nurbs_shapefunctions(
     numvispoints += numvisp;
   }
 
-  vispointmap_ = std::make_shared<Epetra_Map>(numvispoints, local_vis_point_ids.size(),
+  vispointmap_ = std::make_shared<Core::LinAlg::Map>(numvispoints, local_vis_point_ids.size(),
       local_vis_point_ids.data(), 0, Core::Communication::as_epetra_comm(nurbsdis->get_comm()));
 
   // allocate the coordinates of the visualisation points
@@ -1360,10 +1360,10 @@ void EnsightWriter::write_coordinates_for_nurbs_shapefunctions(
   proc0map = Core::LinAlg::allreduce_e_map(*vispointmap_, 0);
 
   // import my new values (proc0 gets everything, other procs empty)
-  Epetra_Import proc0importer(*proc0map, *vispointmap_);
+  Epetra_Import proc0importer(proc0map->get_epetra_map(), vispointmap_->get_epetra_map());
   Core::LinAlg::MultiVector<double> allnodecoords(*proc0map, 3);
   int err = allnodecoords.Import(*nodecoords, proc0importer, Insert);
-  if (err > 0) FOUR_C_THROW("Importing everything to proc 0 went wrong. Import returns %d", err);
+  if (err > 0) FOUR_C_THROW("Importing everything to proc 0 went wrong. Import returns {}", err);
 
   // write the node coordinates (only proc 0)
   // ensight format requires x_1 .. x_n, y_1 .. y_n, z_1 ... z_n
@@ -1380,7 +1380,7 @@ void EnsightWriter::write_coordinates_for_nurbs_shapefunctions(
       for (int inode = 0; inode < proc0map->NumGlobalElements(); ++inode)
       {
         write(geofile, static_cast<float>(proc0map->GID(inode)) + 1);
-        // gid+1 delivers the node numbering of the *.dat file starting with 1
+        // gid+1 delivers the node numbering of the input file starting with 1
       }
     }
     // now write the coordinate information
@@ -1403,7 +1403,7 @@ void EnsightWriter::write_coordinates_for_nurbs_shapefunctions(
 ----------------------------------------------------------------------*/
 void EnsightWriter::write_nurbs_cell(const Core::FE::CellType distype, const int gid,
     std::ofstream& geofile, std::vector<int>& nodevector, Core::FE::Discretization& dis,
-    Epetra_Map& proc0map) const
+    Core::LinAlg::Map& proc0map) const
 {
   using namespace FourC;
 
@@ -1778,7 +1778,7 @@ void EnsightWriter::write_dof_result_step_for_nurbs(std::ofstream& file, const i
   }
 
   // get element map
-  const Epetra_Map* elementmap = nurbsdis->element_row_map();
+  const Core::LinAlg::Map* elementmap = nurbsdis->element_row_map();
 
   // construct a colmap for data to have it available at
   // all elements (the critical ones are the ones at the
@@ -1804,7 +1804,7 @@ void EnsightWriter::write_dof_result_step_for_nurbs(std::ofstream& file, const i
       {
         if (dim != numdf)
         {
-          FOUR_C_THROW("dim and numdf not matching for field %s", name.c_str());
+          FOUR_C_THROW("dim and numdf not matching for field {}", name);
         }
 
         for (int rr = 0; rr < dim; ++rr)
@@ -1816,7 +1816,7 @@ void EnsightWriter::write_dof_result_step_for_nurbs(std::ofstream& file, const i
       {
         if (dim != numdf)
         {
-          FOUR_C_THROW("dim and numdf not matching for field %s", name.c_str());
+          FOUR_C_THROW("dim and numdf not matching for field {}", name);
         }
         for (int rr = 0; rr < dim; ++rr)
         {
@@ -1856,7 +1856,7 @@ void EnsightWriter::write_dof_result_step_for_nurbs(std::ofstream& file, const i
         else if ((name == "c_5") or (name == "averaged_c_5"))
           k = 4;
         else
-          FOUR_C_THROW("Up to now, I'm not able to write a field named %s\n", name.c_str());
+          FOUR_C_THROW("Up to now, I'm not able to write a field named {}\n", name);
 
         Core::Nodes::Node* n = nurbsdis->l_row_node(inode);
         int numdofpernode = actele->num_dof_per_node(*n);
@@ -1878,7 +1878,7 @@ void EnsightWriter::write_dof_result_step_for_nurbs(std::ofstream& file, const i
       {
         if (dim != numdf)
         {
-          FOUR_C_THROW("dim and numdf not matching for field %s", name.c_str());
+          FOUR_C_THROW("dim and numdf not matching for field {}", name);
         }
         for (int rr = 0; rr < dim; ++rr)
         {
@@ -1891,7 +1891,7 @@ void EnsightWriter::write_dof_result_step_for_nurbs(std::ofstream& file, const i
       }
       else
       {
-        FOUR_C_THROW("Up to now, I'm not able to write a field named %s\n", name.c_str());
+        FOUR_C_THROW("Up to now, I'm not able to write a field named {}\n", name);
       }
     }
   }
@@ -1900,16 +1900,16 @@ void EnsightWriter::write_dof_result_step_for_nurbs(std::ofstream& file, const i
   coldofmapvec.reserve(coldofset.size());
   coldofmapvec.assign(coldofset.begin(), coldofset.end());
   coldofset.clear();
-  Epetra_Map coldofmap(-1, coldofmapvec.size(), coldofmapvec.data(), 0,
+  Core::LinAlg::Map coldofmap(-1, coldofmapvec.size(), coldofmapvec.data(), 0,
       Core::Communication::as_epetra_comm(nurbsdis->get_comm()));
   coldofmapvec.clear();
 
-  const Epetra_Map* fulldofmap = &(coldofmap);
+  const Core::LinAlg::Map* fulldofmap = &(coldofmap);
   Core::LinAlg::Vector<double> coldata(*fulldofmap, true);
 
   // create an importer and import the data
-  Epetra_Import importer((coldata).Map(), (data).Map());
-  int imerr = (coldata).Import((data), importer, Insert);
+  Epetra_Import importer((coldata).get_block_map(), (data).get_block_map());
+  int imerr = (coldata).import((data), importer, Insert);
   if (imerr)
   {
     FOUR_C_THROW("import failed\n");
@@ -1989,7 +1989,7 @@ void EnsightWriter::write_dof_result_step_for_nurbs(std::ofstream& file, const i
         for (int rr = 0; rr < dim; ++rr)
         {
           my_data[dim * inode + rr] =
-              (coldata)[(coldata).Map().LID(lm[inode * (dim + 1) + rr] + offset)];
+              (coldata)[(coldata).get_block_map().LID(lm[inode * (dim + 1) + rr] + offset)];
         }
       }
     }
@@ -2001,7 +2001,8 @@ void EnsightWriter::write_dof_result_step_for_nurbs(std::ofstream& file, const i
       {
         for (int rr = 0; rr < dim; ++rr)
         {
-          my_data[dim * inode + rr] = (coldata)[(coldata).Map().LID(lm[inode * dim + rr] + offset)];
+          my_data[dim * inode + rr] =
+              (coldata)[(coldata).get_block_map().LID(lm[inode * dim + rr] + offset)];
         }
       }
     }
@@ -2012,7 +2013,8 @@ void EnsightWriter::write_dof_result_step_for_nurbs(std::ofstream& file, const i
       for (int inode = 0; inode < numnp; ++inode)
       {
         // offset should be equal to dim for pressure case!
-        my_data[inode] = (coldata)[(coldata).Map().LID(lm[inode * (dim + 1) + dim] + offset - dim)];
+        my_data[inode] =
+            (coldata)[(coldata).get_block_map().LID(lm[inode * (dim + 1) + dim] + offset - dim)];
       }
     }
     else if (name == "averaged_scalar_field")
@@ -2022,7 +2024,8 @@ void EnsightWriter::write_dof_result_step_for_nurbs(std::ofstream& file, const i
       for (int inode = 0; inode < numnp; ++inode)
       {
         // offset should be equal to dim for pressure case!
-        my_data[inode] = (coldata)[(coldata).Map().LID(lm[inode * (dim + 1) + dim] + offset)];
+        my_data[inode] =
+            (coldata)[(coldata).get_block_map().LID(lm[inode * (dim + 1) + dim] + offset)];
       }
     }
     else if ((name == "phi") or (name == "averaged_phi"))
@@ -2034,9 +2037,10 @@ void EnsightWriter::write_dof_result_step_for_nurbs(std::ofstream& file, const i
         Core::Nodes::Node* n = nurbsdis->l_row_node(inode);
         int numdofpernode = actele->num_dof_per_node(*n);
         if (numdofpernode == 1)  // one passive scalar (Scalar_Transport problem)
-          my_data[inode] = (coldata)[(coldata).Map().LID(lm[inode * numdofpernode] + offset)];
+          my_data[inode] =
+              (coldata)[(coldata).get_block_map().LID(lm[inode * numdofpernode] + offset)];
         else  // result for electric potential (ELCH problem)
-          my_data[inode] = (coldata)[(coldata).Map().LID(
+          my_data[inode] = (coldata)[(coldata).get_block_map().LID(
               lm[inode * numdofpernode + (numdofpernode - 1)] + offset)];
       }
     }
@@ -2055,13 +2059,14 @@ void EnsightWriter::write_dof_result_step_for_nurbs(std::ofstream& file, const i
       else if ((name == "c_5") or (name == "averaged_c_5"))
         k = 4;
       else
-        FOUR_C_THROW("Up to now, I'm not able to write a field named %s\n", name.c_str());
+        FOUR_C_THROW("Up to now, I'm not able to write a field named {}\n", name);
 
       for (int inode = 0; inode < numnp; ++inode)
       {
         Core::Nodes::Node* n = nurbsdis->l_row_node(inode);
         int numdofpernode = actele->num_dof_per_node(*n);
-        my_data[inode] = (coldata)[(coldata).Map().LID(lm[inode * numdofpernode + k] + offset)];
+        my_data[inode] =
+            (coldata)[(coldata).get_block_map().LID(lm[inode * numdofpernode + k] + offset)];
       }
     }
     else if (name == "normalflux")
@@ -2072,7 +2077,8 @@ void EnsightWriter::write_dof_result_step_for_nurbs(std::ofstream& file, const i
       {
         // Core::Nodes::Node* n = nurbsdis->lRowNode(inode);
         int numdofpernode = 1;  // actele->NumDofPerNode(*n);
-        my_data[inode] = (coldata)[(coldata).Map().LID(lm[inode * numdofpernode] + offset)];
+        my_data[inode] =
+            (coldata)[(coldata).get_block_map().LID(lm[inode * numdofpernode] + offset)];
       }
     }
     //---------------------------------------------------
@@ -2089,18 +2095,19 @@ void EnsightWriter::write_dof_result_step_for_nurbs(std::ofstream& file, const i
       {
         for (int rr = 0; rr < dim; ++rr)
         {
-          my_data[dim * inode + rr] = (coldata)[(coldata).Map().LID(lm[inode * dim + rr] + offset)];
+          my_data[dim * inode + rr] =
+              (coldata)[(coldata).get_block_map().LID(lm[inode * dim + rr] + offset)];
         }
       }
     }
     else if (name == "temperature")
     {
       for (int inode = 0; inode < numnp; ++inode)
-        my_data[inode] = (coldata)[(coldata).Map().LID(lm[inode] + offset)];
+        my_data[inode] = (coldata)[(coldata).get_block_map().LID(lm[inode] + offset)];
     }
     else
     {
-      FOUR_C_THROW("Up to now, I'm not able to write a field named %s\n", name.c_str());
+      FOUR_C_THROW("Up to now, I'm not able to write a field named {}\n", name);
     }
 
     interpolate_nurbs_result_to_viz_points(*idata, dim, npatch, vpoff, ele_cart_id, actele,
@@ -2109,10 +2116,10 @@ void EnsightWriter::write_dof_result_step_for_nurbs(std::ofstream& file, const i
   }  // loop over available elements
 
   // import my new values (proc0 gets everything, other procs empty)
-  Epetra_Import proc0importer(*proc0map_, *vispointmap_);
+  Epetra_Import proc0importer(proc0map_->get_epetra_map(), vispointmap_->get_epetra_map());
   Core::LinAlg::MultiVector<double> allsols(*proc0map_, numdf);
   int err = allsols.Import(*idata, proc0importer, Insert);
-  if (err > 0) FOUR_C_THROW("Importing everything to proc 0 went wrong. Import returns %d", err);
+  if (err > 0) FOUR_C_THROW("Importing everything to proc 0 went wrong. Import returns {}", err);
 
   // write the node results (only proc 0)
   // ensight format requires u_1 .. u_n, v_1 .. v_n, w_1 ... w_n, as for nodes
@@ -3389,7 +3396,7 @@ void EnsightWriter::write_nodal_result_step_for_nurbs(std::ofstream& file, const
   }
 
   // get element map
-  const Epetra_Map* elementmap = nurbsdis->element_row_map();
+  const Core::LinAlg::Map* elementmap = nurbsdis->element_row_map();
 
   // construct a colmap for nodal data to have it available at
   // all elements (the critical ones are the ones at the
@@ -3419,11 +3426,11 @@ void EnsightWriter::write_nodal_result_step_for_nurbs(std::ofstream& file, const
   colnodemapvec.reserve(colnodeset.size());
   colnodemapvec.assign(colnodeset.begin(), colnodeset.end());
   colnodeset.clear();
-  Epetra_Map colnodemap(-1, colnodemapvec.size(), colnodemapvec.data(), 0,
+  Core::LinAlg::Map colnodemap(-1, colnodemapvec.size(), colnodemapvec.data(), 0,
       Core::Communication::as_epetra_comm(nurbsdis->get_comm()));
   colnodemapvec.clear();
 
-  const Epetra_Map* fullnodemap = &(colnodemap);
+  const Core::LinAlg::Map* fullnodemap = &(colnodemap);
   Core::LinAlg::MultiVector<double> coldata(*fullnodemap, numdf, true);  // numdf important!!!
 
   // create an importer and import the data
@@ -3509,10 +3516,10 @@ void EnsightWriter::write_nodal_result_step_for_nurbs(std::ofstream& file, const
   }  // loop over available elements
 
   // import my new values (proc0 gets everything, other procs empty)
-  Epetra_Import proc0importer(*proc0map_, *vispointmap_);
+  Epetra_Import proc0importer(proc0map_->get_epetra_map(), vispointmap_->get_epetra_map());
   Core::LinAlg::MultiVector<double> allsols(*proc0map_, numdf);
   int err = allsols.Import(*idata, proc0importer, Insert);
-  if (err > 0) FOUR_C_THROW("Importing everything to proc 0 went wrong. Import returns %d", err);
+  if (err > 0) FOUR_C_THROW("Importing everything to proc 0 went wrong. Import returns {}", err);
 
   //---------------
   // write results

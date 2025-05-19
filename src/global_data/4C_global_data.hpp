@@ -82,7 +82,7 @@ namespace Global
    *
    * Global problem instance that keeps the discretizations
    * The global problem represents the input file passed to 4C. This class organizes the reading of
-   * a dat file (utilizing the InputFile of course). That is way, in all but the most eccentric
+   * an input file (utilizing the InputFile of course). That is way, in all but the most eccentric
    * cases there will be exactly one object of this class during a 4C run. This object contains all
    * parameters read from the input file as well as any material definitions and even all the
    * discretizations.
@@ -188,19 +188,12 @@ namespace Global
     /// control file for normal output
     std::shared_ptr<Core::IO::OutputControl> output_control_file() { return outputcontrol_; }
 
-    /// write parameters read from input file for documentation
-    void write_input_parameters();
-
     //@}
 
     /// @name Parameters read from file
 
     /// Set parameters from a parameter list and return with default values.
     void set_parameter_list(std::shared_ptr<Teuchos::ParameterList> const& parameter_list);
-
-    /// Return a const parameter list of all of the valid parameters that
-    /// this->setParameterList(...) will accept.
-    std::shared_ptr<const Teuchos::ParameterList> get_valid_parameters() const;
 
     std::shared_ptr<const Teuchos::ParameterList> get_parameter_list() const;
 
@@ -411,10 +404,6 @@ namespace Global
     const Teuchos::ParameterList& semi_smooth_plast_params() const
     {
       return parameters_->sublist("SEMI-SMOOTH PLASTICITY");
-    }
-    const Teuchos::ParameterList& electromagnetic_params() const
-    {
-      return parameters_->sublist("ELECTROMAGNETIC DYNAMIC");
     }
     const Teuchos::ParameterList& embedded_mesh_params() const
     {

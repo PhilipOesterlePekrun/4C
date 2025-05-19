@@ -8,15 +8,14 @@
 #include "4C_adapter_fld_fluid_ale.hpp"
 
 #include "4C_adapter_ale_fluid.hpp"
+#include "4C_ale_input.hpp"
 #include "4C_coupling_adapter.hpp"
 #include "4C_coupling_adapter_mortar.hpp"
 #include "4C_coupling_adapter_volmortar.hpp"
 #include "4C_fluid_utils_mapextractor.hpp"
 #include "4C_fsi_dirichletneumann_volcoupl.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_ale.hpp"
 #include "4C_inpar_fsi.hpp"
-#include "4C_inpar_validparameters.hpp"
 #include "4C_io.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
@@ -55,8 +54,8 @@ Adapter::FluidAle::FluidAle(const Teuchos::ParameterList& prbdyn, std::string co
   if (Global::Problem::instance()->fsi_dynamic_params().get<bool>("MATCHGRID_FLUIDALE"))
   {
     // the fluid-ale coupling matches
-    const Epetra_Map* fluidnodemap = fluid_field()->discretization()->node_row_map();
-    const Epetra_Map* alenodemap = ale_field()->discretization()->node_row_map();
+    const Core::LinAlg::Map* fluidnodemap = fluid_field()->discretization()->node_row_map();
+    const Core::LinAlg::Map* alenodemap = ale_field()->discretization()->node_row_map();
 
     /* Setup coupling adapter
      *
@@ -106,9 +105,8 @@ Adapter::FluidAle::FluidAle(const Teuchos::ParameterList& prbdyn, std::string co
   }
 
   // Apply initial ALE mesh displacement
-  if (Teuchos::getIntegralValue<Inpar::ALE::InitialDisp>(
-          Global::Problem::instance()->ale_dynamic_params(), "INITIALDISP") !=
-      Inpar::ALE::initdisp_zero_disp)
+  if (Teuchos::getIntegralValue<ALE::InitialDisp>(Global::Problem::instance()->ale_dynamic_params(),
+          "INITIALDISP") != ALE::initdisp_zero_disp)
   {
     fluid_field()->set_mesh_map(coupfa_->master_dof_map(), nds_master);
     std::shared_ptr<Core::LinAlg::Vector<double>> initfluiddisp =
@@ -346,14 +344,14 @@ std::shared_ptr<Core::LinAlg::Vector<double>> Adapter::FluidAle::relaxation_solv
   ale_field()->solve();
   std::shared_ptr<Core::LinAlg::Vector<double>> fluiddisp =
       ale_to_fluid_field(ale_field()->dispnp());
-  fluiddisp->Scale(1. / dt);
+  fluiddisp->scale(1. / dt);
 
   fluid_field()->apply_mesh_velocity(fluiddisp);
 
   // grid position is done inside RelaxationSolve
 
   // the displacement -> velocity conversion at the interface
-  idisp->Scale(1. / dt);
+  idisp->scale(1. / dt);
 
   return fluid_field()->relaxation_solve(idisp);
 }

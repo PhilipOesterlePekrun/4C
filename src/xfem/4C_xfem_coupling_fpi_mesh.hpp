@@ -30,8 +30,7 @@ namespace XFEM
 {
   /*!
   specialized class for coupling of fluid with an porous media (Darcy Flow)
-    \author ager
-    \date 06/16
+
    */
   class MeshCouplingFPI : public MeshVolCoupling
   {
@@ -69,7 +68,7 @@ namespace XFEM
       fullpres_ = pres;
     }
 
-    void initialize_struct_pres_map(const Epetra_Map& pfmap, const Epetra_Map& psmap)
+    void initialize_struct_pres_map(const Core::LinAlg::Map& pfmap, const Core::LinAlg::Map& psmap)
     {
       // We need to identify cutter dis dofs and pressure dofs on all processors for the whole
       // cutter_dis, as long as we don't have another ghosting strategy for the cutter_dis ...
@@ -79,8 +78,8 @@ namespace XFEM
             "initialize_struct_pres_map: (pfmap->NumGlobalElements() != "
             "psmap->NumGlobalElements())!");
 
-      std::shared_ptr<Epetra_Map> fullpfmap = Core::LinAlg::allreduce_e_map(pfmap);
-      std::shared_ptr<Epetra_Map> fullpsmap = Core::LinAlg::allreduce_e_map(psmap);
+      std::shared_ptr<Core::LinAlg::Map> fullpfmap = Core::LinAlg::allreduce_e_map(pfmap);
+      std::shared_ptr<Core::LinAlg::Map> fullpsmap = Core::LinAlg::allreduce_e_map(psmap);
 
       if (fullpfmap->NumMyElements() != fullpsmap->NumMyElements())
         FOUR_C_THROW(
@@ -110,11 +109,6 @@ namespace XFEM
     void complete_state_vectors() override;
 
     virtual void zero_state_vectors_fpi();
-
-    void gmsh_output(const std::string& filename_base, const int step, const int gmsh_step_diff,
-        const bool gmsh_debug_out_screen) override;
-
-    void gmsh_output_discretization(std::ostream& gmshfilecontent) override;
 
     void lift_drag(const int step, const double time) const override;
 

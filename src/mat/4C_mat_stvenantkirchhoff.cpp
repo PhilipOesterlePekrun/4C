@@ -10,6 +10,7 @@
 #include "4C_comm_pack_helpers.hpp"
 #include "4C_global_data.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -93,7 +94,7 @@ void Mat::StVenantKirchhoff::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::StVenantKirchhoff*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
   }
@@ -182,10 +183,10 @@ void Mat::StVenantKirchhoff::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
 void Mat::StVenantKirchhoff::strain_energy(
     const Core::LinAlg::Matrix<6, 1>& glstrain, double& psi, const int gp, const int eleGID) const
 {
-  Core::LinAlg::Matrix<6, 6> cmat(true);
+  Core::LinAlg::Matrix<6, 6> cmat(Core::LinAlg::Initialization::zero);
   setup_cmat(cmat);
 
-  Core::LinAlg::Matrix<6, 1> stress(true);
+  Core::LinAlg::Matrix<6, 1> stress(Core::LinAlg::Initialization::zero);
   stress.multiply_nn(cmat, glstrain);
 
   for (int k = 0; k < 6; ++k) psi += glstrain(k) * stress(k);

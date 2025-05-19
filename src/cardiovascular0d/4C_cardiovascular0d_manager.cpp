@@ -145,7 +145,7 @@ Utils::Cardiovascular0DManager::Cardiovascular0DManager(
     p.set<const Core::Utils::FunctionManager*>(
         "function_manager", &Global::Problem::instance()->function_manager());
     actdisc_->evaluate_dirichlet(p, zeros_, nullptr, nullptr, nullptr, dbcmaps_);
-    zeros_->PutScalar(0.0);  // just in case of change
+    zeros_->put_scalar(0.0);  // just in case of change
   }
 
   if (cardvasc0d_4elementwindkessel_->have_cardiovascular0_d())
@@ -206,11 +206,12 @@ Utils::Cardiovascular0DManager::Cardiovascular0DManager(
     offset_id_ = cardiovascular0ddofset_->first_gid();
 
     cardiovascular0dmap_full_ =
-        std::make_shared<Epetra_Map>(*(cardiovascular0ddofset_full_->dof_row_map()));
-    cardiovascular0dmap_ = std::make_shared<Epetra_Map>(*(cardiovascular0ddofset_->dof_row_map()));
+        std::make_shared<Core::LinAlg::Map>(*(cardiovascular0ddofset_full_->dof_row_map()));
+    cardiovascular0dmap_ =
+        std::make_shared<Core::LinAlg::Map>(*(cardiovascular0ddofset_->dof_row_map()));
     redcardiovascular0dmap_ = Core::LinAlg::allreduce_e_map(*cardiovascular0dmap_);
-    cardvasc0dimpo_ =
-        std::make_shared<Epetra_Export>(*redcardiovascular0dmap_, *cardiovascular0dmap_);
+    cardvasc0dimpo_ = std::make_shared<Epetra_Export>(
+        redcardiovascular0dmap_->get_epetra_map(), cardiovascular0dmap_->get_epetra_map());
     cv0ddofincrement_ = std::make_shared<Core::LinAlg::Vector<double>>(*cardiovascular0dmap_);
     cv0ddof_n_ = std::make_shared<Core::LinAlg::Vector<double>>(*cardiovascular0dmap_);
     cv0ddof_np_ = std::make_shared<Core::LinAlg::Vector<double>>(*cardiovascular0dmap_);
@@ -247,26 +248,26 @@ Utils::Cardiovascular0DManager::Cardiovascular0DManager(
     // Initialize vectors
     actdisc_->clear_state();
 
-    cv0ddofincrement_->PutScalar(0.0);
+    cv0ddofincrement_->put_scalar(0.0);
 
-    cv0ddof_n_->PutScalar(0.0);
-    cv0ddof_np_->PutScalar(0.0);
-    cv0ddof_m_->PutScalar(0.0);
-    dcv0ddof_m_->PutScalar(0.0);
-    v_n_->PutScalar(0.0);
-    v_np_->PutScalar(0.0);
-    v_m_->PutScalar(0.0);
-    cardvasc0d_res_m_->PutScalar(0.0);
+    cv0ddof_n_->put_scalar(0.0);
+    cv0ddof_np_->put_scalar(0.0);
+    cv0ddof_m_->put_scalar(0.0);
+    dcv0ddof_m_->put_scalar(0.0);
+    v_n_->put_scalar(0.0);
+    v_np_->put_scalar(0.0);
+    v_m_->put_scalar(0.0);
+    cardvasc0d_res_m_->put_scalar(0.0);
 
-    cardvasc0d_df_n_->PutScalar(0.0);
-    cardvasc0d_df_np_->PutScalar(0.0);
-    cardvasc0d_df_m_->PutScalar(0.0);
-    cardvasc0d_f_n_->PutScalar(0.0);
-    cardvasc0d_f_np_->PutScalar(0.0);
-    cardvasc0d_f_m_->PutScalar(0.0);
+    cardvasc0d_df_n_->put_scalar(0.0);
+    cardvasc0d_df_np_->put_scalar(0.0);
+    cardvasc0d_df_m_->put_scalar(0.0);
+    cardvasc0d_f_n_->put_scalar(0.0);
+    cardvasc0d_f_np_->put_scalar(0.0);
+    cardvasc0d_f_m_->put_scalar(0.0);
 
-    cv0ddof_t_n_->PutScalar(0.0);
-    cv0ddof_t_np_->PutScalar(0.0);
+    cv0ddof_t_n_->put_scalar(0.0);
+    cv0ddof_t_np_->put_scalar(0.0);
 
     cardiovascular0dstiffness_->zero();
 
@@ -275,7 +276,7 @@ Utils::Cardiovascular0DManager::Cardiovascular0DManager(
     p.set("NumberofID", num_cardiovascular0_did_);
     p.set("scale_timint", sc_timint);
     p.set("time_step_size", ts_size);
-    actdisc_->set_state("displacement", disp);
+    actdisc_->set_state("displacement", *disp);
 
     std::shared_ptr<Core::LinAlg::Vector<double>> v_n_red =
         std::make_shared<Core::LinAlg::Vector<double>>(*redcardiovascular0dmap_);
@@ -287,10 +288,10 @@ Utils::Cardiovascular0DManager::Cardiovascular0DManager(
     // initialize everything
     cardvasc0d_model_->initialize(p, v_n_red, cv0ddof_n_red);
 
-    v_n_->PutScalar(0.0);
-    v_n_->Export(*v_n_red, *cardvasc0dimpo_, Add);
+    v_n_->put_scalar(0.0);
+    v_n_->export_to(*v_n_red, *cardvasc0dimpo_, Add);
 
-    cv0ddof_n_->Export(*cv0ddof_n_red, *cardvasc0dimpo_, Insert);
+    cv0ddof_n_->export_to(*cv0ddof_n_red, *cardvasc0dimpo_, Insert);
 
 
     Core::LinAlg::export_to(*v_n_, *v_n_red2);
@@ -304,23 +305,23 @@ Utils::Cardiovascular0DManager::Cardiovascular0DManager(
         cardvasc0d_f_n_red, nullptr, cv0ddof_n_red, v_n_red2);
 
     // insert compartment volumes into vol vector
-    v_n_->Export(*v_n_red2, *cardvasc0dimpo_, Insert);
+    v_n_->export_to(*v_n_red2, *cardvasc0dimpo_, Insert);
 
-    cardvasc0d_df_n_->PutScalar(0.0);
-    cardvasc0d_df_n_->Export(*cardvasc0d_df_n_red, *cardvasc0dimpo_, Insert);
-    cardvasc0d_f_n_->PutScalar(0.0);
-    cardvasc0d_f_n_->Export(*cardvasc0d_f_n_red, *cardvasc0dimpo_, Insert);
+    cardvasc0d_df_n_->put_scalar(0.0);
+    cardvasc0d_df_n_->export_to(*cardvasc0d_df_n_red, *cardvasc0dimpo_, Insert);
+    cardvasc0d_f_n_->put_scalar(0.0);
+    cardvasc0d_f_n_->export_to(*cardvasc0d_f_n_red, *cardvasc0dimpo_, Insert);
 
     // predict with initial values
-    cv0ddof_np_->Update(1.0, *cv0ddof_n_, 0.0);
+    cv0ddof_np_->update(1.0, *cv0ddof_n_, 0.0);
 
-    cardvasc0d_df_np_->Update(1.0, *cardvasc0d_df_n_, 0.0);
-    cardvasc0d_f_np_->Update(1.0, *cardvasc0d_f_n_, 0.0);
+    cardvasc0d_df_np_->update(1.0, *cardvasc0d_df_n_, 0.0);
+    cardvasc0d_f_np_->update(1.0, *cardvasc0d_f_n_, 0.0);
 
-    v_np_->Update(1.0, *v_n_, 0.0);
+    v_np_->update(1.0, *v_n_, 0.0);
 
-    cv0ddof_t_n_->Update(1.0, *cv0ddof_np_, 0.0);
-    cv0ddof_t_np_->Update(1.0, *cv0ddof_np_, 0.0);
+    cv0ddof_t_n_->update(1.0, *cv0ddof_np_, 0.0);
+    cv0ddof_t_np_->update(1.0, *cv0ddof_np_, 0.0);
 
 
     // Create resulttest
@@ -349,7 +350,7 @@ void Utils::Cardiovascular0DManager::evaluate_force_stiff(const double time,
 
   // create the parameters for the discretization
   Teuchos::ParameterList p;
-  const Epetra_Map* dofrowmap = actdisc_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = actdisc_->dof_row_map();
 
   cardiovascular0dstiffness_->zero();
   mat_dcardvasc0d_dd_->zero();
@@ -377,20 +378,20 @@ void Utils::Cardiovascular0DManager::evaluate_force_stiff(const double time,
       std::make_shared<Core::LinAlg::Vector<double>>(*redcardiovascular0dmap_);
 
   actdisc_->clear_state();
-  actdisc_->set_state("displacement", disp);
+  actdisc_->set_state("displacement", *disp);
 
   // evaluate current 3D volume only
   cardvasc0d_model_->evaluate(
       p, nullptr, nullptr, nullptr, nullptr, nullptr, v_np_red, nullptr, nullptr);
 
   // import into vol vector at end-point
-  v_np_->PutScalar(0.0);
-  v_np_->Export(*v_np_red, *cardvasc0dimpo_, Add);
+  v_np_->put_scalar(0.0);
+  v_np_->export_to(*v_np_red, *cardvasc0dimpo_, Add);
 
   // solution and rate of solution at generalized mid-point t_{n+theta}
   // for post-processing only - residual midpoint evaluation done separately!
-  cv0ddof_m_->Update(theta_, *cv0ddof_np_, 1. - theta_, *cv0ddof_n_, 0.0);
-  dcv0ddof_m_->Update(1. / ts_size, *cv0ddof_np_, -1. / ts_size, *cv0ddof_n_, 0.0);
+  cv0ddof_m_->update(theta_, *cv0ddof_np_, 1. - theta_, *cv0ddof_n_, 0.0);
+  dcv0ddof_m_->update(1. / ts_size, *cv0ddof_np_, -1. / ts_size, *cv0ddof_n_, 0.0);
 
   // export end-point values
   Core::LinAlg::export_to(*cv0ddof_np_, *cv0ddof_np_red);
@@ -403,21 +404,21 @@ void Utils::Cardiovascular0DManager::evaluate_force_stiff(const double time,
       v_np_red2);
 
   // insert compartment volumes into vol vector
-  v_np_->Export(*v_np_red2, *cardvasc0dimpo_, Insert);
+  v_np_->export_to(*v_np_red2, *cardvasc0dimpo_, Insert);
 
   // volume at generalized mid-point t_{n+theta} - for post-processing only
-  v_m_->Update(theta_, *v_np_, 1. - theta_, *v_n_, 0.0);
+  v_m_->update(theta_, *v_np_, 1. - theta_, *v_n_, 0.0);
 
-  cardvasc0d_df_np_->PutScalar(0.0);
-  cardvasc0d_df_np_->Export(*cardvasc0d_df_np_red, *cardvasc0dimpo_, Insert);
-  cardvasc0d_f_np_->PutScalar(0.0);
-  cardvasc0d_f_np_->Export(*cardvasc0d_f_np_red, *cardvasc0dimpo_, Insert);
+  cardvasc0d_df_np_->put_scalar(0.0);
+  cardvasc0d_df_np_->export_to(*cardvasc0d_df_np_red, *cardvasc0dimpo_, Insert);
+  cardvasc0d_f_np_->put_scalar(0.0);
+  cardvasc0d_f_np_->export_to(*cardvasc0d_f_np_red, *cardvasc0dimpo_, Insert);
   // df_m = (df_np - df_n) / dt
-  cardvasc0d_df_m_->Update(1. / ts_size, *cardvasc0d_df_np_, -1. / ts_size, *cardvasc0d_df_n_, 0.0);
+  cardvasc0d_df_m_->update(1. / ts_size, *cardvasc0d_df_np_, -1. / ts_size, *cardvasc0d_df_n_, 0.0);
   // f_m = theta * f_np + (1-theta) * f_n
-  cardvasc0d_f_m_->Update(theta_, *cardvasc0d_f_np_, 1. - theta_, *cardvasc0d_f_n_, 0.0);
+  cardvasc0d_f_m_->update(theta_, *cardvasc0d_f_np_, 1. - theta_, *cardvasc0d_f_n_, 0.0);
   // total 0D residual r_m = df_m + f_m
-  cardvasc0d_res_m_->Update(1., *cardvasc0d_df_m_, 1., *cardvasc0d_f_m_, 0.0);
+  cardvasc0d_res_m_->update(1., *cardvasc0d_df_m_, 1., *cardvasc0d_f_m_, 0.0);
 
   // Complete matrices
   cardiovascular0dstiffness_->complete(*cardiovascular0dmap_, *cardiovascular0dmap_);
@@ -437,16 +438,16 @@ void Utils::Cardiovascular0DManager::update_time_step()
 {
   if (t_period_ > 0.0 and modulo_is_relative_zero(totaltime_, t_period_, totaltime_))
   {
-    cv0ddof_t_np_->Update(1.0, *cv0ddof_np_, 0.0);
+    cv0ddof_t_np_->update(1.0, *cv0ddof_np_, 0.0);
     check_periodic();
-    cv0ddof_t_n_->Update(1.0, *cv0ddof_t_np_, 0.0);
+    cv0ddof_t_n_->update(1.0, *cv0ddof_t_np_, 0.0);
   }
 
-  cv0ddof_n_->Update(1.0, *cv0ddof_np_, 0.0);
-  v_n_->Update(1.0, *v_np_, 0.0);
+  cv0ddof_n_->update(1.0, *cv0ddof_np_, 0.0);
+  v_n_->update(1.0, *v_np_, 0.0);
 
-  cardvasc0d_df_n_->Update(1.0, *cardvasc0d_df_np_, 0.0);
-  cardvasc0d_f_n_->Update(1.0, *cardvasc0d_f_np_, 0.0);
+  cardvasc0d_df_n_->update(1.0, *cardvasc0d_df_np_, 0.0);
+  cardvasc0d_f_n_->update(1.0, *cardvasc0d_f_np_, 0.0);
 
   if (t_period_ > 0.0) printf("Cycle error (error in periodicity): %10.6e \n", cycle_error_);
 
@@ -510,11 +511,11 @@ bool Utils::Cardiovascular0DManager::modulo_is_relative_zero(
 
 void Utils::Cardiovascular0DManager::reset_step()
 {
-  cv0ddof_np_->Update(1.0, *cv0ddof_n_, 0.0);
-  v_np_->Update(1.0, *v_n_, 0.0);
+  cv0ddof_np_->update(1.0, *cv0ddof_n_, 0.0);
+  v_np_->update(1.0, *v_n_, 0.0);
 
-  cardvasc0d_df_np_->Update(1.0, *cardvasc0d_df_n_, 0.0);
-  cardvasc0d_f_np_->Update(1.0, *cardvasc0d_f_n_, 0.0);
+  cardvasc0d_df_np_->update(1.0, *cardvasc0d_df_n_, 0.0);
+  cardvasc0d_f_np_->update(1.0, *cardvasc0d_f_n_, 0.0);
 
   return;
 }
@@ -526,7 +527,7 @@ void Utils::Cardiovascular0DManager::update_cv0_d_dof(
 {
   // new end-point solution
   // cv0ddof_{n+1}^{i+1} := cv0ddof_{n+1}^{i} + Inccv0ddof_{n+1}^{i}
-  cv0ddof_np_->Update(1.0, cv0ddofincrement, 1.0);
+  cv0ddof_np_->update(1.0, cv0ddofincrement, 1.0);
 
   return;
 }
@@ -544,7 +545,7 @@ void Utils::Cardiovascular0DManager::read_restart(
 
   if (!restartwithcardiovascular0d)
   {
-    std::shared_ptr<Epetra_Map> cardvasc0d = get_cardiovascular0_d_map();
+    std::shared_ptr<Core::LinAlg::Map> cardvasc0d = get_cardiovascular0_d_map();
     std::shared_ptr<Core::LinAlg::Vector<double>> tempvec =
         Core::LinAlg::create_vector(*cardvasc0d, true);
     // old rhs contributions
@@ -653,7 +654,7 @@ void Utils::Cardiovascular0DManager::evaluate_neumann_cardiovascular0_d_coupling
 
     std::shared_ptr<const Core::LinAlg::Vector<double>> disp =
         params.get<std::shared_ptr<const Core::LinAlg::Vector<double>>>("new disp");
-    actdisc_->set_state("displacement new", disp);
+    actdisc_->set_state("displacement new", *disp);
 
     Core::LinAlg::SerialDenseVector elevector;
     Core::LinAlg::SerialDenseMatrix elematrix;
@@ -921,7 +922,7 @@ int Utils::Cardiovascular0DManager::solve(Core::LinAlg::SparseMatrix& mat_struct
   // create old style dirichtoggle vector (supposed to go away)
   dirichtoggle_ = std::make_shared<Core::LinAlg::Vector<double>>(*(dbcmaps_->full_map()));
   Core::LinAlg::Vector<double> temp(*(dbcmaps_->cond_map()));
-  temp.PutScalar(1.0);
+  temp.put_scalar(1.0);
   Core::LinAlg::export_to(temp, *dirichtoggle_);
 
   // allocate additional vectors and matrices
@@ -935,7 +936,7 @@ int Utils::Cardiovascular0DManager::solve(Core::LinAlg::SparseMatrix& mat_struct
       (std::dynamic_pointer_cast<Core::LinAlg::SparseMatrix>(get_mat_dstruct_dcv0ddof()));
 
   // prepare residual cv0ddof
-  cv0ddofincr.PutScalar(0.0);
+  cv0ddofincr.put_scalar(0.0);
 
 
   // apply DBC to additional offdiagonal coupling matrices
@@ -943,9 +944,10 @@ int Utils::Cardiovascular0DManager::solve(Core::LinAlg::SparseMatrix& mat_struct
   mat_dstruct_dcv0ddof->apply_dirichlet(*(dbcmaps_->cond_map()), false);
 
   // define maps of standard dofs and additional pressures
-  std::shared_ptr<Epetra_Map> standrowmap = std::make_shared<Epetra_Map>(mat_structstiff.row_map());
-  std::shared_ptr<Epetra_Map> cardvasc0drowmap =
-      std::make_shared<Epetra_Map>(*cardiovascular0dmap_full_);
+  std::shared_ptr<Core::LinAlg::Map> standrowmap =
+      std::make_shared<Core::LinAlg::Map>(mat_structstiff.row_map());
+  std::shared_ptr<Core::LinAlg::Map> cardvasc0drowmap =
+      std::make_shared<Core::LinAlg::Map>(*cardiovascular0dmap_full_);
 
 
   if (ptc_3d0d_)
@@ -953,21 +955,21 @@ int Utils::Cardiovascular0DManager::solve(Core::LinAlg::SparseMatrix& mat_struct
     // PTC on structural matrix
     std::shared_ptr<Core::LinAlg::Vector<double>> tmp3D =
         Core::LinAlg::create_vector(mat_structstiff.row_map(), false);
-    tmp3D->PutScalar(k_ptc);
+    tmp3D->put_scalar(k_ptc);
     std::shared_ptr<Core::LinAlg::Vector<double>> diag3D =
         Core::LinAlg::create_vector(mat_structstiff.row_map(), false);
     mat_structstiff.extract_diagonal_copy(*diag3D);
-    diag3D->Update(1.0, *tmp3D, 1.0);
+    diag3D->update(1.0, *tmp3D, 1.0);
     mat_structstiff.replace_diagonal_values(*diag3D);
   }
 
   // merge maps to one large map
-  std::shared_ptr<Epetra_Map> mergedmap =
+  std::shared_ptr<Core::LinAlg::Map> mergedmap =
       Core::LinAlg::merge_map(standrowmap, cardvasc0drowmap, false);
   // define MapExtractor
   // Core::LinAlg::MapExtractor mapext(*mergedmap,standrowmap,cardvasc0drowmap);
 
-  std::vector<std::shared_ptr<const Epetra_Map>> myMaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> myMaps;
   myMaps.push_back(standrowmap);
   myMaps.push_back(cardvasc0drowmap);
   Core::LinAlg::MultiMapExtractor mapext(*mergedmap, myMaps);
@@ -992,17 +994,18 @@ int Utils::Cardiovascular0DManager::solve(Core::LinAlg::SparseMatrix& mat_struct
     std::shared_ptr<Core::LinAlg::MultiVector<double>> rhsstruct_R = mor_->reduce_rhs(rhsstruct);
 
     // define maps of reduced standard dofs and additional pressures
-    Epetra_Map structmap_R(
+    Core::LinAlg::Map structmap_R(
         mor_->get_red_dim(), 0, Core::Communication::as_epetra_comm(actdisc_->get_comm()));
-    std::shared_ptr<Epetra_Map> standrowmap_R = std::make_shared<Epetra_Map>(structmap_R);
-    std::shared_ptr<Epetra_Map> cardvasc0drowmap_R =
-        std::make_shared<Epetra_Map>(mat_cardvasc0dstiff->row_map());
+    std::shared_ptr<Core::LinAlg::Map> standrowmap_R =
+        std::make_shared<Core::LinAlg::Map>(structmap_R);
+    std::shared_ptr<Core::LinAlg::Map> cardvasc0drowmap_R =
+        std::make_shared<Core::LinAlg::Map>(mat_cardvasc0dstiff->row_map());
 
     // merge maps of reduced standard dofs and additional pressures to one large map
-    std::shared_ptr<Epetra_Map> mergedmap_R =
+    std::shared_ptr<Core::LinAlg::Map> mergedmap_R =
         Core::LinAlg::merge_map(standrowmap_R, cardvasc0drowmap_R, false);
 
-    std::vector<std::shared_ptr<const Epetra_Map>> myMaps_R;
+    std::vector<std::shared_ptr<const Core::LinAlg::Map>> myMaps_R;
     myMaps_R.push_back(standrowmap_R);
     myMaps_R.push_back(cardvasc0drowmap_R);
     mapext_R.setup(*mergedmap_R, myMaps_R);
@@ -1015,17 +1018,17 @@ int Utils::Cardiovascular0DManager::solve(Core::LinAlg::SparseMatrix& mat_struct
     mergedsol = std::make_shared<Core::LinAlg::Vector<double>>(*mergedmap_R);
 
     // use BlockMatrix
-    blockmat->assign(0, 0, Core::LinAlg::View, *mat_structstiff_R);
-    blockmat->assign(1, 0, Core::LinAlg::View, *mat_dcardvasc0d_dd_R);
-    blockmat->assign(
-        0, 1, Core::LinAlg::View, *Core::LinAlg::matrix_transpose(*mat_dstruct_dcv0ddof_R));
-    blockmat->assign(1, 1, Core::LinAlg::View, *mat_cardvasc0dstiff);
+    blockmat->assign(0, 0, Core::LinAlg::DataAccess::View, *mat_structstiff_R);
+    blockmat->assign(1, 0, Core::LinAlg::DataAccess::View, *mat_dcardvasc0d_dd_R);
+    blockmat->assign(0, 1, Core::LinAlg::DataAccess::View,
+        *Core::LinAlg::matrix_transpose(*mat_dstruct_dcv0ddof_R));
+    blockmat->assign(1, 1, Core::LinAlg::DataAccess::View, *mat_cardvasc0dstiff);
     blockmat->complete();
 
     // export 0D part of rhs
     Core::LinAlg::export_to(rhscardvasc0d, *mergedrhs);
     // make the 0D part of the rhs negative
-    mergedrhs->Scale(-1.0);
+    mergedrhs->scale(-1.0);
     // export reduced structure part of rhs -> no need to make it negative since this has been done
     // by the structural time integrator already!
     Core::LinAlg::export_to(*rhsstruct_R, *mergedrhs);
@@ -1040,17 +1043,17 @@ int Utils::Cardiovascular0DManager::solve(Core::LinAlg::SparseMatrix& mat_struct
     mergedsol = std::make_shared<Core::LinAlg::Vector<double>>(*mergedmap);
 
     // use BlockMatrix
-    blockmat->assign(0, 0, Core::LinAlg::View, mat_structstiff);
+    blockmat->assign(0, 0, Core::LinAlg::DataAccess::View, mat_structstiff);
     blockmat->assign(
-        1, 0, Core::LinAlg::View, *Core::LinAlg::matrix_transpose(*mat_dcardvasc0d_dd));
-    blockmat->assign(0, 1, Core::LinAlg::View, *mat_dstruct_dcv0ddof);
-    blockmat->assign(1, 1, Core::LinAlg::View, *mat_cardvasc0dstiff);
+        1, 0, Core::LinAlg::DataAccess::View, *Core::LinAlg::matrix_transpose(*mat_dcardvasc0d_dd));
+    blockmat->assign(0, 1, Core::LinAlg::DataAccess::View, *mat_dstruct_dcv0ddof);
+    blockmat->assign(1, 1, Core::LinAlg::DataAccess::View, *mat_cardvasc0dstiff);
     blockmat->complete();
 
     // export 0D part of rhs
     Core::LinAlg::export_to(rhscardvasc0d, *mergedrhs);
     // make the 0D part of the rhs negative
-    mergedrhs->Scale(-1.0);
+    mergedrhs->scale(-1.0);
     // export structure part of rhs -> no need to make it negative since this has been done by the
     // structural time integrator already!
     Core::LinAlg::export_to(rhsstruct, *mergedrhs);
@@ -1100,7 +1103,7 @@ int Utils::Cardiovascular0DManager::solve(Core::LinAlg::SparseMatrix& mat_struct
   linsolveerror_ = 0;
 
   double norm_res_full;
-  mergedrhs->Norm2(&norm_res_full);
+  mergedrhs->norm_2(&norm_res_full);
 
   // solve for disi
   // Solve K . IncD = -R  ===>  IncD_{n+1}
@@ -1127,13 +1130,13 @@ int Utils::Cardiovascular0DManager::solve(Core::LinAlg::SparseMatrix& mat_struct
   if (have_mor_)
   {
     // initialize and write vector with reduced displacement dofs
-    Core::LinAlg::Vector<double> disp_R(*mapext_R.Map(0));
+    Core::LinAlg::Vector<double> disp_R(*mapext_R.map(0));
     mapext_R.extract_vector(*mergedsol, 0, disp_R);
 
     // initialize and write vector with pressure dofs, replace row map
-    Core::LinAlg::Vector<double> cv0ddof(*mapext_R.Map(1));
+    Core::LinAlg::Vector<double> cv0ddof(*mapext_R.map(1));
     mapext_R.extract_vector(*mergedsol, 1, cv0ddof);
-    cv0ddof.ReplaceMap(*cardvasc0drowmap);
+    cv0ddof.replace_map(*cardvasc0drowmap);
 
     // extend reduced displacement dofs to high dimension
     std::shared_ptr<Core::LinAlg::Vector<double>> disp_full = mor_->extend_solution(disp_R);
@@ -1149,7 +1152,7 @@ int Utils::Cardiovascular0DManager::solve(Core::LinAlg::SparseMatrix& mat_struct
   mapext.extract_vector(*mergedsol_full, 0, dispinc);
   mapext.extract_vector(*mergedsol_full, 1, cv0ddofincr);
 
-  cv0ddofincrement_->Update(1., cv0ddofincr, 0.);
+  cv0ddofincrement_->update(1., cv0ddofincr, 0.);
 
   counter_++;
 

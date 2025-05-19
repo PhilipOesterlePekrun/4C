@@ -70,6 +70,13 @@ namespace SSTI
     virtual void setup_system() = 0;
     //@}
 
+    /*! @brief Perform all necessary tasks after setting up the SSTI
+     * algorithm. Currently, this only calls the post_setup routine of the
+     * structural field.
+     *
+     */
+    void post_setup();
+
     //! increment the counter for Newton-Raphson iterations (monolithic algorithm)
     void increment_iter() { ++iter_; }
 
@@ -126,8 +133,8 @@ namespace SSTI
     //! distribute states between subproblems
     //@{
     void distribute_solution_all_fields();
-    void distribute_scatra_solution();
-    void distribute_structure_solution();
+    void distribute_scatra_solution() const;
+    void distribute_structure_solution() const;
     void distribute_thermo_solution();
     //@}
 

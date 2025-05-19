@@ -815,7 +815,7 @@ void SSTI::AssembleStrategyBlockBlock::assemble_thermo_scatra_interface(
   {
     for (int j = 0; j < static_cast<int>(block_position_scatra().size()); ++j)
     {
-      const auto thermoscatrainterface_subblock = thermoscatrainterface_block->matrix(i, j);
+      auto thermoscatrainterface_subblock = thermoscatrainterface_block->matrix(i, j);
 
       // assemble linearizations of slave side scatra fluxes w.r.t. slave and master side elch
       // into system matrix
@@ -832,7 +832,7 @@ void SSTI::AssembleStrategyBlockBlock::assemble_thermo_scatra_interface(
           *all_maps()->block_map_thermo()->full_map(), 27, false, true);
 
       ScaTra::MeshtyingStrategyS2I::extract_matrix_rows(thermoscatrainterface_subblock, slaveflux,
-          *meshtying_thermo()->block_maps_slave().Map(i));
+          *meshtying_thermo()->block_maps_slave().map(i));
 
       slaveflux.complete(
           *all_maps()->block_map_scatra()->full_map(), *all_maps()->block_map_thermo()->full_map());
@@ -891,7 +891,8 @@ void SSTI::AssembleStrategyBlockSparse::assemble_thermo_scatra_interface(
 
   Coupling::Adapter::MatrixLogicalSplitAndTransform()(*thermoscatrainterface_sparse,
       *meshtying_thermo()->coupling_adapter()->master_dof_map(),
-      thermoscatrainterface_sparse->domain_map(), -1.0, &thermo_converter, nullptr,
+      Core::LinAlg::Map(thermoscatrainterface_sparse->domain_map()), -1.0, &thermo_converter,
+      nullptr,
       systemmatrix_block->matrix(block_position_thermo().at(0), block_position_scatra().at(0)),
       true, true);
 }
@@ -917,8 +918,8 @@ void SSTI::AssembleStrategySparse::assemble_thermo_scatra_interface(
 
   Coupling::Adapter::MatrixLogicalSplitAndTransform()(*thermoscatrainterface_sparse,
       *meshtying_thermo()->coupling_adapter()->master_dof_map(),
-      thermoscatrainterface_sparse->domain_map(), -1.0, &thermo_converter, nullptr,
-      *systemmatrix_sparse, true, true);
+      Core::LinAlg::Map(thermoscatrainterface_sparse->domain_map()), -1.0, &thermo_converter,
+      nullptr, *systemmatrix_sparse, true, true);
 }
 
 /*----------------------------------------------------------------------*
@@ -1165,15 +1166,13 @@ void SSTI::AssembleStrategyBase::apply_meshtying_sys_mat(
     {
       const int rowlid_slave = systemmatrix_structure.row_map().LID(dofgid_slave);
       if (rowlid_slave < 0) FOUR_C_THROW("Global ID not found!");
-      if (systemmatrix_structure.epetra_matrix()->ReplaceMyValues(
-              rowlid_slave, 1, &one, &rowlid_slave))
+      if (systemmatrix_structure.replace_my_values(rowlid_slave, 1, &one, &rowlid_slave))
         FOUR_C_THROW("ReplaceMyValues failed!");
     }
 
     // apply pseudo Dirichlet conditions to unfilled matrix, i.e., to global row and
     // column indices
-    else if (systemmatrix_structure.epetra_matrix()->InsertGlobalValues(
-                 dofgid_slave, 1, &one, &dofgid_slave))
+    else if (systemmatrix_structure.insert_global_values(dofgid_slave, 1, &one, &dofgid_slave))
       FOUR_C_THROW("InsertGlobalValues failed!");
   }
 }
@@ -1234,7 +1233,8 @@ void SSTI::AssembleStrategySparse::apply_structural_dbc_system_matrix(
     auto systemmatrix_structure =
         std::make_shared<Core::LinAlg::SparseMatrix>(*dofrowmap_structure, 27, false, true);
     Coupling::Adapter::MatrixLogicalSplitAndTransform()(*systemmatrix_sparse, *dofrowmap_structure,
-        systemmatrix->domain_map(), 1.0, nullptr, nullptr, *systemmatrix_structure);
+        Core::LinAlg::Map(systemmatrix->domain_map()), 1.0, nullptr, nullptr,
+        *systemmatrix_structure);
     systemmatrix_structure->complete(systemmatrix->domain_map(), *dofrowmap_structure);
 
     // apply structural Dirichlet conditions
@@ -1257,7 +1257,7 @@ void SSTI::AssembleStrategyBase::assemble_rhs(std::shared_ptr<Core::LinAlg::Vect
     std::shared_ptr<const Core::LinAlg::Vector<double>> RHSthermo)
 {
   // zero out RHS
-  RHS->PutScalar(0.0);
+  RHS->put_scalar(0.0);
 
   // assemble scalar transport right-hand side vector into monolithic right-hand side vector
   all_maps()->maps_sub_problems()->insert_vector(
@@ -1299,7 +1299,7 @@ void SSTI::AssembleStrategyBase::assemble_rhs(std::shared_ptr<Core::LinAlg::Vect
 
     // apply pseudo Dirichlet conditions to transformed slave-side part of structural right-hand
     // side vector
-    Core::LinAlg::Vector<double> zeros(residual_structure.Map());
+    Core::LinAlg::Vector<double> zeros(residual_structure.get_block_map());
 
     if (locsysmanager_structure != nullptr)
       locsysmanager_structure->rotate_global_to_local(*rhs_structure_master);
@@ -1309,7 +1309,7 @@ void SSTI::AssembleStrategyBase::assemble_rhs(std::shared_ptr<Core::LinAlg::Vect
       locsysmanager_structure->rotate_local_to_global(*rhs_structure_master);
 
     // assemble master-side part of structure right-hand side vector
-    residual_structure.Update(1.0, *rhs_structure_master, 1.0);
+    residual_structure.update(1.0, *rhs_structure_master, 1.0);
 
     // assemble final structural right-hand side vector into monolithic right-hand side vector
     all_maps()->maps_sub_problems()->add_vector(

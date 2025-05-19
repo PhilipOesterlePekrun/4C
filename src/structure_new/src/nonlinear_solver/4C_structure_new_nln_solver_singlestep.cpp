@@ -49,7 +49,7 @@ void Solid::Nln::SOLVER::SingleStep::set_single_step_params()
   // STATUS TEST
   // ---------------------------------------------------------------------------
   /* This is only necessary for the special case, that you use no xml-file for
-   * the definition of your convergence tests, but you use the dat-file instead.
+   * the definition of your convergence tests, but you use the input file instead.
    */
   if (not is_xml_status_test_file(data_sdyn().get_nox_params().sublist("Status Test")))
   {
@@ -104,9 +104,9 @@ enum Inpar::Solid::ConvergenceStatus Solid::Nln::SOLVER::SingleStep::solve()
 {
   check_init_setup();
 
-  auto& nln_group = dynamic_cast<NOX::Nln::Group&>(group());
+  auto& nln_group = dynamic_cast<NOX::Nln::Group&>(*group_ptr());
 
-  const auto& x_epetra = dynamic_cast<const ::NOX::Epetra::Vector&>(group().getX());
+  const auto& x_epetra = dynamic_cast<const ::NOX::Epetra::Vector&>(group_ptr()->getX());
 
   nln_group.set_is_valid_newton(true);  // to circumvent the check in ::NOX::Solver::SingleStep
   nln_group.set_is_valid_rhs(false);    // force to compute the RHS
@@ -114,9 +114,6 @@ enum Inpar::Solid::ConvergenceStatus Solid::Nln::SOLVER::SingleStep::solve()
 
   //// do one non-linear step using solve
   ::NOX::StatusTest::StatusType stepstatus = nlnsolver_->solve();
-
-  // copy the solution group into the class variable
-  group() = nlnsolver_->getSolutionGroup();
 
   integrator().set_state(Core::LinAlg::Vector<double>(x_epetra.getEpetraVector()));
 

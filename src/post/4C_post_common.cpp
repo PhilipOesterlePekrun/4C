@@ -19,8 +19,6 @@
 #include "4C_io_legacy_table.hpp"
 #include "4C_rigidsphere.hpp"
 
-#include <Epetra_MpiComm.h>
-
 #include <stack>
 
 FOUR_C_NAMESPACE_OPEN
@@ -45,7 +43,6 @@ PostProblem::PostProblem(Teuchos::CommandLineProcessor& CLP, int argc, char** ar
   std::string file = "xxx";
   std::string output;
   filter_ = "ensight";
-  struct_vel_acc_ = "no";
   struct_mat_disp_ = "no";
   struct_rot_ = "no";
   std::string mortar_string = "no";
@@ -66,10 +63,6 @@ PostProblem::PostProblem(Teuchos::CommandLineProcessor& CLP, int argc, char** ar
   CLP.setOption("strain", &straintype_,
       "strain output type [cxyz, ndxyz, cxyz_ndxyz, c123, nd123, c123_nd123]");
   CLP.setOption("mortar", &mortar_string, "Do post-processing of mortar interfaces [yes]");
-  CLP.setOption("optquantitytype", &optquantitytype_,
-      "optional quantity output type [cxyz, ndxyz, cxyz_ndxyz]");
-  CLP.setOption(
-      "optquantity", &optquantitytype_, "optional quantity output type [cxyz, ndxyz, cxyz_ndxyz]");
   CLP.setOption("heatfluxtype", &heatfluxtype_,
       "heatflux output type [cxyz, ndxyz, cxyz_ndxyz, c123, nd123, c123_nd123]");
   CLP.setOption("heatflux", &heatfluxtype_,
@@ -78,8 +71,6 @@ PostProblem::PostProblem(Teuchos::CommandLineProcessor& CLP, int argc, char** ar
       "tempgrad output type [cxyz, ndxyz, cxyz_ndxyz, c123, nd123, c123_nd123]");
   CLP.setOption("tempgrad", &tempgradtype_,
       "tempgrad output type [cxyz, ndxyz, cxyz_ndxyz, c123, nd123, c123_nd123]");
-  CLP.setOption(
-      "structvelacc", &struct_vel_acc_, "structural velocity and acceleration output [yes]");
   CLP.setOption("rotation", &struct_rot_, "structural rotation matrix R [yes]");
   CLP.setOption("structmatdisp", &struct_mat_disp_, "material displacement output output [yes]");
   CLP.setOption("outputtype", &outputtype_,
@@ -88,13 +79,13 @@ PostProblem::PostProblem(Teuchos::CommandLineProcessor& CLP, int argc, char** ar
 
   if (parseReturn != Teuchos::CommandLineProcessor::PARSE_SUCCESSFUL)
   {
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
   if (file == "")
   {
     CLP.printHelpMessage(argv[0], std::cout);
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
   if (file.length() <= 8 or file.substr(file.length() - 8, 8) != ".control")
@@ -115,11 +106,6 @@ PostProblem::PostProblem(Teuchos::CommandLineProcessor& CLP, int argc, char** ar
   if (straintype_ == "")
   {
     straintype_ = "none";
-  }
-
-  if (optquantitytype_ == "")
-  {
-    optquantitytype_ = "none";
   }
 
   if (heatfluxtype_ == "")
@@ -214,7 +200,7 @@ int PostProblem::field_pos(const PostField* field) const
 
 
 /*----------------------------------------------------------------------*
- * returns the Epetra Communicator object
+ * returns the MPI communicator object
  *----------------------------------------------------------------------*/
 MPI_Comm PostProblem::get_comm() { return comm_; }
 
@@ -287,7 +273,7 @@ void PostProblem::setup_filter(std::string control_file_name, std::string output
     SYMBOL* first_result = map_find_symbol(&control_table_, "result");
     if (first_result == nullptr)
     {
-      FOUR_C_THROW("no result sections in control file '%s'\n", control_file_name.c_str());
+      FOUR_C_THROW("no result sections in control file '{}'\n", control_file_name);
     }
     while (first_result->next != nullptr)
     {
@@ -469,8 +455,7 @@ void PostProblem::read_meshes()
       currfield.set_num_output_procs(num_output_procs);
       const char* fn;
       if (!map_find_string(meshmap, "mesh_file", &fn))
-        FOUR_C_THROW(
-            "No meshfile name for discretization %s.", currfield.discretization()->name().c_str());
+        FOUR_C_THROW("No meshfile name for discretization {}.", currfield.discretization()->name());
       std::string filename = fn;
       Core::IO::HDFReader reader = Core::IO::HDFReader(input_dir_);
       reader.open(filename, num_output_procs, Core::Communication::num_mpi_ranks(comm_),
@@ -503,8 +488,8 @@ void PostProblem::read_meshes()
               dynamic_cast<Core::FE::Nurbs::NurbsDiscretization*>(&(*currfield.discretization()));
 
           if (nurbsdis == nullptr)
-            FOUR_C_THROW("discretization %s is not a NurbsDiscretization",
-                currfield.discretization()->name().c_str());
+            FOUR_C_THROW("discretization {} is not a NurbsDiscretization",
+                currfield.discretization()->name());
 
           std::shared_ptr<std::vector<char>> packed_knots;
           if (Core::Communication::my_mpi_rank(comm_) == 0)
@@ -712,7 +697,7 @@ std::vector<double> PostResult::get_result_times(const std::string& fieldname)
   if (times.size() == 0)
   {
     FOUR_C_THROW(
-        "PostResult::get_result_times(fieldname='%s'):\n  no solution steps found in specified "
+        "PostResult::get_result_times(fieldname='{}'):\n  no solution steps found in specified "
         "timestep range! Check --start, --end, --step parameters.",
         fieldname.c_str());
   }
@@ -732,14 +717,14 @@ std::vector<double> PostResult::get_result_times(
   if (this->next_result(groupname))
     times.push_back(this->time());
   else
-    FOUR_C_THROW("no solution found in field '%s'", fieldname.c_str());
+    FOUR_C_THROW("no solution found in field '{}'", fieldname);
 
   while (this->next_result(groupname)) times.push_back(this->time());
 
   if (times.size() == 0)
   {
     FOUR_C_THROW(
-        "PostResult::get_result_times(fieldname='%s', groupname='%s'):\n  no solution steps found "
+        "PostResult::get_result_times(fieldname='{}', groupname='{}'):\n  no solution steps found "
         "in specified timestep range! Check --start, --end, --step parameters.",
         fieldname.c_str(), groupname.c_str());
   }
@@ -762,7 +747,7 @@ void PostResult::get_result_timesandsteps(
   if (times.size() == 0 or steps.size() == 0)
   {
     FOUR_C_THROW(
-        "PostResult::get_result_timesandsteps(fieldname='%s'):\n  no solution steps found in "
+        "PostResult::get_result_timesandsteps(fieldname='{}'):\n  no solution steps found in "
         "specified range! Check --start, --end, --step parameters.",
         fieldname.c_str());
   }
@@ -840,8 +825,6 @@ int PostResult::next_result(const std::string& groupname)
 /*!
   \brief Tell whether a given result group belongs to this result.
 
-  \author u.kue
-  \date 10/04
 */
 /*----------------------------------------------------------------------*/
 int PostResult::match_field_result(MAP* result_group) const
@@ -874,7 +857,7 @@ void PostResult::open_result_files(MAP* field_info)
 
 /*----------------------------------------------------------------------*
  * reads the data of the result vector 'name' from the current result
- * block and returns it as an Epetra Vector.
+ * block and returns it as an vector.
  *----------------------------------------------------------------------*/
 std::shared_ptr<Core::LinAlg::Vector<double>> PostResult::read_result(const std::string name)
 {
@@ -882,7 +865,7 @@ std::shared_ptr<Core::LinAlg::Vector<double>> PostResult::read_result(const std:
   int columns;
   if (map_find_int(result, "columns", &columns))
   {
-    if (columns != 1) FOUR_C_THROW("got multivector with name '%s', vector expected", name.c_str());
+    if (columns != 1) FOUR_C_THROW("got multivector with name '{}', vector expected", name);
   }
   auto test = read_multi_result(name);
   return std::make_shared<Core::LinAlg::Vector<double>>((*test)(0));
@@ -908,9 +891,9 @@ PostResult::read_result_serialdensematrix(const std::string name)
     columns = 1;
   }
   if (columns != 1)
-    FOUR_C_THROW("got multivector with name '%s', std::vector<char> expected", name.c_str());
+    FOUR_C_THROW("got multivector with name '{}', std::vector<char> expected", name);
 
-  std::shared_ptr<Epetra_Map> elemap;
+  std::shared_ptr<Core::LinAlg::Map> elemap;
   std::shared_ptr<std::vector<char>> data =
       file_.read_result_data_vec_char(id_path, value_path, columns, comm, elemap);
 
@@ -926,7 +909,7 @@ PostResult::read_result_serialdensematrix(const std::string name)
     (*mapdata)[elemap->GID(i)] = gpstress;
   }
 
-  const Epetra_Map& elecolmap = *field_->discretization()->element_col_map();
+  const Core::LinAlg::Map& elecolmap = *field_->discretization()->element_col_map();
   Core::Communication::Exporter ex(*elemap, elecolmap, comm);
   ex.do_export(*mapdata);
 
@@ -935,7 +918,7 @@ PostResult::read_result_serialdensematrix(const std::string name)
 
 /*----------------------------------------------------------------------*
  * reads the data of the result vector 'name' from the current result
- * block and returns it as an Epetra Vector.
+ * block and returns it as an multi vector.
  *----------------------------------------------------------------------*/
 std::shared_ptr<Core::LinAlg::MultiVector<double>> PostResult::read_multi_result(
     const std::string name)

@@ -66,26 +66,29 @@ void Discret::Elements::RedAirwayType::setup_element_definition(
   using namespace Core::IO::InputSpecBuilders;
 
   defs["LINE2"] = all_of({
-      entry<std::vector<int>>("LINE2", {.size = 2}),
-      entry<int>("MAT"),
-      entry<std::string>("ElemSolvingType"),
-      entry<std::string>("TYPE"),
-      entry<std::string>("Resistance"),
-      entry<double>("PowerOfVelocityProfile"),
-      entry<double>("WallElasticity"),
-      entry<double>("PoissonsRatio"),
-      entry<double>("ViscousTs"),
-      entry<double>("ViscousPhaseShift"),
-      entry<double>("WallThickness"),
-      entry<double>("Area"),
-      entry<int>("Generation"),
-      entry<double>("AirwayColl", {.required = false}),
-      entry<double>("S_Close", {.required = false}),
-      entry<double>("S_Open", {.required = false}),
-      entry<double>("Pcrit_Open", {.required = false}),
-      entry<double>("Pcrit_Close", {.required = false}),
-      entry<double>("Open_Init", {.required = false}),
-      entry<double>("BranchLength", {.required = false}),
+      parameter<std::vector<int>>("LINE2", {.size = 2}),
+      parameter<int>("MAT"),
+      parameter<std::string>("ElemSolvingType"),
+      deprecated_selection<std::string>("TYPE",
+          {"Resistive", "InductoResistive", "CompliantResistive", "RLC", "ViscoElasticRLC",
+              "ConvectiveViscoElasticRLC"},
+          {.description = "Reduced-dimensional model of this airway"}),
+      parameter<std::string>("Resistance"),
+      parameter<double>("PowerOfVelocityProfile"),
+      parameter<double>("WallElasticity"),
+      parameter<double>("PoissonsRatio"),
+      parameter<double>("ViscousTs"),
+      parameter<double>("ViscousPhaseShift"),
+      parameter<double>("WallThickness"),
+      parameter<double>("Area"),
+      parameter<int>("Generation"),
+      parameter<std::optional<double>>("AirwayColl"),
+      parameter<std::optional<double>>("S_Close"),
+      parameter<std::optional<double>>("S_Open"),
+      parameter<std::optional<double>>("Pcrit_Open"),
+      parameter<std::optional<double>>("Pcrit_Close"),
+      parameter<std::optional<double>>("Open_Init"),
+      parameter<std::optional<double>>("BranchLength"),
   });
 }
 
@@ -133,7 +136,7 @@ Core::FE::CellType Discret::Elements::RedAirway::shape() const
     case 3:
       return Core::FE::CellType::line3;
     default:
-      FOUR_C_THROW("unexpected number of nodes %d", num_node());
+      FOUR_C_THROW("unexpected number of nodes {}", num_node());
   }
 }
 

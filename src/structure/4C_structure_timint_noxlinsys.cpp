@@ -13,6 +13,7 @@
 #include "4C_linalg_serialdensevector.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_linear_solver_method_linalg.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <Epetra_CrsMatrix.h>
 #include <Epetra_LinearProblem.h>
@@ -138,18 +139,18 @@ bool NOX::Solid::LinearSystem::applyJacobianInverse(
   {
     std::shared_ptr<Core::LinAlg::Vector<double>> fres =
         std::make_shared<Core::LinAlg::Vector<double>>(input.getEpetraVector());
-    Core::LinAlg::VectorView result_view(result.getEpetraVector());
+    Core::LinAlg::View result_view(result.getEpetraVector());
     Core::LinAlg::SparseMatrix* J = dynamic_cast<Core::LinAlg::SparseMatrix*>(jacPtr_.get());
     Core::LinAlg::SolverParams solver_params;
     solver_params.refactor = true;
     solver_params.reset = callcount_ == 0;
-    structureSolver_->solve(
-        J->epetra_operator(), result_view.get_non_owning_rcp_ref(), fres, solver_params);
+    structureSolver_->solve(J->epetra_operator(),
+        Core::Utils::shared_ptr_from_ref(result_view.underlying()), fres, solver_params);
     callcount_ += 1;
   }
   else
   {
-    FOUR_C_THROW("Cannot deal with Epetra_Operator of type %d", jacType_);
+    FOUR_C_THROW("Cannot deal with Epetra_Operator of type {}", jacType_);
   }
 
   // Set the output parameters in the "Output" sublist

@@ -37,20 +37,29 @@ namespace Core::FE
   //! and none on the boundary of the integrated domain
   enum class GaussRule3D
   {
-    undefined,    ///< use this to initialize a gaussrule, if you don't know the value,
-                  ///< yet!
-    hex_1point,   ///< GAUSS INTEGRATION, DEG.OF PRECISION 1 (open)
-    hex_8point,   ///< GAUSS INTEGRATION, DEG.OF PRECISION 3 (open)
-    hex_18point,  ///< GAUSS INTEGRATION, DEG.OF PRECISION 5 in xy-plane, 3 in z-direction
-                  ///< (open)
-    hex_27point,  ///< GAUSS INTEGRATION, DEG.OF PRECISION 5 (open)
+    undefined,           ///< use this to initialize a gaussrule, if you don't know the value,
+                         ///< yet!
+    hex_1point,          ///< GAUSS INTEGRATION, DEG.OF PRECISION 1 (open)
+    hex_8point,          ///< GAUSS INTEGRATION, DEG.OF PRECISION 3 (open)
+    hex_lobatto8point,   ///< DEG.OF PRECISION 1 (closed)
+    hex_18point,         ///< GAUSS INTEGRATION, DEG.OF PRECISION 5 in xy-plane, 3 in z-direction
+                         ///< (open)
+    hex_27point,         ///< GAUSS INTEGRATION, DEG.OF PRECISION 5 (open)
+    hex_lobatto27point,  ///< GAUSS-LOBATTO (closed)
     hex_64point,
+    hex_lobatto64point,  ///< GAUSS-LOBATTO (closed)
     hex_125point,
+    hex_lobatto125point,  ///< GAUSS-LOBATTO (closed)
     hex_216point,
+    hex_lobatto216point,  ///< GAUSS-LOBATTO (closed)
     hex_343point,
+    hex_lobatto343point,  ///< GAUSS-LOBATTO (closed)
     hex_512point,
+    hex_lobatto512point,  ///< GAUSS-LOBATTO(closed)
     hex_729point,
+    hex_lobatto729point,  ///< GAUSS-LOBATTO (closed)
     hex_1000point,
+    hex_lobatto1000point,    ///< GAUSS-LOBATTO (closed)
     tet_1point,              ///< GAUSS INTEGRATION, DEG.OF PRECISION 1 (open)
     tet_4point,              ///< GAUSS INTEGRATION, DEG.OF PRECISION 2 (open)
     tet_4point_gauss_radau,  ///< GAUSS INTEGRATION, DEG.OF PRECISION 2 (closed)
@@ -110,7 +119,7 @@ namespace Core::FE
       case 1000:
         return GaussRule3D::hex_1000point;
       default:
-        FOUR_C_THROW("I don't know the GaussRule3D for hex elements with %d Gauss points", numgp);
+        FOUR_C_THROW("I don't know the GaussRule3D for hex elements with {} Gauss points", numgp);
     }
   }
 
@@ -123,7 +132,7 @@ namespace Core::FE
       case 27:
         return GaussRule3D::hex_27point;
       default:
-        FOUR_C_THROW("I don't know the GaussRule3D for nurbs elements with %d Gauss points", numgp);
+        FOUR_C_THROW("I don't know the GaussRule3D for nurbs elements with {} Gauss points", numgp);
     }
   }
 
@@ -145,7 +154,7 @@ namespace Core::FE
         return GaussRule3D::tet_45point;
       default:
         FOUR_C_THROW(
-            "I don't know an open GaussRule3D for tet elements with %d Gauss points", numgp);
+            "I don't know an open GaussRule3D for tet elements with {} Gauss points", numgp);
     }
   }
 
@@ -162,7 +171,7 @@ namespace Core::FE
       case 9:
         return GaussRule3D::wedge_9point;
       default:
-        FOUR_C_THROW("I don't know the GaussRule3D for wedge elements with %d Gauss points", numgp);
+        FOUR_C_THROW("I don't know the GaussRule3D for wedge elements with {} Gauss points", numgp);
     }
   }
 
@@ -178,7 +187,7 @@ namespace Core::FE
         return GaussRule3D::pyramid_8point;
       default:
         FOUR_C_THROW(
-            "I don't know the GaussRule3D for pyramid elements with %d Gauss points", numgp);
+            "I don't know the GaussRule3D for pyramid elements with {} Gauss points", numgp);
     }
   }
 
@@ -203,6 +212,11 @@ namespace Core::FE
     static constexpr unsigned value = 8;
   };
   template <>
+  struct GaussRule3DToNumGaussPoints<GaussRule3D::hex_lobatto8point>
+  {
+    static constexpr unsigned value = 8;
+  };
+  template <>
   struct GaussRule3DToNumGaussPoints<GaussRule3D::hex_18point>
   {
     static constexpr unsigned value = 18;
@@ -213,7 +227,17 @@ namespace Core::FE
     static constexpr unsigned value = 27;
   };
   template <>
+  struct GaussRule3DToNumGaussPoints<GaussRule3D::hex_lobatto27point>
+  {
+    static constexpr unsigned value = 27;
+  };
+  template <>
   struct GaussRule3DToNumGaussPoints<GaussRule3D::hex_64point>
+  {
+    static constexpr unsigned value = 64;
+  };
+  template <>
+  struct GaussRule3DToNumGaussPoints<GaussRule3D::hex_lobatto64point>
   {
     static constexpr unsigned value = 64;
   };
@@ -223,7 +247,17 @@ namespace Core::FE
     static constexpr unsigned value = 125;
   };
   template <>
+  struct GaussRule3DToNumGaussPoints<GaussRule3D::hex_lobatto125point>
+  {
+    static constexpr unsigned value = 125;
+  };
+  template <>
   struct GaussRule3DToNumGaussPoints<GaussRule3D::hex_216point>
+  {
+    static constexpr unsigned value = 216;
+  };
+  template <>
+  struct GaussRule3DToNumGaussPoints<GaussRule3D::hex_lobatto216point>
   {
     static constexpr unsigned value = 216;
   };
@@ -233,7 +267,17 @@ namespace Core::FE
     static constexpr unsigned value = 343;
   };
   template <>
+  struct GaussRule3DToNumGaussPoints<GaussRule3D::hex_lobatto343point>
+  {
+    static constexpr unsigned value = 343;
+  };
+  template <>
   struct GaussRule3DToNumGaussPoints<GaussRule3D::hex_512point>
+  {
+    static constexpr unsigned value = 512;
+  };
+  template <>
+  struct GaussRule3DToNumGaussPoints<GaussRule3D::hex_lobatto512point>
   {
     static constexpr unsigned value = 512;
   };
@@ -243,7 +287,17 @@ namespace Core::FE
     static constexpr unsigned value = 729;
   };
   template <>
+  struct GaussRule3DToNumGaussPoints<GaussRule3D::hex_lobatto729point>
+  {
+    static constexpr unsigned value = 729;
+  };
+  template <>
   struct GaussRule3DToNumGaussPoints<GaussRule3D::hex_1000point>
+  {
+    static constexpr unsigned value = 1000;
+  };
+  template <>
+  struct GaussRule3DToNumGaussPoints<GaussRule3D::hex_lobatto1000point>
   {
     static constexpr unsigned value = 1000;
   };
@@ -419,7 +473,7 @@ namespace Core::FE
       case 1024:
         return GaussRule2D::quad_1024point;
       default:
-        FOUR_C_THROW("I don't know the GaussRule2D for quad elements with %d Gauss points", numgp);
+        FOUR_C_THROW("I don't know the GaussRule2D for quad elements with {} Gauss points", numgp);
     }
   }
 
@@ -448,7 +502,7 @@ namespace Core::FE
       case 64:
         return GaussRule2D::tri_64point;
       default:
-        FOUR_C_THROW("I don't know the GaussRule2D for tri elements with %d Gauss points", numgp);
+        FOUR_C_THROW("I don't know the GaussRule2D for tri elements with {} Gauss points", numgp);
     }
   }
 
@@ -467,6 +521,11 @@ namespace Core::FE
     line_8point,          ///< degree of precision: 15 (open)
     line_9point,          ///< degree of precision: 17 (open)
     line_10point,         ///< degree of precision: 19 (open)
+    line_11point,         ///< degree of precision: 21 (open)
+    line_12point,         ///< degree of precision: 23 (open)
+    line_13point,         ///< degree of precision: 25 (open)
+    line_14point,         ///< degree of precision: 27 (open)
+    line_15point,         ///< degree of precision: 29 (open)
     line_16point,         ///< degree of precision: 31 (open)
     line_20point,         ///< degree of precision: 39 (open)
     line_32point,         ///< degree of precision: 63 (open)
@@ -512,6 +571,16 @@ namespace Core::FE
         return GaussRule1D::line_9point;
       case 10:
         return GaussRule1D::line_10point;
+      case 11:
+        return GaussRule1D::line_11point;
+      case 12:
+        return GaussRule1D::line_12point;
+      case 13:
+        return GaussRule1D::line_13point;
+      case 14:
+        return GaussRule1D::line_14point;
+      case 15:
+        return GaussRule1D::line_15point;
       case 16:
         return GaussRule1D::line_16point;
       case 20:
@@ -521,7 +590,7 @@ namespace Core::FE
       case 50:
         return GaussRule1D::line_50point;
       default:
-        FOUR_C_THROW("I don't know the GaussRule1D for line elements with %d Gauss points", numgp);
+        FOUR_C_THROW("I don't know the GaussRule1D for line elements with {} Gauss points", numgp);
     }
   }
 
@@ -573,7 +642,6 @@ namespace Core::FE
 
   /*!
   \brief integration parameters
-  \author Axel Gerstenberger
 
   In this structure the coordinates and weights used by gauss integration are stored.
 
@@ -610,7 +678,6 @@ namespace Core::FE
 
   /*!
   \brief integration parameters
-  \author Axel Gerstenberger
 
   In this structure the coordinates and weights used by gauss integration are stored.
 
@@ -647,8 +714,6 @@ namespace Core::FE
 
   /*!
   \brief integration parameters
-
-  \author gerstenberger \date 06/07
 
   In this structure the coordinates and weights used by numerical integration
   are stored.
@@ -715,8 +780,7 @@ namespace Core::FE
 
   /*!
   \brief integration points and weights
-  \author Georg Bauer
-  \date 12/2008
+
 
   This class unifies the access of integration points and corresponding weights
   w.r.t. to the number of space dimensions.

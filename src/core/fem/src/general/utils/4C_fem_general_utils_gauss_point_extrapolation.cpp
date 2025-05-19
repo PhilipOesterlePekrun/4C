@@ -122,7 +122,8 @@ namespace
     Core::LinAlg::SerialDenseMatrix mat(intpoints.num_points(), base_numnod);
 
     // Obtain weights and knot vector of element
-    Core::LinAlg::Matrix<Core::FE::num_nodes<distype>, 1> weights(true);
+    Core::LinAlg::Matrix<Core::FE::num_nodes(distype), 1> weights(
+        Core::LinAlg::Initialization::zero);
     std::vector<Core::LinAlg::SerialDenseVector> myknots(true);
 
     const bool zero_size =
@@ -163,7 +164,7 @@ namespace
         FOUR_C_THROW(
             "Failed to invert the matrix of the shapefunctions evaluated at the Gauss points. It "
             "looks like this element does not support the default way to extrapolate quantities "
-            "from Gauss points to nodes. Error code: %d",
+            "from Gauss points to nodes. Error code: {}",
             error_code);
       }
 
@@ -191,7 +192,7 @@ namespace
         FOUR_C_THROW(
             "Failed to invert the matrix of the shapefunctions evaluated at the Gauss points. It "
             "looks like this element does not support the default way to extrapolate quantities "
-            "from Gauss points to nodes. Error code %d",
+            "from Gauss points to nodes. Error code {}",
             error_code);
       }
 
@@ -218,9 +219,9 @@ namespace
     constexpr int nsd = Core::FE::dim<distype>;
     int base_numnod = Core::FE::get_number_of_element_nodes(base_distype);
 
-    Core::LinAlg::SerialDenseMatrix matrix_base_to_dis(Core::FE::num_nodes<distype>, base_numnod);
+    Core::LinAlg::SerialDenseMatrix matrix_base_to_dis(Core::FE::num_nodes(distype), base_numnod);
 
-    for (int dis_inode = 0; dis_inode < Core::FE::num_nodes<distype>; ++dis_inode)
+    for (int dis_inode = 0; dis_inode < Core::FE::num_nodes(distype); ++dis_inode)
     {
       Core::LinAlg::SerialDenseMatrix reference_nodes =
           Core::FE::get_ele_node_numbering_nodes_paramspace(distype);
@@ -246,7 +247,7 @@ namespace
         }
         break;
         default:
-          FOUR_C_THROW("This function is not implemented for space dimension %d.", nsd);
+          FOUR_C_THROW("This function is not implemented for space dimension {}.", nsd);
       }
       for (int basedis_inode = 0; basedis_inode < base_numnod; ++basedis_inode)
       {
@@ -255,7 +256,7 @@ namespace
     }
 
     Core::LinAlg::SerialDenseMatrix matrix_gp_to_nodes(
-        Core::FE::num_nodes<distype>, matrix_gp_to_base.numCols());
+        Core::FE::num_nodes(distype), matrix_gp_to_base.numCols());
 
     // extend matrix from base_distype to distype
     Core::LinAlg::multiply(matrix_gp_to_nodes, matrix_base_to_dis, matrix_gp_to_base);
@@ -326,7 +327,7 @@ Core::FE::evaluate_gauss_points_to_nodes_extrapolation_matrix<Core::FE::CellType
   if (intpoints.num_points() != 8)
   {
     FOUR_C_THROW(
-        "Gauss point extrapolation is not yet implemented for Pyramid5 elements with %d Gauss "
+        "Gauss point extrapolation is not yet implemented for Pyramid5 elements with {} Gauss "
         "points. Currently, only 8 are supported",
         intpoints.num_points());
   }
@@ -418,7 +419,7 @@ void Core::FE::extrapolate_gp_quantity_to_nodes_and_assemble(const Core::Element
     const Core::LinAlg::SerialDenseMatrix& gp_data, Core::LinAlg::MultiVector<double>& global_data,
     bool nodal_average, const GaussIntegration& integration)
 {
-  Core::LinAlg::SerialDenseMatrix nodal_quantity(Core::FE::num_nodes<distype>, gp_data.numCols());
+  Core::LinAlg::SerialDenseMatrix nodal_quantity(Core::FE::num_nodes(distype), gp_data.numCols());
   Core::LinAlg::multiply(nodal_quantity,
       evaluate_gauss_points_to_nodes_extrapolation_matrix<distype>(integration), gp_data);
 
@@ -431,7 +432,7 @@ void Core::FE::extrapolate_gp_quantity_to_nurbs_knots_and_assemble(
     const LinAlg::SerialDenseMatrix& gp_data, Core::LinAlg::MultiVector<double>& global_data,
     bool nodal_average, const GaussIntegration& integration)
 {
-  Core::LinAlg::SerialDenseMatrix nodal_quantity(Core::FE::num_nodes<distype>, gp_data.numCols());
+  Core::LinAlg::SerialDenseMatrix nodal_quantity(Core::FE::num_nodes(distype), gp_data.numCols());
   Core::LinAlg::multiply(nodal_quantity,
       evaluate_gauss_points_to_nurbs_knots_extrapolation_matrix<distype>(dis, ele, integration),
       gp_data);

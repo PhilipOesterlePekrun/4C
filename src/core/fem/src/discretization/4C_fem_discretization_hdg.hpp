@@ -96,7 +96,7 @@ namespace Core::FE
      *
      *  schoeder 06/14
      */
-    void assign_global_i_ds(MPI_Comm comm,
+    void assign_global_ids(MPI_Comm comm,
         const std::map<std::vector<int>, std::shared_ptr<Core::Elements::Element>>& elementmap,
         std::map<int, std::shared_ptr<Core::Elements::Element>>& finalelements) override;
 
@@ -106,7 +106,7 @@ namespace Core::FE
   {
     /** \brief Specialized Dbc evaluation class for HDG discretizations
      *
-     *  \author hiermeier \date 10/16 */
+     *  */
     class DbcHDG : public Dbc
     {
      public:

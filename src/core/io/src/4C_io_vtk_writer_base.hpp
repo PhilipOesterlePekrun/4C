@@ -36,13 +36,27 @@ namespace LibB64
    */
   char* encode_block(const char* data, const int data_size);
 
+  /**
+   * This enum class encodes the compression levels available in zlib. Usually, you want to use
+   * best_speed for compression since it offers nearly as good compression as best_compression while
+   * being a lot faster.
+   */
+  enum class CompressionLevel
+  {
+    best_speed = Z_BEST_SPEED,
+    best_compression = Z_BEST_COMPRESSION,
+    no_compression = Z_NO_COMPRESSION
+  };
+
   template <typename T>
-  void write_compressed_block(const std::vector<T>& data, std::ostream& out)
+  void write_compressed_block(const std::vector<T>& data, std::ostream& out,
+      const CompressionLevel compression_level = CompressionLevel::best_speed)
   {
     uLongf compressed_data_length = compressBound(data.size() * sizeof(T));
     char* compressed_data = new char[compressed_data_length];
     int err = compress2((Bytef*)compressed_data, &compressed_data_length, (const Bytef*)data.data(),
-        data.size() * sizeof(T), Z_BEST_COMPRESSION);
+        data.size() * sizeof(T),
+        static_cast<std::underlying_type_t<CompressionLevel>>(compression_level));
     if (err != Z_OK) FOUR_C_THROW("zlib compression failed");
 
     // now encode the compression header
@@ -93,8 +107,6 @@ namespace LibB64
 /*
  \brief Base class for VTK output generation
 
- \author kronbichler
- \date 03/14
 */
 class VtkWriterBase
 {
@@ -104,28 +116,26 @@ class VtkWriterBase
       unsigned int max_number_timesteps_to_be_written,
       const std::string& path_existing_working_directory,
       const std::string& name_new_vtk_subdirectory, const std::string& geometry_name,
-      const std::string& restart_name, double restart_time, bool write_binary_output);
+      const std::string& restart_name, double restart_time, bool write_binary_output,
+      LibB64::CompressionLevel compression_level);
 
   //! destructor
   virtual ~VtkWriterBase() = default;
 
   /** \brief set class variable storing working directory and create it if not existing
    *
-   *  \author grill
-   *  \date 03/17 */
+   */
   void set_and_create_vtk_working_directory(const std::string& path_existing_working_directory,
       const std::string& name_vtk_subdirectory_to_be_created);
 
   /** \brief reset current simulation time and time step number
    *
-   *  \author grill
-   *  \date 03/17 */
+   */
   void reset_time_and_time_step(double time, unsigned int timestepnumber);
 
   /** \brief initialize the required file streams for processor individual file and master file
    *
-   *  \author grill
-   *  \date 03/17 */
+   */
   void initialize_vtk_file_streams_for_new_geometry_and_or_time_step();
 
   //! write prologue of all required vtk files
@@ -226,8 +236,7 @@ class VtkWriterBase
 
   /** write a VTK collection file that summarizes paths to all the given files
    *
-   *  \author eichinger
-   *  \date 05/17 */
+   */
   void create_restarted_initial_collection_file_mid_section(
       const std::string& geometryname, const std::string& restartfilename, double restart_time);
 
@@ -267,13 +276,13 @@ class VtkWriterBase
     std::size_t start = line.find(name + "=\"");
     if (start == std::string::npos)
     {
-      FOUR_C_THROW("Could not find parameter %s in line %s", name.c_str(), line.c_str());
+      FOUR_C_THROW("Could not find parameter {} in line {}", name, line);
     }
     start += name.length() + 2;
     std::size_t end = line.find('"', start + 1);
     if (end == std::string::npos)
     {
-      FOUR_C_THROW("Syntax error in line %s", line.c_str());
+      FOUR_C_THROW("Syntax error in line {}", line);
     }
     return line.substr(start, end - start);
   }
@@ -336,6 +345,8 @@ class VtkWriterBase
   //! toggle between ascii and binary output
   const bool write_binary_output_;
 
+  //! Level of compression used when writing output.
+  const LibB64::CompressionLevel compression_level_;
 
   //! global processor id of this processor
   const unsigned int myrank_;

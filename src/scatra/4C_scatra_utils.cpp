@@ -18,6 +18,52 @@
 
 FOUR_C_NAMESPACE_OPEN
 
+namespace
+{
+  void assert_same_nodes(const Core::Conditions::Condition* const condition1,
+      const Core::Conditions::Condition* const condition2)
+  {
+    // get nodes of conditions
+    const auto* condition1nodes = condition1->get_nodes();
+    const auto* condition2nodes = condition2->get_nodes();
+
+    // simple first check just checks the size
+    if (condition1nodes->size() != condition2nodes->size())
+    {
+      FOUR_C_THROW(
+          "Number of nodes that are defined for both conditions do not match! Did you define the "
+          "conditions for the same nodesets?");
+    }
+
+    // loop over all node global IDs belonging to condition1
+    for (auto condition1nodegid : *condition1nodes)
+    {
+      bool found_node = false;
+      // loop over all node global IDs belonging to condition2
+      for (auto condition2nodegid : *condition2nodes)
+      {
+        if (condition1nodegid == condition2nodegid)
+        {
+          found_node = true;
+        }
+      }
+      // throw error if node global ID is not found in condition2
+      if (!found_node)
+      {
+        std::cout << "Node with global ID: " << condition1nodegid
+                  << "  which is part of condition: ";
+        condition1->print(std::cout);
+        std::cout << " is not part of condition: ";
+        condition2->print(std::cout);
+        FOUR_C_THROW(
+            "Did you assign those conditions to the same nodeset? Please check your input file "
+            "and "
+            "fix this inconsistency!");
+      }
+    }
+  }
+}  // namespace
+
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
@@ -86,7 +132,7 @@ void ScaTra::ScaTraUtils::check_consistency_with_s2_i_kinetics_condition(
     const int s2ikinetics_id = conditionToBeTested->parameters().get<int>("S2I_KINETICS_ID");
 
     // check the interface side
-    switch (conditionToBeTested->parameters().get<int>("INTERFACE_SIDE"))
+    switch (conditionToBeTested->parameters().get<Inpar::S2I::InterfaceSides>("INTERFACE_SIDE"))
     {
       case Inpar::S2I::side_slave:
       {
@@ -100,8 +146,8 @@ void ScaTra::ScaTraUtils::check_consistency_with_s2_i_kinetics_condition(
       }
       default:
       {
-        FOUR_C_THROW("interface side of %s has to be either 'Slave' or 'Master'",
-            condition_to_be_tested.c_str());
+        FOUR_C_THROW(
+            "interface side of {} has to be either 'Slave' or 'Master'", condition_to_be_tested);
         break;
       }
     }
@@ -114,19 +160,17 @@ void ScaTra::ScaTraUtils::check_consistency_with_s2_i_kinetics_condition(
       if (s2ikinetics_id != s2ikinetics_cond_id) continue;
 
       // check the interface side
-      switch (s2ikinetics_cond->parameters().get<int>("INTERFACE_SIDE"))
+      switch (s2ikinetics_cond->parameters().get<Inpar::S2I::InterfaceSides>("INTERFACE_SIDE"))
       {
         case Inpar::S2I::side_slave:
         {
-          if (isslave)
-            Core::Conditions::have_same_nodes(conditionToBeTested, s2ikinetics_cond, true);
+          if (isslave) assert_same_nodes(conditionToBeTested, s2ikinetics_cond);
 
           break;
         }
         case Inpar::S2I::side_master:
         {
-          if (!isslave)
-            Core::Conditions::have_same_nodes(conditionToBeTested, s2ikinetics_cond, true);
+          if (!isslave) assert_same_nodes(conditionToBeTested, s2ikinetics_cond);
 
           break;
         }
@@ -323,7 +367,7 @@ ScaTra::ScaTraUtils::compute_gradient_at_nodes_mean_average(Core::FE::Discretiza
     // get local processor id according to global node id
     const int lid = (*gradphirow).Map().LID(GID);
     if (lid < 0)
-      FOUR_C_THROW("Proc %d: Cannot find gid=%d in Core::LinAlg::Vector<double>",
+      FOUR_C_THROW("Proc {}: Cannot find gid={} in Core::LinAlg::Vector<double>",
           Core::Communication::my_mpi_rank((*gradphirow).Comm()), GID);
 
     const int numcol = (*gradphirow).NumVectors();
@@ -354,8 +398,8 @@ Core::LinAlg::Matrix<dim, 1> ScaTra::ScaTraUtils::do_mean_value_averaging_of_ele
     Core::LinAlg::Vector<double>& phinp_node, const int nodegid, const int scatra_dofid)
 {
   // number of nodes of this element for interpolation
-  const int numnode = Core::FE::num_nodes<distype>;
-  Core::LinAlg::Matrix<dim, 1> node_gradphi_smoothed(true);
+  const int numnode = Core::FE::num_nodes(distype);
+  Core::LinAlg::Matrix<dim, 1> node_gradphi_smoothed(Core::LinAlg::Initialization::zero);
 
   // number of elements located around this node
   const int numberOfElements = static_cast<int>(elements.size());
@@ -455,7 +499,7 @@ Core::LinAlg::Matrix<dim, 1> ScaTra::ScaTraUtils::do_mean_value_averaging_of_ele
       static Core::LinAlg::Matrix<dim, dim> xji_ele_XiToXYZ;
       xji_ele_XiToXYZ.invert(xjm_ele_XiToXYZ);
 
-      // set XYZ-derivates of shapefunctions
+      // set XYZ-derivatives of shapefunctions
       deriv3Dele_xyz.multiply(xji_ele_XiToXYZ, deriv3Dele);
 
       //----------------------------------------------------

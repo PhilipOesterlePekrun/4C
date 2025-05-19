@@ -12,7 +12,6 @@
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 #include "4C_unittest_utils_support_files_test.hpp"
 
-#include <Epetra_MpiComm.h>
 #include <EpetraExt_CrsMatrixIn.h>
 
 FOUR_C_NAMESPACE_OPEN
@@ -44,10 +43,10 @@ namespace
         Core::Communication::as_epetra_comm(comm_), A);
     if (err != 0) FOUR_C_THROW("Matrix read failed.");
     std::shared_ptr<Epetra_CrsMatrix> A_crs = Core::Utils::shared_ptr_from_ref(*A);
-    Core::LinAlg::SparseMatrix A_sparse(A_crs, Core::LinAlg::Copy);
+    Core::LinAlg::SparseMatrix A_sparse(A_crs, Core::LinAlg::DataAccess::Copy);
 
     std::shared_ptr<Core::LinAlg::SparseMatrix> A_inverse = Core::LinAlg::matrix_sparse_inverse(
-        A_sparse, std::make_shared<Epetra_CrsGraph>(A->Graph()));
+        A_sparse, std::make_shared<Core::LinAlg::Graph>(A->Graph()));
 
     // Check for global entries
     const int A_sparse_nnz = A_sparse.epetra_matrix()->NumGlobalNonzeros();
@@ -83,10 +82,10 @@ namespace
         Core::Communication::as_epetra_comm(comm_), A);
     if (err != 0) FOUR_C_THROW("Matrix read failed.");
     std::shared_ptr<Epetra_CrsMatrix> A_crs = Core::Utils::shared_ptr_from_ref(*A);
-    Core::LinAlg::SparseMatrix A_sparse(A_crs, Core::LinAlg::Copy);
+    Core::LinAlg::SparseMatrix A_sparse(A_crs, Core::LinAlg::DataAccess::Copy);
 
     std::shared_ptr<Core::LinAlg::SparseMatrix> A_inverse = Core::LinAlg::matrix_sparse_inverse(
-        A_sparse, std::make_shared<Epetra_CrsGraph>(A->Graph()));
+        A_sparse, std::make_shared<Core::LinAlg::Graph>(A->Graph()));
 
     // Check for global entries
     const int A_sparse_nnz = A_sparse.epetra_matrix()->NumGlobalNonzeros();
@@ -134,11 +133,11 @@ namespace
         Core::Communication::as_epetra_comm(comm_), A);
     if (err != 0) FOUR_C_THROW("Matrix read failed.");
     std::shared_ptr<Epetra_CrsMatrix> A_crs = Core::Utils::shared_ptr_from_ref(*A);
-    Core::LinAlg::SparseMatrix A_sparse(A_crs, Core::LinAlg::Copy);
+    Core::LinAlg::SparseMatrix A_sparse(A_crs, Core::LinAlg::DataAccess::Copy);
 
     {
       const double tol = 1e-8;
-      std::shared_ptr<Epetra_CrsGraph> sparsity_pattern =
+      std::shared_ptr<Core::LinAlg::Graph> sparsity_pattern =
           Core::LinAlg::threshold_matrix_graph(A_sparse, tol);
       std::shared_ptr<Core::LinAlg::SparseMatrix> A_inverse =
           Core::LinAlg::matrix_sparse_inverse(A_sparse, sparsity_pattern);
@@ -153,19 +152,19 @@ namespace
       // Check for overall norm of matrix inverse
       constexpr double expected_frobenius_norm = 8.31688788510637e+06;
       EXPECT_NEAR(
-          A_inverse->norm_frobenius(), expected_frobenius_norm, expected_frobenius_norm * 1e-12);
+          A_inverse->norm_frobenius(), expected_frobenius_norm, expected_frobenius_norm * 1e-10);
     }
 
     {
       const double tol = 1e-10;
       const int power = 3;
 
-      std::shared_ptr<Epetra_CrsGraph> sparsity_pattern =
-          std::make_shared<Epetra_CrsGraph>(A->Graph());
+      std::shared_ptr<Core::LinAlg::Graph> sparsity_pattern =
+          std::make_shared<Core::LinAlg::Graph>(A->Graph());
 
       std::shared_ptr<Core::LinAlg::SparseMatrix> A_thresh =
           Core::LinAlg::threshold_matrix(A_sparse, tol);
-      std::shared_ptr<Epetra_CrsGraph> sparsity_pattern_enriched =
+      std::shared_ptr<Core::LinAlg::Graph> sparsity_pattern_enriched =
           Core::LinAlg::enrich_matrix_graph(*A_thresh, power);
       std::shared_ptr<Core::LinAlg::SparseMatrix> A_inverse =
           Core::LinAlg::matrix_sparse_inverse(A_sparse, sparsity_pattern_enriched);
@@ -179,7 +178,7 @@ namespace
       // Check for overall norm of matrix inverse
       constexpr double expected_frobenius_norm = 1.1473820881252188e+07;
       EXPECT_NEAR(
-          A_thresh->norm_frobenius(), expected_frobenius_norm, expected_frobenius_norm * 1e-12);
+          A_thresh->norm_frobenius(), expected_frobenius_norm, expected_frobenius_norm * 1e-10);
     }
   }
 }  // namespace

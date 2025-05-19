@@ -122,14 +122,13 @@ void Discret::Elements::Shell::evaluate_neumann(Core::Elements::Element& ele,
     if (onoff[checkdof] != 0)
     {
       FOUR_C_THROW(
-          "You have activated more than %d dofs in your Neumann boundary condition. This is higher "
+          "You have activated more than {} dofs in your Neumann boundary condition. This is higher "
           "than the dimension of the element.",
           num_dim);
     }
   }
   // get ids of functions of space and time
-  const auto function_ids =
-      condition.parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+  const auto function_ids = condition.parameters().get<std::vector<std::optional<int>>>("FUNCT");
 
   // integration loops
   std::array<double, 2> xi_gp;
@@ -143,10 +142,10 @@ void Discret::Elements::Shell::evaluate_neumann(Core::Elements::Element& ele,
     // get shape functions and derivatives at gaussian points
     ShapefunctionsAndDerivatives<distype> shapefunctions =
         evaluate_shapefunctions_and_derivs<distype>(xi_gp);
-    Core::LinAlg::Matrix<num_dim, num_dim> g_metrics_kovariant(true);
+    Core::LinAlg::Matrix<num_dim, num_dim> g_metrics_kovariant(Core::LinAlg::Initialization::zero);
 
-    Core::LinAlg::Matrix<numnod, num_dim> x_refe(true);
-    Core::LinAlg::Matrix<numnod, num_dim> x_curr(true);
+    Core::LinAlg::Matrix<numnod, num_dim> x_refe(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<numnod, num_dim> x_curr(Core::LinAlg::Initialization::zero);
 
     for (int i = 0; i < numnod; ++i)
     {
@@ -169,8 +168,7 @@ void Discret::Elements::Shell::evaluate_neumann(Core::Elements::Element& ele,
         // no linearization needed for load in last converged configuration
         loadlin = false;
         const Core::LinAlg::Vector<double>& disp = *discretization.get_state("displacement");
-        std::vector<double> displacements(dof_index_array.size());
-        Core::FE::extract_my_values(disp, displacements, dof_index_array);
+        std::vector<double> displacements = Core::FE::extract_values(disp, dof_index_array);
 
         spatial_configuration<distype>(x_curr, x_refe, displacements, 0);
 
@@ -180,8 +178,7 @@ void Discret::Elements::Shell::evaluate_neumann(Core::Elements::Element& ele,
       case config_spatial:
       {
         const Core::LinAlg::Vector<double>& disp = *discretization.get_state("displacement new");
-        std::vector<double> displacements(dof_index_array.size());
-        Core::FE::extract_my_values(disp, displacements, dof_index_array);
+        std::vector<double> displacements = Core::FE::extract_values(disp, dof_index_array);
 
         spatial_configuration<distype>(x_curr, x_refe, displacements, 0);
 
@@ -194,7 +191,7 @@ void Discret::Elements::Shell::evaluate_neumann(Core::Elements::Element& ele,
 
     // get thickness direction derivative perpendicular to g1 and g2 (with area as length)
     // -> g3 = (g1 x g2) / (|g1 x g2 |)
-    Core::LinAlg::Matrix<num_dim, 1> g3(true);
+    Core::LinAlg::Matrix<num_dim, 1> g3(Core::LinAlg::Initialization::zero);
     g3(0) = g_metrics_kovariant(0, 1) * g_metrics_kovariant(1, 2) -
             g_metrics_kovariant(0, 2) * g_metrics_kovariant(1, 1);
     g3(1) = g_metrics_kovariant(0, 2) * g_metrics_kovariant(1, 0) -

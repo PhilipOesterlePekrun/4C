@@ -333,8 +333,8 @@ void Cut::SelfCut::operations_for_node_merging(
 template <typename A, typename B>
 void Cut::SelfCut::modify_edge_or_side_map(std::map<A, B>& data, int nod, int replwith)
 {
-  typedef typename std::map<A, B>::iterator ittype;
-  typedef typename A::iterator A_ittype;
+  using ittype = typename std::map<A, B>::iterator;
+  using A_ittype = typename A::iterator;
 
   std::vector<ittype> eraseThese;
 
@@ -368,7 +368,7 @@ void Cut::SelfCut::modify_edge_or_side_map(std::map<A, B>& data, int nod, int re
     }
   }
 
-  typedef typename std::vector<ittype>::iterator itc;
+  using itc = typename std::vector<ittype>::iterator;
 
   // delete the elements with "wrong" key
   for (itc ite = eraseThese.begin(); ite != eraseThese.end(); ite++)
@@ -912,7 +912,7 @@ void Cut::SelfCut::determine_self_cut_position()
         if (anotherselfcutside->id() != selfcutside->id())
         {
           Core::LinAlg::Matrix<3, 1> normal;
-          Core::LinAlg::Matrix<2, 1> center(true);
+          Core::LinAlg::Matrix<2, 1> center(Core::LinAlg::Initialization::zero);
           anotherselfcutside->normal(center, normal, false);
           double norm = normal.norm2();
           if (norm > 1e-8)
@@ -1146,8 +1146,8 @@ void Cut::SelfCut::erase_inside_sides()
   erase_inside_side(cutsideids);
   if (mesh_.sides().size() == 0)
     FOUR_C_THROW(
-        "All self-cut positions are undecided\n. The initial number of cutsides is %d, the number "
-        "of erased cutsides is %d",
+        "All self-cut positions are undecided\n. The initial number of cutsides is {}, the number "
+        "of erased cutsides is {}",
         initial_cutsides, final_cutsides);
 }
 

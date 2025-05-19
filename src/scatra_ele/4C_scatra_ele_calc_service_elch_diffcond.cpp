@@ -144,11 +144,9 @@ template <Core::FE::CellType distype, int probdim>
 int Discret::Elements::ScaTraEleCalcElchDiffCond<distype, probdim>::evaluate_action(
     Core::Elements::Element* ele, Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, const ScaTra::Action& action,
-    Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra)
+    Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1,
+    Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+    Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3)
 {
   // determine and evaluate action
   switch (action)
@@ -182,24 +180,23 @@ int Discret::Elements::ScaTraEleCalcElchDiffCond<distype, probdim>::evaluate_act
         FOUR_C_THROW("Invalid material!");
 
       // process electrode boundary kinetics point condition
-      myelch::calc_elch_boundary_kinetics_point(ele, params, discretization, la[0].lm_,
-          elemat1_epetra, elevec1_epetra, diff_manager()->get_phase_poro(0));
+      myelch::calc_elch_boundary_kinetics_point(ele, params, discretization, la[0].lm_, elemat1,
+          elevec1, diff_manager()->get_phase_poro(0));
 
       break;
     }
 
     case ScaTra::Action::calc_elch_domain_kinetics:
     {
-      calc_elch_domain_kinetics(
-          ele, params, discretization, la[0].lm_, elemat1_epetra, elevec1_epetra);
+      calc_elch_domain_kinetics(ele, params, discretization, la[0].lm_, elemat1, elevec1);
 
       break;
     }
 
     default:
     {
-      myelectrode::evaluate_action(ele, params, discretization, action, la, elemat1_epetra,
-          elemat2_epetra, elevec1_epetra, elevec2_epetra, elevec3_epetra);
+      myelectrode::evaluate_action(
+          ele, params, discretization, action, la, elemat1, elemat2, elevec1, elevec2, elevec3);
 
       break;
     }
@@ -214,8 +211,7 @@ template <Core::FE::CellType distype, int probdim>
 void Discret::Elements::ScaTraEleCalcElchDiffCond<distype, probdim>::calc_elch_domain_kinetics(
     Core::Elements::Element* ele, Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, std::vector<int>& lm,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseVector& elevec1)
 {
   // from scatra_ele_boundary_calc_elch_diffcond.cpp
   std::shared_ptr<Core::Mat::Material> material = ele->material();
@@ -252,9 +248,9 @@ void Discret::Elements::ScaTraEleCalcElchDiffCond<distype, probdim>::calc_elch_d
 
   // state and history variables at element nodes
   std::vector<Core::LinAlg::Matrix<nen_, 1>> ephinp(
-      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true));
+      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
   std::vector<Core::LinAlg::Matrix<nen_, 1>> ehist(
-      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true));
+      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
   Core::FE::extract_my_values<Core::LinAlg::Matrix<nen_, 1>>(*phinp, ephinp, lm);
   Core::FE::extract_my_values<Core::LinAlg::Matrix<nen_, 1>>(*hist, ehist, lm);
 
@@ -264,9 +260,9 @@ void Discret::Elements::ScaTraEleCalcElchDiffCond<distype, probdim>::calc_elch_d
   if (cond == nullptr) FOUR_C_THROW("Cannot access condition 'ElchDomainKinetics'");
 
   // access parameters of the condition
-  const int kinetics = cond->parameters().get<int>("KINETIC_MODEL");
+  const int kinetics = cond->parameters().get<Inpar::ElCh::ElectrodeKinetics>("KINETIC_MODEL");
   double pot0 = cond->parameters().get<double>("POT");
-  const auto curvenum = cond->parameters().get<Core::IO::Noneable<int>>("FUNCT");
+  const auto curvenum = cond->parameters().get<std::optional<int>>("FUNCT");
   const int nume = cond->parameters().get<int>("E-");
   // if zero=1=true, the current flow across the electrode is zero (comparable to do-nothing Neuman
   // condition) but the electrode status is evaluated
@@ -284,8 +280,8 @@ void Discret::Elements::ScaTraEleCalcElchDiffCond<distype, probdim>::calc_elch_d
   if ((unsigned int)my::numscal_ != (*stoich).size())
   {
     FOUR_C_THROW(
-        "Electrode kinetics: number of stoichiometry coefficients %u does not match"
-        " the number of ionic species %d",
+        "Electrode kinetics: number of stoichiometry coefficients {} does not match"
+        " the number of ionic species {}",
         (*stoich).size(), my::numscal_);
   }
 
@@ -338,15 +334,15 @@ void Discret::Elements::ScaTraEleCalcElchDiffCond<distype, probdim>::calc_elch_d
 
     if (zerocur == 0)
     {
-      evaluate_elch_domain_kinetics(ele, elemat1_epetra, elevec1_epetra, ephinp, ehist, timefac,
-          *cond, nume, *stoich, kinetics, pot0);
+      evaluate_elch_domain_kinetics(
+          ele, elemat1, elevec1, ephinp, ehist, timefac, *cond, nume, *stoich, kinetics, pot0);
     }
 
     // realize correct scaling of rhs contribution for gen.alpha case
     // with dt*(gamma/alpha_M) = timefac/alpha_F
     // matrix contributions are already scaled correctly with
     // timefac=dt*(gamma*alpha_F/alpha_M)
-    elevec1_epetra.scale(rhsfac);
+    elevec1.scale(rhsfac);
   }
 
   else
@@ -356,7 +352,7 @@ void Discret::Elements::ScaTraEleCalcElchDiffCond<distype, probdim>::calc_elch_d
         discretization.get_state("phidtnp");
     if (phidtnp == nullptr) FOUR_C_THROW("Cannot get state vector 'ephidtnp'");
     std::vector<Core::LinAlg::Matrix<nen_, 1>> ephidtnp(
-        my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true));
+        my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
     Core::FE::extract_my_values<Core::LinAlg::Matrix<nen_, 1>>(*phidtnp, ephidtnp, lm);
 
     if (not is_stationary)
@@ -368,8 +364,8 @@ void Discret::Elements::ScaTraEleCalcElchDiffCond<distype, probdim>::calc_elch_d
       if (timefac < 0.) FOUR_C_THROW("time factor is negative.");
     }
 
-    evaluate_electrode_status(ele, elevec1_epetra, params, *cond, ephinp, ephidtnp, kinetics,
-        *stoich, nume, pot0, timefac);
+    evaluate_electrode_status(
+        ele, elevec1, params, *cond, ephinp, ephidtnp, kinetics, *stoich, nume, pot0, timefac);
   }
 }
 
@@ -725,11 +721,11 @@ void Discret::Elements::ScaTraEleCalcElchDiffCond<distype,
 
       // working arrays
       double potint(0.0);
-      Core::LinAlg::Matrix<1, 1> conint(true);
-      Core::LinAlg::Matrix<nsd_, 1> xint(true);
-      Core::LinAlg::Matrix<1, 1> c(true);
+      Core::LinAlg::Matrix<1, 1> conint(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<nsd_, 1> xint(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<1, 1> c(Core::LinAlg::Initialization::zero);
       double deltapot(0.0);
-      Core::LinAlg::Matrix<1, 1> deltacon(true);
+      Core::LinAlg::Matrix<1, 1> deltacon(Core::LinAlg::Initialization::zero);
 
       // start loop over integration points
       for (int iquad = 0; iquad < intpoints.ip().nquad; iquad++)
@@ -792,7 +788,7 @@ void Discret::Elements::ScaTraEleCalcElchDiffCond<distype,
           c_0_0_0_t = A0 + (A_mnk * exp((-D) * (m * m) * t * M_PI * M_PI));
         }
         else
-          FOUR_C_THROW("Illegal number of space dimensions for analyt. solution: %d", nsd_);
+          FOUR_C_THROW("Illegal number of space dimensions for analyt. solution: {}", nsd_);
 
         // compute analytical solution for el. potential
         // const double pot =

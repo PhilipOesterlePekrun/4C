@@ -13,10 +13,9 @@
 #include "4C_adapter_fld_fluid.hpp"
 #include "4C_fem_condition.hpp"
 #include "4C_fluid_discretization_runtime_output_params.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_utils_exceptions.hpp"
-
-#include <Epetra_Map.h>
 
 #include <memory>
 
@@ -171,8 +170,8 @@ namespace FLD
       FOUR_C_THROW("Not implemented in the base class, may be overridden by a subclass.");
       return nullptr;
     }
-    std::shared_ptr<const Epetra_Map> dof_row_map() override { return dof_row_map(0); }
-    std::shared_ptr<const Epetra_Map> dof_row_map(unsigned nds) override;
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map() override { return dof_row_map(0); }
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map(unsigned nds) override;
     std::shared_ptr<Core::LinAlg::SparseMatrix> system_matrix() override
     {
       FOUR_C_THROW("Not implemented in the base class, may be overridden by a subclass.");
@@ -267,17 +266,17 @@ namespace FLD
       FOUR_C_THROW("Not implemented in the base class, may be overridden by a subclass.");
       return nullptr;
     }
-    std::shared_ptr<const Epetra_Map> inner_velocity_row_map() override
+    std::shared_ptr<const Core::LinAlg::Map> inner_velocity_row_map() override
     {
       FOUR_C_THROW("Not implemented in the base class, may be overridden by a subclass.");
       return nullptr;
     }  // only used for FSI
-    std::shared_ptr<const Epetra_Map> velocity_row_map() override
+    std::shared_ptr<const Core::LinAlg::Map> velocity_row_map() override
     {
       FOUR_C_THROW("Not implemented in the base class, may be overridden by a subclass.");
       return nullptr;
     }
-    std::shared_ptr<const Epetra_Map> pressure_row_map() override
+    std::shared_ptr<const Core::LinAlg::Map> pressure_row_map() override
     {
       FOUR_C_THROW("Not implemented in the base class, may be overridden by a subclass.");
       return nullptr;
@@ -299,7 +298,8 @@ namespace FLD
 
 
     /// the mesh map contains all velocity dofs that are covered by an ALE node
-    void set_mesh_map(std::shared_ptr<const Epetra_Map> mm, const int nds_master = 0) override
+    void set_mesh_map(
+        std::shared_ptr<const Core::LinAlg::Map> mm, const int nds_master = 0) override
     {
       FOUR_C_THROW("Not implemented in the base class, may be overridden by a subclass.");
       return;
@@ -366,7 +366,6 @@ namespace FLD
      *  scheme. Result is stored in #locerrvelnp_ and is used later to estimate
      *  the local discretization error of the marching time integration scheme.
      *
-     *  \author mayr.mt \date 12/2013
      */
     void time_step_auxiliary() override
     {
@@ -376,7 +375,6 @@ namespace FLD
 
     /*! Indicate norms of temporal discretization error
      *
-     *  \author mayr.mt \date 12/2013
      */
     void indicate_error_norms(
         double& err,       ///< L2-norm of temporal discretization error based on all DOFs
@@ -417,8 +415,6 @@ namespace FLD
     Therefore, we need to reset the solution back to the initial solution of the
     time step.
 
-    \author mayr.mt
-    \date 08/2013
     */
     void reset_step() override
     {
@@ -435,8 +431,6 @@ namespace FLD
     and, thus, everything will be fine. Currently, this is needed for time step size
     adaptivity in FSI.
 
-    \author mayr.mt
-    \date 08/2013
      */
     void reset_time(const double dtold) override
     {
@@ -450,7 +444,7 @@ namespace FLD
       FOUR_C_THROW("Not implemented in the base class, may be overridden by a subclass.");
       return 0.0;
     }
-    void redistribute(const std::shared_ptr<Epetra_CrsGraph> nodegraph) override
+    void redistribute(const std::shared_ptr<Core::LinAlg::Graph> nodegraph) override
     {
       FOUR_C_THROW("Not implemented in the base class, may be overridden by a subclass.");
       return;
@@ -630,14 +624,14 @@ namespace FLD
     }
 
     /// expand dirichlet set
-    void add_dirich_cond(const std::shared_ptr<const Epetra_Map> maptoadd) override
+    void add_dirich_cond(const std::shared_ptr<const Core::LinAlg::Map> maptoadd) override
     {
       FOUR_C_THROW("Not implemented in the base class, may be overridden by a subclass.");
       return;
     };
 
     /// contract dirichlet set
-    void remove_dirich_cond(const std::shared_ptr<const Epetra_Map> maptoremove) override
+    void remove_dirich_cond(const std::shared_ptr<const Core::LinAlg::Map> maptoremove) override
     {
       FOUR_C_THROW("Not implemented in the base class, may be overridden by a subclass.");
       return;

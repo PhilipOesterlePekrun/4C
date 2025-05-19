@@ -17,7 +17,6 @@ RANDSEED                        -1
 -----------------------------------------------------------------IO
 OUTPUT_BIN                      yes
 STRUCT_DISP                     Yes
-STRUCT_VEL_ACC                  No
 STRUCT_STRESS                   No
 STRUCT_COUPLING_STRESS          No
 STRUCT_STRAIN                   No
@@ -80,6 +79,7 @@ CONSISTENCY                     no
 -----------------------------------------------------------SOLVER 1
 NAME                            ScaTraSolver
 SOLVER                          Belos
+IFPACK_XML_FILE                 xml/preconditioner/ifpack.xml
 AZSOLVE                         GMRES
 AZPREC                          ILU
 AZTOL                           1e-12
@@ -145,7 +145,7 @@ SCATRA DIS scatra NODE 1 QUANTITY phi6 VALUE 2.66860281686888134e+00 TOLERANCE 1
 SCATRA DIS scatra NODE 1 QUANTITY phi7 VALUE 3.42857142729068753e+00 TOLERANCE 1e-9
 SCATRA DIS scatra NODE 1 QUANTITY phi8 VALUE 1.71428571454186018e+00 TOLERANCE 1e-9
 SCATRA DIS scatra NODE 1 QUANTITY phi9 VALUE 1.79308186752768064e-09 TOLERANCE 1e-9
-SCATRA DIS scatra SPECIAL QUANTITY numiterlastnewton VALUE 3 TOLERANCE 1.0e-12
+SCATRA DIS scatra SPECIAL true QUANTITY numiterlastnewton VALUE 3 TOLERANCE 1.0e-12
 ------------------------------------------------DVOL-NODE TOPOLOGY
 NODE    1 DVOL 1
 NODE    2 DVOL 1

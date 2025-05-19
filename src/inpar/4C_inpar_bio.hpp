@@ -10,8 +10,9 @@
 
 #include "4C_config.hpp"
 
-#include "4C_utils_parameter_list.fwd.hpp"
+#include "4C_io_input_spec.hpp"
 
+#include <map>
 #include <vector>
 
 FOUR_C_NAMESPACE_OPEN
@@ -21,33 +22,6 @@ namespace Core::Conditions
 {
   class ConditionDefinition;
 }
-
-// ToDo: move these enums to namespace Inpar::ArteryNetwork etc.
-//       is the typedef really needed?
-
-/*!----------------------------------------------------------------------
-\brief enum of arterial network dynamic types
-
-\author ismail \date 11/08
-This is the enumeration of all types of different integration schemes
-
-*-----------------------------------------------------------------------*/
-
-
-/*!----------------------------------------------------------------------
-\brief enum of reduced dimensional airways dynamic types
-
-\author ismail \date 01/10
-This is the enumeration of all types of different integration schemes
-
-*-----------------------------------------------------------------------*/
-typedef enum RedAirwaysDyntype
-{
-  one_step_theta,
-  linear,
-  nonlinear
-} _RED_AIRWAYS_DYNTYPE;
-
 
 namespace Inpar
 {
@@ -76,15 +50,13 @@ namespace Inpar
     };
 
     /// set the arterial dynamic parameters
-    void set_valid_parameters(Teuchos::ParameterList& list);
+    void set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list);
   }  // namespace ArtDyn
 
   namespace ArteryNetwork
   {
     /*!----------------------------------------------------------------------
     \brief enum of reduced dimensional relaxation type
-
-    \author roth \date 10/13
     This is the enumeration of all types of different relaxation types
 
     *-----------------------------------------------------------------------*/
@@ -107,7 +79,7 @@ namespace Inpar
     };
 
     /// set the artnet parameters
-    void set_valid_parameters(Teuchos::ParameterList& list);
+    void set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list);
 
     /// set specific artnet conditions
     void set_valid_conditions(std::vector<Core::Conditions::ConditionDefinition>& condlist);
@@ -117,20 +89,12 @@ namespace Inpar
   namespace BioFilm
   {
     /// set the biofilm parameters
-    void set_valid_parameters(Teuchos::ParameterList& list);
+    void set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list);
 
     /// set specific biofilm conditions
     void set_valid_conditions(std::vector<Core::Conditions::ConditionDefinition>& condlist);
   }  // namespace BioFilm
 
-  namespace ReducedLung
-  {
-    /// set the reduced airways parameters
-    void set_valid_parameters(Teuchos::ParameterList& list);
-
-    /// set specific reduced airways conditions
-    void set_valid_conditions(std::vector<Core::Conditions::ConditionDefinition>& condlist);
-  }  // namespace ReducedLung
 }  // namespace Inpar
 
 /*----------------------------------------------------------------------*/

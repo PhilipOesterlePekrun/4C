@@ -13,6 +13,7 @@
 
 #include "4C_inpar_xfem.hpp"
 #include "4C_linalg_vector.hpp"
+#include "4C_utils_parameter_list.fwd.hpp"
 
 #include <map>
 #include <memory>
@@ -74,7 +75,7 @@ namespace XFEM
   class XfemEdgeStab
   {
    public:
-    //! prepares edge based stabilization and ghost penaly in case of XFEM and calls evaluate
+    //! prepares edge based stabilization and ghost penalty in case of XFEM and calls evaluate
     //! routine
     void evaluate_edge_stab_ghost_penalty(
         Teuchos::ParameterList& eleparams,                           ///< element parameter list
@@ -88,7 +89,7 @@ namespace XFEM
         bool gmsh_eos_out = true   ///< stabilization gmsh output
     );
 
-    //! calls the evaluate and assemble routine for edge based stabilization and ghost penaly in
+    //! calls the evaluate and assemble routine for edge based stabilization and ghost penalty in
     //! the XFEM
     void assemble_edge_stab_ghost_penalty(
         Teuchos::ParameterList& eleparams,         ///< element parameter list

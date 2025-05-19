@@ -17,6 +17,7 @@
 #include "4C_inpar_structure.hpp"
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
 #include "4C_linalg_vector.hpp"
+#include "4C_linear_solver_method_linalg.hpp"
 #include "4C_solver_nonlin_nox_aux.hpp"
 #include "4C_solver_nonlin_nox_constraint_interface_preconditioner.hpp"
 #include "4C_solver_nonlin_nox_constraint_interface_required.hpp"
@@ -27,6 +28,7 @@
 #include "4C_structure_new_model_evaluator_meshtying.hpp"
 #include "4C_structure_new_nln_linearsystem_scaling.hpp"
 #include "4C_structure_new_timint_basedatasdyn.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_exceptions.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -46,7 +48,6 @@ NOX::Nln::LinSystem::ConditionNumber Solid::Nln::convert2_nox_condition_number_t
       return NOX::Nln::LinSystem::ConditionNumber::inf_norm;
     default:
       FOUR_C_THROW("No known conversion.");
-      exit(EXIT_FAILURE);
   }
 }
 
@@ -71,8 +72,7 @@ enum ::NOX::Abstract::Vector::NormType Solid::Nln::convert2_nox_norm_type(
     case Inpar::Solid::norm_rms:
     case Inpar::Solid::norm_vague:
     default:
-      FOUR_C_THROW("Unknown conversion for the given vector norm type: \" %s \"!",
-          Inpar::Solid::vector_norm_string(normtype).c_str());
+      FOUR_C_THROW("Unknown conversion for the given vector norm type: \" {} \"!", normtype);
       break;
   }  // switch case normtype
 
@@ -147,8 +147,8 @@ enum NOX::Nln::SolutionType Solid::Nln::convert_model_type2_sol_type(
       if (do_check)
         FOUR_C_THROW(
             "The corresponding solution-type was not found. "
-            "Given string: %s",
-            Inpar::Solid::model_type_string(modeltype).c_str());
+            "Given string: {}",
+            modeltype);
       break;
   }
 
@@ -183,7 +183,7 @@ enum Inpar::Solid::ModelType Solid::Nln::convert_sol_type2_model_type(
       if (do_check)
         FOUR_C_THROW(
             "The corresponding model-type was not found. "
-            "Given string: %s",
+            "Given string: {}",
             NOX::Nln::solution_type_to_string(soltype).c_str());
       break;
   }
@@ -212,8 +212,8 @@ enum Inpar::Solid::EleTech Solid::Nln::convert_quantity_type2_ele_tech(
       eletech = Inpar::Solid::EleTech::eas;
       break;
     default:
-      FOUR_C_THROW("Cannot convert QuantityType %s to EleTech.",
-          NOX::Nln::StatusTest::quantity_type_to_string(qtype).c_str());
+      FOUR_C_THROW("Cannot convert QuantityType {} to EleTech.",
+          NOX::Nln::StatusTest::quantity_type_to_string(qtype));
       break;
   }
 
@@ -365,7 +365,7 @@ void Solid::Nln::create_constraint_preconditioner(
 void Solid::Nln::create_scaling(Teuchos::RCP<::NOX::Epetra::Scaling>& iscale,
     const Solid::TimeInt::BaseDataSDyn& DataSDyn, Solid::TimeInt::BaseDataGlobalState& GState)
 {
-  if (DataSDyn.get_stc_algo_type() != Inpar::Solid::stc_none)
+  if (DataSDyn.get_stc_algo_type() != Inpar::Solid::stc_inactive)
     iscale = Teuchos::make_rcp<Solid::Nln::LinSystem::StcScaling>(DataSDyn, GState);
 }
 

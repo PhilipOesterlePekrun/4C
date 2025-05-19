@@ -80,9 +80,7 @@ Cut::Element* Cut::Mesh::create_element(
     case Core::FE::CellType::wedge6:
       return create_wedge6(eid, nids);
     default:
-      FOUR_C_THROW(
-          "unsupported distype ( distype = %s )", Core::FE::cell_type_to_string(distype).c_str());
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("unsupported distype ( distype = {} )", Core::FE::cell_type_to_string(distype));
   }
   return nullptr;
 }
@@ -100,9 +98,7 @@ Cut::Side* Cut::Mesh::create_side(int sid, const std::vector<int>& nids, Core::F
     case Core::FE::CellType::tri3:
       return create_tri3_side(sid, nids);
     default:
-      FOUR_C_THROW(
-          "unsupported distype ( distype = %s )", Core::FE::cell_type_to_string(distype).c_str());
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("unsupported distype ( distype = {} )", Core::FE::cell_type_to_string(distype));
   }
   return nullptr;
 }
@@ -378,7 +374,7 @@ Cut::VolumeCell* Cut::Mesh::new_volume_cell(const plain_facet_set& facets,
 Cut::Point1BoundaryCell* Cut::Mesh::new_point1_cell(
     VolumeCell* volume, Facet* facet, const std::vector<Point*>& points)
 {
-  const unsigned num_nodes = Core::FE::num_nodes<Core::FE::CellType::point1>;
+  const unsigned num_nodes = Core::FE::num_nodes(Core::FE::CellType::point1);
   if (points.size() != num_nodes) FOUR_C_THROW("Mismatch of point and node number!");
 
   Core::LinAlg::SerialDenseMatrix xyz(3, 1);
@@ -395,7 +391,7 @@ Cut::Point1BoundaryCell* Cut::Mesh::new_point1_cell(
 Cut::Line2BoundaryCell* Cut::Mesh::new_line2_cell(
     VolumeCell* volume, Facet* facet, const std::vector<Point*>& points)
 {
-  const unsigned num_nodes = Core::FE::num_nodes<Core::FE::CellType::line2>;
+  const unsigned num_nodes = Core::FE::num_nodes(Core::FE::CellType::line2);
   if (points.size() != num_nodes) FOUR_C_THROW("Mismatch of point and node number!");
 
   Core::LinAlg::SerialDenseMatrix xyze(3, num_nodes);
@@ -484,7 +480,7 @@ Cut::ArbitraryBoundaryCell* Cut::Mesh::new_arbitrary_cell(VolumeCell* volume, Fa
 Cut::Line2IntegrationCell* Cut::Mesh::new_line2_cell(
     Point::PointPosition position, const std::vector<Point*>& points, VolumeCell* cell)
 {
-  const unsigned num_nodes = Core::FE::num_nodes<Core::FE::CellType::line2>;
+  const unsigned num_nodes = Core::FE::num_nodes(Core::FE::CellType::line2);
   if (points.size() != num_nodes) FOUR_C_THROW("Mismatch of point and node number!");
 
   Core::LinAlg::SerialDenseMatrix xyze(3, num_nodes);
@@ -503,7 +499,7 @@ Cut::Line2IntegrationCell* Cut::Mesh::new_line2_cell(
 Cut::Tri3IntegrationCell* Cut::Mesh::new_tri3_cell(
     Point::PointPosition position, const std::vector<Point*>& points, VolumeCell* cell)
 {
-  const unsigned num_nodes = Core::FE::num_nodes<Core::FE::CellType::tri3>;
+  const unsigned num_nodes = Core::FE::num_nodes(Core::FE::CellType::tri3);
   if (points.size() != num_nodes) FOUR_C_THROW("Mismatch of point and node number!");
 
   Core::LinAlg::SerialDenseMatrix xyze(3, num_nodes);
@@ -522,7 +518,7 @@ Cut::Tri3IntegrationCell* Cut::Mesh::new_tri3_cell(
 Cut::Quad4IntegrationCell* Cut::Mesh::new_quad4_cell(
     Point::PointPosition position, const std::vector<Point*>& points, VolumeCell* cell)
 {
-  const unsigned num_nodes = Core::FE::num_nodes<Core::FE::CellType::quad4>;
+  const unsigned num_nodes = Core::FE::num_nodes(Core::FE::CellType::quad4);
   if (points.size() != num_nodes) FOUR_C_THROW("Mismatch of point and node number!");
 
   Core::LinAlg::SerialDenseMatrix xyze(3, num_nodes);
@@ -1670,7 +1666,7 @@ void Cut::Mesh::test_element_volume(
 
       // Cut test is written for level-set cases as well.
       debug_dump(&e, __FILE__, __LINE__);
-      FOUR_C_THROW(err.str());
+      FOUR_C_THROW("{}", err.str());
     }
   }
 }
@@ -2229,7 +2225,8 @@ void Cut::Mesh::dump_gmsh_volume_cells(std::string name)
 
         if (facet->on_cut_side())
         {
-          Core::LinAlg::Matrix<3, 1> facet_triang_midpoint_coord(true);
+          Core::LinAlg::Matrix<3, 1> facet_triang_midpoint_coord(
+              Core::LinAlg::Initialization::zero);
 
           if (facet->is_triangulated())
           {
@@ -2647,10 +2644,8 @@ Cut::Element* Cut::Mesh::get_element(
     case 3:
       return get_element<3>(eid, nodes, top_data, active);
     default:
-      FOUR_C_THROW("Element dimension out of range! ( dim = %d )", top_data.dimension);
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("Element dimension out of range! ( dim = {} )", top_data.dimension);
   }
-  exit(EXIT_FAILURE);
 }
 
 /*----------------------------------------------------------------------------*
@@ -2965,7 +2960,7 @@ void Cut::Mesh::assign_other_volume_cells_cut_test(const Mesh& other)
   {
     std::stringstream str;
     str << cells.size() << " volume cells left. Need to handle those.";
-    FOUR_C_THROW(str.str());
+    FOUR_C_THROW("{}", str.str());
   }
 }
 

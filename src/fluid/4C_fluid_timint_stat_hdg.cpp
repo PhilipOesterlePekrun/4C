@@ -12,6 +12,7 @@
 #include "4C_fluid_ele_action.hpp"
 #include "4C_fluid_ele_hdg.hpp"
 #include "4C_fluid_ele_hdg_weak_comp.hpp"
+#include "4C_fluid_ele_parameter_timint.hpp"
 #include "4C_fluid_turbulence_boxfilter.hpp"
 #include "4C_fluid_turbulence_dyn_smag.hpp"
 #include "4C_fluid_turbulence_dyn_vreman.hpp"
@@ -78,14 +79,16 @@ void FLD::TimIntStationaryHDG::init()
   conddofmapvec.reserve(conddofset.size());
   conddofmapvec.assign(conddofset.begin(), conddofset.end());
   conddofset.clear();
-  std::shared_ptr<Epetra_Map> conddofmap = std::make_shared<Epetra_Map>(-1, conddofmapvec.size(),
-      conddofmapvec.data(), 0, Core::Communication::as_epetra_comm(hdgdis->get_comm()));
+  std::shared_ptr<Core::LinAlg::Map> conddofmap =
+      std::make_shared<Core::LinAlg::Map>(-1, conddofmapvec.size(), conddofmapvec.data(), 0,
+          Core::Communication::as_epetra_comm(hdgdis->get_comm()));
   std::vector<int> otherdofmapvec;
   otherdofmapvec.reserve(otherdofset.size());
   otherdofmapvec.assign(otherdofset.begin(), otherdofset.end());
   otherdofset.clear();
-  std::shared_ptr<Epetra_Map> otherdofmap = std::make_shared<Epetra_Map>(-1, otherdofmapvec.size(),
-      otherdofmapvec.data(), 0, Core::Communication::as_epetra_comm(hdgdis->get_comm()));
+  std::shared_ptr<Core::LinAlg::Map> otherdofmap =
+      std::make_shared<Core::LinAlg::Map>(-1, otherdofmapvec.size(), otherdofmapvec.data(), 0,
+          Core::Communication::as_epetra_comm(hdgdis->get_comm()));
   velpressplitter_->setup(*hdgdis->dof_row_map(), conddofmap, otherdofmap);
 
   // call init()-functions of base classes
@@ -97,7 +100,7 @@ void FLD::TimIntStationaryHDG::init()
 void FLD::TimIntStationaryHDG::reset(bool completeReset, int numsteps, int iter)
 {
   FluidImplicitTimeInt::reset(completeReset, numsteps, iter);
-  const Epetra_Map* intdofrowmap = discret_->dof_row_map(1);
+  const Core::LinAlg::Map* intdofrowmap = discret_->dof_row_map(1);
   intvelnp_ = Core::LinAlg::create_vector(*intdofrowmap, true);
   if (Core::Communication::my_mpi_rank(discret_->get_comm()) == 0)
     std::cout << "Number of degrees of freedom in HDG system: "
@@ -126,7 +129,7 @@ void FLD::TimIntStationaryHDG::set_old_part_of_righthandside()
                   (con: hist_ = 0.0)
   */
 
-  hist_->PutScalar(0.0);
+  hist_->put_scalar(0.0);
 
   // This code is entered at the beginning of the nonlinear iteration, so
   // store that the assembly to be done next is going to be the first one
@@ -139,14 +142,13 @@ void FLD::TimIntStationaryHDG::set_old_part_of_righthandside()
 *-----------------------------------------------------------------------*/
 void FLD::TimIntStationaryHDG::set_state_tim_int()
 {
-  const Epetra_Map* intdofrowmap = discret_->dof_row_map(1);
-  std::shared_ptr<Core::LinAlg::Vector<double>> zerovec =
-      Core::LinAlg::create_vector(*intdofrowmap, true);
+  const Core::LinAlg::Map* intdofrowmap = discret_->dof_row_map(1);
+  Core::LinAlg::Vector<double> zerovec(*intdofrowmap, true);
 
-  discret_->set_state(0, "velaf", velnp_);
-  discret_->set_state(1, "intvelaf", intvelnp_);  // TODO also fill in intvelnp_!
-  discret_->set_state(1, "intaccam", zerovec);
-  discret_->set_state(1, "intvelnp", intvelnp_);
+  discret_->set_state(0, "velaf", *velnp_);
+  discret_->set_state(1, "intvelaf", *intvelnp_);  // TODO also fill in intvelnp_!
+  discret_->set_state(1, "intaccam", zerovec);     // TODO memory management working?
+  discret_->set_state(1, "intvelnp", *intvelnp_);
 }
 
 /*----------------------------------------------------------------------*
@@ -159,8 +161,9 @@ void FLD::TimIntStationaryHDG::clear_state_assemble_mat_and_rhs()
     // Wrote into the state vector during element calls, need to transfer the
     // data back before it disappears when clearing the state (at least for nproc>1)
     const Core::LinAlg::Vector<double>& intvelnpGhosted = *discret_->get_state(1, "intvelnp");
-    for (int i = 0; i < intvelnp_->MyLength(); ++i)
-      (*intvelnp_)[i] = intvelnpGhosted[intvelnpGhosted.Map().LID(intvelnp_->Map().GID(i))];
+    for (int i = 0; i < intvelnp_->local_length(); ++i)
+      (*intvelnp_)[i] =
+          intvelnpGhosted[intvelnpGhosted.get_block_map().LID(intvelnp_->get_block_map().GID(i))];
   }
   first_assembly_ = false;
   FluidImplicitTimeInt::clear_state_assemble_mat_and_rhs();
@@ -172,8 +175,8 @@ void FLD::TimIntStationaryHDG::clear_state_assemble_mat_and_rhs()
 void FLD::TimIntStationaryHDG::set_initial_flow_field(
     const Inpar::FLUID::InitialField initfield, const int startfuncno)
 {
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
-  const Epetra_Map* intdofrowmap = discret_->dof_row_map(1);
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* intdofrowmap = discret_->dof_row_map(1);
   Core::LinAlg::SerialDenseVector elevec1, elevec2, elevec3;
   Core::LinAlg::SerialDenseMatrix elemat1, elemat2;
   Teuchos::ParameterList initParams;
@@ -187,7 +190,7 @@ void FLD::TimIntStationaryHDG::set_initial_flow_field(
   {
     Core::Elements::Element* ele = discret_->l_col_element(el);
 
-    ele->location_vector(*discret_, la, false);
+    ele->location_vector(*discret_, la);
     if (static_cast<std::size_t>(elevec1.numRows()) != la[0].lm_.size())
       elevec1.size(la[0].lm_.size());
     if (elevec2.numRows() != discret_->num_dof(1, ele)) elevec2.size(discret_->num_dof(1, ele));
@@ -214,7 +217,7 @@ void FLD::TimIntStationaryHDG::set_initial_flow_field(
           localDofs.size() == static_cast<std::size_t>(elevec2.numRows()), "Internal error");
       for (unsigned int i = 0; i < localDofs.size(); ++i)
         localDofs[i] = intdofrowmap->LID(localDofs[i]);
-      intvelnp_->ReplaceMyValues(localDofs.size(), elevec2.values(), localDofs.data());
+      intvelnp_->replace_local_values(localDofs.size(), elevec2.values(), localDofs.data());
     }
   }
   double globerror = 0;
@@ -231,7 +234,6 @@ void FLD::TimIntStationaryHDG::set_element_time_parameter()
 {
   Teuchos::ParameterList eleparams;
 
-  eleparams.set<FLD::Action>("action", FLD::set_time_parameter);
   eleparams.set<Inpar::FLUID::PhysicalType>("Physical Type", physicaltype_);
 
   // set time integration scheme
@@ -245,8 +247,7 @@ void FLD::TimIntStationaryHDG::set_element_time_parameter()
   // set scheme-specific element parameters and vector values
   eleparams.set("total time", time_);
 
-  // call standard loop over elements
-  discret_->evaluate(eleparams, nullptr, nullptr, nullptr, nullptr, nullptr);
+  Discret::Elements::FluidEleParameterTimInt::instance()->set_element_time_parameter(eleparams);
 }
 
 FOUR_C_NAMESPACE_CLOSE

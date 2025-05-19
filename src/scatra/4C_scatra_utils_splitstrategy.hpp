@@ -84,14 +84,14 @@ namespace ScaTra
         if (!doit) return;
 
         // get the maps
-        const Epetra_Map& colmap00 = mat_.matrix(0, 0).col_map();
-        const Epetra_Map& colmap01 = mat_.matrix(0, 1).col_map();
-        const Epetra_Map& colmap10 = mat_.matrix(1, 0).col_map();
-        const Epetra_Map& colmap11 = mat_.matrix(1, 1).col_map();
-        const Epetra_Map& rowmap00 = mat_.matrix(0, 0).row_map();
-        const Epetra_Map& rowmap01 = mat_.matrix(0, 1).row_map();
-        const Epetra_Map& rowmap10 = mat_.matrix(1, 0).row_map();
-        const Epetra_Map& rowmap11 = mat_.matrix(1, 1).row_map();
+        const Core::LinAlg::Map& colmap00 = mat_.matrix(0, 0).col_map();
+        const Core::LinAlg::Map& colmap01 = mat_.matrix(0, 1).col_map();
+        const Core::LinAlg::Map& colmap10 = mat_.matrix(1, 0).col_map();
+        const Core::LinAlg::Map& colmap11 = mat_.matrix(1, 1).col_map();
+        const Core::LinAlg::Map& rowmap00 = mat_.matrix(0, 0).row_map();
+        const Core::LinAlg::Map& rowmap01 = mat_.matrix(0, 1).row_map();
+        const Core::LinAlg::Map& rowmap10 = mat_.matrix(1, 0).row_map();
+        const Core::LinAlg::Map& rowmap11 = mat_.matrix(1, 1).row_map();
 
         // prepare vectors for holding column local ids and the values to be assembled
         const int nnode = lcoldim / numdofpernode_;
@@ -148,8 +148,8 @@ namespace ScaTra
             rlid0 = rowmap00.LID(rgid);
             rlid1 = rowmap01.LID(rgid);
 #ifdef FOUR_C_ENABLE_ASSERTIONS
-            if (rlid0 < 0) FOUR_C_THROW("Sparse matrix A00 does not have global row %d", rgid);
-            if (rlid1 < 0) FOUR_C_THROW("Sparse matrix A01 does not have global row %d", rgid);
+            if (rlid0 < 0) FOUR_C_THROW("Sparse matrix A00 does not have global row {}", rgid);
+            if (rlid1 < 0) FOUR_C_THROW("Sparse matrix A01 does not have global row {}", rgid);
 #endif
 
             // separate the (non-zero!) values of the current row
@@ -165,16 +165,11 @@ namespace ScaTra
             }
 
             // assemble
-            errone = matrix00_.epetra_matrix()->SumIntoMyValues(
+            errone = matrix00_.sum_into_my_values(
                 rlid0, nnode, values00.data(), localcol00map[scalarid].data());
-            if (errone)
-              FOUR_C_THROW(
-                  "Epetra_CrsMatrix::SumIntoMyValues returned error code %d for A00", errone);
-            errone = matrix01_.epetra_matrix()->SumIntoMyValues(
-                rlid1, nnode, values1.data(), localcol01.data());
-            if (errone)
-              FOUR_C_THROW(
-                  "Epetra_CrsMatrix::SumIntoMyValues returned error code %d for A01", errone);
+            if (errone) FOUR_C_THROW("sum_into_my_values() returned error code {} for A00", errone);
+            errone = matrix01_.sum_into_my_values(rlid1, nnode, values1.data(), localcol01.data());
+            if (errone) FOUR_C_THROW("sum_into_my_values() returned error code {} for A01", errone);
           }
           else
           {
@@ -182,8 +177,8 @@ namespace ScaTra
             rlid0 = rowmap10.LID(rgid);
             rlid1 = rowmap11.LID(rgid);
 #ifdef FOUR_C_ENABLE_ASSERTIONS
-            if (rlid0 < 0) FOUR_C_THROW("Sparse matrix A10 does not have global row %d", rgid);
-            if (rlid1 < 0) FOUR_C_THROW("Sparse matrix A11 does not have global row %d", rgid);
+            if (rlid0 < 0) FOUR_C_THROW("Sparse matrix A10 does not have global row {}", rgid);
+            if (rlid1 < 0) FOUR_C_THROW("Sparse matrix A11 does not have global row {}", rgid);
 #endif
             // separate the values of the current row
             int nodespassed = 0;
@@ -204,16 +199,11 @@ namespace ScaTra
             }
 
             // assemble
-            errone = matrix10_.epetra_matrix()->SumIntoMyValues(
+            errone = matrix10_.sum_into_my_values(
                 rlid0, nnode * numscal_, values0.data(), localcol10.data());
-            if (errone)
-              FOUR_C_THROW(
-                  "Epetra_CrsMatrix::SumIntoMyValues returned error code %d for A10", errone);
-            errone = matrix11_.epetra_matrix()->SumIntoMyValues(
-                rlid1, nnode, values1.data(), localcol11.data());
-            if (errone)
-              FOUR_C_THROW(
-                  "Epetra_CrsMatrix::SumIntoMyValues returned error code %d for A11", errone);
+            if (errone) FOUR_C_THROW("sum_into_my_values() returned error code {} for A10", errone);
+            errone = matrix11_.sum_into_my_values(rlid1, nnode, values1.data(), localcol11.data());
+            if (errone) FOUR_C_THROW("sum_into_my_values() returned error code {} for A11", errone);
           }
         }  // for (int lrow=0; lrow<ldim; ++lrow)
       }

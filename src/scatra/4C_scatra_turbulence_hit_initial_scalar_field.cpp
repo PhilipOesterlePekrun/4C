@@ -74,7 +74,7 @@ namespace ScaTra
       }
       default:
       {
-        FOUR_C_THROW("Set problem size! %i", discret_->num_global_elements());
+        FOUR_C_THROW("Set problem size! {}", discret_->num_global_elements());
         break;
       }
     }
@@ -394,7 +394,7 @@ namespace ScaTra
       Core::Nodes::Node* node = discret_->l_row_node(inode);
 
       // get coordinates
-      Core::LinAlg::Matrix<3, 1> xyz(true);
+      Core::LinAlg::Matrix<3, 1> xyz(Core::LinAlg::Initialization::zero);
       for (int idim = 0; idim < 3; idim++) xyz(idim, 0) = node->x()[idim];
 
       // get global ids of all dofs of the node
@@ -430,13 +430,13 @@ namespace ScaTra
       // get local dof id corresponding to the global id
       int lid = discret_->dof_row_map()->LID(dofs[0]);
       // set value
-      int err = phinp_->ReplaceMyValues(1, &((phi)[pos]), &lid);
+      int err = phinp_->replace_local_values(1, &((phi)[pos]), &lid);
 
       if (err > 0) FOUR_C_THROW("Could not set initial field!");
     }
 
     // initialize phin_ as well
-    phin_->Update(1.0, *phinp_, 0.0);
+    phin_->update(1.0, *phinp_, 0.0);
 
     return;
 #else

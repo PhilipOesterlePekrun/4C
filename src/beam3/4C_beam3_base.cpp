@@ -8,12 +8,12 @@
 #include "4C_beam3_base.hpp"
 
 #include "4C_beaminteraction_calc_utils.hpp"
+#include "4C_browniandyn_input.hpp"  // enums
 #include "4C_comm_pack_helpers.hpp"
-#include "4C_fem_geometric_search_bounding_volume.hpp"
-#include "4C_fem_geometric_search_params.hpp"
 #include "4C_fem_geometry_periodic_boundingbox.hpp"
+#include "4C_geometric_search_bounding_volume.hpp"
+#include "4C_geometric_search_params.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_browniandyn.hpp"  // enums
 #include "4C_mat_beam_templated_material_generic.hpp"
 #include "4C_structure_new_elements_paramsinterface.hpp"
 
@@ -237,7 +237,7 @@ void Discret::Elements::Beam3Base::get_damping_coefficients(Core::LinAlg::Matrix
 {
   switch (brownian_dyn_params_interface().how_beam_damping_coefficients_are_specified())
   {
-    case Inpar::BrownianDynamics::cylinder_geometry_approx:
+    case BrownianDynamics::cylinder_geometry_approx:
     {
       /* These are coefficients for a straight cylindrical rod taken from
        * Howard, p. 107, table 6.2. The order is as follows:
@@ -257,7 +257,7 @@ void Discret::Elements::Beam3Base::get_damping_coefficients(Core::LinAlg::Matrix
       break;
     }
 
-    case Inpar::BrownianDynamics::input_file:
+    case BrownianDynamics::input_file:
     {
       gamma(0) = brownian_dyn_params_interface()
                      .get_beam_damping_coefficient_prefactors_from_input_file()[0] *
@@ -325,10 +325,9 @@ void Discret::Elements::Beam3Base::un_shift_node_position(
 
   // loop through all nodes except for the first node which remains
   // fixed as reference node
-  static Core::LinAlg::Matrix<3, 1> d(true), ref(true), X(true);
-  d.clear();
-  ref.clear();
-  X.clear();
+  static Core::LinAlg::Matrix<3, 1> d(Core::LinAlg::Initialization::zero);
+  static Core::LinAlg::Matrix<3, 1> ref(Core::LinAlg::Initialization::zero);
+  static Core::LinAlg::Matrix<3, 1> X(Core::LinAlg::Initialization::zero);
   for (unsigned int i = 1; i < nnodecl; ++i)
   {
     for (int dim = 0; dim < 3; ++dim)
@@ -365,10 +364,9 @@ void Discret::Elements::Beam3Base::get_directions_of_shifts(std::vector<double>&
 
   // loop through all nodes except for the first node which remains
   // fixed as reference node
-  static Core::LinAlg::Matrix<3, 1> d(true), ref(true), X(true);
-  d.clear();
-  ref.clear();
-  X.clear();
+  static Core::LinAlg::Matrix<3, 1> d(Core::LinAlg::Initialization::zero);
+  static Core::LinAlg::Matrix<3, 1> ref(Core::LinAlg::Initialization::zero);
+  static Core::LinAlg::Matrix<3, 1> X(Core::LinAlg::Initialization::zero);
   for (unsigned int i = 1; i < nnodecl; ++i)
   {
     for (int dim = 0; dim < 3; ++dim)

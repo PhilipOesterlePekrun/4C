@@ -8,11 +8,16 @@
 #include "4C_io_meshreader.hpp"
 
 #include "4C_comm_mpi_utils.hpp"
+#include "4C_comm_utils_factory.hpp"
 #include "4C_fem_discretization.hpp"
-#include "4C_io_domainreader.hpp"
-#include "4C_io_elementreader.hpp"
+#include "4C_fem_general_element_definition.hpp"
+#include "4C_fem_general_fiber_node.hpp"
+#include "4C_fem_general_node.hpp"
+#include "4C_fem_nurbs_discretization_control_point.hpp"
+#include "4C_io_exodus.hpp"
+#include "4C_io_gridgenerator.hpp"
 #include "4C_io_input_file.hpp"
-#include "4C_io_nodereader.hpp"
+#include "4C_io_value_parser.hpp"
 #include "4C_rebalance.hpp"
 #include "4C_rebalance_graph_based.hpp"
 #include "4C_rebalance_print.hpp"
@@ -25,225 +30,625 @@
 
 FOUR_C_NAMESPACE_OPEN
 
-/*----------------------------------------------------------------------*/
-/*----------------------------------------------------------------------*/
-Core::IO::MeshReader::MeshReader(
-    Core::IO::InputFile& input, std::string node_section_name, MeshReaderParameters parameters)
-    : comm_(input.get_comm()),
-      input_(input),
-      node_section_name_(std::move(node_section_name)),
-      parameters_(std::move(parameters))
+namespace Core::IO::Internal
 {
-}
-
-
-
-/*----------------------------------------------------------------------*/
-/*----------------------------------------------------------------------*/
-void Core::IO::MeshReader::add_advanced_reader(std::shared_ptr<Core::FE::Discretization> dis,
-    Core::IO::InputFile& input, const std::string& sectionname,
-    const Core::IO::GeometryType geometrysource, const std::string* geofilepath)
-{
-  std::set<std::string> elementtypes;
-  switch (geometrysource)
+  /**
+   * Internal support class to read a mesh from an exodus file.
+   */
+  struct ExodusReader
   {
-    case Core::IO::geometry_full:
-    {
-      std::string fullsectionname(sectionname + " ELEMENTS");
-      ElementReader er = ElementReader(dis, input, fullsectionname, elementtypes);
-      element_readers_.emplace_back(er);
-      break;
-    }
-    case Core::IO::geometry_box:
-    {
-      std::string fullsectionname(sectionname + " DOMAIN");
-      DomainReader dr = DomainReader(dis, input, fullsectionname);
-      domain_readers_.emplace_back(dr);
-      break;
-    }
-    case Core::IO::geometry_file:
-    {
-      FOUR_C_THROW("Unfortunately not yet implemented, but feel free ...");
-      break;
-    }
-    default:
-      FOUR_C_THROW("Unknown geometry source");
-      break;
+    /**
+     *The discretization that should be filled with the information from the exodus file.
+     */
+    Core::FE::Discretization& target_discretization;
+
+    /**
+     * The section in the input file that has the necessary data for the reader (e.g. the file
+     * name).
+     */
+    std::string section_name;
+
+    /**
+     * The actual exodus mesh object. This is only created on rank 0.
+     */
+    std::shared_ptr<Exodus::Mesh> mesh_on_rank_zero{};
+  };
+}  // namespace Core::IO::Internal
+
+namespace
+{
+
+  class ElementReader
+  {
+   public:
+    /*!
+    \brief Construct element reader for a given field that reads a given section
+
+    Create empty discretization and append it to given field.
+
+    \param dis (i) the new discretization
+    \param comm (i) our communicator
+    \param sectionname (i) the section that contains the element lines
+    */
+    ElementReader(std::shared_ptr<Core::FE::Discretization> dis, const Core::IO::InputFile& input,
+        std::string sectionname);
+
+    /// give the discretization this reader fills
+    std::shared_ptr<Core::FE::Discretization> get_dis() const { return dis_; }
+
+    /// Return the list of row elements
+    std::shared_ptr<Core::LinAlg::Map> get_row_elements() const { return roweles_; }
+
+    /*! Read elements and partition the node graph
+
+    - read global ids of elements of this discretization
+      (this is one fully redundant vector for elements)
+    - determine a preliminary element distribution. The fully redundant
+      vector is trashed after the construction.
+    - define blocksizes for blocks of elements we read (not necessarily
+      the same as it was used to construct the map --- we may have a
+      smaller blocksize here).
+    - read elements of this discretization and distribute according
+      to a linear map. While reading, remember node gids and assemble
+      them into a second fully redundant vector (mapping node id->gid).
+      In addition, we keep them in a fully redundant set (required by
+      node reader). Construct reverse lookup from gids to node ids.
+      Again, this is a global, fully redundant map!
+    - define preliminary linear distributed nodal row map
+    - determine adjacency array (i.e. the infos for the node graph)
+      using the nodal row distribution and a round robin communication
+      of element connectivity information.
+      Use adjacency array to build an initial Crsgraph on the linear map.
+    - do partitioning using parmetis
+      Results are distributed to other procs using two global vectors!
+    - build final nodal row map, export graph to the new map
+    */
+    void read_and_distribute();
+
+    /*!
+    \brief Tell whether the given node belongs to us
+
+    \note This is based on the redundant nodes_ set and only available on processor 0.
+    */
+    bool has_node(const int nodeid) const { return nodes_.find(nodeid) != nodes_.end(); }
+
+   private:
+    /// Get the overall number of elements and their corresponding global IDs
+    std::vector<int> get_element_size_and_ids() const;
+
+    /// Read the file and get element information, distribute them to each processor
+    void get_and_distribute_elements(const int nblock, const int bsize);
+
+    /// discretization name
+    std::string name_;
+
+    /// the main input file reader
+    const Core::IO::InputFile& input_;
+
+    /// my comm
+    MPI_Comm comm_;
+
+    /// my section to read
+    std::string sectionname_;
+
+    /*!
+    \brief All global node ids of a discretization on processor 0
+
+    This is a redundant set of all node numbers. But it is only valid
+    on processor 0. We need it to easily figure out to which
+    discretization a node belongs.
+    */
+    std::set<int> nodes_;
+
+    /// my discretization
+    std::shared_ptr<Core::FE::Discretization> dis_;
+
+    /// element row map
+    std::shared_ptr<Core::LinAlg::Map> roweles_;
+  };
+
+
+  /*----------------------------------------------------------------------*/
+  /*----------------------------------------------------------------------*/
+  ElementReader::ElementReader(std::shared_ptr<Core::FE::Discretization> dis,
+      const Core::IO::InputFile& input, std::string sectionname)
+      : name_(dis->name()),
+        input_(input),
+        comm_(dis->get_comm()),
+        sectionname_(sectionname),
+        dis_(dis)
+  {
   }
-}
 
-/*----------------------------------------------------------------------*/
-/*----------------------------------------------------------------------*/
-void Core::IO::MeshReader::read_and_partition()
-{
-  // We need to track the max global node ID to offset node numbering and for sanity checks
-  int max_node_id = 0;
 
-  graph_.resize(element_readers_.size());
-
-  read_mesh_from_dat_file(max_node_id);
-  rebalance();
-  create_inline_mesh(max_node_id);
-
-  // last check if there are enough nodes
+  /*----------------------------------------------------------------------*/
+  /*----------------------------------------------------------------------*/
+  void ElementReader::read_and_distribute()
   {
-    int local_max_node_id = max_node_id;
-    Core::Communication::max_all(&local_max_node_id, &max_node_id, 1, comm_);
+    const int myrank = Core::Communication::my_mpi_rank(comm_);
+    const int numproc = Core::Communication::num_mpi_ranks(comm_);
 
-    if (max_node_id > 0 && max_node_id < Core::Communication::num_mpi_ranks(comm_))
-      FOUR_C_THROW("Bad idea: Simulation with %d procs for problem with %d nodes",
-          Core::Communication::num_mpi_ranks(comm_), max_node_id);
+    const auto& eids = get_element_size_and_ids();
+
+    if (eids.empty())
+    {
+      // If the element section is empty, we create an empty input and return
+      roweles_ = std::make_shared<Core::LinAlg::Map>(
+          -1, 0, nullptr, 0, Core::Communication::as_epetra_comm(comm_));
+
+      return;
+    }
+
+    // determine a preliminary element distribution
+    int nblock, mysize, bsize;
+    const int numele = static_cast<int>(eids.size());
+    {
+      // number of element chunks to split the reading process in
+      // approximate block size (just a guess!)
+      nblock = numproc;
+      bsize = numele / nblock;
+
+      // create a simple (pseudo linear) map
+      mysize = bsize;
+      if (myrank == numproc - 1) mysize = numele - (numproc - 1) * bsize;
+
+      // construct the map
+      roweles_ = std::make_shared<Core::LinAlg::Map>(
+          -1, mysize, &eids[myrank * bsize], 0, Core::Communication::as_epetra_comm(comm_));
+    }
+
+    // define blocksizes for blocks of elements we read
+    {
+      // for block sizes larger than about 250000 elements (empirical value !) the code sometimes
+      // hangs during ExportRowElements call for the second block (block 1). Therefore an upper
+      // limit of 100000 for bsize is ensured below.
+      const int maxblocksize = 100000;
+
+      if (bsize > maxblocksize)
+      {
+        // without an additional increase of nblock by 1 the last block size
+        // could reach a maximum value of (2*maxblocksize)-1, potentially
+        // violating the intended upper limit!
+        nblock = 1 + numele / maxblocksize;
+        bsize = maxblocksize;
+      }
+    }
+
+    get_and_distribute_elements(nblock, bsize);
   }
-}
 
-/*----------------------------------------------------------------------*/
-/*----------------------------------------------------------------------*/
-void Core::IO::MeshReader::read_mesh_from_dat_file(int& max_node_id)
-{
-  TEUCHOS_FUNC_TIME_MONITOR("Core::IO::MeshReader::read_mesh_from_dat_file");
 
-  // read element information
-  for (auto& element_reader : element_readers_) element_reader.read_and_distribute();
-
-  // read nodes based on the element information
-  read_nodes(input_, node_section_name_, element_readers_, max_node_id);
-}
-
-/*----------------------------------------------------------------------*/
-/*----------------------------------------------------------------------*/
-void Core::IO::MeshReader::rebalance()
-{
-  TEUCHOS_FUNC_TIME_MONITOR("Core::IO::MeshReader::Rebalance");
-
-  // do the real partitioning and distribute maps
-  for (size_t i = 0; i < element_readers_.size(); i++)
+  std::vector<int> ElementReader::get_element_size_and_ids() const
   {
-    // global node ids --- this will be a fully redundant vector!
-    int numnodes = static_cast<int>(element_readers_[i].get_unique_nodes().size());
-    Core::Communication::broadcast(&numnodes, 1, 0, comm_);
+    // vector of all global element ids
+    std::vector<int> eids;
 
-    const auto discret = element_readers_[i].get_dis();
+    // all reading is done on proc 0
+    if (Core::Communication::my_mpi_rank(comm_) == 0)
+    {
+      for (const auto& element_line : input_.in_section_rank_0_only(sectionname_))
+      {
+        std::istringstream t{std::string{element_line.get_as_dat_style_string()}};
+        int elenumber;
+        std::string eletype;
+        t >> elenumber >> eletype;
+        elenumber -= 1;
 
-    // We want to be able to read empty fields. If we have such a beast
-    // just skip the building of the node  graph and do a proper initialization
-    if (numnodes)
-      graph_[i] = Core::Rebalance::build_graph(*discret, *element_readers_[i].get_row_elements());
+        // only read registered element types or all elements if nothing is registered
+        eids.push_back(elenumber);
+      }
+    }
+
+    Core::Communication::broadcast(eids, 0, comm_);
+
+    return eids;
+  }
+
+
+  /*----------------------------------------------------------------------*/
+  /*----------------------------------------------------------------------*/
+  void ElementReader::get_and_distribute_elements(const int nblock, const int bsize)
+  {
+    Core::Elements::ElementDefinition ed;
+    ed.setup_valid_element_lines();
+
+    // All ranks > 0 will receive the node ids of the elements from rank 0.
+    // We know that we will read nblock blocks of elements, so call the
+    // collective function an appropriate number of times.
+    if (Core::Communication::my_mpi_rank(comm_) > 0)
+    {
+      for (int i = 0; i < nblock; ++i)
+      {
+        std::vector<int> gidlist;
+        dis_->proc_zero_distribute_elements_to_all(*roweles_, gidlist);
+      }
+    }
+    // Rank 0 does the actual work
     else
-      graph_[i] = nullptr;
+    {
+      std::vector<int> gidlist;
+      gidlist.reserve(bsize);
+      int bcount = 0;
+      int block = 0;
 
-    // create partitioning parameters
+      for (const auto& element_line : input_.in_section_rank_0_only(sectionname_))
+      {
+        Core::IO::ValueParser parser{element_line.get_as_dat_style_string(),
+            {.user_scope_message = "While reading element line: "}};
+        const int elenumber = parser.read<int>() - 1;
+        gidlist.push_back(elenumber);
+
+        const auto eletype = parser.read<std::string>();
+
+        // Only peek at the distype since the elements later want to parse this value themselves.
+        const std::string distype = std::string(parser.peek());
+
+        // let the factory create a matching empty element
+        std::shared_ptr<Core::Elements::Element> ele =
+            Core::Communication::factory(eletype, distype, elenumber, 0);
+        if (!ele) FOUR_C_THROW("element creation failed");
+
+        // For the time being we support old and new input facilities. To
+        // smooth transition.
+
+        const auto& linedef = ed.element_lines(eletype, distype);
+
+        Core::IO::ValueParser element_parser{parser.get_unparsed_remainder(),
+            {.user_scope_message = "While reading element data: "}};
+        Core::IO::InputParameterContainer data;
+        linedef.fully_parse(element_parser, data);
+
+        ele->set_node_ids_one_based_index(distype, data);
+        ele->read_element(eletype, distype, data);
+
+        // add element to discretization
+        dis_->add_element(ele);
+
+        // get the node ids of this element
+        const int numnode = ele->num_node();
+        const int* nodeids = ele->node_ids();
+
+        // all node gids of this element are inserted into a set of
+        // node ids --- it will be used later during reading of nodes
+        // to add the node to one or more discretisations
+        std::copy(nodeids, nodeids + numnode, std::inserter(nodes_, nodes_.begin()));
+
+        ++bcount;
+
+        // Distribute the block if it is full. Never distribute the last block here because it
+        // could be longer than expected and is therefore always distributed at the end.
+        if (block != nblock - 1 && bcount == bsize)
+        {
+          dis_->proc_zero_distribute_elements_to_all(*roweles_, gidlist);
+          gidlist.clear();
+          bcount = 0;
+          ++block;
+        }
+      }
+
+      // Ensure that the last block is distributed. Since the loop might abort a lot earlier
+      // than expected by the number of blocks, make sure to call the collective function
+      // the appropriate number of times to match the action of the other ranks.
+      for (; block < nblock; ++block)
+      {
+        dis_->proc_zero_distribute_elements_to_all(*roweles_, gidlist);
+        gidlist.clear();
+      }
+    }
+  }
+
+  class DomainReader
+  {
+   public:
+    DomainReader(std::shared_ptr<Core::FE::Discretization> dis, const Core::IO::InputFile& input,
+        std::string sectionname);
+
+    std::shared_ptr<Core::FE::Discretization> my_dis() const { return dis_; }
+
+    void create_partitioned_mesh(int nodeGIdOfFirstNewNode) const;
+
+    Core::IO::GridGenerator::RectangularCuboidInputs read_rectangular_cuboid_input_data() const;
+
+    /// finalize reading. fill_complete(false,false,false), that is, do not
+    /// initialize elements. This is done later after reading boundary conditions.
+    void complete() const;
+
+    /// discretization name
+    std::string name_;
+
+    /// the main input file
+    const Core::IO::InputFile& input_;
+
+    /// my comm
+    MPI_Comm comm_;
+
+    /// my section to read
+    std::string sectionname_;
+
+    /// my discretization
+    std::shared_ptr<Core::FE::Discretization> dis_;
+  };
+
+  void broadcast_input_data_to_all_procs(
+      MPI_Comm comm, Core::IO::GridGenerator::RectangularCuboidInputs& inputData)
+  {
+    const int myrank = Core::Communication::my_mpi_rank(comm);
+
+    std::vector<char> data;
+    if (myrank == 0)
+    {
+      Core::Communication::PackBuffer buffer;
+      add_to_pack(buffer, inputData.bottom_corner_point_);
+      add_to_pack(buffer, inputData.top_corner_point_);
+      add_to_pack(buffer, inputData.interval_);
+      add_to_pack(buffer, inputData.rotation_angle_);
+      add_to_pack(buffer, inputData.autopartition_);
+      add_to_pack(buffer, inputData.elementtype_);
+      add_to_pack(buffer, inputData.distype_);
+      add_to_pack(buffer, inputData.elearguments_);
+      std::swap(data, buffer());
+    }
+
+    ssize_t data_size = data.size();
+    Core::Communication::broadcast(&data_size, 1, 0, comm);
+    if (myrank != 0) data.resize(data_size, 0);
+    Core::Communication::broadcast(data.data(), data.size(), 0, comm);
+
+    Core::Communication::UnpackBuffer buffer(data);
+    if (myrank != 0)
+    {
+      extract_from_pack(buffer, inputData.bottom_corner_point_);
+      extract_from_pack(buffer, inputData.top_corner_point_);
+      extract_from_pack(buffer, inputData.interval_);
+      extract_from_pack(buffer, inputData.rotation_angle_);
+      extract_from_pack(buffer, inputData.autopartition_);
+      extract_from_pack(buffer, inputData.elementtype_);
+      extract_from_pack(buffer, inputData.distype_);
+      extract_from_pack(buffer, inputData.elearguments_);
+    }
+  }
+
+  DomainReader::DomainReader(std::shared_ptr<Core::FE::Discretization> dis,
+      const Core::IO::InputFile& input, std::string sectionname)
+      : name_(dis->name()),
+        input_(input),
+        comm_(dis->get_comm()),
+        sectionname_(sectionname),
+        dis_(dis)
+  {
+  }
+
+  /*----------------------------------------------------------------------*/
+  /*----------------------------------------------------------------------*/
+  void DomainReader::create_partitioned_mesh(int nodeGIdOfFirstNewNode) const
+  {
+    const int myrank = Core::Communication::my_mpi_rank(comm_);
+
+    Teuchos::Time time("", true);
+
+    if (myrank == 0)
+      Core::IO::cout << "Entering domain generation mode for " << name_
+                     << " discretization ...\nCreate and partition elements      in...."
+                     << Core::IO::endl;
+
+    Core::IO::GridGenerator::RectangularCuboidInputs inputData =
+        DomainReader::read_rectangular_cuboid_input_data();
+    inputData.node_gid_of_first_new_node_ = nodeGIdOfFirstNewNode;
+
+    Core::IO::GridGenerator::create_rectangular_cuboid_discretization(*dis_, inputData, false);
+
+    if (!myrank)
+      Core::IO::cout << "............................................... " << std::setw(10)
+                     << std::setprecision(5) << std::scientific << time.totalElapsedTime(true)
+                     << " secs" << Core::IO::endl;
+
+    return;
+  }
+
+  /*----------------------------------------------------------------------*/
+  /*----------------------------------------------------------------------*/
+  Core::IO::GridGenerator::RectangularCuboidInputs
+  DomainReader::read_rectangular_cuboid_input_data() const
+  {
+    Core::IO::GridGenerator::RectangularCuboidInputs inputData;
+    // all reading is done on proc 0
+    if (Core::Communication::my_mpi_rank(comm_) == 0)
+    {
+      bool any_lines_read = false;
+      // read domain info
+      for (const auto& line : input_.in_section_rank_0_only(sectionname_))
+      {
+        any_lines_read = true;
+        std::istringstream t{std::string{line.get_as_dat_style_string()}};
+        std::string key;
+        t >> key;
+        if (key == "LOWER_BOUND")
+          t >> inputData.bottom_corner_point_[0] >> inputData.bottom_corner_point_[1] >>
+              inputData.bottom_corner_point_[2];
+        else if (key == "UPPER_BOUND")
+          t >> inputData.top_corner_point_[0] >> inputData.top_corner_point_[1] >>
+              inputData.top_corner_point_[2];
+        else if (key == "INTERVALS")
+          t >> inputData.interval_[0] >> inputData.interval_[1] >> inputData.interval_[2];
+        else if (key == "ROTATION")
+          t >> inputData.rotation_angle_[0] >> inputData.rotation_angle_[1] >>
+              inputData.rotation_angle_[2];
+        else if (key == "ELEMENTS")
+        {
+          t >> inputData.elementtype_ >> inputData.distype_;
+          getline(t, inputData.elearguments_);
+        }
+        else if (key == "PARTITION")
+        {
+          std::string tmp;
+          t >> tmp;
+          std::transform(
+              tmp.begin(), tmp.end(), tmp.begin(), [](unsigned char c) { return std::tolower(c); });
+          if (tmp == "auto")
+            inputData.autopartition_ = true;
+          else if (tmp == "structured")
+            inputData.autopartition_ = false;
+          else
+            FOUR_C_THROW(
+                "Invalid argument for PARTITION in DOMAIN reader. Valid options are \"auto\" "
+                "and \"structured\".");
+        }
+        else
+          FOUR_C_THROW("Unknown Key in DOMAIN section");
+      }
+
+      if (!any_lines_read)
+      {
+        FOUR_C_THROW("No DOMAIN specified but box geometry selected!");
+      }
+    }
+
+    // broadcast if necessary
+    if (Core::Communication::num_mpi_ranks(comm_) > 1)
+    {
+      broadcast_input_data_to_all_procs(comm_, inputData);
+    }
+
+    return inputData;
+  }
+
+
+  /*----------------------------------------------------------------------*/
+  /*----------------------------------------------------------------------*/
+  void DomainReader::complete() const
+  {
+    const int myrank = Core::Communication::my_mpi_rank(comm_);
+
+    Teuchos::Time time("", true);
+
+    if (!myrank)
+      Core::IO::cout << "Complete discretization " << std::left << std::setw(16) << name_
+                     << " in...." << Core::IO::flush;
+
+    int err = dis_->fill_complete(false, false, false);
+    if (err) FOUR_C_THROW("dis_->fill_complete() returned {}", err);
+
+    if (!myrank) Core::IO::cout << time.totalElapsedTime(true) << " secs" << Core::IO::endl;
+
+    Core::Rebalance::Utils::print_parallel_distribution(*dis_);
+  }
+
+  std::pair<std::shared_ptr<Core::LinAlg::Map>, std::shared_ptr<Core::LinAlg::Map>>
+  do_rebalance_discretization(const std::shared_ptr<const Core::LinAlg::Graph>& graph,
+      Core::FE::Discretization& discret, Core::Rebalance::RebalanceType rebalanceMethod,
+      Teuchos::ParameterList& rebalanceParams,
+      const Core::IO::MeshReader::MeshReaderParameters& parameters, MPI_Comm comm)
+  {
+    std::shared_ptr<Core::LinAlg::Map> rowmap, colmap;
+
+    switch (rebalanceMethod)
+    {
+      case Core::Rebalance::RebalanceType::hypergraph:
+      {
+        if (!Core::Communication::my_mpi_rank(comm))
+          std::cout << "Redistributing using hypergraph .........\n";
+
+        rebalanceParams.set("partitioning method", "HYPERGRAPH");
+        std::tie(rowmap, colmap) = Core::Rebalance::rebalance_node_maps(*graph, rebalanceParams);
+        break;
+      }
+      case Core::Rebalance::RebalanceType::recursive_coordinate_bisection:
+      {
+        if (!Core::Communication::my_mpi_rank(comm))
+          std::cout << "Redistributing using recursive coordinate bisection .........\n";
+
+        rebalanceParams.set("partitioning method", "RCB");
+
+        rowmap = std::make_shared<Core::LinAlg::Map>(-1, graph->row_map().NumMyElements(),
+            graph->row_map().MyGlobalElements(), 0, Core::Communication::as_epetra_comm(comm));
+        colmap = std::make_shared<Core::LinAlg::Map>(-1, graph->col_map().NumMyElements(),
+            graph->col_map().MyGlobalElements(), 0, Core::Communication::as_epetra_comm(comm));
+
+        discret.redistribute(*rowmap, *colmap,
+            {.assign_degrees_of_freedom = false,
+                .init_elements = false,
+                .do_boundary_conditions = false});
+
+        std::shared_ptr<Core::LinAlg::MultiVector<double>> coordinates =
+            discret.build_node_coordinates();
+
+        std::tie(rowmap, colmap) = Core::Rebalance::rebalance_node_maps(
+            *graph, rebalanceParams, nullptr, nullptr, coordinates);
+        break;
+      }
+      case Core::Rebalance::RebalanceType::monolithic:
+      {
+        if (!Core::Communication::my_mpi_rank(comm))
+          std::cout << "Redistributing using monolithic hypergraph .........\n";
+
+        rebalanceParams.set("partitioning method", "HYPERGRAPH");
+
+        rowmap = std::make_shared<Core::LinAlg::Map>(-1, graph->row_map().NumMyElements(),
+            graph->row_map().MyGlobalElements(), 0, Core::Communication::as_epetra_comm(comm));
+        colmap = std::make_shared<Core::LinAlg::Map>(-1, graph->col_map().NumMyElements(),
+            graph->col_map().MyGlobalElements(), 0, Core::Communication::as_epetra_comm(comm));
+
+        discret.redistribute(*rowmap, *colmap, {.do_boundary_conditions = false});
+
+        std::shared_ptr<const Core::LinAlg::Graph> enriched_graph =
+            Core::Rebalance::build_monolithic_node_graph(
+                discret, Core::GeometricSearch::GeometricSearchParams(
+                             parameters.geometric_search_parameters, parameters.io_parameters));
+
+        std::tie(rowmap, colmap) =
+            Core::Rebalance::rebalance_node_maps(*enriched_graph, rebalanceParams);
+        break;
+      }
+      default:
+        FOUR_C_THROW("Appropriate partitioning has to be set!");
+    }
+
+    return {rowmap, colmap};
+  }
+
+  void rebalance_discretization(Core::FE::Discretization& discret,
+      const Core::LinAlg::Map& row_elements,
+      const Core::IO::MeshReader::MeshReaderParameters& parameters, MPI_Comm comm)
+  {
+    std::shared_ptr<const Core::LinAlg::Graph> graph = nullptr;
+
+    // Skip building the node graph if there are no elements
+    if (row_elements.NumGlobalElements() > 0)
+      graph = Core::Rebalance::build_graph(discret, row_elements);
+
+    // Create partitioning parameters
     const double imbalance_tol =
-        parameters_.mesh_partitioning_parameters.get<double>("IMBALANCE_TOL");
+        parameters.mesh_partitioning_parameters.get<double>("IMBALANCE_TOL");
 
     Teuchos::ParameterList rebalanceParams;
     rebalanceParams.set<std::string>("imbalance tol", std::to_string(imbalance_tol));
 
     const int minele_per_proc =
-        parameters_.mesh_partitioning_parameters.get<int>("MIN_ELE_PER_PROC");
-    const int max_global_procs = Core::Communication::num_mpi_ranks(comm_);
+        parameters.mesh_partitioning_parameters.get<int>("MIN_ELE_PER_PROC");
+    const int max_global_procs = Core::Communication::num_mpi_ranks(comm);
     int min_global_procs = max_global_procs;
 
-    if (minele_per_proc > 0)
-      min_global_procs =
-          element_readers_[i].get_row_elements()->NumGlobalElements() / minele_per_proc;
+    if (minele_per_proc > 0) min_global_procs = row_elements.NumGlobalElements() / minele_per_proc;
     const int num_procs = std::min(max_global_procs, min_global_procs);
     rebalanceParams.set<std::string>("num parts", std::to_string(num_procs));
 
     const auto rebalanceMethod = Teuchos::getIntegralValue<Core::Rebalance::RebalanceType>(
-        parameters_.mesh_partitioning_parameters, "METHOD");
+        parameters.mesh_partitioning_parameters, "METHOD");
 
-    if (!Core::Communication::my_mpi_rank(comm_))
+    if (!Core::Communication::my_mpi_rank(comm))
       std::cout << "\nNumber of procs used for redistribution: " << num_procs << "\n";
 
-    std::shared_ptr<Epetra_Map> rowmap, colmap;
+    std::shared_ptr<Core::LinAlg::Map> rowmap, colmap;
 
-    if (graph_[i])
+    if (graph)
     {
-      switch (rebalanceMethod)
-      {
-        case Core::Rebalance::RebalanceType::hypergraph:
-        {
-          if (!Core::Communication::my_mpi_rank(comm_))
-            std::cout << "Redistributing using "
-                      << "hypergraph"
-                      << " .........\n";
-
-          rebalanceParams.set("partitioning method", "HYPERGRAPH");
-
-          // here we can reuse the graph, which was calculated before, this saves us some time
-          std::tie(rowmap, colmap) =
-              Core::Rebalance::rebalance_node_maps(*graph_[i], rebalanceParams);
-
-          break;
-        }
-        case Core::Rebalance::RebalanceType::recursive_coordinate_bisection:
-        {
-          if (!Core::Communication::my_mpi_rank(comm_))
-            std::cout << "Redistributing using "
-                      << "recursive coordinate bisection"
-                      << " .........\n";
-
-          rebalanceParams.set("partitioning method", "RCB");
-
-          // here we can reuse the graph, which was calculated before, this saves us some time and
-          // in addition calculate geometric information based on the coordinates of the
-          // discretization
-          rowmap = std::make_shared<Epetra_Map>(-1, graph_[i]->RowMap().NumMyElements(),
-              graph_[i]->RowMap().MyGlobalElements(), 0,
-              Core::Communication::as_epetra_comm(comm_));
-          colmap = std::make_shared<Epetra_Map>(-1, graph_[i]->ColMap().NumMyElements(),
-              graph_[i]->ColMap().MyGlobalElements(), 0,
-              Core::Communication::as_epetra_comm(comm_));
-
-          discret->redistribute(*rowmap, *colmap,
-              {.assign_degrees_of_freedom = false,
-                  .init_elements = false,
-                  .do_boundary_conditions = false});
-
-          std::shared_ptr<Core::LinAlg::MultiVector<double>> coordinates =
-              discret->build_node_coordinates();
-
-          std::tie(rowmap, colmap) = Core::Rebalance::rebalance_node_maps(
-              *graph_[i], rebalanceParams, nullptr, nullptr, coordinates);
-
-          break;
-        }
-        case Core::Rebalance::RebalanceType::monolithic:
-        {
-          if (!Core::Communication::my_mpi_rank(comm_))
-            std::cout << "Redistributing using "
-                      << "monolithic hypergraph"
-                      << " .........\n";
-
-          rebalanceParams.set("partitioning method", "HYPERGRAPH");
-
-          rowmap = std::make_shared<Epetra_Map>(-1, graph_[i]->RowMap().NumMyElements(),
-              graph_[i]->RowMap().MyGlobalElements(), 0,
-              Core::Communication::as_epetra_comm(comm_));
-          colmap = std::make_shared<Epetra_Map>(-1, graph_[i]->ColMap().NumMyElements(),
-              graph_[i]->ColMap().MyGlobalElements(), 0,
-              Core::Communication::as_epetra_comm(comm_));
-
-          discret->redistribute(*rowmap, *colmap, {.do_boundary_conditions = false});
-
-          std::shared_ptr<const Epetra_CrsGraph> enriched_graph =
-              Core::Rebalance::build_monolithic_node_graph(*discret,
-                  Core::GeometricSearch::GeometricSearchParams(
-                      parameters_.geometric_search_parameters, parameters_.io_parameters));
-
-          std::tie(rowmap, colmap) =
-              Core::Rebalance::rebalance_node_maps(*enriched_graph, rebalanceParams);
-
-          break;
-        }
-        default:
-          FOUR_C_THROW("Appropriate partitioning has to be set!");
-      }
+      std::tie(rowmap, colmap) = do_rebalance_discretization(
+          graph, discret, rebalanceMethod, rebalanceParams, parameters, comm);
     }
     else
     {
-      rowmap = colmap = std::make_shared<Epetra_Map>(
-          -1, 0, nullptr, 0, Core::Communication::as_epetra_comm(comm_));
+      rowmap = colmap = std::make_shared<Core::LinAlg::Map>(
+          -1, 0, nullptr, 0, Core::Communication::as_epetra_comm(comm));
     }
 
     auto options_redistribution = Core::FE::OptionsRedistribution();
@@ -254,12 +659,10 @@ void Core::IO::MeshReader::rebalance()
     options_redistribution.init_elements = false;
     options_redistribution.do_boundary_conditions = false;
 
-    discret->redistribute(*rowmap, *colmap, options_redistribution);
+    discret.redistribute(*rowmap, *colmap, options_redistribution);
 
-    Core::Rebalance::Utils::print_parallel_distribution(*discret);
+    Core::Rebalance::Utils::print_parallel_distribution(discret);
   }
-<<<<<<< Updated upstream
-=======
 
   std::vector<std::shared_ptr<Core::FE::Discretization>> find_dis_node(
       const std::vector<ElementReader>& element_readers, int global_node_id)
@@ -396,10 +799,10 @@ void Core::IO::MeshReader::rebalance()
       ++line_count;
     }
   }
-
+//# like here, why dont we make a read_mesh_from_msh as well
   void read_mesh_from_exodus(const Core::IO::InputFile& input,
       Core::IO::Internal::ExodusReader& exodus_reader,
-      const Core::IO::MeshReader::MeshReaderParameters& parameters, int& ele_count, MPI_Comm comm)//# like here, why dont we make a read_mesh_from_msh as well
+      const Core::IO::MeshReader::MeshReaderParameters& parameters, int& ele_count, MPI_Comm comm)
   {
     TEUCHOS_FUNC_TIME_MONITOR("Core::IO::MeshReader::read_mesh_from_exodus");
     auto my_rank = Core::Communication::my_mpi_rank(comm);
@@ -534,25 +937,92 @@ void Core::IO::MeshReader::attach_discretization(
     std::shared_ptr<Core::FE::Discretization> dis, const std::string& section_prefix)
 {
   target_discretizations_.emplace_back(section_prefix, dis);
->>>>>>> Stashed changes
 }
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void Core::IO::MeshReader::create_inline_mesh(int& max_node_id)
+void Core::IO::MeshReader::read_and_partition()
 {
-  for (const auto& domain_reader : domain_readers_)
-  {
-    // communicate node offset to all procs
-    int local_max_node_id = max_node_id;
-    Core::Communication::max_all(&local_max_node_id, &max_node_id, 1, comm_);
+  // We need to track the max global node ID to offset node numbering and for sanity checks
+  int max_node_id = 0;
 
+  std::vector<ElementReader> element_readers;
+  std::vector<DomainReader> domain_readers;
+
+  for (const auto& [section_name, dis] : target_discretizations_)
+  {
+    // Find out which section we have available for input. We can only do this on rank zero due
+    // to large legacy sections that are not available everywhere. Communicate the result to all
+    // ranks.
+    std::map<std::string, bool> available_section;
+    const int my_rank = Core::Communication::my_mpi_rank(comm_);
+    if (my_rank == 0)
+    {
+      available_section[section_name + " ELEMENTS"] =
+          input_.has_section(section_name + " ELEMENTS");
+      available_section[section_name + " DOMAIN"] = input_.has_section(section_name + " DOMAIN");
+      available_section[section_name + " GEOMETRY"] =
+          input_.has_section(section_name + " GEOMETRY");
+      Core::Communication::broadcast(available_section, 0, comm_);
+    }
+    else
+    {
+      Core::Communication::broadcast(available_section, 0, comm_);
+    }
+
+    const int num_sections_in_file =
+        std::ranges::count_if(available_section, [](const auto& pair) { return pair.second; });
+    if (num_sections_in_file > 1)
+    {
+      std::string found_sections;
+      for (const auto& [section, exists] : available_section)
+      {
+        if (exists) found_sections += "'" + section + "' ";
+      }
+      FOUR_C_THROW(
+          "Multiple options to read mesh for discretization '{}'. Only one is allowed.\n Found "
+          "sections: {}",
+          dis->name(), found_sections);
+    }
+
+    if (num_sections_in_file == 0 || available_section[section_name + " ELEMENTS"])
+    {
+      // This used to be the default, so we use it for backwards compatibility.
+      element_readers.emplace_back(ElementReader(dis, input_, section_name + " ELEMENTS"));
+    }
+    else if (available_section[section_name + " DOMAIN"])
+    {
+      domain_readers.emplace_back(DomainReader(dis, input_, section_name + " DOMAIN"));
+    }
+    else if (available_section[section_name + " GEOMETRY"])
+    {
+      exodus_readers_.emplace_back(
+          std::make_unique<Internal::ExodusReader>(*dis, section_name + " GEOMETRY"));
+    }
+  }
+
+  // Read all the elements first
+  for (auto& element_reader : element_readers)
+  {
+    element_reader.read_and_distribute();
+  }
+
+  // Only now read the nodes since they must belong to one of the read elements.
+  read_nodes(input_, "NODE COORDS", element_readers, max_node_id);
+
+  for (auto& element_reader : element_readers)
+  {
+    rebalance_discretization(
+        *element_reader.get_dis(), *element_reader.get_row_elements(), parameters_, comm_);
+  }
+
+  Core::Communication::broadcast(max_node_id, 0, comm_);
+  for (auto& domain_reader : domain_readers)
+  {
     domain_reader.create_partitioned_mesh(max_node_id);
     domain_reader.complete();
     max_node_id = domain_reader.my_dis()->node_row_map()->MaxAllGID() + 1;
   }
-<<<<<<< Updated upstream
-=======
 
   // First, we look at all the mesh files we are going to read and determine if they are
   // duplicated. For now, we only support the case where all files are the same.
@@ -567,10 +1037,9 @@ void Core::IO::MeshReader::create_inline_mesh(int& max_node_id)
 
       Core::IO::InputParameterContainer data;
       input_.match_section(exodus_reader->section_name, data);
-
+//# why not also support FILE: gmsh file, so a .msh. Then, in 4C_io_gmsh.hpp, write some functions to not only output gmsh but also take it as the input mesh
       const auto& geometry_data = data.group(exodus_reader->section_name);
       const auto& exodus_file = geometry_data.get<std::filesystem::path>("FILE");
-      //# why not also support FILE: gmsh file, so a .msh. Then, in 4C_io_gmsh.hpp, write some functions to not only output gmsh but also take it as the input mesh
       if (mesh)
       {
         FOUR_C_ASSERT_ALWAYS(mesh_file == exodus_file,
@@ -617,7 +1086,6 @@ const Core::IO::Exodus::Mesh* Core::IO::MeshReader::get_exodus_mesh_on_rank_zero
       "Internal error: all meshes are supposed to be the same.");
 
   return exodus_readers_.front()->mesh_on_rank_zero.get();
->>>>>>> Stashed changes
 }
 
 FOUR_C_NAMESPACE_CLOSE

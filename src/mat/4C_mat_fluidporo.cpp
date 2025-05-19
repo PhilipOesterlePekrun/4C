@@ -10,6 +10,7 @@
 #include "4C_comm_pack_helpers.hpp"
 #include "4C_global_data.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <vector>
 
@@ -414,8 +415,8 @@ namespace Mat::FLUIDPORO
 
       reaction_tensor.clear();
 
-      Core::LinAlg::Matrix<dim, dim> permeability_tensor(true);
-      Core::LinAlg::Matrix<dim, dim> structure_tensor(true);
+      Core::LinAlg::Matrix<dim, dim> permeability_tensor(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<dim, dim> structure_tensor(Core::LinAlg::Initialization::zero);
       create_structure_tensor_from_vector<dim>(
           anisotropic_permeability_directions[0], structure_tensor);
 
@@ -453,7 +454,7 @@ namespace Mat::FLUIDPORO
       if (viscosity <= 0.0) FOUR_C_THROW("zero or negative viscosity");
       for (int dim = 0; dim < 3; ++dim)
         if (orthotropic_permeabilities[dim] <= 0.0)
-          FOUR_C_THROW("zero or negative permeability in direction " + std::to_string(dim + 1));
+          FOUR_C_THROW("zero or negative permeability in direction {}", dim + 1);
 
       // trace of the reaction tensor divided by 3
       const double reacoeff =
@@ -485,14 +486,14 @@ namespace Mat::FLUIDPORO
       if (dynamic_viscosity <= 0.0) FOUR_C_THROW("zero or negative viscosity");
       for (int dim = 0; dim < 3; ++dim)
         if (orthotropic_permeabilities[dim] <= 0.0)
-          FOUR_C_THROW("zero or negative permeability in direction " + std::to_string(dim + 1));
+          FOUR_C_THROW("zero or negative permeability in direction {}", dim + 1);
       if (anisotropic_permeability_directions.empty())
         FOUR_C_THROW("orthotropy directions not specified");
 
       reaction_tensor.clear();
 
-      Core::LinAlg::Matrix<3, 3> permeability_tensor(true);
-      Core::LinAlg::Matrix<3, 3> structure_tensor(true);
+      Core::LinAlg::Matrix<3, 3> permeability_tensor(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<3, 3> structure_tensor(Core::LinAlg::Initialization::zero);
 
       for (int dim = 0; dim < 3; ++dim)
       {
@@ -605,8 +606,8 @@ namespace Mat::FLUIDPORO
 
       reaction_tensor.clear();
 
-      Core::LinAlg::Matrix<dim, dim> permeability_tensor(true);
-      Core::LinAlg::Matrix<dim, dim> structure_tensor(true);
+      Core::LinAlg::Matrix<dim, dim> permeability_tensor(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<dim, dim> structure_tensor(Core::LinAlg::Initialization::zero);
 
       for (unsigned int i = 0; i < dim; ++i)
       {
@@ -676,7 +677,7 @@ Mat::PAR::FluidPoro::FluidPoro(const Core::Mat::PAR::Parameter::Data& matdata)
   else if (pfuncstring == "Const_Material_Nodal_Orthotropy")
     permeability_func_ = Mat::PAR::const_material_nodal_orthotropic;
   else
-    FOUR_C_THROW("Unknown permeability function: %s", pfuncstring.c_str());
+    FOUR_C_THROW("Unknown permeability function: {}", pfuncstring);
 
   orthotropic_permeabilities_.resize(3, 0.0);
   if (permeability_func_ == Mat::PAR::const_material_orthotropic)
@@ -755,7 +756,7 @@ void Mat::FluidPoro::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::FluidPoro*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
   }

@@ -68,7 +68,6 @@ Mat::ScatraMultiScaleGP::ScatraMultiScaleGP(
       ddet_fdtn_(0.0),
       ddet_fdtnp_(0.0),
       is_ale_(is_ale)
-
 {
 }
 
@@ -143,11 +142,26 @@ void Mat::ScatraMultiScaleGP::init()
           "Must have identical one-step-theta time integration factor on macro and micro scales!");
     if (microdis->num_global_elements() == 0)
       FOUR_C_THROW("No elements in TRANSPORT ELEMENTS section of micro-scale input file!");
-    if (microdis->g_node(0)->x()[0] != 0.0)
+
+    // Extract all x-coordinates of the microscale discretization, sort them, and check that the
+    // first and last x-coordinates are 0 and > 0, respectively.
     {
-      FOUR_C_THROW(
-          "Micro-scale domain must have one end at coordinate 0 and the other end at a coordinate "
-          "> 0!");
+      // The micro discretization is replicated on all ranks, so this will catch all x-coordinates.
+      std::vector<double> xcoords;
+      xcoords.reserve(microdis->num_my_row_nodes());
+      for (const auto& node : microdis->my_row_node_range())
+      {
+        xcoords.push_back(node->x()[0]);
+      }
+      std::ranges::sort(xcoords);
+
+      FOUR_C_ASSERT_ALWAYS(xcoords[0] == 0.0,
+          "First x-coordinate of micro-scale discretization must be 0! First x-coordinate is {}",
+          xcoords[0]);
+
+      FOUR_C_ASSERT_ALWAYS(xcoords.back() > 0.0,
+          "Last x-coordinate of micro-scale discretization must be > 0! Last x-coordinate is {}",
+          xcoords.back());
     }
 
     // extract multi-scale coupling conditions from micro-scale discretization
@@ -179,7 +193,7 @@ void Mat::ScatraMultiScaleGP::init()
           if (node == nullptr)
           {
             FOUR_C_THROW(
-                "Cannot extract node with global ID %d from micro-scale discretization!", inode);
+                "Cannot extract node with global ID {} from micro-scale discretization!", inode);
           }
           else if (node->x()[0] <= 0.0)
             FOUR_C_THROW(
@@ -238,7 +252,9 @@ void Mat::ScatraMultiScaleGP::init()
     global_micro_state().microdisnum_microtimint_map_[microdisnum_]->setup();
 
     // set initial velocity field
-    global_micro_state().microdisnum_microtimint_map_[microdisnum_]->set_velocity_field();
+    global_micro_state()
+        .microdisnum_microtimint_map_[microdisnum_]
+        ->set_velocity_field_from_function();
 
     // create counter for number of macro-scale Gauss points associated with micro-scale time
     // integrator
@@ -249,8 +265,8 @@ void Mat::ScatraMultiScaleGP::init()
   ++global_micro_state().microdisnum_nummacrogp_map_[microdisnum_];
 
   // extract initial state vectors from micro-scale time integrator
-  phin_->Scale(1., *global_micro_state().microdisnum_microtimint_map_[microdisnum_]->phin());
-  phinp_->Scale(1., *global_micro_state().microdisnum_microtimint_map_[microdisnum_]->phinp());
+  phin_->scale(1., *global_micro_state().microdisnum_microtimint_map_[microdisnum_]->phin());
+  phinp_->scale(1., *global_micro_state().microdisnum_microtimint_map_[microdisnum_]->phinp());
 
   // create new result file
   new_result_file();
@@ -337,7 +353,7 @@ double Mat::ScatraMultiScaleGP::evaluate_mean_concentration() const
 
   // set micro-scale state vector
   discret.clear_state();
-  discret.set_state("phinp", phinp_);
+  discret.set_state("phinp", *phinp_);
 
   // set parameters for micro-scale elements
   Teuchos::ParameterList eleparams;
@@ -371,7 +387,7 @@ double Mat::ScatraMultiScaleGP::evaluate_mean_concentration_time_derivative() co
 
   // set micro-scale state vector
   discret.clear_state();
-  discret.set_state("phidtnp", phidtnp_);
+  discret.set_state("phidtnp", *phidtnp_);
 
   // set parameters for micro-scale elements
   Teuchos::ParameterList eleparams;

@@ -16,6 +16,7 @@
 #include "4C_fem_general_utils_fem_shapefunctions.hpp"
 #include "4C_global_data.hpp"
 #include "4C_mat_cnst_1d_art.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 #include "4C_utils_function_of_time.hpp"
 #include "4C_utils_singleton_owner.hpp"
@@ -66,18 +67,17 @@ Discret::Elements::ArteryEleCalcLinExp<distype>::instance(
 template <Core::FE::CellType distype>
 int Discret::Elements::ArteryEleCalcLinExp<distype>::evaluate(Artery* ele,
     Teuchos::ParameterList& params, Core::FE::Discretization& discretization,
-    Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra, std::shared_ptr<Core::Mat::Material> mat)
+    Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1,
+    Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+    Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3,
+    std::shared_ptr<Core::Mat::Material> mat)
 {
   // the number of nodes
   const int numnode = my::iel_;
 
   // construct views
-  Core::LinAlg::Matrix<2 * my::iel_, 2 * my::iel_> elemat1(elemat1_epetra.values(), true);
-  Core::LinAlg::Matrix<2 * my::iel_, 1> elevec1(elevec1_epetra.values(), true);
+  Core::LinAlg::Matrix<2 * my::iel_, 2 * my::iel_> elemat_1(elemat1.values(), true);
+  Core::LinAlg::Matrix<2 * my::iel_, 1> elevec_1(elevec1.values(), true);
   // elemat2, elevec2, and elevec3 are never used anyway
 
   //----------------------------------------------------------------------
@@ -105,8 +105,7 @@ int Discret::Elements::ArteryEleCalcLinExp<distype>::evaluate(Artery* ele,
   if (qanp == nullptr) FOUR_C_THROW("Cannot get state vectors 'qanp'");
 
   // extract local values from the global vectors
-  std::vector<double> myqanp(la[0].lm_.size());
-  Core::FE::extract_my_values(*qanp, myqanp, la[0].lm_);
+  std::vector<double> myqanp = Core::FE::extract_values(*qanp, la[0].lm_);
 
   // create objects for element arrays
   Core::LinAlg::Matrix<numnode, 1> eareanp;
@@ -122,7 +121,7 @@ int Discret::Elements::ArteryEleCalcLinExp<distype>::evaluate(Artery* ele,
   // ---------------------------------------------------------------------
   // call routine for calculating element matrix and right hand side
   // ---------------------------------------------------------------------
-  sysmat(ele, eqnp, eareanp, elemat1, elevec1, mat, dt);
+  sysmat(ele, eqnp, eareanp, elemat_1, elevec_1, mat, dt);
 
 
   return 0;
@@ -133,11 +132,9 @@ template <Core::FE::CellType distype>
 int Discret::Elements::ArteryEleCalcLinExp<distype>::evaluate_service(Artery* ele,
     const Arteries::Action action, Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, Core::Elements::LocationArray& la,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra, std::shared_ptr<Core::Mat::Material> mat)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3, std::shared_ptr<Core::Mat::Material> mat)
 {
   switch (action)
   {
@@ -182,7 +179,7 @@ int Discret::Elements::ArteryEleCalcLinExp<distype>::evaluate_service(Artery* el
     }
     break;
     default:
-      FOUR_C_THROW("Unknown type of action %d for Artery (LinExp formulation)", action);
+      FOUR_C_THROW("Unknown type of action {} for Artery (LinExp formulation)", action);
   }  // end of switch(act)
 
   return 0;
@@ -191,18 +188,16 @@ int Discret::Elements::ArteryEleCalcLinExp<distype>::evaluate_service(Artery* el
 template <Core::FE::CellType distype>
 int Discret::Elements::ArteryEleCalcLinExp<distype>::scatra_evaluate(Artery* ele,
     Teuchos::ParameterList& params, Core::FE::Discretization& discretization, std::vector<int>& lm,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra, std::shared_ptr<Core::Mat::Material> mat)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3, std::shared_ptr<Core::Mat::Material> mat)
 {
   // the number of nodes
   const int numnode = my::iel_;
 
   // construct views
-  Core::LinAlg::Matrix<2 * my::iel_, 2 * my::iel_> elemat1(elemat1_epetra.values(), true);
-  Core::LinAlg::Matrix<2 * my::iel_, 1> elevec1(elevec1_epetra.values(), true);
+  Core::LinAlg::Matrix<2 * my::iel_, 2 * my::iel_> elemat_1(elemat1.values(), true);
+  Core::LinAlg::Matrix<2 * my::iel_, 1> elevec_1(elevec1.values(), true);
   // elemat2, elevec2, and elevec3 are never used anyway
 
   //----------------------------------------------------------------------
@@ -245,8 +240,7 @@ int Discret::Elements::ArteryEleCalcLinExp<distype>::scatra_evaluate(Artery* ele
   // extract local values from the global vectors
   std::vector<double> myqanp(lm.size());
   std::vector<double> myqan(lm.size());
-  std::vector<double> myescatran(lm.size());
-  Core::FE::extract_my_values(*scatran, myescatran, lm);
+  std::vector<double> myescatran = Core::FE::extract_values(*scatran, lm);
   //  Core::FE::extract_my_values(*qan ,myqan ,lm);
 
   // create objects for element arrays
@@ -276,7 +270,7 @@ int Discret::Elements::ArteryEleCalcLinExp<distype>::scatra_evaluate(Artery* ele
   }
 
   // call routine for calculating element matrix and right hand side
-  scatra_sysmat(ele, escatran, ewfnp, ewbnp, eareanp, earean, elemat1, elevec1, *mat, dt);
+  scatra_sysmat(ele, escatran, ewfnp, ewbnp, eareanp, earean, elemat_1, elevec_1, *mat, dt);
   return 0;
 }
 
@@ -309,25 +303,25 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::initial(Artery* ele,
     {
       int gid = lm[0];
       double val = M_PI * pow(actmat->diam() / 2, 2);
-      qa0->ReplaceGlobalValues(1, &val, &gid);
+      qa0->replace_global_values(1, &val, &gid);
     }
     if (myrank == nodes[0]->owner())
     {
       int gid = lm[1];
       double val = 0.0;
-      qa0->ReplaceGlobalValues(1, &val, &gid);
+      qa0->replace_global_values(1, &val, &gid);
     }
     if (myrank == nodes[1]->owner())
     {
       int gid = lm[2];
       double val = M_PI * pow(actmat->diam() / 2, 2);
-      qa0->ReplaceGlobalValues(1, &val, &gid);
+      qa0->replace_global_values(1, &val, &gid);
     }
     if (myrank == nodes[1]->owner())
     {
       int gid = lm[3];
       double val = 0.0;
-      qa0->ReplaceGlobalValues(1, &val, &gid);
+      qa0->replace_global_values(1, &val, &gid);
     }
     // Calculate Wfo and Wbo
     // Read in initial cross-sectional area at node 1
@@ -355,19 +349,19 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::initial(Artery* ele,
 
     int gid = ele->nodes()[0]->id();
     double val = 4.0 * co1;
-    wfo->ReplaceGlobalValues(1, &val, &gid);
+    wfo->replace_global_values(1, &val, &gid);
 
     gid = ele->nodes()[0]->id();
     val = -4.0 * co2;
-    wbo->ReplaceGlobalValues(1, &val, &gid);
+    wbo->replace_global_values(1, &val, &gid);
 
     gid = ele->nodes()[1]->id();
     val = 4.0 * co2;
-    wfo->ReplaceGlobalValues(1, &val, &gid);
+    wfo->replace_global_values(1, &val, &gid);
 
     gid = ele->nodes()[1]->id();
     val = -4.0 * co2;
-    wbo->ReplaceGlobalValues(1, &val, &gid);
+    wbo->replace_global_values(1, &val, &gid);
   }
   else
     FOUR_C_THROW("Material law is not an artery");
@@ -993,8 +987,7 @@ bool Discret::Elements::ArteryEleCalcLinExp<distype>::solve_riemann(Artery* ele,
   if (qanp == nullptr) FOUR_C_THROW("Cannot get state vectors 'qanp'");
 
   // extract local values from the global vectors
-  std::vector<double> myqanp(lm.size());
-  Core::FE::extract_my_values(*qanp, myqanp, lm);
+  std::vector<double> myqanp = Core::FE::extract_values(*qanp, lm);
 
   // create objects for element arrays
   Core::LinAlg::Matrix<numnode, 1> earean;
@@ -1030,7 +1023,7 @@ bool Discret::Elements::ArteryEleCalcLinExp<distype>::solve_riemann(Artery* ele,
   // get the number of nodes per element
   const int numnds = ele->num_node();
 
-  if (numnds != 2) FOUR_C_THROW("An element with %d nodes is not supported", numnds);
+  if (numnds != 2) FOUR_C_THROW("An element with {} nodes is not supported", numnds);
 
   // check for the CFL number CFL = Max(abs(3/sqrt(3) * lambda2_i * dt/dx), abs(3/sqrt(3) *
   // lambda1_i * dt/dx))
@@ -1050,7 +1043,7 @@ bool Discret::Elements::ArteryEleCalcLinExp<distype>::solve_riemann(Artery* ele,
   if (3.0 / sqrt(3.0) * lambda_max * dt / L >= 1.0)
   {
     FOUR_C_THROW(
-        "CFL number at element %d is %f", ele->id(), 3.0 / sqrt(3.0) * lambda_max * dt / L);
+        "CFL number at element {} is {}", ele->id(), 3.0 / sqrt(3.0) * lambda_max * dt / L);
   }
 
   // Solve Riemann problem at the terminals
@@ -1111,9 +1104,9 @@ bool Discret::Elements::ArteryEleCalcLinExp<distype>::solve_riemann(Artery* ele,
         int gid = ele->nodes()[i]->id();
         double val = Wnp;
         if (TermIO == -1.0)
-          Wbnp->ReplaceGlobalValues(1, &val, &gid);
+          Wbnp->replace_global_values(1, &val, &gid);
         else if (TermIO == 1.0)
-          Wfnp->ReplaceGlobalValues(1, &val, &gid);
+          Wfnp->replace_global_values(1, &val, &gid);
       }
 
       // -----------------------------------------------------------------------------
@@ -1130,9 +1123,8 @@ bool Discret::Elements::ArteryEleCalcLinExp<distype>::solve_riemann(Artery* ele,
         int local_id = discretization.node_row_map()->LID(ele->nodes()[i]->id());
         if (local_id < 0)
         {
-          FOUR_C_THROW("node (%d) doesn't exist on proc(%d)", ele->nodes()[i],
+          FOUR_C_THROW("node ({}) doesn't exist on proc({})", ele->nodes()[i]->id(),
               Core::Communication::my_mpi_rank(discretization.get_comm()));
-          exit(1);
         }
         if (TermIO == -1.0)
           (*junc_nodal_vals)[local_id]->W_ = (*Wbnp)[local_id];
@@ -1235,8 +1227,7 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::evaluate_terminal_bc(Arter
   if (qanp == nullptr) FOUR_C_THROW("Cannot get state vectors 'qanp'");
 
   // extract local values from the global vectors
-  std::vector<double> myqanp(lm.size());
-  Core::FE::extract_my_values(*qanp, myqanp, lm);
+  std::vector<double> myqanp = Core::FE::extract_values(*qanp, lm);
 
   // create objects for element arrays
   Core::LinAlg::Matrix<numnode, 1> eareanp;
@@ -1306,9 +1297,8 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::evaluate_terminal_bc(Arter
       int local_id = discretization.node_row_map()->LID(ele->nodes()[i]->id());
       if (local_id < 0)
       {
-        FOUR_C_THROW("node (%d) doesn't exist on proc(%d)", ele->nodes()[i],
+        FOUR_C_THROW("node ({}) doesn't exist on proc({})", ele->nodes()[i]->id(),
             Core::Communication::my_mpi_rank(discretization.get_comm()));
-        exit(1);
       }
 
       if (TermIO == -1)
@@ -1389,12 +1379,12 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::evaluate_terminal_bc(Arter
           if (TermIO == -1.0)
           {
             double val1 = Wf;
-            Wfnp->ReplaceGlobalValues(1, &val1, &gid);
+            Wfnp->replace_global_values(1, &val1, &gid);
           }
           else
           {
             double val2 = Wb;
-            Wbnp->ReplaceGlobalValues(1, &val2, &gid);
+            Wbnp->replace_global_values(1, &val2, &gid);
             int local_id = discretization.node_row_map()->LID(ele->nodes()[i]->id());
             Wf = (*Wfnp)[local_id];
           }
@@ -1409,20 +1399,20 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::evaluate_terminal_bc(Arter
 
         gid = lm[2 * i];
         val = cross_area;
-        bcval->ReplaceGlobalValues(1, &val, &gid);
+        bcval->replace_global_values(1, &val, &gid);
 
         gid = lm[2 * i];
         val = 1;
-        dbctog->ReplaceGlobalValues(1, &val, &gid);
+        dbctog->replace_global_values(1, &val, &gid);
 
         // calculating Q at node i
         gid = lm[2 * i + 1];
         val = (cross_area) * (Wf + Wb) / 2.0;
-        bcval->ReplaceGlobalValues(1, &val, &gid);
+        bcval->replace_global_values(1, &val, &gid);
 
         gid = lm[2 * i + 1];
         val = 1;
-        dbctog->ReplaceGlobalValues(1, &val, &gid);
+        dbctog->replace_global_values(1, &val, &gid);
       }
     }  // End of node i has a condition
   }  // End of for loop
@@ -1454,18 +1444,18 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::evaluate_terminal_bc(Arter
       // set A at node i
       gid = lm[2 * i];
       val = (*junc_nodal_vals)[local_id]->A_;
-      bcval->ReplaceGlobalValues(1, &val, &gid);
+      bcval->replace_global_values(1, &val, &gid);
 
       val = 1;
-      dbctog->ReplaceGlobalValues(1, &val, &gid);
+      dbctog->replace_global_values(1, &val, &gid);
 
       // set Q at node i
       gid = lm[2 * i + 1];
       val = (*junc_nodal_vals)[local_id]->Q_;
-      bcval->ReplaceGlobalValues(1, &val, &gid);
+      bcval->replace_global_values(1, &val, &gid);
 
       val = 1;
-      dbctog->ReplaceGlobalValues(1, &val, &gid);
+      dbctog->replace_global_values(1, &val, &gid);
     }
   }
 }
@@ -1531,11 +1521,11 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::evaluate_scatra_bc(Artery*
 
       int gid = lm[2 * i + dof];
       double val = 1;
-      dbctog->ReplaceGlobalValues(1, &val, &gid);
+      dbctog->replace_global_values(1, &val, &gid);
 
       gid = lm[2 * i + dof];
       val = curvefac;
-      bcval->ReplaceGlobalValues(1, &val, &gid);
+      bcval->replace_global_values(1, &val, &gid);
     }
   }
 }
@@ -1626,8 +1616,7 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::calc_postprocessing_values
   if (qanp == nullptr) FOUR_C_THROW("Cannot get state vectors 'qanp'");
 
   // extract local values from the global vectors
-  std::vector<double> myqanp(lm.size());
-  Core::FE::extract_my_values(*qanp, myqanp, lm);
+  std::vector<double> myqanp = Core::FE::extract_values(*qanp, lm);
 
   // create objects for element arrays
   Core::LinAlg::Matrix<numnode, 1> eareanp;
@@ -1675,15 +1664,15 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::calc_postprocessing_values
 
       gid = ele->nodes()[i]->id();
       val = pressure;
-      on->ReplaceGlobalValues(1, &val, &gid);
+      on->replace_global_values(1, &val, &gid);
 
       // calculating Q at node i
       val = qn_(i);
-      qn->ReplaceGlobalValues(1, &val, &gid);
+      qn->replace_global_values(1, &val, &gid);
 
       // evaluate area
       val = an_(i);
-      an->ReplaceGlobalValues(1, &val, &gid);
+      an->replace_global_values(1, &val, &gid);
     }
   }  // End of node i has a condition
 }
@@ -1706,8 +1695,7 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::calc_scatra_from_scatra_fw
   const int numnode = my::iel_;
 
   // extract local values from the global vectors
-  std::vector<double> myscatra_fb(lm.size());
-  Core::FE::extract_my_values(*scatra_fb, myscatra_fb, lm);
+  std::vector<double> myscatra_fb = Core::FE::extract_values(*scatra_fb, lm);
 
   // get all values at the last computed time step
   double val = 0.0;
@@ -1717,7 +1705,7 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::calc_scatra_from_scatra_fw
     // split area and volumetric flow rate, insert into element arrays
     val = myscatra_fb[i * 2] + myscatra_fb[i * 2 + 1];
     gid = ele->nodes()[i]->id();
-    scatra->ReplaceGlobalValues(1, &val, &gid);
+    scatra->replace_global_values(1, &val, &gid);
   }
 }
 
@@ -1798,8 +1786,7 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::evaluate_wf_and_wb(Artery*
   if (qanp == nullptr) FOUR_C_THROW("Cannot get state vectors 'qanp'");
 
   // extract local values from the global vectors
-  std::vector<double> myqanp(lm.size());
-  Core::FE::extract_my_values(*qanp, myqanp, lm);
+  std::vector<double> myqanp = Core::FE::extract_values(*qanp, lm);
 
   // create objects for element arrays
   Core::LinAlg::Matrix<numnode, 1> earean;
@@ -1837,7 +1824,7 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::evaluate_wf_and_wb(Artery*
   // get the number of nodes per element
   const int numnds = ele->num_node();
 
-  if (numnds != 2) FOUR_C_THROW("An element with %d nodes is not supported", numnds);
+  if (numnds != 2) FOUR_C_THROW("An element with {} nodes is not supported", numnds);
 
   // check for the CFL number CFL = Max(abs(3/sqrt(3) * lambda2_i * dt/dx), abs(3/sqrt(3) *
   // lambda1_i * dt/dx))
@@ -1850,8 +1837,8 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::evaluate_wf_and_wb(Artery*
 
     //    std::cout<<"Wb:  "<<Wb<<std::endl;
     int gid = ele->nodes()[i]->id();
-    Wbnp->ReplaceGlobalValues(1, &Wb, &gid);
-    Wfnp->ReplaceGlobalValues(1, &Wf, &gid);
+    Wbnp->replace_global_values(1, &Wb, &gid);
+    Wfnp->replace_global_values(1, &Wf, &gid);
   }
 }
 
@@ -1901,8 +1888,7 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::solve_scatra_analytically(
       params.get<std::shared_ptr<Core::LinAlg::Vector<double>>>("scatranp");
 
   // extract local values from the global vectors
-  std::vector<double> myescatran(lm.size());
-  Core::FE::extract_my_values(*scatran, myescatran, lm);
+  std::vector<double> myescatran = Core::FE::extract_values(*scatran, lm);
   //  Core::FE::extract_my_values(*qan ,myqan ,lm);
 
   // create objects for element arrays
@@ -1954,7 +1940,7 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::solve_scatra_analytically(
     double cn2 = escatran(2);
 
     double val = cn1 * N1 + cn2 * N2;
-    scatranp->ReplaceGlobalValues(1, &val, &gid);
+    scatranp->replace_global_values(1, &val, &gid);
   }
 
   // Evaluate backward Scalar transport at n+1
@@ -1976,7 +1962,7 @@ void Discret::Elements::ArteryEleCalcLinExp<distype>::solve_scatra_analytically(
     double cn2 = escatran(3);
 
     double val = cn1 * N1 + cn2 * N2;
-    scatranp->ReplaceGlobalValues(1, &val, &gid);
+    scatranp->replace_global_values(1, &val, &gid);
   }
 }
 /*----------------------------------------------------------------------*

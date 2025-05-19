@@ -9,6 +9,7 @@
 
 #include "4C_adapter_str_ssiwrapper.hpp"
 #include "4C_global_data.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 #include "4C_mat_par_bundle.hpp"
 #include "4C_material_parameter_base.hpp"
@@ -17,8 +18,6 @@
 #include "4C_scatra_timint_meshtying_strategy_s2i.hpp"
 #include "4C_ssi_utils.hpp"
 #include "4C_ssti_monolithic.hpp"
-
-#include <Epetra_Map.h>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -33,16 +32,16 @@ SSTI::SSTIMaps::SSTIMaps(const SSTI::SSTIMono& ssti_mono_algorithm)
       maps_subproblems_(nullptr)
 {
   // setup maps containing dofs of subproblems
-  std::vector<std::shared_ptr<const Epetra_Map>> partial_maps(3, nullptr);
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> partial_maps(3, nullptr);
   partial_maps[ssti_mono_algorithm.get_problem_position(Subproblem::scalar_transport)] =
-      std::make_shared<Epetra_Map>(*ssti_mono_algorithm.scatra_field()->dof_row_map());
+      std::make_shared<Core::LinAlg::Map>(*ssti_mono_algorithm.scatra_field()->dof_row_map());
   partial_maps[ssti_mono_algorithm.get_problem_position(Subproblem::structure)] =
-      std::make_shared<Epetra_Map>(*ssti_mono_algorithm.structure_field()->dof_row_map());
+      std::make_shared<Core::LinAlg::Map>(*ssti_mono_algorithm.structure_field()->dof_row_map());
   partial_maps[ssti_mono_algorithm.get_problem_position(Subproblem::thermo)] =
-      std::make_shared<Epetra_Map>(*ssti_mono_algorithm.thermo_field()->dof_row_map());
-  std::shared_ptr<const Epetra_Map> temp_map =
+      std::make_shared<Core::LinAlg::Map>(*ssti_mono_algorithm.thermo_field()->dof_row_map());
+  std::shared_ptr<const Core::LinAlg::Map> temp_map =
       Core::LinAlg::merge_map(partial_maps[0], partial_maps[1], false);
-  std::shared_ptr<const Epetra_Map> merged_map =
+  std::shared_ptr<const Core::LinAlg::Map> merged_map =
       Core::LinAlg::merge_map(temp_map, partial_maps[2], false);
   // initialize global map extractor
   maps_subproblems_ = std::make_shared<Core::LinAlg::MultiMapExtractor>(*merged_map, partial_maps);
@@ -52,7 +51,7 @@ SSTI::SSTIMaps::SSTIMaps(const SSTI::SSTIMono& ssti_mono_algorithm)
   // initialize map extractors associated with blocks of subproblems
   block_map_structure_ = std::make_shared<Core::LinAlg::MultiMapExtractor>(
       *ssti_mono_algorithm.structure_field()->dof_row_map(),
-      std::vector<std::shared_ptr<const Epetra_Map>>(
+      std::vector<std::shared_ptr<const Core::LinAlg::Map>>(
           1, ssti_mono_algorithm.structure_field()->dof_row_map()));
   switch (ssti_mono_algorithm.scatra_field()->matrix_type())
   {
@@ -60,11 +59,11 @@ SSTI::SSTIMaps::SSTIMaps(const SSTI::SSTIMono& ssti_mono_algorithm)
     {
       block_map_scatra_ = std::make_shared<Core::LinAlg::MultiMapExtractor>(
           *ssti_mono_algorithm.scatra_field()->dof_row_map(),
-          std::vector<std::shared_ptr<const Epetra_Map>>(
+          std::vector<std::shared_ptr<const Core::LinAlg::Map>>(
               1, ssti_mono_algorithm.scatra_field()->dof_row_map()));
       block_map_thermo_ = std::make_shared<Core::LinAlg::MultiMapExtractor>(
           *ssti_mono_algorithm.thermo_field()->dof_row_map(),
-          std::vector<std::shared_ptr<const Epetra_Map>>(
+          std::vector<std::shared_ptr<const Core::LinAlg::Map>>(
               1, ssti_mono_algorithm.thermo_field()->dof_row_map()));
       break;
     }
@@ -88,7 +87,7 @@ SSTI::SSTIMaps::SSTIMaps(const SSTI::SSTIMono& ssti_mono_algorithm)
 
 /*---------------------------------------------------------------------------------*
  *---------------------------------------------------------------------------------*/
-std::shared_ptr<Epetra_Map> SSTI::SSTIMaps::map_interface(
+std::shared_ptr<Core::LinAlg::Map> SSTI::SSTIMaps::map_interface(
     std::shared_ptr<const ScaTra::MeshtyingStrategyS2I> meshtyingstrategy) const
 {
   auto mergedInterfaceMap = Core::LinAlg::MultiMapExtractor::merge_maps(
@@ -107,24 +106,25 @@ std::shared_ptr<Core::LinAlg::MultiMapExtractor> SSTI::SSTIMaps::maps_interface_
 {
   std::shared_ptr<Core::LinAlg::MultiMapExtractor> blockmapinterface(nullptr);
 
-  std::shared_ptr<Epetra_Map> interfacemap = map_interface(meshtyingstrategy);
+  std::shared_ptr<Core::LinAlg::Map> interfacemap = map_interface(meshtyingstrategy);
 
   switch (scatramatrixtype)
   {
     case Core::LinAlg::MatrixType::sparse:
     {
       blockmapinterface = std::make_shared<Core::LinAlg::MultiMapExtractor>(
-          *interfacemap, std::vector<std::shared_ptr<const Epetra_Map>>(1, interfacemap));
+          *interfacemap, std::vector<std::shared_ptr<const Core::LinAlg::Map>>(1, interfacemap));
       break;
     }
     case Core::LinAlg::MatrixType::block_condition:
     {
-      std::vector<std::shared_ptr<const Epetra_Map>> partial_blockmapinterface(nummaps, nullptr);
+      std::vector<std::shared_ptr<const Core::LinAlg::Map>> partial_blockmapinterface(
+          nummaps, nullptr);
       for (int iblockmap = 0; iblockmap < static_cast<int>(nummaps); ++iblockmap)
       {
         partial_blockmapinterface[iblockmap] = Core::LinAlg::MultiMapExtractor::merge_maps(
-            {meshtyingstrategy->block_maps_slave().Map(iblockmap),
-                meshtyingstrategy->block_maps_master().Map(iblockmap)});
+            {meshtyingstrategy->block_maps_slave().map(iblockmap),
+                meshtyingstrategy->block_maps_master().map(iblockmap)});
       }
       blockmapinterface = std::make_shared<Core::LinAlg::MultiMapExtractor>(
           *interfacemap, partial_blockmapinterface);
@@ -156,7 +156,7 @@ std::shared_ptr<Core::LinAlg::MultiMapExtractor> SSTI::SSTIMaps::maps_interface_
     {
       const auto slavedofmap = meshtyingstrategy.coupling_adapter()->slave_dof_map();
       blockmapinterfaceslave = std::make_shared<Core::LinAlg::MultiMapExtractor>(
-          *slavedofmap, std::vector<std::shared_ptr<const Epetra_Map>>(1, slavedofmap));
+          *slavedofmap, std::vector<std::shared_ptr<const Core::LinAlg::Map>>(1, slavedofmap));
       break;
     }
     case Core::LinAlg::MatrixType::block_condition:
@@ -200,18 +200,18 @@ SSTI::SSTIMapsMono::SSTIMapsMono(const SSTI::SSTIMono& ssti_mono_algorithm)
           ssti_mono_algorithm.get_block_positions(Subproblem::structure);
       auto block_positions_thermo = ssti_mono_algorithm.get_block_positions(Subproblem::thermo);
 
-      std::vector<std::shared_ptr<const Epetra_Map>> maps_systemmatrix(
+      std::vector<std::shared_ptr<const Core::LinAlg::Map>> maps_systemmatrix(
           block_positions_scatra.size() + block_positions_structure.size() +
           block_positions_thermo.size());
       for (int imap = 0; imap < static_cast<int>(block_positions_scatra.size()); ++imap)
-        maps_systemmatrix[block_positions_scatra.at(imap)] = block_map_scatra()->Map(imap);
+        maps_systemmatrix[block_positions_scatra.at(imap)] = block_map_scatra()->map(imap);
 
       // extract map underlying single main-diagonal matrix block associated with structural
       // field
       maps_systemmatrix[block_positions_structure.at(0)] = block_map_structure()->full_map();
 
       for (int imap = 0; imap < static_cast<int>(block_positions_thermo.size()); ++imap)
-        maps_systemmatrix[block_positions_thermo.at(imap)] = block_map_thermo()->Map(imap);
+        maps_systemmatrix[block_positions_thermo.at(imap)] = block_map_thermo()->map(imap);
 
       // initialize map extractor associated with blocks of global system matrix
       block_map_system_matrix_ = std::make_shared<Core::LinAlg::MultiMapExtractor>(
@@ -455,7 +455,7 @@ std::shared_ptr<Core::LinAlg::BlockSparseMatrixBase> SSTI::SSTIMatrices::setup_b
 /*---------------------------------------------------------------------------------*
  *---------------------------------------------------------------------------------*/
 std::shared_ptr<Core::LinAlg::SparseMatrix> SSTI::SSTIMatrices::setup_sparse_matrix(
-    const Epetra_Map& row_map)
+    const Core::LinAlg::Map& row_map)
 {
   const int expected_entries_per_row = 27;
   const bool explicitdirichlet = false;
@@ -478,14 +478,14 @@ SSTI::ConvCheckMono::ConvCheckMono(Teuchos::ParameterList params)
  *---------------------------------------------------------------------------------*/
 bool SSTI::ConvCheckMono::converged(const SSTI::SSTIMono& ssti_mono)
 {
-  bool exit(false);
+  bool is_converged(false);
 
   // compute L2 norm of concentration state vector
   double concdofnorm(0.0);
   ssti_mono.scatra_field()
       ->splitter()
       ->extract_other_vector(*ssti_mono.scatra_field()->phinp())
-      ->Norm2(&concdofnorm);
+      ->norm_2(&concdofnorm);
 
   // compute L2 norm of concentration increment vector
   double concincnorm(0.0);
@@ -493,7 +493,7 @@ bool SSTI::ConvCheckMono::converged(const SSTI::SSTIMono& ssti_mono)
       ->splitter()
       ->extract_other_vector(*ssti_mono.all_maps()->maps_sub_problems()->extract_vector(
           *ssti_mono.increment(), ssti_mono.get_problem_position(Subproblem::scalar_transport)))
-      ->Norm2(&concincnorm);
+      ->norm_2(&concincnorm);
 
   // compute L2 norm of concentration residual vector
   double concresnorm(0.0);
@@ -501,14 +501,14 @@ bool SSTI::ConvCheckMono::converged(const SSTI::SSTIMono& ssti_mono)
       ->splitter()
       ->extract_other_vector(*ssti_mono.all_maps()->maps_sub_problems()->extract_vector(
           *ssti_mono.residual(), ssti_mono.get_problem_position(Subproblem::scalar_transport)))
-      ->Norm2(&concresnorm);
+      ->norm_2(&concresnorm);
 
   // compute L2 norm of potential state vector
   double potdofnorm(0.0);
   ssti_mono.scatra_field()
       ->splitter()
       ->extract_cond_vector(*ssti_mono.scatra_field()->phinp())
-      ->Norm2(&potdofnorm);
+      ->norm_2(&potdofnorm);
 
   // compute L2 norm of potential increment vector
   double potincnorm(0.0);
@@ -516,7 +516,7 @@ bool SSTI::ConvCheckMono::converged(const SSTI::SSTIMono& ssti_mono)
       ->splitter()
       ->extract_cond_vector(*ssti_mono.all_maps()->maps_sub_problems()->extract_vector(
           *ssti_mono.increment(), ssti_mono.get_problem_position(Subproblem::scalar_transport)))
-      ->Norm2(&potincnorm);
+      ->norm_2(&potincnorm);
 
   // compute L2 norm of potential residual vector
   double potresnorm(0.0);
@@ -524,18 +524,18 @@ bool SSTI::ConvCheckMono::converged(const SSTI::SSTIMono& ssti_mono)
       ->splitter()
       ->extract_cond_vector(*ssti_mono.all_maps()->maps_sub_problems()->extract_vector(
           *ssti_mono.residual(), ssti_mono.get_problem_position(Subproblem::scalar_transport)))
-      ->Norm2(&potresnorm);
+      ->norm_2(&potresnorm);
 
   // compute L2 norm of structural state vector
   double structuredofnorm(0.0);
-  ssti_mono.structure_field()->dispnp()->Norm2(&structuredofnorm);
+  ssti_mono.structure_field()->dispnp()->norm_2(&structuredofnorm);
 
   // compute L2 norm of structural residual vector
   double structureresnorm(0.0);
   ssti_mono.all_maps()
       ->maps_sub_problems()
       ->extract_vector(*ssti_mono.residual(), ssti_mono.get_problem_position(Subproblem::structure))
-      ->Norm2(&structureresnorm);
+      ->norm_2(&structureresnorm);
 
   // compute L2 norm of structural increment vector
   double structureincnorm(0.0);
@@ -543,29 +543,29 @@ bool SSTI::ConvCheckMono::converged(const SSTI::SSTIMono& ssti_mono)
       ->maps_sub_problems()
       ->extract_vector(
           *ssti_mono.increment(), ssti_mono.get_problem_position(Subproblem::structure))
-      ->Norm2(&structureincnorm);
+      ->norm_2(&structureincnorm);
 
   // compute L2 norm of thermo state vector
   double thermodofnorm(0.0);
-  ssti_mono.thermo_field()->phinp()->Norm2(&thermodofnorm);
+  ssti_mono.thermo_field()->phinp()->norm_2(&thermodofnorm);
 
   // compute L2 norm of thermo residual vector
   double thermoresnorm(0.0);
   ssti_mono.all_maps()
       ->maps_sub_problems()
       ->extract_vector(*ssti_mono.residual(), ssti_mono.get_problem_position(Subproblem::thermo))
-      ->Norm2(&thermoresnorm);
+      ->norm_2(&thermoresnorm);
 
   // compute L2 norm of thermo increment vector
   double thermoincnorm(0.0);
   ssti_mono.all_maps()
       ->maps_sub_problems()
       ->extract_vector(*ssti_mono.increment(), ssti_mono.get_problem_position(Subproblem::thermo))
-      ->Norm2(&thermoincnorm);
+      ->norm_2(&thermoincnorm);
 
   // compute L2 norm of total residual vector
   double totresnorm(0.0);
-  ssti_mono.residual()->Norm2(&totresnorm);
+  ssti_mono.residual()->norm_2(&totresnorm);
 
   // safety checks
   if (std::isnan(concdofnorm) or std::isnan(concresnorm) or std::isnan(concincnorm) or
@@ -649,18 +649,18 @@ bool SSTI::ConvCheckMono::converged(const SSTI::SSTIMono& ssti_mono)
         potincnorm / potdofnorm <= itertol_ and structureincnorm / structuredofnorm <= itertol_ and
         thermoincnorm / thermodofnorm <= itertol_)
       // exit Newton-Raphson iteration upon convergence
-      exit = true;
+      is_converged = true;
   }
 
   // exit Newton-Raphson iteration when residuals are small enough to prevent unnecessary additional
   // solver calls
   if (concresnorm < restol_ and potresnorm < restol_ and structureresnorm < restol_ and
       thermoresnorm < restol_)
-    exit = true;
+    is_converged = true;
 
   // print warning to screen if maximum number of Newton-Raphson iterations is reached without
   // convergence
-  if (ssti_mono.newton_iteration() == itermax_ and !exit)
+  if (ssti_mono.newton_iteration() == itermax_ and !is_converged)
   {
     if (Core::Communication::my_mpi_rank(ssti_mono.get_comm()) == 0)
     {
@@ -674,10 +674,10 @@ bool SSTI::ConvCheckMono::converged(const SSTI::SSTIMono& ssti_mono)
     }
 
     // proceed to next time step
-    exit = true;
+    is_converged = true;
   }
 
-  return exit;
+  return is_converged;
 }
 
 /*---------------------------------------------------------------------------------*
@@ -725,7 +725,8 @@ void SSTI::SSTIScatraStructureCloneStrategy::set_element_data(
     {
       FOUR_C_THROW(
           "ScatraStructureCloneStrategy copies scatra discretization from structure "
-          "discretization, but the STRUCTURE elements that are defined in the .dat file are either "
+          "discretization, but the STRUCTURE elements that are defined in the input file are "
+          "either "
           "not meant to be copied to scatra elements or the ImplType is set 'Undefined' which is "
           "not meaningful for the created scatra discretization! Use SOLIDSCATRA, WALLSCATRA or "
           "SHELLSCATRA elements with meaningful ImplType instead!");
@@ -746,8 +747,7 @@ void SSTI::SSTIScatraStructureCloneStrategy::set_element_data(
   }
   else
   {
-    FOUR_C_THROW(
-        "unsupported element type '%s'", Core::Utils::get_dynamic_type_name(*newele).c_str());
+    FOUR_C_THROW("unsupported element type '{}'", Core::Utils::get_dynamic_type_name(*newele));
   }
 }
 

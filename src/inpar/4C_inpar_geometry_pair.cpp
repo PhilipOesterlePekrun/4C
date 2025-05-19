@@ -7,7 +7,7 @@
 
 #include "4C_inpar_geometry_pair.hpp"
 
-#include "4C_utils_parameter_list.hpp"
+#include "4C_io_input_spec_builders.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -15,67 +15,59 @@ FOUR_C_NAMESPACE_OPEN
 /**
  *
  */
-void Inpar::GEOMETRYPAIR::set_valid_parameters_line_to3_d(Teuchos::ParameterList& list)
+void Inpar::GeometryPair::set_valid_parameters_line_to3_d(std::vector<Core::IO::InputSpec>& list)
 {
+  using namespace Core::IO::InputSpecBuilders;
+
   // Add the input parameters for line to 3D coupling.
 
   // Segmentation strategy.
-  Teuchos::setStringToIntegralParameter<LineTo3DStrategy>("GEOMETRY_PAIR_STRATEGY", "segmentation",
-      "Type of employed segmentation strategy",
-      Teuchos::tuple<std::string>("none", "segmentation",
-          "gauss_point_projection_without_boundary_segmentation",
-          "gauss_point_projection_boundary_segmentation", "gauss_point_projection_cross_section"),
-      Teuchos::tuple<LineTo3DStrategy>(LineTo3DStrategy::none, LineTo3DStrategy::segmentation,
-          LineTo3DStrategy::gauss_point_projection_without_boundary_segmentation,
-          LineTo3DStrategy::gauss_point_projection_boundary_segmentation,
-          LineTo3DStrategy::gauss_point_projection_cross_section),
-      &list);
+  list.push_back(parameter<LineTo3DStrategy>(
+      "GEOMETRY_PAIR_STRATEGY", {.description = "Type of employed segmentation strategy",
+                                    .default_value = LineTo3DStrategy::segmentation}));
 
   // Number of search points for segmentation.
-  Core::Utils::int_parameter("GEOMETRY_PAIR_SEGMENTATION_SEARCH_POINTS", 6,
-      "Number of search points for segmentation", &list);
+  list.push_back(parameter<int>("GEOMETRY_PAIR_SEGMENTATION_SEARCH_POINTS",
+      {.description = "Number of search points for segmentation", .default_value = 6}));
 
   // What to do if not all Gauss points of a segment project valid
-  Teuchos::setStringToIntegralParameter<NotAllGaussPointsProjectValidAction>(
-      "GEOMETRY_PAIR_SEGMENTATION_NOT_ALL_GAUSS_POINTS_PROJECT_VALID_ACTION", "fail",
-      "What to do if not all Gauss points of a segment project valid",
-      Teuchos::tuple<std::string>("fail", "warning"),
-      Teuchos::tuple<NotAllGaussPointsProjectValidAction>(
-          NotAllGaussPointsProjectValidAction::fail, NotAllGaussPointsProjectValidAction::warning),
-      &list);
+  list.push_back(parameter<NotAllGaussPointsProjectValidAction>(
+      "GEOMETRY_PAIR_SEGMENTATION_NOT_ALL_GAUSS_POINTS_PROJECT_VALID_ACTION",
+      {.description = "What to do if not all Gauss points of a segment project valid",
+          .default_value = NotAllGaussPointsProjectValidAction::fail}));
 
   // Number of integration points on the line.
-  Core::Utils::int_parameter(
-      "GAUSS_POINTS", 6, "Number of Gauss Points for the integral evaluations", &list);
+  list.push_back(parameter<int>("GAUSS_POINTS",
+      {.description = "Number of Gauss Points for the integral evaluations", .default_value = 6}));
 
   // Number of integration along the circumference in cross section coupling.
-  Core::Utils::int_parameter("INTEGRATION_POINTS_CIRCUMFERENCE", 6,
-      "Number of Integration points along the circumferential direction of the beam. This is "
-      "parameter is only used in beam to cylinder meshtying. No gauss integration is "
-      "used along the circumferential direction, equally spaced integration points are used.",
-      &list);
+  list.push_back(parameter<int>("INTEGRATION_POINTS_CIRCUMFERENCE",
+      {.description = "Number of Integration points along the circumferential direction of the "
+                      "beam. This is parameter is only used in beam to cylinder meshtying. No "
+                      "gauss integration is used along the circumferential direction, equally "
+                      "spaced integration points are used.",
+          .default_value = 6}));
 }
 
 /**
  *
  */
-void Inpar::GEOMETRYPAIR::set_valid_parameters_line_to_surface(Teuchos::ParameterList& list)
+void Inpar::GeometryPair::set_valid_parameters_line_to_surface(
+    std::vector<Core::IO::InputSpec>& list)
 {
   // Add the input parameters for line to surface coupling.
 
   // Add the surface normal option.
-  Teuchos::setStringToIntegralParameter<GEOMETRYPAIR::SurfaceNormals>(
-      "GEOMETRY_PAIR_SURFACE_NORMALS", "standard", "How the surface normals are evaluated",
-      Teuchos::tuple<std::string>("standard", "extended_volume"),
-      Teuchos::tuple<GEOMETRYPAIR::SurfaceNormals>(
-          GEOMETRYPAIR::SurfaceNormals::standard, GEOMETRYPAIR::SurfaceNormals::extended_volume),
-      &list);
+  list.push_back(Core::IO::InputSpecBuilders::parameter<GeometryPair::SurfaceNormals>(
+      "GEOMETRY_PAIR_SURFACE_NORMALS",
+      {.description = "How the surface normals are evaluated",
+          .default_value = GeometryPair::SurfaceNormals::standard}));
 }
 
 /**
  *
  */
-Core::FE::GaussRule1D Inpar::GEOMETRYPAIR::int_to_gauss_rule1_d(const int n_gauss_points)
+Core::FE::GaussRule1D Inpar::GeometryPair::int_to_gauss_rule1_d(const int n_gauss_points)
 {
   switch (n_gauss_points)
   {
@@ -107,7 +99,7 @@ Core::FE::GaussRule1D Inpar::GEOMETRYPAIR::int_to_gauss_rule1_d(const int n_gaus
       return Core::FE::GaussRule1D::line_50point;
     default:
     {
-      FOUR_C_THROW("No Gauss rule defined for %d points", n_gauss_points);
+      FOUR_C_THROW("No Gauss rule defined for {} points", n_gauss_points);
       return Core::FE::GaussRule1D::undefined;
     }
   }

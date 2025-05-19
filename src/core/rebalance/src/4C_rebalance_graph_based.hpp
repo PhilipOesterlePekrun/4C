@@ -10,13 +10,12 @@
 
 #include "4C_config.hpp"
 
-#include "4C_fem_geometric_search_params.hpp"
+#include "4C_geometric_search_params.hpp"
+#include "4C_linalg_graph.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_multi_vector.hpp"
+#include "4C_linalg_sparsematrix.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
-
-#include <Epetra_CrsGraph.h>
-#include <Epetra_Map.h>
-#include <Teuchos_RCPDecl.hpp>
 
 #include <memory>
 
@@ -53,10 +52,11 @@ namespace Core::Rebalance
 
   @return Node row map and node column map after rebalancing with weights
   */
-  std::pair<std::shared_ptr<Epetra_Map>, std::shared_ptr<Epetra_Map>> rebalance_node_maps(
-      const Epetra_CrsGraph& initialGraph, const Teuchos::ParameterList& rebalanceParams,
+  std::pair<std::shared_ptr<Core::LinAlg::Map>, std::shared_ptr<Core::LinAlg::Map>>
+  rebalance_node_maps(const Core::LinAlg::Graph& initialGraph,
+      const Teuchos::ParameterList& rebalanceParams,
       const std::shared_ptr<Core::LinAlg::Vector<double>>& initialNodeWeights = nullptr,
-      const std::shared_ptr<Epetra_CrsMatrix>& initialEdgeWeights = nullptr,
+      const std::shared_ptr<Core::LinAlg::SparseMatrix>& initialEdgeWeights = nullptr,
       const std::shared_ptr<Core::LinAlg::MultiVector<double>>& initialNodeCoordinates = nullptr);
 
   /*!
@@ -75,12 +75,12 @@ namespace Core::Rebalance
   @param[in] initialEdgeWeights Initial weights of the graph edges
   @param[in] initialNodeCoordinates Coordinates of the discretization
 
-  @return Rebalanced graph
+  @return std::shared_ptr<Core::LinAlg::Graph>
   */
-  Teuchos::RCP<Epetra_CrsGraph> rebalance_graph(const Epetra_CrsGraph& initialGraph,
+  std::shared_ptr<Core::LinAlg::Graph> rebalance_graph(const Core::LinAlg::Graph& initialGraph,
       const Teuchos::ParameterList& rebalanceParams,
       const std::shared_ptr<Core::LinAlg::Vector<double>>& initialNodeWeights = nullptr,
-      const std::shared_ptr<Epetra_CrsMatrix>& initialEdgeWeights = nullptr,
+      const std::shared_ptr<Core::LinAlg::SparseMatrix>& initialEdgeWeights = nullptr,
       const std::shared_ptr<Core::LinAlg::MultiVector<double>>& initialNodeCoordinates = nullptr);
 
   /*!
@@ -108,7 +108,8 @@ namespace Core::Rebalance
 
   @return Node and edge weights to be used for repartitioning
   */
-  std::pair<std::shared_ptr<Core::LinAlg::Vector<double>>, std::shared_ptr<Epetra_CrsMatrix>>
+  std::pair<std::shared_ptr<Core::LinAlg::Vector<double>>,
+      std::shared_ptr<Core::LinAlg::SparseMatrix>>
   build_weights(const Core::FE::Discretization& dis);
 
   /*!
@@ -121,8 +122,8 @@ namespace Core::Rebalance
 
   @return Uncompleted node graph of input discretization
   */
-  std::shared_ptr<const Epetra_CrsGraph> build_graph(
-      Core::FE::Discretization& dis, const Epetra_Map& roweles);
+  std::shared_ptr<const Core::LinAlg::Graph> build_graph(
+      Core::FE::Discretization& dis, const Core::LinAlg::Map& roweles);
 
   /*!
   \brief Build monolithic node graph of a given discretization
@@ -137,7 +138,7 @@ namespace Core::Rebalance
 
   @return Completed monolithic node graph of input discretization
   */
-  std::shared_ptr<const Epetra_CrsGraph> build_monolithic_node_graph(
+  std::shared_ptr<const Core::LinAlg::Graph> build_monolithic_node_graph(
       const Core::FE::Discretization& dis,
       const Core::GeometricSearch::GeometricSearchParams& params);
 

@@ -10,6 +10,7 @@
 #include "4C_comm_mpi_utils.hpp"
 #include "4C_contact_element.hpp"
 #include "4C_contact_friction_node.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_contact_interface.hpp"
 #include "4C_contact_lagrange_strategy.hpp"
 #include "4C_contact_lagrange_strategy_poro.hpp"
@@ -25,8 +26,8 @@
 #include "4C_contact_utils.hpp"
 #include "4C_contact_utils_parallel.hpp"
 #include "4C_contact_wear_interface.hpp"
+#include "4C_fem_discretization.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_inpar_mortar.hpp"
 #include "4C_inpar_wear.hpp"
 #include "4C_io.hpp"
@@ -103,22 +104,19 @@ CONTACT::Manager::Manager(Core::FE::Discretization& discret, double alphaf)
   int maxdof = discret.dof_row_map()->MaxAllGID();
 
   // get input parameters
-  auto stype =
-      Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contactParams, "STRATEGY");
+  auto stype = Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contactParams, "STRATEGY");
   auto wearLaw = Teuchos::getIntegralValue<Inpar::Wear::WearLaw>(contactParams, "WEARLAW");
   auto wearType = Teuchos::getIntegralValue<Inpar::Wear::WearType>(contactParams, "WEARTYPE");
-  auto constr_direction = Teuchos::getIntegralValue<Inpar::CONTACT::ConstraintDirection>(
+  auto constr_direction = Teuchos::getIntegralValue<CONTACT::ConstraintDirection>(
       contactParams, "CONSTRAINT_DIRECTIONS");
-  auto frictionType =
-      Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(contactParams, "FRICTION");
-  auto adhesionType =
-      Teuchos::getIntegralValue<Inpar::CONTACT::AdhesionType>(contactParams, "ADHESION");
+  auto frictionType = Teuchos::getIntegralValue<CONTACT::FrictionType>(contactParams, "FRICTION");
+  auto adhesionType = Teuchos::getIntegralValue<CONTACT::AdhesionType>(contactParams, "ADHESION");
   const bool nurbs = contactParams.get<bool>("NURBS");
   auto algo = Teuchos::getIntegralValue<Inpar::Mortar::AlgorithmType>(contactParams, "ALGORITHM");
 
   bool friplus = false;
   if ((wearLaw != Inpar::Wear::wear_none) ||
-      (contactParams.get<int>("PROBTYPE") == Inpar::CONTACT::tsi))
+      (contactParams.get<CONTACT::Problemtype>("PROBTYPE") == CONTACT::Problemtype::tsi))
     friplus = true;
 
   // only for poro
@@ -142,7 +140,7 @@ CONTACT::Manager::Manager(Core::FE::Discretization& discret, double alphaf)
 
     // In case of MultiScale contact this is the id of the interface's constitutive contact law
     auto maybe_contactconstitutivelawid =
-        currentgroup[0]->parameters().get<Core::IO::Noneable<int>>("ConstitutiveLawID");
+        currentgroup[0]->parameters().get<std::optional<int>>("ConstitutiveLawID");
     auto contactconstitutivelawid = maybe_contactconstitutivelawid.value_or(-1);
 
     bool foundit = false;
@@ -162,7 +160,7 @@ CONTACT::Manager::Manager(Core::FE::Discretization& discret, double alphaf)
     }
 
     // now we should have found a group of conds
-    if (!foundit) FOUR_C_THROW("Cannot find matching contact condition for id %d", groupid1);
+    if (!foundit) FOUR_C_THROW("Cannot find matching contact condition for id {}", groupid1);
 
     // see whether we found this group before
     bool foundbefore = false;
@@ -208,9 +206,9 @@ CONTACT::Manager::Manager(Core::FE::Discretization& discret, double alphaf)
     Teuchos::ParameterList icparams = contactParams;
 
     // find out if interface-specific coefficients of friction are given
-    if (frictionType == Inpar::CONTACT::friction_tresca ||
-        frictionType == Inpar::CONTACT::friction_coulomb ||
-        frictionType == Inpar::CONTACT::friction_stick)
+    if (frictionType == CONTACT::FrictionType::tresca ||
+        frictionType == CONTACT::FrictionType::coulomb ||
+        frictionType == CONTACT::FrictionType::stick)
     {
       // read interface COFs
       std::vector<double> frcoeff(currentgroup.size());
@@ -222,26 +220,26 @@ CONTACT::Manager::Manager(Core::FE::Discretization& discret, double alphaf)
       for (unsigned j = 1; j < currentgroup.size(); ++j)
       {
         if (frcoeff[j] != frcoeff[0])
-          FOUR_C_THROW("Inconsistency in friction coefficients of interface %i", groupid1);
+          FOUR_C_THROW("Inconsistency in friction coefficients of interface {}", groupid1);
       }
 
       // check for infeasible value of COF
-      if (frcoeff[0] < 0.0) FOUR_C_THROW("Negative FrCoeff / FrBound on interface %i", groupid1);
+      if (frcoeff[0] < 0.0) FOUR_C_THROW("Negative FrCoeff / FrBound on interface {}", groupid1);
 
       // add COF locally to contact parameter list of this interface
-      if (frictionType == Inpar::CONTACT::friction_tresca)
+      if (frictionType == CONTACT::FrictionType::tresca)
       {
         icparams.setEntry("FRBOUND", static_cast<Teuchos::ParameterEntry>(frcoeff[0]));
         icparams.setEntry("FRCOEFF", static_cast<Teuchos::ParameterEntry>(-1.0));
       }
-      else if (frictionType == Inpar::CONTACT::friction_coulomb)
+      else if (frictionType == CONTACT::FrictionType::coulomb)
       {
         icparams.setEntry("FRCOEFF", static_cast<Teuchos::ParameterEntry>(frcoeff[0]));
         icparams.setEntry("FRBOUND", static_cast<Teuchos::ParameterEntry>(-1.0));
       }
       // dummy values for FRCOEFF and FRBOUND have to be set,
       // since entries are accessed regardless of the friction law
-      else if (frictionType == Inpar::CONTACT::friction_stick)
+      else if (frictionType == CONTACT::FrictionType::stick)
       {
         icparams.setEntry("FRCOEFF", static_cast<Teuchos::ParameterEntry>(-1.0));
         icparams.setEntry("FRBOUND", static_cast<Teuchos::ParameterEntry>(-1.0));
@@ -249,7 +247,7 @@ CONTACT::Manager::Manager(Core::FE::Discretization& discret, double alphaf)
     }
 
     // find out if interface-specific coefficients of adhesion are given
-    if (adhesionType == Inpar::CONTACT::adhesion_bound)
+    if (adhesionType == CONTACT::AdhesionType::bounded)
     {
       // read interface COFs
       std::vector<double> ad_bound(currentgroup.size());
@@ -260,11 +258,11 @@ CONTACT::Manager::Manager(Core::FE::Discretization& discret, double alphaf)
       for (unsigned j = 1; j < currentgroup.size(); ++j)
       {
         if (ad_bound[j] != ad_bound[0])
-          FOUR_C_THROW("Inconsistency in adhesion bounds of interface %i", groupid1);
+          FOUR_C_THROW("Inconsistency in adhesion bounds of interface {}", groupid1);
       }
 
       // check for infeasible value of COF
-      if (ad_bound[0] < 0.0) FOUR_C_THROW("Negative adhesion bound on interface %i", groupid1);
+      if (ad_bound[0] < 0.0) FOUR_C_THROW("Negative adhesion bound on interface {}", groupid1);
 
       // add COF locally to contact parameter list of this interface
       icparams.setEntry("ADHESION_BOUND", static_cast<Teuchos::ParameterEntry>(ad_bound[0]));
@@ -335,7 +333,7 @@ CONTACT::Manager::Manager(Core::FE::Discretization& discret, double alphaf)
         // for the boolean variable initactive we use isactive[j]+foundinitialactive,
         // as this is true for BOTH initial active nodes found for the first time
         // and found for the second, third, ... time!
-        if (frictionType != Inpar::CONTACT::friction_none)
+        if (frictionType != CONTACT::FrictionType::none)
         {
           std::shared_ptr<CONTACT::FriNode> cnode =
               std::make_shared<CONTACT::FriNode>(node->id(), node->x(), node->owner(),
@@ -375,8 +373,8 @@ CONTACT::Manager::Manager(Core::FE::Discretization& discret, double alphaf)
                   contactSymconditions.at(l)->parameters().get<std::vector<int>>("ONOFF");
               for (unsigned k = 0; k < onoff.size(); k++)
                 if (onoff.at(k) == 1) cnode->dbc_dofs()[k] = true;
-              if (stype == Inpar::CONTACT::solution_lagmult &&
-                  constr_direction != Inpar::CONTACT::constr_xyz)
+              if (stype == CONTACT::SolvingStrategy::lagmult &&
+                  constr_direction != CONTACT::ConstraintDirection::xyz)
                 FOUR_C_THROW(
                     "Contact symmetry with Lagrange multiplier method"
                     " only with contact constraints in xyz direction.\n"
@@ -434,8 +432,8 @@ CONTACT::Manager::Manager(Core::FE::Discretization& discret, double alphaf)
                   contactSymconditions.at(l)->parameters().get<std::vector<int>>("ONOFF");
               for (unsigned k = 0; k < onoff.size(); k++)
                 if (onoff.at(k) == 1) cnode->dbc_dofs()[k] = true;
-              if (stype == Inpar::CONTACT::solution_lagmult &&
-                  constr_direction != Inpar::CONTACT::constr_xyz)
+              if (stype == CONTACT::SolvingStrategy::lagmult &&
+                  constr_direction != CONTACT::ConstraintDirection::xyz)
                 FOUR_C_THROW(
                     "Contact symmetry with Lagrange multiplier method"
                     " only with contact constraints in xyz direction.\n"
@@ -480,8 +478,10 @@ CONTACT::Manager::Manager(Core::FE::Discretization& discret, double alphaf)
             std::make_shared<CONTACT::Element>(ele->id() + ggsize, ele->owner(), ele->shape(),
                 ele->num_node(), ele->node_ids(), isslave[j], nurbs);
 
-        if ((contactParams.get<int>("PROBTYPE") == Inpar::CONTACT::poroelast ||
-                contactParams.get<int>("PROBTYPE") == Inpar::CONTACT::poroscatra) &&
+        if ((contactParams.get<CONTACT::Problemtype>("PROBTYPE") ==
+                    CONTACT::Problemtype::poroelast ||
+                contactParams.get<CONTACT::Problemtype>("PROBTYPE") ==
+                    CONTACT::Problemtype::poroscatra) &&
             algo != Inpar::Mortar::algorithm_gpts)
           set_poro_parent_element(slavetype, mastertype, *cele, ele);
 
@@ -530,8 +530,9 @@ CONTACT::Manager::Manager(Core::FE::Discretization& discret, double alphaf)
           Global::Problem::instance()->output_control_file(),
           Global::Problem::instance()->spatial_approximation_type(), true, maxdof);
 
-    if ((contactParams.get<int>("PROBTYPE") == Inpar::CONTACT::poroelast ||
-            contactParams.get<int>("PROBTYPE") == Inpar::CONTACT::poroscatra) &&
+    if ((contactParams.get<CONTACT::Problemtype>("PROBTYPE") == CONTACT::Problemtype::poroelast ||
+            contactParams.get<CONTACT::Problemtype>("PROBTYPE") ==
+                CONTACT::Problemtype::poroscatra) &&
         algo != Inpar::Mortar::algorithm_gpts)
       find_poro_interface_types(
           poromaster, poroslave, structmaster, structslave, slavetype, mastertype);
@@ -551,22 +552,22 @@ CONTACT::Manager::Manager(Core::FE::Discretization& discret, double alphaf)
       std::make_shared<CONTACT::AbstractStrategyDataContainer>();
 
   // create LagrangeStrategyWear for wear as non-distinct quantity
-  if (stype == Inpar::CONTACT::solution_lagmult && wearLaw != Inpar::Wear::wear_none &&
+  if (stype == CONTACT::SolvingStrategy::lagmult && wearLaw != Inpar::Wear::wear_none &&
       (wearType == Inpar::Wear::wear_intstate || wearType == Inpar::Wear::wear_primvar))
   {
     strategy_ = std::make_shared<Wear::LagrangeStrategyWear>(data_ptr, discret.dof_row_map(),
         discret.node_row_map(), contactParams, interfaces, dim, comm_, alphaf, maxdof);
   }
-  else if (stype == Inpar::CONTACT::solution_lagmult)
+  else if (stype == CONTACT::SolvingStrategy::lagmult)
   {
-    if (contactParams.get<int>("PROBTYPE") == Inpar::CONTACT::poroelast ||
-        contactParams.get<int>("PROBTYPE") == Inpar::CONTACT::poroscatra)
+    if (contactParams.get<CONTACT::Problemtype>("PROBTYPE") == CONTACT::Problemtype::poroelast ||
+        contactParams.get<CONTACT::Problemtype>("PROBTYPE") == CONTACT::Problemtype::poroscatra)
     {
       strategy_ = std::make_shared<LagrangeStrategyPoro>(data_ptr, discret.dof_row_map(),
           discret.node_row_map(), contactParams, interfaces, dim, comm_, alphaf, maxdof, poroslave,
           poromaster);
     }
-    else if (contactParams.get<int>("PROBTYPE") == Inpar::CONTACT::tsi)
+    else if (contactParams.get<CONTACT::Problemtype>("PROBTYPE") == CONTACT::Problemtype::tsi)
     {
       strategy_ = std::make_shared<LagrangeStrategyTsi>(data_ptr, discret.dof_row_map(),
           discret.node_row_map(), contactParams, interfaces, dim, comm_, alphaf, maxdof);
@@ -577,32 +578,33 @@ CONTACT::Manager::Manager(Core::FE::Discretization& discret, double alphaf)
           discret.node_row_map(), contactParams, interfaces, dim, comm_, alphaf, maxdof);
     }
   }
-  else if (((stype == Inpar::CONTACT::solution_penalty ||
-                stype == Inpar::CONTACT::solution_multiscale) &&
+  else if (((stype == CONTACT::SolvingStrategy::penalty ||
+                stype == CONTACT::SolvingStrategy::multiscale) &&
                algo != Inpar::Mortar::algorithm_gpts) ||
-           stype == Inpar::CONTACT::solution_uzawa)
+           stype == CONTACT::SolvingStrategy::uzawa)
   {
     strategy_ = std::make_shared<PenaltyStrategy>(data_ptr, discret.dof_row_map(),
         discret.node_row_map(), contactParams, interfaces, dim, comm_, alphaf, maxdof);
   }
-  else if (algo == Inpar::Mortar::algorithm_gpts &&
-           (stype == Inpar::CONTACT::solution_nitsche || stype == Inpar::CONTACT::solution_penalty))
+  else if (algo == Inpar::Mortar::algorithm_gpts && (stype == CONTACT::SolvingStrategy::nitsche ||
+                                                        stype == CONTACT::SolvingStrategy::penalty))
   {
-    if ((contactParams.get<int>("PROBTYPE") == Inpar::CONTACT::poroelast ||
-            contactParams.get<int>("PROBTYPE") == Inpar::CONTACT::poroscatra) &&
-        stype == Inpar::CONTACT::solution_nitsche)
+    if ((contactParams.get<CONTACT::Problemtype>("PROBTYPE") == CONTACT::Problemtype::poroelast ||
+            contactParams.get<CONTACT::Problemtype>("PROBTYPE") ==
+                CONTACT::Problemtype::poroscatra) &&
+        stype == CONTACT::SolvingStrategy::nitsche)
     {
       strategy_ = std::make_shared<NitscheStrategyPoro>(data_ptr, discret.dof_row_map(),
           discret.node_row_map(), contactParams, interfaces, dim, comm_, alphaf, maxdof);
     }
-    else if (contactParams.get<int>("PROBTYPE") == Inpar::CONTACT::fsi &&
-             stype == Inpar::CONTACT::solution_nitsche)
+    else if (contactParams.get<CONTACT::Problemtype>("PROBTYPE") == CONTACT::Problemtype::fsi &&
+             stype == CONTACT::SolvingStrategy::nitsche)
     {
       strategy_ = std::make_shared<NitscheStrategyFsi>(data_ptr, discret.dof_row_map(),
           discret.node_row_map(), contactParams, interfaces, dim, comm_, alphaf, maxdof);
     }
-    else if (contactParams.get<int>("PROBTYPE") == Inpar::CONTACT::fpi &&
-             stype == Inpar::CONTACT::solution_nitsche)
+    else if (contactParams.get<CONTACT::Problemtype>("PROBTYPE") == CONTACT::Problemtype::fpi &&
+             stype == CONTACT::SolvingStrategy::nitsche)
     {
       strategy_ = std::make_shared<NitscheStrategyFpi>(data_ptr, discret.dof_row_map(),
           discret.node_row_map(), contactParams, interfaces, dim, comm_, alphaf, maxdof);
@@ -629,13 +631,13 @@ CONTACT::Manager::Manager(Core::FE::Discretization& discret, double alphaf)
     for (unsigned i = 0; i < interfaces.size(); ++i)
     {
       double checkfrcoeff = 0.0;
-      if (frictionType == Inpar::CONTACT::friction_tresca)
+      if (frictionType == CONTACT::FrictionType::tresca)
       {
         checkfrcoeff = interfaces[i]->interface_params().get<double>("FRBOUND");
         std::cout << std::endl << "Interface         " << i + 1 << std::endl;
         std::cout << "FrBound (Tresca)  " << checkfrcoeff << std::endl;
       }
-      else if (frictionType == Inpar::CONTACT::friction_coulomb)
+      else if (frictionType == CONTACT::FrictionType::coulomb)
       {
         checkfrcoeff = interfaces[i]->interface_params().get<double>("FRCOEFF");
         std::cout << std::endl << "Interface         " << i + 1 << std::endl;
@@ -675,8 +677,8 @@ bool CONTACT::Manager::read_and_check_input(Teuchos::ParameterList& cparams) con
   const int dim = Global::Problem::instance()->n_dim();
 
   // in case just System type system_condensed_lagmult
-  if (Teuchos::getIntegralValue<Inpar::CONTACT::SystemType>(contact, "SYSTEM") ==
-      Inpar::CONTACT::system_condensed_lagmult)
+  if (Teuchos::getIntegralValue<CONTACT::SystemType>(contact, "SYSTEM") ==
+      CONTACT::SystemType::condensed_lagmult)
     FOUR_C_THROW(
         "For Contact anyway just the lagrange multiplier can be condensed, choose SYSTEM = "
         "Condensed.");
@@ -708,98 +710,84 @@ bool CONTACT::Manager::read_and_check_input(Teuchos::ParameterList& cparams) con
   // *********************************************************************
   // adhesive contact
   // *********************************************************************
-  if (Teuchos::getIntegralValue<Inpar::CONTACT::AdhesionType>(contact, "ADHESION") !=
-          Inpar::CONTACT::adhesion_none and
+  if (Teuchos::getIntegralValue<CONTACT::AdhesionType>(contact, "ADHESION") !=
+          CONTACT::AdhesionType::none and
       Teuchos::getIntegralValue<Inpar::Wear::WearLaw>(wearlist, "WEARLAW") !=
           Inpar::Wear::wear_none)
     FOUR_C_THROW("Adhesion combined with wear not yet tested!");
 
-  if (Teuchos::getIntegralValue<Inpar::CONTACT::AdhesionType>(contact, "ADHESION") !=
-          Inpar::CONTACT::adhesion_none and
-      Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(contact, "FRICTION") !=
-          Inpar::CONTACT::friction_none)
+  if (Teuchos::getIntegralValue<CONTACT::AdhesionType>(contact, "ADHESION") !=
+          CONTACT::AdhesionType::none and
+      Teuchos::getIntegralValue<CONTACT::FrictionType>(contact, "FRICTION") !=
+          CONTACT::FrictionType::none)
     FOUR_C_THROW("Adhesion combined with friction not yet tested!");
 
   // *********************************************************************
   // generally invalid combinations (nts/mortar)
   // *********************************************************************
-  if ((Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
-              Inpar::CONTACT::solution_penalty ||
-          Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
-              Inpar::CONTACT::solution_nitsche) &&
+  if ((Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
+              CONTACT::SolvingStrategy::penalty ||
+          Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
+              CONTACT::SolvingStrategy::nitsche) &&
       contact.get<double>("PENALTYPARAM") <= 0.0)
     FOUR_C_THROW("Penalty parameter eps = 0, must be greater than 0");
 
-  if ((Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
-              Inpar::CONTACT::solution_penalty ||
-          Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
-              Inpar::CONTACT::solution_nitsche) &&
-      Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(contact, "FRICTION") !=
-          Inpar::CONTACT::friction_none &&
+  if ((Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
+              CONTACT::SolvingStrategy::penalty ||
+          Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
+              CONTACT::SolvingStrategy::nitsche) &&
+      Teuchos::getIntegralValue<CONTACT::FrictionType>(contact, "FRICTION") !=
+          CONTACT::FrictionType::none &&
       contact.get<double>("PENALTYPARAMTAN") <= 0.0)
     FOUR_C_THROW("Tangential penalty parameter eps = 0, must be greater than 0");
 
-  if (Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
-          Inpar::CONTACT::solution_uzawa &&
+  if (Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
+          CONTACT::SolvingStrategy::uzawa &&
       contact.get<double>("PENALTYPARAM") <= 0.0)
     FOUR_C_THROW("Penalty parameter eps = 0, must be greater than 0");
 
-  if (Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
-          Inpar::CONTACT::solution_uzawa &&
-      Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(contact, "FRICTION") !=
-          Inpar::CONTACT::friction_none &&
+  if (Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
+          CONTACT::SolvingStrategy::uzawa &&
+      Teuchos::getIntegralValue<CONTACT::FrictionType>(contact, "FRICTION") !=
+          CONTACT::FrictionType::none &&
       contact.get<double>("PENALTYPARAMTAN") <= 0.0)
     FOUR_C_THROW("Tangential penalty parameter eps = 0, must be greater than 0");
 
-  if (Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
-          Inpar::CONTACT::solution_uzawa &&
+  if (Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
+          CONTACT::SolvingStrategy::uzawa &&
       contact.get<int>("UZAWAMAXSTEPS") < 2)
     FOUR_C_THROW("Maximum number of Uzawa / Augmentation steps must be at least 2");
 
-  if (Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
-          Inpar::CONTACT::solution_uzawa &&
+  if (Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
+          CONTACT::SolvingStrategy::uzawa &&
       contact.get<double>("UZAWACONSTRTOL") <= 0.0)
     FOUR_C_THROW("Constraint tolerance for Uzawa / Augmentation scheme must be greater than 0");
 
-  if (Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(contact, "FRICTION") !=
-          Inpar::CONTACT::friction_none &&
+  if (Teuchos::getIntegralValue<CONTACT::FrictionType>(contact, "FRICTION") !=
+          CONTACT::FrictionType::none &&
       contact.get<double>("SEMI_SMOOTH_CT") == 0.0)
     FOUR_C_THROW("Parameter ct = 0, must be greater than 0 for frictional contact");
 
-  if (Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(contact, "FRICTION") ==
-          Inpar::CONTACT::friction_tresca &&
+  if (Teuchos::getIntegralValue<CONTACT::FrictionType>(contact, "FRICTION") ==
+          CONTACT::FrictionType::tresca &&
       dim == 3 &&
-      Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") !=
-          Inpar::CONTACT::solution_nitsche)
+      Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") !=
+          CONTACT::SolvingStrategy::nitsche)
     FOUR_C_THROW("3D frictional contact with Tresca's law not yet implemented");
 
-  if (Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(contact, "FRICTION") !=
-          Inpar::CONTACT::friction_none &&
+  if (Teuchos::getIntegralValue<CONTACT::FrictionType>(contact, "FRICTION") !=
+          CONTACT::FrictionType::none &&
       not contact.get<bool>("SEMI_SMOOTH_NEWTON") && dim == 3)
     FOUR_C_THROW("3D frictional contact only implemented with Semi-smooth Newton");
 
   if (mortar.get<bool>("CROSSPOINTS") && dim == 3)
     FOUR_C_THROW("Crosspoints / edge node modification not yet implemented for 3D");
 
-  if (Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(contact, "FRICTION") ==
-          Inpar::CONTACT::friction_tresca &&
+  if (Teuchos::getIntegralValue<CONTACT::FrictionType>(contact, "FRICTION") ==
+          CONTACT::FrictionType::tresca &&
       contact.get<bool>("FRLESS_FIRST"))
     // Hopefully coming soon, when Coulomb and Tresca are combined. Until then, throw error.
     FOUR_C_THROW("Frictionless first contact step with Tresca's law not yet implemented");
-
-  if (Teuchos::getIntegralValue<Inpar::CONTACT::Regularization>(
-          contact, "CONTACT_REGULARIZATION") != Inpar::CONTACT::reg_none &&
-      Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") !=
-          Inpar::CONTACT::solution_lagmult)
-    FOUR_C_THROW(
-        "Regularized Contact just available for Dual Mortar Contact with Lagrangean "
-        "Multiplier!");
-
-  if (Teuchos::getIntegralValue<Inpar::CONTACT::Regularization>(
-          contact, "CONTACT_REGULARIZATION") != Inpar::CONTACT::reg_none &&
-      Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(contact, "FRICTION") !=
-          Inpar::CONTACT::friction_none)
-    FOUR_C_THROW("Regularized Contact for contact with friction not implemented yet!");
 
   // *********************************************************************
   // warnings
@@ -824,26 +812,26 @@ bool CONTACT::Manager::read_and_check_input(Teuchos::ParameterList& cparams) con
     // *********************************************************************
     // invalid parameter combinations
     // *********************************************************************
-    if (Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") !=
-            Inpar::CONTACT::solution_lagmult &&
+    if (Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") !=
+            CONTACT::SolvingStrategy::lagmult &&
         Teuchos::getIntegralValue<Inpar::Mortar::ShapeFcn>(mortar, "LM_SHAPEFCN") ==
             Inpar::Mortar::shape_petrovgalerkin)
       FOUR_C_THROW("Petrov-Galerkin approach for LM only with Lagrange multiplier strategy");
 
-    if (Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
-            Inpar::CONTACT::solution_lagmult &&
+    if (Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
+            CONTACT::SolvingStrategy::lagmult &&
         (Teuchos::getIntegralValue<Inpar::Mortar::ShapeFcn>(mortar, "LM_SHAPEFCN") ==
                 Inpar::Mortar::shape_standard &&
             Teuchos::getIntegralValue<Inpar::Mortar::LagMultQuad>(mortar, "LM_QUAD") !=
                 Inpar::Mortar::lagmult_const) &&
-        Teuchos::getIntegralValue<Inpar::CONTACT::SystemType>(contact, "SYSTEM") ==
-            Inpar::CONTACT::system_condensed)
+        Teuchos::getIntegralValue<CONTACT::SystemType>(contact, "SYSTEM") ==
+            CONTACT::SystemType::condensed)
       FOUR_C_THROW("Condensation of linear system only possible for dual Lagrange multipliers");
 
     if (Teuchos::getIntegralValue<Inpar::Mortar::ConsistentDualType>(
             mortar, "LM_DUAL_CONSISTENT") != Inpar::Mortar::consistent_none &&
-        Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") !=
-            Inpar::CONTACT::solution_lagmult &&
+        Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") !=
+            CONTACT::SolvingStrategy::lagmult &&
         Teuchos::getIntegralValue<Inpar::Mortar::ShapeFcn>(mortar, "LM_SHAPEFCN") !=
             Inpar::Mortar::shape_standard)
       FOUR_C_THROW(
@@ -860,8 +848,8 @@ bool CONTACT::Manager::read_and_check_input(Teuchos::ParameterList& cparams) con
           "Consistent dual shape functions in boundary elements not for purely "
           "element-based integration.");
 
-    if (Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
-            Inpar::CONTACT::solution_nitsche &&
+    if (Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
+            CONTACT::SolvingStrategy::nitsche &&
         Teuchos::getIntegralValue<Inpar::Mortar::AlgorithmType>(mortar, "ALGORITHM") !=
             Inpar::Mortar::algorithm_gpts)
       FOUR_C_THROW("Nitsche contact only with GPTS algorithm.");
@@ -914,8 +902,8 @@ bool CONTACT::Manager::read_and_check_input(Teuchos::ParameterList& cparams) con
       FOUR_C_THROW("Thermal contact only for dual shape functions");
 
     if (problemtype == Core::ProblemType::tsi &&
-        Teuchos::getIntegralValue<Inpar::CONTACT::SystemType>(contact, "SYSTEM") !=
-            Inpar::CONTACT::system_condensed)
+        Teuchos::getIntegralValue<CONTACT::SystemType>(contact, "SYSTEM") !=
+            CONTACT::SystemType::condensed)
       FOUR_C_THROW("Thermal contact only for dual shape functions with condensed system");
 
     // no nodal scaling in for thermal-structure-interaction
@@ -940,8 +928,8 @@ bool CONTACT::Manager::read_and_check_input(Teuchos::ParameterList& cparams) con
           "Wear calculation for pure structure problems only with explicit internal state "
           "variable approach reasonable!");
 
-    if (Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(contact, "FRICTION") ==
-            Inpar::CONTACT::friction_none &&
+    if (Teuchos::getIntegralValue<CONTACT::FrictionType>(contact, "FRICTION") ==
+            CONTACT::FrictionType::none &&
         Teuchos::getIntegralValue<Inpar::Wear::WearLaw>(wearlist, "WEARLAW") !=
             Inpar::Wear::wear_none)
       FOUR_C_THROW("Wear models only applicable to frictional contact.");
@@ -951,8 +939,8 @@ bool CONTACT::Manager::read_and_check_input(Teuchos::ParameterList& cparams) con
         wearlist.get<double>("WEARCOEFF") <= 0.0)
       FOUR_C_THROW("No valid wear coefficient provided, must be equal or greater 0.0");
 
-    if (Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(contact, "FRICTION") ==
-            Inpar::CONTACT::friction_tresca &&
+    if (Teuchos::getIntegralValue<CONTACT::FrictionType>(contact, "FRICTION") ==
+            CONTACT::FrictionType::tresca &&
         Teuchos::getIntegralValue<Inpar::Wear::WearLaw>(wearlist, "WEARLAW") !=
             Inpar::Wear::wear_none)
       FOUR_C_THROW("Wear only for Coulomb friction!");
@@ -981,39 +969,39 @@ bool CONTACT::Manager::read_and_check_input(Teuchos::ParameterList& cparams) con
                   Inpar::Mortar::shape_dual &&
               Teuchos::getIntegralValue<Inpar::Mortar::ShapeFcn>(mortar, "LM_SHAPEFCN") !=
                   Inpar::Mortar::shape_petrovgalerkin) &&
-          Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
-              Inpar::CONTACT::solution_lagmult)
+          Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
+              CONTACT::SolvingStrategy::lagmult)
         FOUR_C_THROW("POROCONTACT: Only dual and petrovgalerkin shape functions implemented yet!");
 
       if (Teuchos::getIntegralValue<Inpar::Mortar::ParallelRedist>(mortarParallelRedistParams,
               "PARALLEL_REDIST") != Inpar::Mortar::ParallelRedist::redist_none &&
-          Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
-              Inpar::CONTACT::solution_lagmult)
+          Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
+              CONTACT::SolvingStrategy::lagmult)
         // Since we use Pointers to Parent Elements, which are not copied to other procs!
         FOUR_C_THROW("POROCONTACT: Parallel Redistribution not implemented yet!");
 
-      if (Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") !=
-              Inpar::CONTACT::solution_lagmult &&
-          porodyn.get<bool>("CONTACTNOPEN"))
+      if (Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") !=
+              CONTACT::SolvingStrategy::lagmult &&
+          porodyn.get<bool>("CONTACT_NO_PENETRATION"))
         FOUR_C_THROW("POROCONTACT: Use Lagrangean Strategy for poro contact!");
 
-      if (Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(contact, "FRICTION") !=
-              Inpar::CONTACT::friction_none &&
-          Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
-              Inpar::CONTACT::solution_lagmult)
+      if (Teuchos::getIntegralValue<CONTACT::FrictionType>(contact, "FRICTION") !=
+              CONTACT::FrictionType::none &&
+          Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
+              CONTACT::SolvingStrategy::lagmult)
         FOUR_C_THROW("POROCONTACT: is_friction for poro contact not implemented!");
 
-      if (Teuchos::getIntegralValue<Inpar::CONTACT::SystemType>(contact, "SYSTEM") !=
-              Inpar::CONTACT::system_condensed &&
-          Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
-              Inpar::CONTACT::solution_lagmult)
+      if (Teuchos::getIntegralValue<CONTACT::SystemType>(contact, "SYSTEM") !=
+              CONTACT::SystemType::condensed &&
+          Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") ==
+              CONTACT::SolvingStrategy::lagmult)
         FOUR_C_THROW("POROCONTACT: System has to be condensed for poro contact!");
 
       if ((dim != 3) && (dim != 2))
       {
         const Teuchos::ParameterList& porodyn =
             Global::Problem::instance()->poroelast_dynamic_params();
-        if (porodyn.get<bool>("CONTACTNOPEN"))
+        if (porodyn.get<bool>("CONTACT_NO_PENETRATION"))
           FOUR_C_THROW("POROCONTACT: PoroContact with no penetration just tested for 3d (and 2d)!");
       }
     }
@@ -1059,7 +1047,7 @@ bool CONTACT::Manager::read_and_check_input(Teuchos::ParameterList& cparams) con
            Inpar::Mortar::algorithm_gpts)
   {
     const_cast<Teuchos::ParameterList&>(Global::Problem::instance()->contact_dynamic_params())
-        .set("SYSTEM", "none");
+        .set("SYSTEM", CONTACT::SystemType::none);
 
     if (contact.get<double>("PENALTYPARAM") <= 0.0)
       FOUR_C_THROW("Penalty parameter eps = 0, must be greater than 0");
@@ -1122,43 +1110,45 @@ bool CONTACT::Manager::read_and_check_input(Teuchos::ParameterList& cparams) con
   // store relevant problem types
   if (problemtype == Core::ProblemType::structure)
   {
-    cparams.set<int>("PROBTYPE", Inpar::CONTACT::structure);
+    cparams.set<CONTACT::Problemtype>("PROBTYPE", CONTACT::Problemtype::structure);
   }
   else if (problemtype == Core::ProblemType::tsi)
   {
-    cparams.set<int>("PROBTYPE", Inpar::CONTACT::tsi);
+    cparams.set<CONTACT::Problemtype>("PROBTYPE", CONTACT::Problemtype::tsi);
   }
   else if (problemtype == Core::ProblemType::poroelast or problemtype == Core::ProblemType::fpsi or
            problemtype == Core::ProblemType::poroscatra)
   {
     const Teuchos::ParameterList& porodyn = Global::Problem::instance()->poroelast_dynamic_params();
     if (problemtype == Core::ProblemType::poroelast or problemtype == Core::ProblemType::fpsi)
-      cparams.set<int>("PROBTYPE", Inpar::CONTACT::poroelast);
+      cparams.set<CONTACT::Problemtype>("PROBTYPE", CONTACT::Problemtype::poroelast);
     else if (problemtype == Core::ProblemType::poroscatra)
-      cparams.set<int>("PROBTYPE", Inpar::CONTACT::poroscatra);
+      cparams.set<CONTACT::Problemtype>("PROBTYPE", CONTACT::Problemtype::poroscatra);
     // porotimefac = 1/(theta*dt) --- required for derivation of structural displacements!
     double porotimefac =
         1 / (stru.sublist("ONESTEPTHETA").get<double>("THETA") * stru.get<double>("TIMESTEP"));
     cparams.set<double>("porotimefac", porotimefac);
-    cparams.set<bool>("CONTACTNOPEN", porodyn.get<bool>("CONTACTNOPEN"));  // used in the integrator
+    cparams.set<bool>("CONTACT_NO_PENETRATION",
+        porodyn.get<bool>("CONTACT_NO_PENETRATION"));  // used in the integrator
   }
   else if (problemtype == Core::ProblemType::fsi_xfem)
   {
-    cparams.set<int>("PROBTYPE", Inpar::CONTACT::fsi);
+    cparams.set<CONTACT::Problemtype>("PROBTYPE", CONTACT::Problemtype::fsi);
   }
   else if (problemtype == Core::ProblemType::fpsi_xfem)
   {
     const Teuchos::ParameterList& porodyn = Global::Problem::instance()->poroelast_dynamic_params();
-    cparams.set<int>("PROBTYPE", Inpar::CONTACT::fpi);
+    cparams.set<CONTACT::Problemtype>("PROBTYPE", CONTACT::Problemtype::fpi);
     // porotimefac = 1/(theta*dt) --- required for derivation of structural displacements!
     double porotimefac =
         1 / (stru.sublist("ONESTEPTHETA").get<double>("THETA") * stru.get<double>("TIMESTEP"));
     cparams.set<double>("porotimefac", porotimefac);
-    cparams.set<bool>("CONTACTNOPEN", porodyn.get<bool>("CONTACTNOPEN"));  // used in the integrator
+    cparams.set<bool>("CONTACT_NO_PENETRATION",
+        porodyn.get<bool>("CONTACT_NO_PENETRATION"));  // used in the integrator
   }
   else
   {
-    cparams.set<int>("PROBTYPE", Inpar::CONTACT::other);
+    cparams.set<CONTACT::Problemtype>("PROBTYPE", CONTACT::Problemtype::other);
   }
 
   // no parallel redistribution in the serial case
@@ -1219,9 +1209,11 @@ void CONTACT::Manager::read_restart(Core::IO::DiscretizationReader& reader,
   }
 
   // If Parent Elements are required, we need to reconnect them before contact restart!
-  if ((get_strategy().params().get<int>("PROBTYPE") == Inpar::CONTACT::poroelast ||
-          get_strategy().params().get<int>("PROBTYPE") == Inpar::CONTACT::poroscatra) ||
-      get_strategy().params().get<int>("PROBTYPE") == Inpar::CONTACT::fpi)
+  if ((get_strategy().params().get<CONTACT::Problemtype>("PROBTYPE") ==
+              CONTACT::Problemtype::poroelast ||
+          get_strategy().params().get<CONTACT::Problemtype>("PROBTYPE") ==
+              CONTACT::Problemtype::poroscatra) ||
+      get_strategy().params().get<CONTACT::Problemtype>("PROBTYPE") == CONTACT::Problemtype::fpi)
     reconnect_parent_elements();
 
   // this is contact, thus we need the displacement state for restart
@@ -1244,18 +1236,18 @@ void CONTACT::Manager::postprocess_quantities(Core::IO::DiscretizationWriter& ou
 
   // evaluate active set and slip set
   Core::LinAlg::Vector<double> activeset(*get_strategy().active_row_nodes());
-  activeset.PutScalar(1.0);
+  activeset.put_scalar(1.0);
   if (get_strategy().is_friction())
   {
     Core::LinAlg::Vector<double> slipset(*get_strategy().slip_row_nodes());
-    slipset.PutScalar(1.0);
+    slipset.put_scalar(1.0);
     Core::LinAlg::Vector<double> slipsetexp(*get_strategy().active_row_nodes());
     Core::LinAlg::export_to(slipset, slipsetexp);
-    activeset.Update(1.0, slipsetexp, 1.0);
+    activeset.update(1.0, slipsetexp, 1.0);
   }
 
   // export to problem node row map
-  std::shared_ptr<Epetra_Map> problemnodes = get_strategy().problem_nodes();
+  std::shared_ptr<Core::LinAlg::Map> problemnodes = get_strategy().problem_nodes();
   std::shared_ptr<Core::LinAlg::Vector<double>> activesetexp =
       std::make_shared<Core::LinAlg::Vector<double>>(*problemnodes);
   Core::LinAlg::export_to(activeset, *activesetexp);
@@ -1263,16 +1255,16 @@ void CONTACT::Manager::postprocess_quantities(Core::IO::DiscretizationWriter& ou
   if (get_strategy().wear_both_discrete())
   {
     Core::LinAlg::Vector<double> mactiveset(*get_strategy().master_active_nodes());
-    mactiveset.PutScalar(1.0);
+    mactiveset.put_scalar(1.0);
     Core::LinAlg::Vector<double> slipset(*get_strategy().master_slip_nodes());
-    slipset.PutScalar(1.0);
+    slipset.put_scalar(1.0);
     Core::LinAlg::Vector<double> slipsetexp(*get_strategy().master_active_nodes());
     Core::LinAlg::export_to(slipset, slipsetexp);
-    mactiveset.Update(1.0, slipsetexp, 1.0);
+    mactiveset.update(1.0, slipsetexp, 1.0);
 
     Core::LinAlg::Vector<double> mactivesetexp(*problemnodes);
     Core::LinAlg::export_to(mactiveset, mactivesetexp);
-    activesetexp->Update(1.0, mactivesetexp, 1.0);
+    activesetexp->update(1.0, mactivesetexp, 1.0);
   }
 
   output.write_vector("activeset", activesetexp);
@@ -1281,7 +1273,7 @@ void CONTACT::Manager::postprocess_quantities(Core::IO::DiscretizationWriter& ou
   //  weighted gap
   // *********************************************************************
   // export to problem dof row map
-  std::shared_ptr<Epetra_Map> gapnodes = get_strategy().problem_nodes();
+  std::shared_ptr<Core::LinAlg::Map> gapnodes = get_strategy().problem_nodes();
   std::shared_ptr<const Core::LinAlg::Vector<double>> gaps =
       std::dynamic_pointer_cast<CONTACT::AbstractStrategy>(strategy_)->contact_wgap();
   if (gaps != nullptr)
@@ -1301,7 +1293,7 @@ void CONTACT::Manager::postprocess_quantities(Core::IO::DiscretizationWriter& ou
   get_strategy().compute_contact_stresses();
 
   // export to problem dof row map
-  std::shared_ptr<Epetra_Map> problemdofs = get_strategy().problem_dofs();
+  std::shared_ptr<Core::LinAlg::Map> problemdofs = get_strategy().problem_dofs();
 
   // normal direction
   std::shared_ptr<const Core::LinAlg::Vector<double>> normalstresses =
@@ -1401,13 +1393,13 @@ void CONTACT::Manager::postprocess_quantities_per_interface(
 void CONTACT::Manager::reconnect_parent_elements()
 {
   {
-    const Epetra_Map* elecolmap = discret_.element_col_map();
+    const Core::LinAlg::Map* elecolmap = discret_.element_col_map();
 
     CONTACT::AbstractStrategy& strategy = dynamic_cast<CONTACT::AbstractStrategy&>(get_strategy());
 
     for (auto& interface : strategy.contact_interfaces())
     {
-      const Epetra_Map* ielecolmap = interface->discret().element_col_map();
+      const Core::LinAlg::Map* ielecolmap = interface->discret().element_col_map();
 
       for (int i = 0; i < ielecolmap->NumMyElements(); ++i)
       {
@@ -1420,7 +1412,7 @@ void CONTACT::Manager::reconnect_parent_elements()
         int volgid = faceele->parent_element_id();
         if (elecolmap->LID(volgid) == -1)  // Volume discretization has not Element
           FOUR_C_THROW(
-              "Manager::reconnect_parent_elements: Element %d does not exist on this Proc!",
+              "Manager::reconnect_parent_elements: Element {} does not exist on this Proc!",
               volgid);
 
         Core::Elements::Element* vele = discret_.g_element(volgid);

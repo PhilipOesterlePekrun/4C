@@ -18,6 +18,7 @@
 #include "4C_mat_par_bundle.hpp"
 #include "4C_red_airways_elem_params.hpp"
 #include "4C_red_airways_evaluation_data.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 #include "4C_utils_function_of_time.hpp"
 
@@ -37,7 +38,7 @@ namespace
   {
     double length = 0.0;
     // get node coordinates and number of elements per node
-    static const int numnode = Core::FE::num_nodes<distype>;
+    static const int numnode = Core::FE::num_nodes(distype);
     Core::Nodes::Node** nodes = ele->nodes();
     // get airway length
     Core::LinAlg::Matrix<3, numnode> xyze;
@@ -82,8 +83,7 @@ namespace
       std::string Bc = (condition->parameters().get<std::string>(optionName));
       if (Bc == condType)
       {
-        const auto curve =
-            condition->parameters().get<std::vector<Core::IO::Noneable<int>>>("curve");
+        const auto curve = condition->parameters().get<std::vector<std::optional<int>>>("curve");
         double curvefac = 1.0;
         const auto vals = condition->parameters().get<std::vector<double>>("VAL");
 
@@ -166,7 +166,6 @@ namespace
     else
     {
       FOUR_C_THROW("Material law is not a Newtonian fluid");
-      exit(1);
     }
 
     rhs.putScalar(0.0);
@@ -199,8 +198,8 @@ namespace
     }
     else
     {
-      FOUR_C_THROW("[%s] is not a defined ElemSolvingType of a RED_AIRWAY element",
-          ele->elem_solving_type().c_str());
+      FOUR_C_THROW("[{}] is not a defined ElemSolvingType of a RED_AIRWAY element",
+          ele->elem_solving_type());
     }
 
     // Get airway branch length
@@ -380,7 +379,7 @@ namespace
     }
     else
     {
-      FOUR_C_THROW("[%s] is not a defined resistance model", ele->resistance().c_str());
+      FOUR_C_THROW("[{}] is not a defined resistance model", ele->resistance());
     }
 
     //------------------------------------------------------------
@@ -503,8 +502,7 @@ namespace
     }
     else
     {
-      FOUR_C_THROW("[%s] is not an implemented element yet", (ele->type()).c_str());
-      exit(1);
+      FOUR_C_THROW("[{}] is not an implemented element yet", (ele->type()));
     }
 
     double Ainv = -0.5 * C / (dt + Rvis * C);
@@ -555,7 +553,7 @@ Discret::Elements::RedAirwayImplInterface* Discret::Elements::RedAirwayImplInter
     }
     default:
       FOUR_C_THROW(
-          "shape %d (%d nodes) not supported", red_airway->shape(), red_airway->num_node());
+          "shape {} ({} nodes) not supported", red_airway->shape(), red_airway->num_node());
       break;
   }
   return nullptr;
@@ -568,13 +566,11 @@ Discret::Elements::RedAirwayImplInterface* Discret::Elements::RedAirwayImplInter
 template <Core::FE::CellType distype>
 int Discret::Elements::AirwayImpl<distype>::evaluate(RedAirway* ele, Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, std::vector<int>& lm,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra, std::shared_ptr<Core::Mat::Material> mat)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3, std::shared_ptr<Core::Mat::Material> mat)
 {
-  const int elemVecdim = elevec1_epetra.length();
+  const int elemVecdim = elevec1.length();
 
   Discret::ReducedLung::EvaluationData& evaluation_data =
       Discret::ReducedLung::EvaluationData::get();
@@ -606,16 +602,13 @@ int Discret::Elements::AirwayImpl<distype>::evaluate(RedAirway* ele, Teuchos::Pa
     FOUR_C_THROW("Cannot get state vectors 'pnp', 'on', and/or 'pnm''");
 
   // extract local values from the global vectors
-  std::vector<double> mypnp(lm.size());
-  Core::FE::extract_my_values(*pnp, mypnp, lm);
+  std::vector<double> mypnp = Core::FE::extract_values(*pnp, lm);
 
   // extract local values from the global vectors
-  std::vector<double> mypn(lm.size());
-  Core::FE::extract_my_values(*on, mypn, lm);
+  std::vector<double> mypn = Core::FE::extract_values(*on, lm);
 
   // extract local values from the global vectors
-  std::vector<double> mypnm(lm.size());
-  Core::FE::extract_my_values(*pnm, mypnm, lm);
+  std::vector<double> mypnm = Core::FE::extract_values(*pnm, lm);
 
   // create objects for element arrays
   Core::LinAlg::SerialDenseVector epnp(elemVecdim);
@@ -673,7 +666,7 @@ int Discret::Elements::AirwayImpl<distype>::evaluate(RedAirway* ele, Teuchos::Pa
   // ---------------------------------------------------------------------
   // call routine for calculating element matrix and right hand side
   // ---------------------------------------------------------------------
-  sysmat<distype>(ele, epnp, epn, epnm, elemat1_epetra, elevec1_epetra, mat, elem_params, time, dt,
+  sysmat<distype>(ele, epnp, epn, epnm, elemat1, elevec1, mat, elem_params, time, dt,
       evaluation_data.compute_awacinter);
 
   return 0;
@@ -709,18 +702,18 @@ void Discret::Elements::AirwayImpl<distype>::initial(RedAirway* ele, Teuchos::Pa
   {
     int gid = lm[0];
     double val = 0.0;
-    evaluation_data.p0np->ReplaceGlobalValues(1, &val, &gid);
-    evaluation_data.p0n->ReplaceGlobalValues(1, &val, &gid);
-    evaluation_data.p0nm->ReplaceGlobalValues(1, &val, &gid);
+    evaluation_data.p0np->replace_global_values(1, &val, &gid);
+    evaluation_data.p0n->replace_global_values(1, &val, &gid);
+    evaluation_data.p0nm->replace_global_values(1, &val, &gid);
   }
   {
     int gid = lm[1];
     double val = 0.0;
     if (myrank == ele->nodes()[1]->owner())
     {
-      evaluation_data.p0np->ReplaceGlobalValues(1, &val, &gid);
-      evaluation_data.p0n->ReplaceGlobalValues(1, &val, &gid);
-      evaluation_data.p0nm->ReplaceGlobalValues(1, &val, &gid);
+      evaluation_data.p0np->replace_global_values(1, &val, &gid);
+      evaluation_data.p0n->replace_global_values(1, &val, &gid);
+      evaluation_data.p0nm->replace_global_values(1, &val, &gid);
     }
 
     const double A = airway_params.area;
@@ -741,13 +734,13 @@ void Discret::Elements::AirwayImpl<distype>::initial(RedAirway* ele, Teuchos::Pa
     const int generation = airway_params.generation;
 
     double val = double(generation);
-    evaluation_data.generations->ReplaceGlobalValues(1, &val, &gid);
+    evaluation_data.generations->replace_global_values(1, &val, &gid);
 
 
     const double A = airway_params.area;
     double V = A * L;
-    evaluation_data.elemVolume->ReplaceGlobalValues(1, &V, &gid);
-    evaluation_data.elemArea0->ReplaceGlobalValues(1, &A, &gid);
+    evaluation_data.elemVolume->replace_global_values(1, &V, &gid);
+    evaluation_data.elemArea0->replace_global_values(1, &A, &gid);
   }
 
 }  // AirwayImpl::Initial
@@ -809,8 +802,8 @@ void Discret::Elements::AirwayImpl<distype>::evaluate_collapse(
   }
 
   int gid = ele->id();
-  evaluation_data.x_np->ReplaceGlobalValues(1, &xnp, &gid);
-  evaluation_data.open->ReplaceGlobalValues(1, &opennp, &gid);
+  evaluation_data.x_np->replace_global_values(1, &xnp, &gid);
+  evaluation_data.open->replace_global_values(1, &opennp, &gid);
 }
 
 /*----------------------------------------------------------------------*
@@ -835,8 +828,8 @@ void Discret::Elements::AirwayImpl<distype>::compute_pext(RedAirway* ele,
 
 
   int gid = ele->id();
-  evaluation_data.p_extnp->ReplaceGlobalValues(1, &pextnp, &gid);
-  evaluation_data.p_extn->ReplaceGlobalValues(1, &pextn, &gid);
+  evaluation_data.p_extnp->replace_global_values(1, &pextnp, &gid);
+  evaluation_data.p_extn->replace_global_values(1, &pextn, &gid);
 }
 
 /*----------------------------------------------------------------------*
@@ -864,8 +857,7 @@ void Discret::Elements::AirwayImpl<distype>::evaluate_terminal_bc(RedAirway* ele
   if (on == nullptr) FOUR_C_THROW("Cannot get state vectors 'on'");
 
   // extract local values from the global vectors
-  std::vector<double> mypn(lm.size());
-  Core::FE::extract_my_values(*on, mypn, lm);
+  std::vector<double> mypn = Core::FE::extract_values(*on, lm);
 
   // create objects for element arrays
   Core::LinAlg::SerialDenseVector epn(numnode);
@@ -932,10 +924,9 @@ void Discret::Elements::AirwayImpl<distype>::evaluate_terminal_bc(RedAirway* ele
             else
             {
               FOUR_C_THROW(
-                  "FUNCTION %i has to take either value 0.0 or 1.0. Not clear if flow or pressure "
+                  "FUNCTION {} has to take either value 0.0 or 1.0. Not clear if flow or pressure "
                   "boundary condition should be active.",
                   (funct_id_switch - 1));
-              exit(1);
             }
 
             BCin = Global::Problem::instance()
@@ -949,7 +940,7 @@ void Discret::Elements::AirwayImpl<distype>::evaluate_terminal_bc(RedAirway* ele
             //  Val = curve1*val1 + curve2*func
             // -----------------------------------------------------------------
             const auto* curve =
-                condition->parameters().get_if<std::vector<Core::IO::Noneable<int>>>("curve");
+                condition->parameters().get_if<std::vector<std::optional<int>>>("curve");
             const auto vals = condition->parameters().get<std::vector<double>>("VAL");
 
             // get factor of curve1 or curve2
@@ -973,7 +964,7 @@ void Discret::Elements::AirwayImpl<distype>::evaluate_terminal_bc(RedAirway* ele
                 [&]()
                 {
                   const auto* functions =
-                      condition->parameters().get_if<std::vector<Core::IO::Noneable<int>>>("funct");
+                      condition->parameters().get_if<std::vector<std::optional<int>>>("funct");
                   if (functions)
                   {
                     if ((*functions)[0].has_value() && (*functions)[0].value() > 0)
@@ -996,9 +987,8 @@ void Discret::Elements::AirwayImpl<distype>::evaluate_terminal_bc(RedAirway* ele
           int local_id = discretization.node_row_map()->LID(ele->nodes()[i]->id());
           if (local_id < 0)
           {
-            FOUR_C_THROW("node (%d) doesn't exist on proc(%d)", ele->nodes()[i]->id(),
+            FOUR_C_THROW("node ({}) doesn't exist on proc({})", ele->nodes()[i]->id(),
                 Core::Communication::my_mpi_rank(discretization.get_comm()));
-            exit(1);
           }
         }
         else if (ele->nodes()[i]->get_condition("Art_redD_3D_CouplingCond"))
@@ -1016,7 +1006,6 @@ void Discret::Elements::AirwayImpl<distype>::evaluate_terminal_bc(RedAirway* ele
             FOUR_C_THROW(
                 "Cannot prescribe a boundary condition from 3D to reduced D, if the parameters "
                 "passed don't exist");
-            exit(1);
           }
 
           // -----------------------------------------------------------------
@@ -1077,11 +1066,11 @@ void Discret::Elements::AirwayImpl<distype>::evaluate_terminal_bc(RedAirway* ele
 
           gid = lm[i];
           val = BCin;
-          evaluation_data.bcval->ReplaceGlobalValues(1, &val, &gid);
+          evaluation_data.bcval->replace_global_values(1, &val, &gid);
 
           gid = lm[i];
           val = 1;
-          evaluation_data.dbctog->ReplaceGlobalValues(1, &val, &gid);
+          evaluation_data.dbctog->replace_global_values(1, &val, &gid);
         }
         else if (Bc == "flow")
         {
@@ -1099,8 +1088,7 @@ void Discret::Elements::AirwayImpl<distype>::evaluate_terminal_bc(RedAirway* ele
         }
         else
         {
-          FOUR_C_THROW("precribed [%s] is not defined for reduced airways", Bc.c_str());
-          exit(1);
+          FOUR_C_THROW("precribed [{}] is not defined for reduced airways", Bc);
         }
       }
       else
@@ -1118,9 +1106,8 @@ void Discret::Elements::AirwayImpl<distype>::evaluate_terminal_bc(RedAirway* ele
           int local_id = discretization.node_row_map()->LID(ele->nodes()[i]->id());
           if (local_id < 0)
           {
-            FOUR_C_THROW("node (%d) doesn't exist on proc(%d)", ele->nodes()[i],
+            FOUR_C_THROW("node ({}) doesn't exist on proc({})", ele->nodes()[i]->id(),
                 Core::Communication::my_mpi_rank(discretization.get_comm()));
-            exit(1);
           }
 
           // set pressure at node i
@@ -1129,11 +1116,11 @@ void Discret::Elements::AirwayImpl<distype>::evaluate_terminal_bc(RedAirway* ele
 
           gid = lm[i];
           val = 0.0;
-          evaluation_data.bcval->ReplaceGlobalValues(1, &val, &gid);
+          evaluation_data.bcval->replace_global_values(1, &val, &gid);
 
           gid = lm[i];
           val = 1;
-          evaluation_data.dbctog->ReplaceGlobalValues(1, &val, &gid);
+          evaluation_data.dbctog->replace_global_values(1, &val, &gid);
         }
       }  // END of if there is no BC but the node still is at the terminal
 
@@ -1177,16 +1164,13 @@ void Discret::Elements::AirwayImpl<distype>::calc_flow_rates(RedAirway* ele,
     FOUR_C_THROW("Cannot get state vectors 'pnp', 'on', and/or 'pnm''");
 
   // extract local values from the global vectors
-  std::vector<double> mypnp(lm.size());
-  Core::FE::extract_my_values(*pnp, mypnp, lm);
+  std::vector<double> mypnp = Core::FE::extract_values(*pnp, lm);
 
   // extract local values from the global vectors
-  std::vector<double> mypn(lm.size());
-  Core::FE::extract_my_values(*on, mypn, lm);
+  std::vector<double> mypn = Core::FE::extract_values(*on, lm);
 
   // extract local values from the global vectors
-  std::vector<double> mypnm(lm.size());
-  Core::FE::extract_my_values(*pnm, mypnm, lm);
+  std::vector<double> mypnm = Core::FE::extract_values(*pnm, lm);
 
   // create objects for element arrays
   Core::LinAlg::SerialDenseVector epnp(elemVecdim);
@@ -1253,8 +1237,8 @@ void Discret::Elements::AirwayImpl<distype>::calc_flow_rates(RedAirway* ele,
 
   int gid = ele->id();
 
-  evaluation_data.qin_np->ReplaceGlobalValues(1, &qinnp, &gid);
-  evaluation_data.qout_np->ReplaceGlobalValues(1, &qoutnp, &gid);
+  evaluation_data.qin_np->replace_global_values(1, &qinnp, &gid);
+  evaluation_data.qout_np->replace_global_values(1, &qoutnp, &gid);
 }  // CalcFlowRates
 
 
@@ -1313,11 +1297,11 @@ void Discret::Elements::AirwayImpl<distype>::calc_elem_volume(RedAirway* ele,
     eVolumenp = L * area0 * 0.01;
   }
   // update elem
-  evaluation_data.elemVolumenp->ReplaceGlobalValues(1, &eVolumenp, &gid);
+  evaluation_data.elemVolumenp->replace_global_values(1, &eVolumenp, &gid);
 
   // calculate and update element radius
   double eRadiusnp = std::sqrt(eVolumenp / L * M_1_PI);
-  evaluation_data.elemRadiusnp->ReplaceGlobalValues(1, &eRadiusnp, &gid);
+  evaluation_data.elemRadiusnp->replace_global_values(1, &eRadiusnp, &gid);
 }  // CalcElemVolume
 
 
@@ -1346,8 +1330,7 @@ void Discret::Elements::AirwayImpl<distype>::get_coupled_values(RedAirway* ele,
   if (pnp == nullptr) FOUR_C_THROW("Cannot get state vectors 'pnp'");
 
   // extract local values from the global vectors
-  std::vector<double> mypnp(lm.size());
-  Core::FE::extract_my_values(*pnp, mypnp, lm);
+  std::vector<double> mypnp = Core::FE::extract_values(*pnp, lm);
 
   // create objects for element arrays
   Core::LinAlg::SerialDenseVector epnp(numnode);
@@ -1380,7 +1363,6 @@ void Discret::Elements::AirwayImpl<distype>::get_coupled_values(RedAirway* ele,
           FOUR_C_THROW(
               "Cannot prescribe a boundary condition from 3D to reduced D, if the parameters "
               "passed don't exist");
-          exit(1);
         }
 
 
@@ -1424,8 +1406,7 @@ void Discret::Elements::AirwayImpl<distype>::get_coupled_values(RedAirway* ele,
         else
         {
           std::string str = (condition->parameters().get<std::string>("ReturnedVariable"));
-          FOUR_C_THROW("%s, is an unimplemented type of coupling", str.c_str());
-          exit(1);
+          FOUR_C_THROW("{}, is an unimplemented type of coupling", str);
         }
         std::stringstream returnedBCwithId;
         returnedBCwithId << returnedBC << "_" << ID;
@@ -1442,9 +1423,8 @@ void Discret::Elements::AirwayImpl<distype>::get_coupled_values(RedAirway* ele,
         itrMap1D = map1D->find(returnedBCwithId.str());
         if (itrMap1D == map1D->end())
         {
-          FOUR_C_THROW("The 3D map for (1D - 3D coupling) has no variable (%s) for ID [%d]",
-              returnedBC.c_str(), ID);
-          exit(1);
+          FOUR_C_THROW(
+              "The 3D map for (1D - 3D coupling) has no variable ({}) for ID [{}]", returnedBC, ID);
         }
 
         // update the 1D map

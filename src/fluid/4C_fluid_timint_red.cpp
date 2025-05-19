@@ -51,7 +51,7 @@ void FLD::TimIntRedModels::init()
   // create the volumetric-surface-flow condition
   if (alefluid_)
   {
-    discret_->set_state("dispnp", dispn_);
+    discret_->set_state("dispnp", *dispn_);
   }
 
   vol_surf_flow_bc_ = std::make_shared<Utils::FluidVolumetricSurfaceFlowWrapper>(discret_, dta_);
@@ -59,16 +59,14 @@ void FLD::TimIntRedModels::init()
   // evaluate the map of the womersley bcs
   vol_flow_rates_bc_extractor_ = std::make_shared<FLD::Utils::VolumetricFlowMapExtractor>();
   vol_flow_rates_bc_extractor_->setup(*discret_);
-  vol_surf_flow_bc_maps_ = std::make_shared<Epetra_Map>(
+  vol_surf_flow_bc_maps_ = std::make_shared<Core::LinAlg::Map>(
       *(vol_flow_rates_bc_extractor_->volumetric_surface_flow_cond_map()));
 
   // -------------------------------------------------------------------
   // Initialize the reduced models
   // -------------------------------------------------------------------
 
-  strong_redD_3d_coupling_ = false;
-  if (params_->get<std::string>("Strong 3D_redD coupling", "no") == "yes")
-    strong_redD_3d_coupling_ = true;
+  strong_redD_3d_coupling_ = params_->get<bool>("Strong 3D_redD coupling", false);
 
   {
     ART_timeInt_ = dyn_art_net_drt(true);
@@ -79,10 +77,10 @@ void FLD::TimIntRedModels::init()
           Global::Problem::instance()->output_control_file(),
           Global::Problem::instance()->spatial_approximation_type());
       discret_->clear_state();
-      discret_->set_state("velaf", zeros_);
+      discret_->set_state("velaf", *zeros_);
       if (alefluid_)
       {
-        discret_->set_state("dispnp", dispnp_);
+        discret_->set_state("dispnp", *dispnp_);
       }
       coupled3D_redDbc_art_ =
           std::make_shared<Utils::FluidCouplingWrapper<Adapter::ArtNet>>(discret_,
@@ -98,10 +96,10 @@ void FLD::TimIntRedModels::init()
           Global::Problem::instance()->output_control_file(),
           Global::Problem::instance()->spatial_approximation_type());
       discret_->clear_state();
-      discret_->set_state("velaf", zeros_);
+      discret_->set_state("velaf", *zeros_);
       if (alefluid_)
       {
-        discret_->set_state("dispnp", dispnp_);
+        discret_->set_state("dispnp", *dispnp_);
       }
       coupled3D_redDbc_airways_ =
           std::make_shared<Utils::FluidCouplingWrapper<Airway::RedAirwayImplicitTimeInt>>(discret_,
@@ -110,7 +108,7 @@ void FLD::TimIntRedModels::init()
     }
 
 
-    zeros_->PutScalar(0.0);  // just in case of change
+    zeros_->put_scalar(0.0);  // just in case of change
   }
 
   traction_vel_comp_adder_bc_ = std::make_shared<Utils::TotalTractionCorrector>(discret_, dta_);
@@ -140,7 +138,7 @@ void FLD::TimIntRedModels::do_problem_specific_boundary_conditions()
 {
   if (alefluid_)
   {
-    discret_->set_state("dispnp", dispnp_);
+    discret_->set_state("dispnp", *dispnp_);
   }
 
   // Check if one-dimensional artery network problem exist
@@ -166,12 +164,12 @@ void FLD::TimIntRedModels::update_3d_to_reduced_mat_and_rhs()
 {
   discret_->clear_state();
 
-  discret_->set_state("velaf", velnp_);
-  discret_->set_state("hist", hist_);
+  discret_->set_state("velaf", *velnp_);
+  discret_->set_state("hist", *hist_);
 
   if (alefluid_)
   {
-    discret_->set_state("dispnp", dispnp_);
+    discret_->set_state("dispnp", *dispnp_);
   }
 
   // Check if one-dimensional artery network problem exist
@@ -400,7 +398,7 @@ void FLD::TimIntRedModels::avm3_preparation()
 
   // necessary here, because some application time integrations add something to the residual
   // before the Neumann loads are added
-  residual_->PutScalar(0.0);
+  residual_->put_scalar(0.0);
 
   // Maybe this needs to be inserted in case of impedanceBC + AVM3
   //  if (nonlinearbc_ && isimpedancebc_)
@@ -439,10 +437,10 @@ void FLD::TimIntRedModels::prepare_time_step()
   FluidImplicitTimeInt::prepare_time_step();
 
   discret_->clear_state();
-  discret_->set_state("velaf", velnp_);
-  discret_->set_state("hist", hist_);
+  discret_->set_state("velaf", *velnp_);
+  discret_->set_state("hist", *hist_);
 
-  if (alefluid_) discret_->set_state("dispnp", dispnp_);
+  if (alefluid_) discret_->set_state("dispnp", *dispnp_);
 
   // Check if one-dimensional artery network problem exist
   if (ART_timeInt_ != nullptr)

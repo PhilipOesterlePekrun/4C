@@ -13,19 +13,14 @@
 #include "4C_fem_general_utils_createdis.hpp"
 #include "4C_global_data.hpp"
 #include "4C_global_legacy_module.hpp"
-#include "4C_global_legacy_module_validmaterials.hpp"
-#include "4C_inpar_validconditions.hpp"
-#include "4C_inpar_validparameters.hpp"
+#include "4C_global_legacy_module_validconditions.hpp"
 #include "4C_io_input_file_utils.hpp"
 #include "4C_io_input_spec_builders.hpp"
 #include "4C_pre_exodus_readbc.hpp"
-#include "4C_pre_exodus_reader.hpp"
 #include "4C_pre_exodus_validate.hpp"
 #include "4C_pre_exodus_writedat.hpp"
-#include "4C_utils_result_test.hpp"
 #include "4C_utils_singleton_owner.hpp"
 
-#include <Epetra_MpiComm.h>
 #include <Teuchos_CommandLineProcessor.hpp>
 #include <Teuchos_Time.hpp>
 #include <Teuchos_TimeMonitor.hpp>
@@ -40,7 +35,7 @@ namespace
   /*----------------------------------------------------------------------*/
   /* create default bc file                                               */
   /*----------------------------------------------------------------------*/
-  int create_default_bc_file(EXODUS::Mesh& mymesh)
+  int create_default_bc_file(Core::IO::Exodus::Mesh& mymesh)
   {
     using namespace FourC;
 
@@ -49,7 +44,7 @@ namespace
 
     // open default bc specification file
     std::ofstream defaultbc(defaultbcfilename.c_str());
-    if (!defaultbc) FOUR_C_THROW("failed to open file: %s", defaultbcfilename.c_str());
+    if (!defaultbc) FOUR_C_THROW("failed to open file: {}", defaultbcfilename);
 
     // write mesh verbosely
     defaultbc << "----------- Mesh contents -----------" << std::endl << std::endl;
@@ -93,13 +88,10 @@ namespace
               << std::endl;
 
     // write ElementBlocks with specification proposal
-    const std::map<int, std::shared_ptr<EXODUS::ElementBlock>> myblocks =
-        mymesh.get_element_blocks();
-    std::map<int, std::shared_ptr<EXODUS::ElementBlock>>::const_iterator it;
-    for (it = myblocks.begin(); it != myblocks.end(); ++it)
+    for (const auto& [eb_id, eb] : mymesh.get_element_blocks())
     {
-      it->second->print(defaultbc);
-      defaultbc << "*eb" << it->first << "=\"ELEMENT\"" << std::endl
+      eb.print(defaultbc);
+      defaultbc << "*eb" << eb_id << "=\"ELEMENT\"" << std::endl
                 << "sectionname=\"\"" << std::endl
                 << "description=\"\"" << std::endl
                 << "elementname=\"\"" << std::endl
@@ -107,8 +99,8 @@ namespace
     }
 
     // write NodeSets with specification proposal
-    const std::map<int, EXODUS::NodeSet> mynodesets = mymesh.get_node_sets();
-    std::map<int, EXODUS::NodeSet>::const_iterator ins;
+    const std::map<int, Core::IO::Exodus::NodeSet> mynodesets = mymesh.get_node_sets();
+    std::map<int, Core::IO::Exodus::NodeSet>::const_iterator ins;
     for (ins = mynodesets.begin(); ins != mynodesets.end(); ++ins)
     {
       ins->second.print(defaultbc);
@@ -119,8 +111,8 @@ namespace
     }
 
     // write SideSets with specification proposal
-    const std::map<int, EXODUS::SideSet> mysidesets = mymesh.get_side_sets();
-    std::map<int, EXODUS::SideSet>::const_iterator iss;
+    const std::map<int, Core::IO::Exodus::SideSet> mysidesets = mymesh.get_side_sets();
+    std::map<int, Core::IO::Exodus::SideSet>::const_iterator iss;
     for (iss = mysidesets.begin(); iss != mysidesets.end(); ++iss)
     {
       iss->second.print(defaultbc);
@@ -132,8 +124,8 @@ namespace
 
     // print validconditions as proposal
     defaultbc << "-----------------------------------------VALIDCONDITIONS" << std::endl;
-    std::vector<Core::Conditions::ConditionDefinition> condlist = Input::valid_conditions();
-    Input::print_empty_condition_definitions(defaultbc, condlist);
+    std::vector<Core::Conditions::ConditionDefinition> condlist = Global::valid_conditions();
+    Global::print_empty_condition_definitions(defaultbc, condlist);
 
     // print valid element lines as proposal (parobjects have to be registered for doing this!)
     defaultbc << std::endl << std::endl;
@@ -180,29 +172,22 @@ int main(int argc, char** argv)
     std::string exofile;
     std::string bcfile;
     std::string headfile;
-    std::string datfile;
+    std::string outfile;
     std::string cline;
 
     bool twodim = false;
 
-    // related to quad->tri conversion
-    bool quadtri = false;
 
     Teuchos::CommandLineProcessor My_CLP;
-    My_CLP.setDocString(
-        "This preprocessor converts Exodus2 files to the proprietary FourC format\n");
+    My_CLP.setDocString("This preprocessor converts Exodus2 files into 4C input files\n");
     My_CLP.throwExceptions(false);
     My_CLP.setOption("exo", &exofile, "exodus file to open");
-    My_CLP.setOption("bc", &bcfile, "bc's and ele's file to open");
-    My_CLP.setOption("head", &headfile, "4C header file to open");
-    My_CLP.setOption("dat", &datfile, "output .dat file name [defaults to exodus file name]");
+    My_CLP.setOption("bc", &bcfile, "bc's and ele's file to open (custom format)");
+    My_CLP.setOption("head", &headfile, "4C header file to open (yaml format)");
+    My_CLP.setOption("out", &outfile, "output file name, defaults to exodus file name");
 
-    // switch for generating a 2d .dat - file
+    // switch for generating a 2d file
     My_CLP.setOption("d2", "d3", &twodim, "space dimensions in .dat-file: d2: 2D, d3: 3D");
-
-    // check for quad->tri conversion
-    My_CLP.setOption(
-        "quadtri", "noquadtri", &quadtri, "transform quads to tris by cutting in two halves");
 
     Teuchos::CommandLineProcessor::EParseCommandLineReturn parseReturn = My_CLP.parse(argc, argv);
 
@@ -215,9 +200,9 @@ int main(int argc, char** argv)
       FOUR_C_THROW("CommandLineProcessor reported an error");
     }
 
-    if (datfile != "")
+    if (outfile != "")
     {
-      const std::string basename = datfile.substr(0, datfile.find_last_of(".")) + "_pre";
+      const std::string basename = outfile.substr(0, outfile.find_last_of(".")) + "_pre";
       Core::IO::cout.setup(true, false, false, Core::IO::standard, comm, 0, 0,
           basename);  // necessary setup of Core::IO::cout
     }
@@ -233,10 +218,10 @@ int main(int argc, char** argv)
      **************************************************************************/
     if (exofile == "")
     {
-      if (datfile != "")
+      if (outfile != "")
       {
         // just validate a given 4C input file
-        EXODUS::validate_input_file(comm, datfile);
+        EXODUS::validate_input_file(comm, outfile);
         return 0;
       }
       else
@@ -247,21 +232,9 @@ int main(int argc, char** argv)
     }
 
     // create mesh object based on given exodus II file
-    EXODUS::Mesh mymesh(exofile);
+    Core::IO::Exodus::Mesh mymesh(exofile);
     // print infos to std::cout
     mymesh.print(std::cout);
-
-    /**************************************************************************
-     * Edit a existing Mesh, e.g. extrusion of surface
-     **************************************************************************/
-
-    // transform quads->tris
-    if (quadtri)
-    {
-      EXODUS::Mesh trimesh = EXODUS::quadto_tri(mymesh);
-      trimesh.write_mesh("tri_" + exofile);
-      exit(0);
-    }
 
     /**************************************************************************
      * Read ControlFile for Boundary and Element descriptions
@@ -293,118 +266,26 @@ int main(int argc, char** argv)
     }
 
     /**************************************************************************
-     * Read HeaderFile for 'header' parameters, e.g. solver, dynamic, material
-     * or create a default HeaderFile
-     **************************************************************************/
-    if (headfile == "")
-    {
-      const std::string defaultheadfilename = "default.head";
-      std::cout << "found no header file           --> creating " << defaultheadfilename
-                << std::endl;
-
-      // open default header file
-      std::ofstream defaulthead(defaultheadfilename.c_str());
-      if (!defaulthead) FOUR_C_THROW("failed to open file: %s", defaultheadfilename.c_str());
-
-      // get valid input parameters
-      std::shared_ptr<const Teuchos::ParameterList> list = Input::valid_parameters();
-
-      // write default .dat header into file
-      std::stringstream prelimhead;
-      Core::IO::print_dat(prelimhead, *list);
-      std::string headstring = prelimhead.str();
-      size_t size_section = headstring.find("--PROBLEM SIZE");
-      if (size_section != std::string::npos)
-      {
-        size_t size_section_start = headstring.substr(0, size_section).rfind("\n");
-        size_t type_section = headstring.find("--PROBLEM TYPE");
-        size_t type_section_start = headstring.substr(0, type_section).rfind("\n");
-        headstring.erase(size_section_start, type_section_start - size_section_start);
-      }
-      defaulthead << headstring;
-
-      // get valid input materials
-      {
-        std::vector<Core::IO::InputSpec> possible_materials;
-        {
-          auto materials = global_legacy_module_callbacks().materials();
-          for (auto&& [type, spec] : materials)
-          {
-            possible_materials.emplace_back(std::move(spec));
-          }
-        }
-
-        using namespace Core::IO::InputSpecBuilders;
-        auto all_materials = all_of({
-            entry<int>("MAT"),
-            one_of(possible_materials),
-        });
-
-        Core::IO::print_section(std::cout, "MATERIALS", all_materials);
-      }
-
-
-      // print cloning material map default lines (right after the materials)
-      const auto lines = Core::FE::valid_cloning_material_map();
-      Core::IO::print_section(defaulthead, "CLONING MATERIAL MAP", lines);
-
-      // print spatial functions
-      defaulthead << "-------------------------------------------------------------FUNCT1"
-                  << std::endl
-                  << "-------------------------------------------------------------FUNCT2"
-                  << std::endl
-                  << "-------------------------------------------------------------FUNCT3"
-                  << std::endl
-                  << "-------------------------------------------------------------FUNCT4"
-                  << std::endl;
-      {
-        std::stringstream tmp;
-        Core::Utils::FunctionManager functionmanager;
-        global_legacy_module_callbacks().AttachFunctionDefinitions(functionmanager);
-        const auto flines = functionmanager.valid_function_lines();
-        Core::IO::print_section(tmp, "FUNCT", flines);
-        std::string tmpstring = tmp.str();
-        std::string removeit =
-            "--------------------------------------------------------------FUNCT\n";
-        size_t pos = tmpstring.find(removeit);
-        if (pos != std::string::npos)
-        {
-          tmpstring.erase(pos, removeit.length());
-        }
-        defaulthead << tmpstring;
-      }
-
-      // default result-test lines
-      {
-        const auto lines = global_legacy_module_callbacks().valid_result_description_lines();
-        Core::IO::print_section(defaulthead, "RESULT DESCRIPTION", lines);
-      }
-
-      // close default header file
-      if (defaulthead.is_open()) defaulthead.close();
-    }
-
-    /**************************************************************************
      * Finally, create and validate the 4C input file
      **************************************************************************/
     if ((headfile != "") && (bcfile != "") && (exofile != ""))
     {
       // set default dat-file name if needed
-      if (datfile == "")
+      if (outfile == "")
       {
         const std::string exofilebasename = exofile.substr(0, exofile.find_last_of("."));
-        datfile = exofilebasename + ".dat";
+        outfile = exofilebasename + ".4C.yaml";
       }
 
       // screen info
-      std::cout << "creating and checking 4C input file       --> " << datfile << std::endl;
+      std::cout << "creating and checking 4C input file       --> " << outfile << std::endl;
       auto timer = Teuchos::TimeMonitor::getNewTimer("pre-exodus timer");
 
       // check for positive Element-Center-Jacobians and otherwise rewind them
       {
         std::cout << "...Ensure positive element jacobians";
         timer->start();
-        validate_mesh_element_jacobians(mymesh);
+        EXODUS::validate_mesh_element_jacobians(mymesh);
         timer->stop();
         std::cout << "        in...." << timer->totalElapsedTime(true) << " secs" << std::endl;
         timer->reset();
@@ -431,9 +312,9 @@ int main(int argc, char** argv)
       // write the 4C input file
       {
         if (twodim) mymesh.set_nsd(2);
-        std::cout << "...Writing dat-file";
+        std::cout << "...Writing file " << outfile;
         timer->start();
-        EXODUS::write_dat_file(datfile, mymesh, headfile, eledefs, condefs);
+        EXODUS::write_dat_file(outfile, mymesh, headfile, eledefs, condefs);
         timer->stop();
         std::cout << "                         in...." << timer->totalElapsedTime(true) << " secs"
                   << std::endl;
@@ -441,7 +322,7 @@ int main(int argc, char** argv)
       }
 
       // validate the generated 4C input file
-      EXODUS::validate_input_file(comm, datfile);
+      EXODUS::validate_input_file(comm, outfile);
     }
   }
   catch (Core::Exception& err)

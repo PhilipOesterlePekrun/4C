@@ -162,7 +162,7 @@ void FSI::MonolithicBase::prepare_time_step_fsi()
 {
   ddgpred_ = std::make_shared<Core::LinAlg::Vector<double>>(
       *structure_field()->extract_interface_dispnp());
-  ddgpred_->Update(-1.0, *structure_field()->extract_interface_dispn(), 1.0);
+  ddgpred_->update(-1.0, *structure_field()->extract_interface_dispn(), 1.0);
 
   return;
 }
@@ -367,6 +367,15 @@ FSI::Monolithic::Monolithic(MPI_Comm comm, const Teuchos::ParameterList& timepar
 
 /*----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------*/
+void FSI::MonolithicBase::post_setup()
+{
+  // call post_setup of the structure field
+  structure_->post_setup();
+}
+
+
+/*----------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 void FSI::Monolithic::setup_system()
 {
   // right now we use matching meshes at the interface
@@ -407,8 +416,8 @@ void FSI::Monolithic::setup_system()
     FOUR_C_THROW("No nodes in matching FSI interface. Empty FSI coupling condition?");
 
   // the fluid-ale coupling always matches
-  const Epetra_Map* fluidnodemap = fluid_field()->discretization()->node_row_map();
-  const Epetra_Map* alenodemap = ale_field()->discretization()->node_row_map();
+  const Core::LinAlg::Map* fluidnodemap = fluid_field()->discretization()->node_row_map();
+  const Core::LinAlg::Map* alenodemap = ale_field()->discretization()->node_row_map();
 
   coupfa.setup_coupling(*fluid_field()->discretization(), *ale_field()->discretization(),
       *fluidnodemap, *alenodemap, ndim);
@@ -628,7 +637,7 @@ void FSI::Monolithic::time_step(
       std::make_shared<Core::LinAlg::Vector<double>>(*dof_row_map(), true);
   initial_guess(initial_guess_v);
 
-  ::NOX::Epetra::Vector noxSoln(Teuchos::rcpFromRef(*initial_guess_v->get_ptr_of_Epetra_Vector()),
+  ::NOX::Epetra::Vector noxSoln(Teuchos::rcpFromRef(*initial_guess_v->get_ptr_of_epetra_vector()),
       ::NOX::Epetra::Vector::CreateView);
 
   // Create the linear system
@@ -739,7 +748,7 @@ void FSI::Monolithic::non_lin_error_check()
         erroraction_ = erroraction_stop;
 
         // stop the simulation
-        FOUR_C_THROW("Nonlinear solver did not converge in %i iterations in time step %i.",
+        FOUR_C_THROW("Nonlinear solver did not converge in {} iterations in time step {}.",
             noxiter_, step());
         break;
       }
@@ -880,9 +889,10 @@ void FSI::Monolithic::evaluate(std::shared_ptr<const Core::LinAlg::Vector<double
 
 /*----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------*/
-void FSI::Monolithic::set_dof_row_maps(const std::vector<std::shared_ptr<const Epetra_Map>>& maps)
+void FSI::Monolithic::set_dof_row_maps(
+    const std::vector<std::shared_ptr<const Core::LinAlg::Map>>& maps)
 {
-  std::shared_ptr<Epetra_Map> fullmap = Core::LinAlg::MultiMapExtractor::merge_maps(maps);
+  std::shared_ptr<Core::LinAlg::Map> fullmap = Core::LinAlg::MultiMapExtractor::merge_maps(maps);
   blockrowdofmap_.setup(*fullmap, maps);
 }
 
@@ -1017,7 +1027,7 @@ void FSI::Monolithic::setup_rhs(Core::LinAlg::Vector<double>& f, bool firstcall)
   firstcall_ = firstcall;
 
   // We want to add into a zero vector
-  f.PutScalar(0.0);
+  f.put_scalar(0.0);
 
   // contributions of single field residuals
   setup_rhs_residual(f);
@@ -1033,15 +1043,15 @@ void FSI::Monolithic::setup_rhs(Core::LinAlg::Vector<double>& f, bool firstcall)
   {
     // Finally, we take care of Dirichlet boundary conditions
     Core::LinAlg::Vector<double> rhs(f);
-    const Core::LinAlg::Vector<double> zeros(f.Map(), true);
+    const Core::LinAlg::Vector<double> zeros(f.get_block_map(), true);
     Core::LinAlg::apply_dirichlet_to_system(rhs, zeros, *(dbcmaps_->cond_map()));
-    f.Update(1.0, rhs, 0.0);
+    f.update(1.0, rhs, 0.0);
   }
 
   // NOX expects the 'positive' residual. The negative sign for the
   // linearized Newton system J*dx=-r is done internally by NOX.
   // Since we assembled the right hand side, we have to invert the sign here.
-  f.Scale(-1.);
+  f.scale(-1.);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -1204,7 +1214,7 @@ std::shared_ptr<::NOX::Epetra::LinearSystem> FSI::BlockMonolithic::create_linear
           solver->params().sublist("Inverse1"));
       Core::LinearSolver::Parameters::fix_null_space("Structure",
           *structure_field()->discretization()->dof_row_map(),
-          system_matrix()->matrix(0, 0).epetra_matrix()->RowMap(),
+          Core::LinAlg::Map(system_matrix()->matrix(0, 0).row_map()),
           solver->params().sublist("Inverse1"));
 
       solver->put_solver_params_to_sub_params("Inverse2", fsisolverparams,
@@ -1215,7 +1225,7 @@ std::shared_ptr<::NOX::Epetra::LinearSystem> FSI::BlockMonolithic::create_linear
           solver->params().sublist("Inverse2"));
       Core::LinearSolver::Parameters::fix_null_space("Fluid",
           *fluid_field()->discretization()->dof_row_map(),
-          system_matrix()->matrix(1, 1).epetra_matrix()->RowMap(),
+          Core::LinAlg::Map(system_matrix()->matrix(1, 1).row_map()),
           solver->params().sublist("Inverse2"));
 
       solver->put_solver_params_to_sub_params("Inverse3", fsisolverparams,
@@ -1226,7 +1236,7 @@ std::shared_ptr<::NOX::Epetra::LinearSystem> FSI::BlockMonolithic::create_linear
           .compute_null_space_if_necessary(solver->params().sublist("Inverse3"));
       Core::LinearSolver::Parameters::fix_null_space("Ale",
           *ale_field()->discretization()->dof_row_map(),
-          system_matrix()->matrix(2, 2).epetra_matrix()->RowMap(),
+          Core::LinAlg::Map(system_matrix()->matrix(2, 2).row_map()),
           solver->params().sublist("Inverse3"));
 
       break;

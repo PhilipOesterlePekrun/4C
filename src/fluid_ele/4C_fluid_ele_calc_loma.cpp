@@ -48,18 +48,16 @@ template <Core::FE::CellType distype>
 int Discret::Elements::FluidEleCalcLoma<distype>::evaluate(Discret::Elements::Fluid* ele,
     Core::FE::Discretization& discretization, const std::vector<int>& lm,
     Teuchos::ParameterList& params, std::shared_ptr<Core::Mat::Material>& mat,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra, bool offdiag)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3, bool offdiag)
 {
   if (not offdiag)
-    return my::evaluate(ele, discretization, lm, params, mat, elemat1_epetra, elemat2_epetra,
-        elevec1_epetra, elevec2_epetra, elevec3_epetra, my::intpoints_);
+    return my::evaluate(ele, discretization, lm, params, mat, elemat1, elemat2, elevec1, elevec2,
+        elevec3, my::intpoints_);
   else
-    return evaluate_od(ele, discretization, lm, params, mat, elemat1_epetra, elemat2_epetra,
-        elevec1_epetra, elevec2_epetra, elevec3_epetra, my::intpoints_);
+    return evaluate_od(ele, discretization, lm, params, mat, elemat1, elemat2, elevec1, elevec2,
+        elevec3, my::intpoints_);
 }
 
 
@@ -70,17 +68,15 @@ template <Core::FE::CellType distype>
 int Discret::Elements::FluidEleCalcLoma<distype>::evaluate_od(Discret::Elements::Fluid* ele,
     Core::FE::Discretization& discretization, const std::vector<int>& lm,
     Teuchos::ParameterList& params, std::shared_ptr<Core::Mat::Material>& mat,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra, const Core::FE::GaussIntegration& intpoints)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3, const Core::FE::GaussIntegration& intpoints)
 {
   // rotationally symmetric periodic bc's: do setup for current element
   my::rotsymmpbc_->setup(ele);
 
   // construct view
-  Core::LinAlg::Matrix<(nsd_ + 1) * nen_, nen_> elemat1(elemat1_epetra, true);
+  Core::LinAlg::Matrix<(nsd_ + 1) * nen_, nen_> elemat_1(elemat1, true);
 
   // ---------------------------------------------------------------------
   // call routine for calculation of body force in element nodes,
@@ -89,9 +85,9 @@ int Discret::Elements::FluidEleCalcLoma<distype>::evaluate_od(Discret::Elements:
   // (evaluation at time n+alpha_F for generalized-alpha scheme,
   //  and at time n+1 otherwise)
   // ---------------------------------------------------------------------
-  Core::LinAlg::Matrix<nsd_, nen_> ebofoaf(true);
-  Core::LinAlg::Matrix<nsd_, nen_> eprescpgaf(true);
-  Core::LinAlg::Matrix<nen_, 1> escabofoaf(true);
+  Core::LinAlg::Matrix<nsd_, nen_> ebofoaf(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<nsd_, nen_> eprescpgaf(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<nen_, 1> escabofoaf(Core::LinAlg::Initialization::zero);
   my::body_force(ele, ebofoaf, eprescpgaf, escabofoaf);
 
   // ---------------------------------------------------------------------
@@ -106,13 +102,13 @@ int Discret::Elements::FluidEleCalcLoma<distype>::evaluate_od(Discret::Elements:
   // af_genalpha: velocity/pressure at time n+alpha_F and n+alpha_M
   // np_genalpha: velocity at time n+alpha_F, pressure at time n+1
   // ost:         velocity/pressure at time n+1
-  Core::LinAlg::Matrix<nsd_, nen_> evelaf(true);
-  Core::LinAlg::Matrix<nen_, 1> epreaf(true);
+  Core::LinAlg::Matrix<nsd_, nen_> evelaf(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<nen_, 1> epreaf(Core::LinAlg::Initialization::zero);
   my::extract_values_from_global_vector(
       discretization, lm, *my::rotsymmpbc_, &evelaf, &epreaf, "velaf");
 
-  Core::LinAlg::Matrix<nsd_, nen_> evelam(true);
-  Core::LinAlg::Matrix<nen_, 1> epream(true);
+  Core::LinAlg::Matrix<nsd_, nen_> evelam(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<nen_, 1> epream(Core::LinAlg::Initialization::zero);
   if (my::fldpara_->physical_type() == Inpar::FLUID::weakly_compressible &&
       my::fldparatimint_->is_genalpha())
   {
@@ -126,21 +122,21 @@ int Discret::Elements::FluidEleCalcLoma<distype>::evaluate_od(Discret::Elements:
         discretization, lm, *my::rotsymmpbc_, &evelam, &epream, "velam");
   }
 
-  Core::LinAlg::Matrix<nen_, 1> escaaf(true);
+  Core::LinAlg::Matrix<nen_, 1> escaaf(Core::LinAlg::Initialization::zero);
   my::extract_values_from_global_vector(
       discretization, lm, *my::rotsymmpbc_, nullptr, &escaaf, "scaaf");
 
-  Core::LinAlg::Matrix<nsd_, nen_> emhist(true);
+  Core::LinAlg::Matrix<nsd_, nen_> emhist(Core::LinAlg::Initialization::zero);
   my::extract_values_from_global_vector(
       discretization, lm, *my::rotsymmpbc_, &emhist, nullptr, "hist");
 
-  Core::LinAlg::Matrix<nsd_, nen_> eaccam(true);
-  Core::LinAlg::Matrix<nen_, 1> escadtam(true);
+  Core::LinAlg::Matrix<nsd_, nen_> eaccam(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<nen_, 1> escadtam(Core::LinAlg::Initialization::zero);
   my::extract_values_from_global_vector(
       discretization, lm, *my::rotsymmpbc_, &eaccam, &escadtam, "accam");
 
-  Core::LinAlg::Matrix<nsd_, nen_> eveln(true);
-  Core::LinAlg::Matrix<nen_, 1> escaam(true);
+  Core::LinAlg::Matrix<nsd_, nen_> eveln(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<nen_, 1> escaam(Core::LinAlg::Initialization::zero);
   my::extract_values_from_global_vector(
       discretization, lm, *my::rotsymmpbc_, &eveln, &escaam, "scaam");
 
@@ -149,8 +145,8 @@ int Discret::Elements::FluidEleCalcLoma<distype>::evaluate_od(Discret::Elements:
   // ---------------------------------------------------------------------
   // get additional state vectors for ALE case: grid displacement and vel.
   // ---------------------------------------------------------------------
-  Core::LinAlg::Matrix<nsd_, nen_> edispnp(true);
-  Core::LinAlg::Matrix<nsd_, nen_> egridv(true);
+  Core::LinAlg::Matrix<nsd_, nen_> edispnp(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<nsd_, nen_> egridv(Core::LinAlg::Initialization::zero);
 
   if (ele->is_ale())
   {
@@ -198,7 +194,7 @@ int Discret::Elements::FluidEleCalcLoma<distype>::evaluate_od(Discret::Elements:
   // set element id
   my::eid_ = ele->id();
   // call inner evaluate (does not know about element or discretization object)
-  int result = evaluate_od(params, ebofoaf, eprescpgaf, elemat1, evelaf, epreaf, epream, escaaf,
+  int result = evaluate_od(params, ebofoaf, eprescpgaf, elemat_1, evelaf, epreaf, epream, escaaf,
       emhist, eaccam, escadtam, escabofoaf, eveln, escaam, edispnp, egridv, mat, ele->is_ale(),
       CsDeltaSq, CiDeltaSq, intpoints);
 
@@ -288,8 +284,8 @@ void Discret::Elements::FluidEleCalcLoma<distype>::sysmat_od(
 {
   // definition of temperature-based residual vector for continuity
   // and energy-conservation equation
-  Core::LinAlg::Matrix<nen_, 1> lin_resC_DT(true);
-  Core::LinAlg::Matrix<nen_, 1> lin_resE_DT(true);
+  Core::LinAlg::Matrix<nen_, 1> lin_resC_DT(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<nen_, 1> lin_resE_DT(Core::LinAlg::Initialization::zero);
 
   // add displacement when fluid nodes move in the ALE case
   if (isale) my::xyze_ += edispnp;

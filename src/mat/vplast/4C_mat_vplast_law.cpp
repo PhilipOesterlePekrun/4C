@@ -10,6 +10,7 @@
 #include "4C_global_data.hpp"
 #include "4C_mat_par_bundle.hpp"
 #include "4C_mat_vplast_reform_johnsoncook.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <utility>
 
@@ -56,7 +57,7 @@ std::shared_ptr<Mat::Viscoplastic::Law> Mat::Viscoplastic::Law::factory(int matn
     }
 
     default:
-      FOUR_C_THROW("cannot deal with type %d", curmat->type());
+      FOUR_C_THROW("cannot deal with type {}", curmat->type());
   }
 }
 

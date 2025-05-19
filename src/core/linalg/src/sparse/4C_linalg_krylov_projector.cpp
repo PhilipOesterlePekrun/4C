@@ -7,6 +7,7 @@
 
 #include "4C_linalg_krylov_projector.hpp"
 
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_serialdensematrix.hpp"
 #include "4C_linalg_serialdensevector.hpp"
 #include "4C_linalg_sparsematrix.hpp"
@@ -17,8 +18,6 @@
 #include "4C_utils_exceptions.hpp"
 
 #include <Epetra_Import.h>
-#include <Epetra_Map.h>
-#include <Epetra_Operator.h>
 #include <Teuchos_SerialDenseSolver.hpp>
 
 FOUR_C_NAMESPACE_OPEN
@@ -149,14 +148,14 @@ void Core::LinAlg::KrylovProjector::fill_complete()
               w * c
        */
       double wTc;
-      (*w_)(mm).Dot((*c_)(rr), &wTc);
+      (*w_)(mm).dot((*c_)(rr), &wTc);
 
       // make sure c_i and w_i must not be krylov.
       if ((rr == mm) and (abs(wTc) < 1e-14))
       {
         // not sure whether c_i and w_i must not be krylov.
         // delete dserror in case you are sure what you are doing!
-        FOUR_C_THROW("weight vector w_%i must not be orthogonal to c_%i", rr, mm);
+        FOUR_C_THROW("weight vector w_{} must not be orthogonal to c_{}", rr, mm);
       }
       // fill matrix (w_^T * c_) - not yet inverted!
       (*invw_tc_)(mm, rr) = wTc;
@@ -310,7 +309,7 @@ std::shared_ptr<Core::LinAlg::SparseMatrix> Core::LinAlg::KrylovProjector::proje
   std::shared_ptr<Core::LinAlg::SerialDenseMatrix> cTAc =
       std::make_shared<Core::LinAlg::SerialDenseMatrix>(nsdim_, nsdim_, false);
   for (int i = 0; i < nsdim_; ++i)
-    for (int j = 0; j < nsdim_; ++j) (*c_)(i).Dot((*matvec)(j), &((*cTAc)(i, j)));
+    for (int j = 0; j < nsdim_; ++j) (*c_)(i).dot((*matvec)(j), &((*cTAc)(i, j)));
   // std::cout << *matvec << std::endl;
   // std::cout << A << std::endl;
 
@@ -377,7 +376,7 @@ void Core::LinAlg::KrylovProjector::create_projector(std::shared_ptr<Core::LinAl
   for (int rr = 0; rr < nummyrows; ++rr)
   {
     // get global row id of current local row id
-    const int grid = P->epetra_matrix()->GRID(rr);
+    const int grid = P->global_row_index(rr);
 
     // add identity matrix by adding 1 on diagonal entries
     int err = P->epetra_matrix()->InsertGlobalValues(grid, 1, &one, &grid);
@@ -433,7 +432,7 @@ int Core::LinAlg::KrylovProjector::apply_projector(Core::LinAlg::MultiVector<dou
   Core::LinAlg::SerialDenseVector temp1(nsdim_);
   for (int rr = 0; rr < nsdim_; ++rr)
   {
-    (Y(0)).Dot((v1)(rr), &(temp1(rr)));
+    (Y(0)).dot((v1)(rr), &(temp1(rr)));
   }
 
   // compute temp2 from matrix-vector-product:
@@ -444,7 +443,7 @@ int Core::LinAlg::KrylovProjector::apply_projector(Core::LinAlg::MultiVector<dou
   // loop
   for (int rr = 0; rr < nsdim_; ++rr)
   {
-    Y(0).Update(-temp2(rr), v2(rr), 1.0);
+    Y(0).update(-temp2(rr), v2(rr), 1.0);
   }
 
   return (ierr);
@@ -476,7 +475,7 @@ Core::LinAlg::KrylovProjector::multiply_multi_vector_dense_matrix(
     {
       // scale j-th (mm-th) vector of mv with corresponding entry of dm
       // and add to i-th (rr-th) vector of mvout
-      mvouti.Update((*dm)(mm, rr), (*mv)(mm), 1.0);
+      mvouti.update((*dm)(mm, rr), (*mv)(mm), 1.0);
     }
   }
 
@@ -505,16 +504,16 @@ Core::LinAlg::KrylovProjector::multiply_multi_vector_multi_vector(
     FOUR_C_THROW("id must be 1 or 2");
 
   Core::LinAlg::Vector<double> prod((*temp)(0));
-  for (int i = 1; i < nsdim_; ++i) prod.Multiply(1.0, (*temp)(i), prod, 1.0);
+  for (int i = 1; i < nsdim_; ++i) prod.multiply(1.0, (*temp)(i), prod, 1.0);
   int numnonzero = 0;
-  for (int i = 0; i < prod.MyLength(); ++i)
+  for (int i = 0; i < prod.local_length(); ++i)
     if (prod[i] != 0.0) numnonzero++;
 
   int glob_numnonzero = 0;
-  Core::Communication::sum_all(&numnonzero, &glob_numnonzero, 1, prod.Comm());
+  Core::Communication::sum_all(&numnonzero, &glob_numnonzero, 1, prod.get_comm());
 
   // do stupid conversion into Epetra map
-  Epetra_Map mv1map(mv1->Map().NumGlobalElements(), mv1->Map().NumMyElements(),
+  Core::LinAlg::Map mv1map(mv1->Map().NumGlobalElements(), mv1->Map().NumMyElements(),
       mv1->Map().MyGlobalElements(), 0, mv1->Map().Comm());
   // initialization of mat with map of mv1
   std::shared_ptr<Core::LinAlg::SparseMatrix> mat =
@@ -528,15 +527,15 @@ Core::LinAlg::KrylovProjector::multiply_multi_vector_multi_vector(
   const int numvals = mv2->GlobalLength();
 
   // do stupid conversion into Epetra map
-  Epetra_Map mv2map(mv2->Map().NumGlobalElements(), mv2->Map().NumMyElements(),
+  Core::LinAlg::Map mv2map(mv2->Map().NumGlobalElements(), mv2->Map().NumMyElements(),
       mv2->Map().MyGlobalElements(), 0, mv2->Map().Comm());
 
   // fully redundant/overlapping map
-  std::shared_ptr<Epetra_Map> redundant_map = Core::LinAlg::allreduce_e_map(mv2map);
+  std::shared_ptr<Core::LinAlg::Map> redundant_map = Core::LinAlg::allreduce_e_map(mv2map);
   // initialize global mv2 without setting to 0
   Core::LinAlg::MultiVector<double> mv2glob(*redundant_map, nsdim_);
   // create importer with redundant target map and distributed source map
-  Epetra_Import importer(*redundant_map, mv2->Map());
+  Epetra_Import importer(redundant_map->get_epetra_map(), mv2->Map());
   // import values to global mv2
   mv2glob.Import(*mv2, importer, Insert);
 
@@ -547,7 +546,7 @@ Core::LinAlg::KrylovProjector::multiply_multi_vector_multi_vector(
   for (int rr = 0; rr < nummyrows; ++rr)
   {
     // get global row id of current local row id
-    const int grid = mat->epetra_matrix()->GRID(rr);
+    const int grid = mat->global_row_index(rr);
 
     // vector of all row values - prevented from growing in following loops
     std::vector<double> rowvals;
@@ -581,7 +580,7 @@ Core::LinAlg::KrylovProjector::multiply_multi_vector_multi_vector(
     if (err < 0)
     {
       FOUR_C_THROW(
-          "insertion error when trying to compute krylov projection matrix (error code: %i).", err);
+          "insertion error when trying to compute krylov projection matrix (error code: {}).", err);
     }
   }
 

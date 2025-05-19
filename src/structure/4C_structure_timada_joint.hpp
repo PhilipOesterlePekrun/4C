@@ -44,8 +44,7 @@ namespace Solid
   /*!
    * \brief Time step size adaptivity with general Solid::TimInt scheme
    *
-   * \author bborn
-   * \date 10/07
+
    */
   template <typename T>
   class TimAdaJoint : public TimAda
@@ -58,13 +57,13 @@ namespace Solid
     {
       switch (term)
       {
-        case Inpar::Solid::dyna_ab2:
+        case Inpar::Solid::DynamicType::AdamsBashforth2:
           return Inpar::Solid::timada_kind_ab2;
           break;
-        case Inpar::Solid::dyna_expleuler:
+        case Inpar::Solid::DynamicType::ExplEuler:
           return Inpar::Solid::timada_kind_expleuler;
           break;
-        case Inpar::Solid::dyna_centrdiff:
+        case Inpar::Solid::DynamicType::CentrDiff:
           return Inpar::Solid::timada_kind_centraldiff;
           break;
         default:
@@ -168,7 +167,7 @@ namespace Solid
       sta_->integrate_step();
 
       // copy onto target
-      locerrdisn_->Update(1.0, *(sta_->disn_), 0.0);
+      locerrdisn_->update(1.0, *(sta_->disn_), 0.0);
 
       // reset
       // remember: sta_ and sti_ are merged and work on the same vectors

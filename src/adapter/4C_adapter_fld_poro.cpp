@@ -46,8 +46,8 @@ void Adapter::FluidPoro::evaluate_no_penetration_cond(
   if (!(discretization()->filled())) FOUR_C_THROW("fill_complete() was not called");
   if (!discretization()->have_dofs()) FOUR_C_THROW("assign_degrees_of_freedom() was not called");
 
-  discretization()->set_state(0, "dispnp", dispnp());
-  discretization()->set_state(0, "scaaf", scaaf());
+  discretization()->set_state(0, "dispnp", *dispnp());
+  discretization()->set_state(0, "scaaf", *scaaf());
 
   Teuchos::ParameterList params;
 
@@ -65,9 +65,9 @@ void Adapter::FluidPoro::evaluate_no_penetration_cond(
     {
       const int ndim = Global::Problem::instance()->n_dim();
       const int ndof = ndim + 1;
-      const int length = condVector->MyLength();
+      const int length = condVector->local_length();
       const int nnod = length / ndof;
-      const Epetra_BlockMap& map = condVector->Map();
+      const Epetra_BlockMap& map = condVector->get_block_map();
       bool isset = false;
       for (int i = 0; i < nnod; i++)
       {
@@ -97,16 +97,16 @@ void Adapter::FluidPoro::evaluate_no_penetration_cond(
         ConstraintMatrix,                        // fluid matrix
         nullptr, nullptr, nullptr, nullptr);
 
-    discretization()->set_state(0, "condVector", condVector);
+    discretization()->set_state(0, "condVector", *condVector);
 
     discretization()->evaluate_condition(params, fluidstrategy, "no_penetration");
   }
   else if (coupltype == PoroElast::fluidstructure)
   {
-    discretization()->set_state(0, "velnp", velnp());
-    discretization()->set_state(0, "gridv", grid_vel());
+    discretization()->set_state(0, "velnp", *velnp());
+    discretization()->set_state(0, "gridv", *grid_vel());
 
-    discretization()->set_state(0, "condVector", condVector);
+    discretization()->set_state(0, "condVector", *condVector);
 
     // set action for elements
     params.set<FLD::BoundaryAction>("action", FLD::no_penetration);

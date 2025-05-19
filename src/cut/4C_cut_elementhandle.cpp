@@ -16,6 +16,7 @@
 #include "4C_cut_quadrature_compression.hpp"
 #include "4C_cut_tolerance.hpp"
 #include "4C_cut_volumecell.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <Teuchos_TimeMonitor.hpp>
 
@@ -32,7 +33,7 @@ template <Core::FE::CellType distype>
 std::shared_ptr<Core::FE::GaussPoints> Cut::ElementHandle::create_projected(
     const std::vector<Cut::Point*>& cpoints, std::shared_ptr<Core::FE::GaussPoints> gp_ic)
 {
-  const unsigned nen = Core::FE::num_nodes<distype>;
+  const unsigned nen = Core::FE::num_nodes(distype);
   const unsigned dim = Core::FE::dim<distype>;
   Core::LinAlg::Matrix<dim, nen> xie;
   if (cpoints.size() != nen) FOUR_C_THROW("non-matching number of points");
@@ -93,9 +94,8 @@ void Cut::ElementHandle::volume_cell_gauss_points(
       }
       default:
       {
-        FOUR_C_THROW("non supported element integration type for given volume-cell %i",
+        FOUR_C_THROW("non supported element integration type for given volume-cell {}",
             vc->parent_element()->get_element_integration_type());
-        exit(EXIT_FAILURE);
       }
     }
 
@@ -139,7 +139,7 @@ void Cut::ElementHandle::append_volume_cell_gauss_points_tessellation(
     Cut::IntegrationCell* ic = *i;
 
     std::shared_ptr<Core::FE::GaussPoints> gp_ic =
-        Core::FE::GaussPointCache::instance().create(ic->shape(), ic->cubature_degree(ic->shape()));
+        Core::FE::create_gauss_points(ic->shape(), ic->cubature_degree(ic->shape()));
     const std::vector<Cut::Point*>& cpoints = ic->points();
 
     switch (ic->shape())
@@ -187,9 +187,8 @@ void Cut::ElementHandle::append_volume_cell_gauss_points_tessellation(
         break;
       }
       default:
-        FOUR_C_THROW("unsupported integration cell type ( cell type = %s )",
-            Core::FE::cell_type_to_string(ic->shape()).c_str());
-        exit(EXIT_FAILURE);
+        FOUR_C_THROW("unsupported integration cell type ( cell type = {} )",
+            Core::FE::cell_type_to_string(ic->shape()));
     }
   }
 }
@@ -285,8 +284,8 @@ std::shared_ptr<Core::FE::GaussPointsComposite> Cut::ElementHandle::gauss_points
       {
         Cut::IntegrationCell* ic = *i;
 
-        std::shared_ptr<Core::FE::GaussPoints> gp_ic = Core::FE::GaussPointCache::instance().create(
-            ic->shape(), ic->cubature_degree(ic->shape()));
+        std::shared_ptr<Core::FE::GaussPoints> gp_ic =
+            Core::FE::create_gauss_points(ic->shape(), ic->cubature_degree(ic->shape()));
         const std::vector<Cut::Point*>& cpoints = ic->points();
 
         switch (ic->shape())
@@ -320,9 +319,8 @@ std::shared_ptr<Core::FE::GaussPointsComposite> Cut::ElementHandle::gauss_points
             break;
           }
           default:
-            FOUR_C_THROW("unsupported integration cell type ( cell type = %s )",
-                Core::FE::cell_type_to_string(ic->shape()).c_str());
-            exit(EXIT_FAILURE);
+            FOUR_C_THROW("unsupported integration cell type ( cell type = {} )",
+                Core::FE::cell_type_to_string(ic->shape()));
         }
       }
     }
@@ -357,7 +355,7 @@ void Cut::ElementHandle::boundary_cell_gauss_points_lin(
     //    // safety check
     //    if(sid < 0)
     //    {
-    //      FOUR_C_THROW("invalid sid: %i", sid);
+    //       FOUR_C_THROW("invalid sid: {}", sid);
     //    }
     //    else
     //    {
@@ -493,7 +491,7 @@ bool Cut::ElementHandle::get_cell_sets_dof_sets_gauss_points(
     }
     else
       FOUR_C_THROW(
-          "number of cell_sets for a non-intersected element is invalid: %i", cell_sets.size());
+          "number of cell_sets for a non-intersected element is invalid: {}", cell_sets.size());
   }
 
 
@@ -530,13 +528,13 @@ bool Cut::ElementHandle::get_gauss_rule_integration_cells(
       return false;
     else
       FOUR_C_THROW(
-          "Number of cell_sets for a non-intersected element is invalid: %i", cell_sets.size());
+          "Number of cell_sets for a non-intersected element is invalid: {}", cell_sets.size());
   }
   // if the element is cut, then check how many volume sets it has. Here, we assume
   // that there is only one cut interface and the element should be cut by two, there should
   // be only two volume cells, one representing the inside and the outside sides
   FOUR_C_ASSERT_ALWAYS(cell_sets.size() == 2,
-      "We expect exactly two volume cells for this element, but %i where found.", cell_sets.size());
+      "We expect exactly two volume cells for this element, but {} where found.", cell_sets.size());
 
   // Now, erase the volume cells that should not be integrated depending on
   // integrate_inside_volumecells

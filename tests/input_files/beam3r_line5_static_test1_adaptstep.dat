@@ -30,7 +30,7 @@ DIVERCONT                       adapt_step
 TIMESTEP                        1
 NUMSTEP                         1
 MAXTIME                         1
-DAMPING                         No
+DAMPING                         None
 M_DAMP                          0
 K_DAMP                          0
 PREDICT                         ConstDis
@@ -45,11 +45,9 @@ MAXITER                         15
 NAME                            Structure_Solver
 SOLVER                          UMFPACK
 ------------------------------------DESIGN POINT DIRICH CONDITIONS
-DPOINT 1
-E 1 - NUMDOF 6 ONOFF 1 1 1 1 1 1 VAL 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0
+E 1 NUMDOF 6 ONOFF 1 1 1 1 1 1 VAL 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0
 ------------------------------------DESIGN POINT NEUMANN CONDITIONS
-DPOINT 1
-E 2 - NUMDOF 6 ONOFF 0 0 1 0 0 0 VAL 0.0 0.0 600 0.0 0.0 0.0 FUNCT 0 0 1 0 0 0 TYPE Live
+E 2 NUMDOF 6 ONOFF 0 0 1 0 0 0 VAL 0.0 0.0 600 0.0 0.0 0.0 FUNCT 0 0 1 0 0 0 TYPE Live
 -----------------------------------------------DNODE-NODE TOPOLOGY
 NODE       1 DNODE 1
 NODE       21 DNODE 2
@@ -87,11 +85,11 @@ MAT       1 MAT_BeamReissnerElastHyper  YOUNG 1.0e+07 SHEARMOD 5.0e+06 DENS 1.3e
 STRUCTURE DIS structure NODE 21 QUANTITY dispx VALUE -2.38184957230307361e+01 TOLERANCE 1e-8
 STRUCTURE DIS structure NODE 21 QUANTITY dispy VALUE -1.37314010292022033e+01 TOLERANCE 1e-8
 STRUCTURE DIS structure NODE 21 QUANTITY dispz VALUE 5.36072382629747821e+01 TOLERANCE 1e-8
-STRUCTURE SPECIAL QUANTITY num_iter_step_1 VALUE 12.0 TOLERANCE 1.0e-20
-STRUCTURE SPECIAL QUANTITY num_iter_step_2 VALUE 8.0 TOLERANCE 1.0e-20
-STRUCTURE SPECIAL QUANTITY num_iter_step_3 VALUE 8.0 TOLERANCE 1.0e-20
-STRUCTURE SPECIAL QUANTITY num_iter_step_4 VALUE 7.0 TOLERANCE 1.0e-20
-STRUCTURE SPECIAL QUANTITY num_iter_step_5 VALUE 7.0 TOLERANCE 1.0e-20
-STRUCTURE SPECIAL QUANTITY num_iter_step_6 VALUE 8.0 TOLERANCE 1.0e-20
+STRUCTURE SPECIAL true QUANTITY num_iter_step_1 VALUE 12.0 TOLERANCE 1.0e-20
+STRUCTURE SPECIAL true QUANTITY num_iter_step_2 VALUE 8.0 TOLERANCE 1.0e-20
+STRUCTURE SPECIAL true QUANTITY num_iter_step_3 VALUE 8.0 TOLERANCE 1.0e-20
+STRUCTURE SPECIAL true QUANTITY num_iter_step_4 VALUE 7.0 TOLERANCE 1.0e-20
+STRUCTURE SPECIAL true QUANTITY num_iter_step_5 VALUE 7.0 TOLERANCE 1.0e-20
+STRUCTURE SPECIAL true QUANTITY num_iter_step_6 VALUE 8.0 TOLERANCE 1.0e-20
 -------------------------------------------------------------FUNCT1
 SYMBOLIC_FUNCTION_OF_TIME t

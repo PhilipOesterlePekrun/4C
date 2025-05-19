@@ -27,7 +27,7 @@ void CONTACT::Interface::round_robin_extend_ghosting(bool firstevaluation)
   {
     int gid = slave_col_elements()->GID(k);
     Core::Elements::Element* ele = discret().g_element(gid);
-    if (!ele) FOUR_C_THROW("Cannot find ele with gid %i", gid);
+    if (!ele) FOUR_C_THROW("Cannot find ele with gid {}", gid);
     Element* slave_ele = dynamic_cast<Element*>(ele);
 
     for (int j = 0; j < slave_ele->mo_data().num_search_elements(); ++j)
@@ -49,17 +49,17 @@ void CONTACT::Interface::round_robin_extend_ghosting(bool firstevaluation)
     slave_ele->delete_search_elements();
   }
 
-  std::shared_ptr<Epetra_Map> currently_ghosted_elements =
-      std::make_shared<Epetra_Map>(-1, (int)element_GIDs_to_be_ghosted.size(),
+  std::shared_ptr<Core::LinAlg::Map> currently_ghosted_elements =
+      std::make_shared<Core::LinAlg::Map>(-1, (int)element_GIDs_to_be_ghosted.size(),
           element_GIDs_to_be_ghosted.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
-  std::shared_ptr<Epetra_Map> currently_ghosted_nodes =
-      std::make_shared<Epetra_Map>(-1, (int)node_GIDs_to_be_ghosted.size(),
+  std::shared_ptr<Core::LinAlg::Map> currently_ghosted_nodes =
+      std::make_shared<Core::LinAlg::Map>(-1, (int)node_GIDs_to_be_ghosted.size(),
           node_GIDs_to_be_ghosted.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
 
   if (firstevaluation)
   {
-    eextendedghosting_ = std::make_shared<Epetra_Map>(*currently_ghosted_elements);
-    nextendedghosting_ = std::make_shared<Epetra_Map>(*currently_ghosted_nodes);
+    eextendedghosting_ = std::make_shared<Core::LinAlg::Map>(*currently_ghosted_elements);
+    nextendedghosting_ = std::make_shared<Core::LinAlg::Map>(*currently_ghosted_nodes);
   }
   else
   {
@@ -82,8 +82,7 @@ void CONTACT::Interface::round_robin_change_ownership()
   // interface and exclude the friction node packing from here
 
   // get friction type
-  auto ftype =
-      Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(interface_params(), "FRICTION");
+  auto ftype = Teuchos::getIntegralValue<CONTACT::FrictionType>(interface_params(), "FRICTION");
 
   // change master-side proc ownership
   // some local variables
@@ -98,14 +97,16 @@ void CONTACT::Interface::round_robin_change_ownership()
   std::vector<int> ecol, erow;
 
   // create dummy
-  Epetra_Map MasterColNodesdummy(*master_col_nodes());
-  Epetra_Map MasterColelesdummy(*master_col_elements());
+  Core::LinAlg::Map MasterColNodesdummy(*master_col_nodes());
+  Core::LinAlg::Map MasterColelesdummy(*master_col_elements());
 
   // create origin maps
-  std::shared_ptr<Epetra_Map> SCN = std::make_shared<Epetra_Map>(*slave_col_nodes());
-  std::shared_ptr<Epetra_Map> SCE = std::make_shared<Epetra_Map>(*slave_col_elements());
-  std::shared_ptr<Epetra_Map> SRN = std::make_shared<Epetra_Map>(*slave_row_nodes());
-  std::shared_ptr<Epetra_Map> SRE = std::make_shared<Epetra_Map>(*slave_row_elements());
+  std::shared_ptr<Core::LinAlg::Map> SCN = std::make_shared<Core::LinAlg::Map>(*slave_col_nodes());
+  std::shared_ptr<Core::LinAlg::Map> SCE =
+      std::make_shared<Core::LinAlg::Map>(*slave_col_elements());
+  std::shared_ptr<Core::LinAlg::Map> SRN = std::make_shared<Core::LinAlg::Map>(*slave_row_nodes());
+  std::shared_ptr<Core::LinAlg::Map> SRE =
+      std::make_shared<Core::LinAlg::Map>(*slave_row_elements());
 
   // *****************************************
   // Elements
@@ -128,7 +129,7 @@ void CONTACT::Interface::round_robin_change_ownership()
   {
     int gid = MasterColelesdummy.GID(i);
     Core::Elements::Element* ele = discret().g_element(gid);
-    if (!ele) FOUR_C_THROW("Cannot find ele with gid %i", gid);
+    if (!ele) FOUR_C_THROW("Cannot find ele with gid {}", gid);
     Mortar::Element* mele = dynamic_cast<Mortar::Element*>(ele);
 
     mele->pack(dataeles);
@@ -143,7 +144,7 @@ void CONTACT::Interface::round_robin_change_ownership()
   {
     int gid = MasterColelesdummy.GID(i);
     Core::Elements::Element* ele = discret().g_element(gid);
-    if (!ele) FOUR_C_THROW("Cannot find ele with gid %i", gid);
+    if (!ele) FOUR_C_THROW("Cannot find ele with gid {}", gid);
     Mortar::Element* mele = dynamic_cast<Mortar::Element*>(ele);
 
     // check for ghosting
@@ -163,7 +164,7 @@ void CONTACT::Interface::round_robin_change_ownership()
   int from = -1;
   exporter.receive_any(from, tag, rdataeles, length);
   if (tag != 1234 or from != fromrank)
-    FOUR_C_THROW("Received data from the wrong proc soll(%i -> %i) is(%i -> %i)", fromrank, myrank,
+    FOUR_C_THROW("Received data from the wrong proc soll({} -> {}) is({} -> {})", fromrank, myrank,
         from, myrank);
 
   // ---- unpack ----
@@ -216,12 +217,12 @@ void CONTACT::Interface::round_robin_change_ownership()
   {
     int gid = MasterColNodesdummy.GID(i);
     Core::Nodes::Node* node = discret().g_node(gid);
-    if (!node) FOUR_C_THROW("Cannot find ele with gid %i", gid);
+    if (!node) FOUR_C_THROW("Cannot find ele with gid {}", gid);
 
     // check for ghosting
     int ghost;
 
-    if (ftype == Inpar::CONTACT::friction_none)
+    if (ftype == CONTACT::FrictionType::none)
     {
       Mortar::Node* cnode = dynamic_cast<Mortar::Node*>(node);
       cnode->pack(datanodes);
@@ -251,9 +252,9 @@ void CONTACT::Interface::round_robin_change_ownership()
   {
     int gid = MasterColNodesdummy.GID(i);
     Core::Nodes::Node* node = discret().g_node(gid);
-    if (!node) FOUR_C_THROW("Cannot find ele with gid %i", gid);
+    if (!node) FOUR_C_THROW("Cannot find ele with gid {}", gid);
 
-    if (ftype == Inpar::CONTACT::friction_none)
+    if (ftype == CONTACT::FrictionType::none)
     {
       Mortar::Node* cnode = dynamic_cast<Mortar::Node*>(node);
       if (cnode->owner() == myrank) idiscret_->delete_node(cnode->id());
@@ -275,7 +276,7 @@ void CONTACT::Interface::round_robin_change_ownership()
   int fromn = -1;
   exportern.receive_any(fromn, tagn, rdatanodes, lengthn);
   if (tagn != 1234 or fromn != fromrank)
-    FOUR_C_THROW("Received data from the wrong proc soll(%i -> %i) is(%i -> %i)", fromrank, myrank,
+    FOUR_C_THROW("Received data from the wrong proc soll({} -> {}) is({} -> {})", fromrank, myrank,
         fromn, myrank);
 
   // ---- unpack ----
@@ -289,7 +290,7 @@ void CONTACT::Interface::round_robin_change_ownership()
       int ghost;
       extract_from_pack(buffer, ghost);
 
-      if (ftype == Inpar::CONTACT::friction_none)
+      if (ftype == CONTACT::FrictionType::none)
       {
         std::shared_ptr<Mortar::Node> node = std::dynamic_pointer_cast<Mortar::Node>(object);
         if (node == nullptr) FOUR_C_THROW("Received object is not a node");
@@ -335,23 +336,23 @@ void CONTACT::Interface::round_robin_change_ownership()
   Core::Communication::barrier(comm_v);
 
   // create maps from sending
-  std::shared_ptr<Epetra_Map> noderowmap = std::make_shared<Epetra_Map>(
+  std::shared_ptr<Core::LinAlg::Map> noderowmap = std::make_shared<Core::LinAlg::Map>(
       -1, (int)nrow.size(), nrow.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
-  std::shared_ptr<Epetra_Map> nodecolmap = std::make_shared<Epetra_Map>(
+  std::shared_ptr<Core::LinAlg::Map> nodecolmap = std::make_shared<Core::LinAlg::Map>(
       -1, (int)ncol.size(), ncol.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
 
-  std::shared_ptr<Epetra_Map> elerowmap = std::make_shared<Epetra_Map>(
+  std::shared_ptr<Core::LinAlg::Map> elerowmap = std::make_shared<Core::LinAlg::Map>(
       -1, (int)erow.size(), erow.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
-  std::shared_ptr<Epetra_Map> elecolmap = std::make_shared<Epetra_Map>(
+  std::shared_ptr<Core::LinAlg::Map> elecolmap = std::make_shared<Core::LinAlg::Map>(
       -1, (int)ecol.size(), ecol.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
 
   // Merge s/m column maps for eles and nodes
-  std::shared_ptr<Epetra_Map> colnodesfull = Core::LinAlg::merge_map(nodecolmap, SCN, true);
-  std::shared_ptr<Epetra_Map> colelesfull = Core::LinAlg::merge_map(elecolmap, SCE, true);
+  std::shared_ptr<Core::LinAlg::Map> colnodesfull = Core::LinAlg::merge_map(nodecolmap, SCN, true);
+  std::shared_ptr<Core::LinAlg::Map> colelesfull = Core::LinAlg::merge_map(elecolmap, SCE, true);
 
   // Merge s/m row maps for eles and nodes
-  std::shared_ptr<Epetra_Map> rownodesfull = Core::LinAlg::merge_map(noderowmap, SRN, false);
-  std::shared_ptr<Epetra_Map> rowelesfull = Core::LinAlg::merge_map(elerowmap, SRE, false);
+  std::shared_ptr<Core::LinAlg::Map> rownodesfull = Core::LinAlg::merge_map(noderowmap, SRN, false);
+  std::shared_ptr<Core::LinAlg::Map> rowelesfull = Core::LinAlg::merge_map(elerowmap, SRE, false);
 
   // to discretization
   // export nodes and elements to the row map
@@ -392,14 +393,14 @@ void CONTACT::Interface::round_robin_detect_ghosting()
   round_robin_extend_ghosting(true);
 
   // Init Maps
-  std::shared_ptr<Epetra_Map> initial_slave_node_column_map =
-      std::make_shared<Epetra_Map>(*slave_col_nodes());
-  std::shared_ptr<Epetra_Map> initial_slave_element_column_map =
-      std::make_shared<Epetra_Map>(*slave_col_elements());
-  std::shared_ptr<Epetra_Map> initial_master_node_column_map =
-      std::make_shared<Epetra_Map>(*master_col_nodes());
-  std::shared_ptr<Epetra_Map> initial_master_element_column_map =
-      std::make_shared<Epetra_Map>(*master_col_elements());
+  std::shared_ptr<Core::LinAlg::Map> initial_slave_node_column_map =
+      std::make_shared<Core::LinAlg::Map>(*slave_col_nodes());
+  std::shared_ptr<Core::LinAlg::Map> initial_slave_element_column_map =
+      std::make_shared<Core::LinAlg::Map>(*slave_col_elements());
+  std::shared_ptr<Core::LinAlg::Map> initial_master_node_column_map =
+      std::make_shared<Core::LinAlg::Map>(*master_col_nodes());
+  std::shared_ptr<Core::LinAlg::Map> initial_master_element_column_map =
+      std::make_shared<Core::LinAlg::Map>(*master_col_elements());
 
   // *************************************
   // start RR loop for current interface

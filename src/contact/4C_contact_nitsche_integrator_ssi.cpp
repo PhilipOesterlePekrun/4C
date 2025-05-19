@@ -188,16 +188,17 @@ void CONTACT::IntegratorNitscheSsi::so_ele_cauchy_struct(Mortar::Element& mortar
     double& cauchy_nt_wgt, Core::Gen::Pairedvector<int, double>& d_cauchy_nt_dd,
     Core::LinAlg::SerialDenseMatrix* d_sigma_nt_ds)
 {
-  static Core::LinAlg::Matrix<dim, 1> parent_xi(true);
-  static Core::LinAlg::Matrix<dim, dim> local_to_parent_trafo(true);
+  static Core::LinAlg::Matrix<dim, 1> parent_xi(Core::LinAlg::Initialization::zero);
+  static Core::LinAlg::Matrix<dim, dim> local_to_parent_trafo(Core::LinAlg::Initialization::zero);
   CONTACT::Utils::map_gp_to_parent<dim>(
       mortar_ele, gp_coord, gp_wgt, parent_xi, local_to_parent_trafo);
 
   // cauchy stress tensor contracted with normal and test direction
   double sigma_nt(0.0);
   Core::LinAlg::SerialDenseMatrix d_sigma_nt_dd;
-  static Core::LinAlg::Matrix<dim, 1> d_sigma_nt_dn(true), d_sigma_nt_dt(true),
-      d_sigma_nt_dxi(true);
+  static Core::LinAlg::Matrix<dim, 1> d_sigma_nt_dn(Core::LinAlg::Initialization::zero);
+  static Core::LinAlg::Matrix<dim, 1> d_sigma_nt_dt(Core::LinAlg::Initialization::zero);
+  static Core::LinAlg::Matrix<dim, 1> d_sigma_nt_dxi(Core::LinAlg::Initialization::zero);
 
   Discret::Elements::SolidScatraCauchyNDirLinearizations<3> linearizations{};
   linearizations.solid.d_cauchyndir_dd = &d_sigma_nt_dd;
@@ -205,46 +206,20 @@ void CONTACT::IntegratorNitscheSsi::so_ele_cauchy_struct(Mortar::Element& mortar
   linearizations.solid.d_cauchyndir_ddir = &d_sigma_nt_dt;
   linearizations.solid.d_cauchyndir_dxi = &d_sigma_nt_dxi;
 
-  if (mortar_ele.mo_data().parent_scalar().empty())
-  {
-    // Note: This branch is only needed since the structure is evaluating itself during setup before
-    // the ssi problem is setup. Once this is fixed, this can be deleted.
-    sigma_nt = std::invoke(
-        [&]()
-        {
-          auto* solid_scatra_ele =
-              dynamic_cast<Discret::Elements::SolidScatra*>(mortar_ele.parent_element());
+  linearizations.d_cauchyndir_ds = d_sigma_nt_ds;
+  sigma_nt = std::invoke(
+      [&]()
+      {
+        auto* solid_scatra_ele =
+            dynamic_cast<Discret::Elements::SolidScatra*>(mortar_ele.parent_element());
 
-          FOUR_C_ASSERT_ALWAYS(solid_scatra_ele,
-              "Nitsche contact is not implemented for this element (expecting SOLIDSCATRA "
-              "element)!");
+        FOUR_C_ASSERT_ALWAYS(solid_scatra_ele,
+            "Nitsche contact is not implemented for this element (expecting SOLIDSCATRA "
+            "element)!");
 
-          // SSI is not yet setup, so don't set the scalar.
-          // Note: Once it is fixed in the structure time integration framework, the
-          // scalars-parameter can be made non-optional
-          return solid_scatra_ele->get_normal_cauchy_stress_at_xi(
-              mortar_ele.mo_data().parent_disp(), std::nullopt, parent_xi, gp_normal, test_dir,
-              linearizations);
-        });
-  }
-  else
-  {
-    linearizations.d_cauchyndir_ds = d_sigma_nt_ds;
-    sigma_nt = std::invoke(
-        [&]()
-        {
-          auto* solid_scatra_ele =
-              dynamic_cast<Discret::Elements::SolidScatra*>(mortar_ele.parent_element());
-
-          FOUR_C_ASSERT_ALWAYS(solid_scatra_ele,
-              "Nitsche contact is not implemented for this element (expecting SOLIDSCATRA "
-              "element)!");
-
-          return solid_scatra_ele->get_normal_cauchy_stress_at_xi(
-              mortar_ele.mo_data().parent_disp(), mortar_ele.mo_data().parent_scalar(), parent_xi,
-              gp_normal, test_dir, linearizations);
-        });
-  }
+        return solid_scatra_ele->get_normal_cauchy_stress_at_xi(mortar_ele.mo_data().parent_disp(),
+            mortar_ele.mo_data().parent_scalar(), parent_xi, gp_normal, test_dir, linearizations);
+      });
 
   cauchy_nt_wgt += nitsche_wgt * sigma_nt;
 
@@ -445,7 +420,7 @@ void CONTACT::IntegratorNitscheSsi::integrate_ssi_interface_condition(Mortar::El
     {
       FOUR_C_THROW(
           "Integration can not be performed as kinetic model of scatra-scatra interface condition "
-          "is not recognized: %i",
+          "is not recognized: {}",
           kinetic_model);
 
       break;

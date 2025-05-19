@@ -54,7 +54,7 @@ int Discret::Elements::KirchhoffLoveShellNurbs::evaluate(Teuchos::ParameterList&
     {
       // Get NURBS stuff
       std::vector<Core::LinAlg::SerialDenseVector> myknots;
-      Core::LinAlg::Matrix<9, 1> weights(true);
+      Core::LinAlg::Matrix<9, 1> weights(Core::LinAlg::Initialization::zero);
       const bool zero_size =
           Core::FE::Nurbs::get_my_nurbs_knots_and_weights(discretization, this, myknots, weights);
       if (zero_size) return 0;
@@ -63,12 +63,11 @@ int Discret::Elements::KirchhoffLoveShellNurbs::evaluate(Teuchos::ParameterList&
       std::shared_ptr<const Core::LinAlg::Vector<double>> disp =
           discretization.get_state("displacement");
       if (disp == nullptr) FOUR_C_THROW("Cannot get state vectors 'displacement'");
-      std::vector<double> mydisp(lm.size());
-      Core::FE::extract_my_values(*disp, mydisp, lm);
+      std::vector<double> mydisp = Core::FE::extract_values(*disp, lm);
       Core::LinAlg::Matrix<9 * 3, 1> displacement(mydisp.data(), true);
 
       // Get reference configuration
-      Core::LinAlg::Matrix<9, 3, double> XI(true);
+      Core::LinAlg::Matrix<9, 3, double> XI(Core::LinAlg::Initialization::zero);
       for (unsigned int i_node = 0; i_node < 9; i_node++)
       {
         for (unsigned int i_dim = 0; i_dim < 3; i_dim++)
@@ -111,8 +110,8 @@ int Discret::Elements::KirchhoffLoveShellNurbs::evaluate(Teuchos::ParameterList&
       break;
     default:
     {
-      FOUR_C_THROW("Unknown type of action for KirchhoffLoveShellNurbs element: %s",
-          action_type_to_string(act).c_str());
+      FOUR_C_THROW("Unknown type of action for KirchhoffLoveShellNurbs element: {}",
+          action_type_to_string(act));
       break;
     }
   }
@@ -143,11 +142,11 @@ int Discret::Elements::KirchhoffLoveShellNurbs::evaluate_neumann(Teuchos::Parame
   // get values and switches from the condition
   const auto& onoff = condition.parameters().get<std::vector<int>>("ONOFF");
   const auto& val = condition.parameters().get<std::vector<double>>("VAL");
-  const auto& funct_id = condition.parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+  const auto& funct_id = condition.parameters().get<std::vector<std::optional<int>>>("FUNCT");
 
   // ensure that the boundary condition has the correct size
   if (onoff.size() != n_nodal_dof)
-    FOUR_C_THROW("Wrong number of BC values. Expected %d, got %d.", n_nodal_dof, onoff.size());
+    FOUR_C_THROW("Wrong number of BC values. Expected {}, got {}.", n_nodal_dof, onoff.size());
 
   // Get the functions from the global problem
   std::array<const Core::Utils::FunctionOfSpaceTime*, n_nodal_dof> functions;
@@ -164,7 +163,7 @@ int Discret::Elements::KirchhoffLoveShellNurbs::evaluate_neumann(Teuchos::Parame
   // Lambda to allow the evaluation of the body load
   auto evaluate_body_load = [&](const double* reference_position) -> Core::LinAlg::Matrix<3, 1>
   {
-    Core::LinAlg::Matrix<3, 1> force(true);
+    Core::LinAlg::Matrix<3, 1> force(Core::LinAlg::Initialization::zero);
 
     for (int i_dof = 0; i_dof < n_nodal_dof; ++i_dof)
     {
@@ -191,7 +190,7 @@ int Discret::Elements::KirchhoffLoveShellNurbs::evaluate_neumann(Teuchos::Parame
   bool zero_sized = (*((*nurbsdis).get_knot_vector())).get_ele_knots(myknots, id());
   // skip zero sized elements in knot span, as they correspond to interpolated nodes
   if (zero_sized) return (0);
-  Core::LinAlg::Matrix<9, 1> weights(true);
+  Core::LinAlg::Matrix<9, 1> weights(Core::LinAlg::Initialization::zero);
   for (int i_node = 0; i_node < 9; ++i_node)
   {
     const auto* cp = dynamic_cast<Core::FE::Nurbs::ControlPoint*>(nodes()[i_node]);
@@ -199,7 +198,7 @@ int Discret::Elements::KirchhoffLoveShellNurbs::evaluate_neumann(Teuchos::Parame
   }
 
   // Get nodal reference configuration
-  Core::LinAlg::Matrix<9, 3, double> XI(true);
+  Core::LinAlg::Matrix<9, 3, double> XI(Core::LinAlg::Initialization::zero);
   for (unsigned int i_node = 0; i_node < 9; i_node++)
   {
     for (unsigned int i_dim = 0; i_dim < 3; i_dim++)

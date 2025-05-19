@@ -7,6 +7,7 @@
 
 #include "4C_particle_algorithm_result_test.hpp"
 
+#include "4C_io_input_parameter_container.hpp"
 #include "4C_particle_engine_container.hpp"
 #include "4C_particle_engine_container_bundle.hpp"
 #include "4C_particle_engine_interface.hpp"
@@ -182,12 +183,12 @@ void PARTICLEALGORITHM::ParticleResultTest::test_special(
           dim = 2;
       }
       else
-        FOUR_C_THROW("result check failed with unknown quantity '%s'!", quantity.c_str());
+        FOUR_C_THROW("result check failed with unknown quantity '{}'!", quantity);
 
       // container contains current particle state
       if (not container->have_stored_state(particleState))
-        FOUR_C_THROW("state '%s' not found in container!",
-            PARTICLEENGINE::enum_to_state_name(particleState).c_str());
+        FOUR_C_THROW("state '{}' not found in container!",
+            PARTICLEENGINE::enum_to_state_name(particleState));
 
       // get pointer to particle state
       const double* state = container->get_ptr_to_state(particleState, 0);

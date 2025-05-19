@@ -11,6 +11,7 @@
 #include "4C_global_data.hpp"
 #include "4C_mat_par_bundle.hpp"
 #include "4C_mat_service.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <memory>
 
@@ -27,8 +28,8 @@ Mat::PAR::Mixture::Mixture(const Core::Mat::PAR::Parameter::Data& matdata)
   if (num_constituents != (int)constituent_matids.size())
   {
     FOUR_C_THROW(
-        "number of constituents %d does not fit to the size of the constituents material vector"
-        " %d",
+        "number of constituents {} does not fit to the size of the constituents material vector"
+        " {}",
         num_constituents, constituent_matids.size());
   }
 
@@ -164,7 +165,7 @@ void Mat::Mixture::unpack(Core::Communication::UnpackBuffer& buffer)
       }
       else
       {
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
       }
     }

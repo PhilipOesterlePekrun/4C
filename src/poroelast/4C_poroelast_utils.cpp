@@ -23,10 +23,10 @@
 #include "4C_poroelast_monolithicstructuresplit.hpp"
 #include "4C_poroelast_partitioned.hpp"
 #include "4C_poroelast_utils_clonestrategy.hpp"
-#include "4C_so3_poro_eletypes.hpp"
-#include "4C_so3_poro_p1_eletypes.hpp"
 #include "4C_solid_poro_3D_ele_pressure_based.hpp"
 #include "4C_solid_poro_3D_ele_pressure_velocity_based.hpp"
+#include "4C_solid_poro_3D_ele_pressure_velocity_based_p1.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_w1_poro_eletypes.hpp"
 #include "4C_w1_poro_p1_eletypes.hpp"
 
@@ -35,14 +35,9 @@ FOUR_C_NAMESPACE_OPEN
 bool PoroElast::Utils::is_poro_element(const Core::Elements::Element* actele)
 {
   // all poro elements need to be listed here
-  return actele->element_type() == Discret::Elements::SoHex8PoroType::instance() or
-         actele->element_type() == Discret::Elements::SolidPoroPressureBasedType::instance() or
+  return actele->element_type() == Discret::Elements::SolidPoroPressureBasedType::instance() or
          actele->element_type() ==
              Discret::Elements::SolidPoroPressureVelocityBasedType::instance() or
-         actele->element_type() == Discret::Elements::SoTet4PoroType::instance() or
-         actele->element_type() == Discret::Elements::SoTet10PoroType::instance() or
-         actele->element_type() == Discret::Elements::SoHex27PoroType::instance() or
-         actele->element_type() == Discret::Elements::SoNurbs27PoroType::instance() or
          actele->element_type() == Discret::Elements::WallTri3PoroType::instance() or
          actele->element_type() == Discret::Elements::WallQuad4PoroType::instance() or
          actele->element_type() == Discret::Elements::WallQuad9PoroType::instance() or
@@ -54,8 +49,8 @@ bool PoroElast::Utils::is_poro_element(const Core::Elements::Element* actele)
 bool PoroElast::Utils::is_poro_p1_element(const Core::Elements::Element* actele)
 {
   // all poro-p1 elements need to be listed here
-  return actele->element_type() == Discret::Elements::SoHex8PoroP1Type::instance() or
-         actele->element_type() == Discret::Elements::SoTet4PoroP1Type::instance() or
+  return actele->element_type() ==
+             Discret::Elements::SolidPoroPressureVelocityBasedP1Type::instance() or
          actele->element_type() == Discret::Elements::WallQuad4PoroP1Type::instance() or
          actele->element_type() == Discret::Elements::WallTri3PoroP1Type::instance() or
          actele->element_type() == Discret::Elements::WallQuad9PoroP1Type::instance();
@@ -120,7 +115,7 @@ std::shared_ptr<PoroElast::PoroBase> PoroElast::Utils::create_poro_algorithm(
       break;
     }
     default:
-      FOUR_C_THROW("Unknown solutiontype for poroelasticity: %d", coupling);
+      FOUR_C_THROW("Unknown solutiontype for poroelasticity: {}", coupling);
       break;
   }
 
@@ -191,7 +186,7 @@ void PoroElast::Utils::create_volume_ghosting(Core::FE::Discretization& idiscret
   voldis.push_back(problem->get_dis("structure"));
   voldis.push_back(problem->get_dis("porofluid"));
 
-  const Epetra_Map* ielecolmap = idiscret.element_col_map();
+  const Core::LinAlg::Map* ielecolmap = idiscret.element_col_map();
 
   for (auto& voldi : voldis)
   {
@@ -200,8 +195,8 @@ void PoroElast::Utils::create_volume_ghosting(Core::FE::Discretization& idiscret
 
     // Fill rdata with existing colmap
 
-    const Epetra_Map* elecolmap = voldi->element_col_map();
-    const std::shared_ptr<Epetra_Map> allredelecolmap =
+    const Core::LinAlg::Map* elecolmap = voldi->element_col_map();
+    const std::shared_ptr<Core::LinAlg::Map> allredelecolmap =
         Core::LinAlg::allreduce_e_map(*voldi->element_row_map());
 
     for (int i = 0; i < elecolmap->NumMyElements(); ++i)
@@ -233,7 +228,7 @@ void PoroElast::Utils::create_volume_ghosting(Core::FE::Discretization& idiscret
     }
 
     // re-build element column map
-    Epetra_Map newelecolmap(-1, static_cast<int>(rdata.size()), rdata.data(), 0,
+    Core::LinAlg::Map newelecolmap(-1, static_cast<int>(rdata.size()), rdata.data(), 0,
         Core::Communication::as_epetra_comm(voldi->get_comm()));
     rdata.clear();
 
@@ -257,8 +252,8 @@ void PoroElast::Utils::create_volume_ghosting(Core::FE::Discretization& idiscret
 void PoroElast::Utils::reconnect_parent_pointers(Core::FE::Discretization& idiscret,
     Core::FE::Discretization& voldiscret, Core::FE::Discretization* voldiscret2)
 {
-  const Epetra_Map* ielecolmap = idiscret.element_col_map();
-  const Epetra_Map* elecolmap = voldiscret.element_col_map();
+  const Core::LinAlg::Map* ielecolmap = idiscret.element_col_map();
+  const Core::LinAlg::Map* elecolmap = voldiscret.element_col_map();
 
   for (int i = 0; i < ielecolmap->NumMyElements(); ++i)
   {
@@ -275,13 +270,13 @@ void PoroElast::Utils::reconnect_parent_pointers(Core::FE::Discretization& idisc
 }
 
 void PoroElast::Utils::set_slave_and_master(const Core::FE::Discretization& voldiscret,
-    const Core::FE::Discretization* voldiscret2, const Epetra_Map* elecolmap,
+    const Core::FE::Discretization* voldiscret2, const Core::LinAlg::Map* elecolmap,
     Core::Elements::FaceElement* faceele)
 {
   int volgid = faceele->parent_element_id();
 
   if (elecolmap->LID(volgid) == -1)  // Volume discretization has not Element
-    FOUR_C_THROW("create_volume_ghosting: Element %d does not exist on this Proc!", volgid);
+    FOUR_C_THROW("create_volume_ghosting: Element {} does not exist on this Proc!", volgid);
 
   Core::Elements::Element* vele = voldiscret.g_element(volgid);
   if (!vele) FOUR_C_THROW("ERROR: Cannot find element with gid %", volgid);
@@ -289,7 +284,7 @@ void PoroElast::Utils::set_slave_and_master(const Core::FE::Discretization& vold
 
   if (voldiscret2)
   {
-    const Epetra_Map* elecolmap2 = voldiscret2->element_col_map();
+    const Core::LinAlg::Map* elecolmap2 = voldiscret2->element_col_map();
     if (elecolmap2->LID(volgid) == -1)  // Volume discretization has not Element
       faceele->set_parent_slave_element(nullptr, -1);
     else
@@ -335,7 +330,7 @@ double PoroElast::Utils::calculate_vector_norm(
   if (norm == Inpar::PoroElast::norm_l1)
   {
     double vectnorm;
-    vect.Norm1(&vectnorm);
+    vect.norm_1(&vectnorm);
     return vectnorm;
   }
   // L2/Euclidian norm
@@ -343,7 +338,7 @@ double PoroElast::Utils::calculate_vector_norm(
   else if (norm == Inpar::PoroElast::norm_l2)
   {
     double vectnorm;
-    vect.Norm2(&vectnorm);
+    vect.norm_2(&vectnorm);
     return vectnorm;
   }
   // RMS norm
@@ -351,23 +346,23 @@ double PoroElast::Utils::calculate_vector_norm(
   else if (norm == Inpar::PoroElast::norm_rms)
   {
     double vectnorm;
-    vect.Norm2(&vectnorm);
-    return vectnorm / sqrt((double)vect.GlobalLength());
+    vect.norm_2(&vectnorm);
+    return vectnorm / sqrt((double)vect.global_length());
   }
   // infinity/maximum norm
   // norm = max( vect[i] )
   else if (norm == Inpar::PoroElast::norm_inf)
   {
     double vectnorm;
-    vect.NormInf(&vectnorm);
+    vect.norm_inf(&vectnorm);
     return vectnorm;
   }
   // norm = sum_0^i vect[i]/length_vect
   else if (norm == Inpar::PoroElast::norm_l1_scaled)
   {
     double vectnorm;
-    vect.Norm1(&vectnorm);
-    return vectnorm / ((double)vect.GlobalLength());
+    vect.norm_1(&vectnorm);
+    return vectnorm / ((double)vect.global_length());
   }
   else
   {
@@ -396,7 +391,7 @@ void PoroElast::Utils::PoroMaterialStrategy::assign_material2_to1(
       Core::Elements::Element* actele2 = dis2->g_element(id_2);
       std::vector<double> centercoords2 = Core::FE::element_center_refe_coords(*actele2);
 
-      Core::LinAlg::Matrix<3, 1> diffcoords(true);
+      Core::LinAlg::Matrix<3, 1> diffcoords(Core::LinAlg::Initialization::zero);
 
       for (int j = 0; j < 3; ++j) diffcoords(j, 0) = centercoords1[j] - centercoords2[j];
 
@@ -419,8 +414,7 @@ void PoroElast::Utils::PoroMaterialStrategy::assign_material2_to1(
   }
   else
   {
-    FOUR_C_THROW(
-        "ERROR: Unsupported element type '%s'", Core::Utils::get_dynamic_type_name(*ele2).c_str());
+    FOUR_C_THROW("ERROR: Unsupported element type '{}'", Core::Utils::get_dynamic_type_name(*ele2));
   }
 }
 
@@ -447,7 +441,7 @@ void PoroElast::Utils::PoroMaterialStrategy::assign_material1_to2(
       Core::Elements::Element* actele1 = dis1->g_element(id_1);
       std::vector<double> centercoords1 = Core::FE::element_center_refe_coords(*actele1);
 
-      Core::LinAlg::Matrix<3, 1> diffcoords(true);
+      Core::LinAlg::Matrix<3, 1> diffcoords(Core::LinAlg::Initialization::zero);
 
       for (int j = 0; j < 3; ++j) diffcoords(j, 0) = centercoords1[j] - centercoords2[j];
 
@@ -459,24 +453,25 @@ void PoroElast::Utils::PoroMaterialStrategy::assign_material1_to2(
     }
   }
 
-  // if Aele is a so3_base element
-  auto* so_base = dynamic_cast<Discret::Elements::SoBase*>(ele1);
-
   // if Bele is a fluid element
   auto* fluid = dynamic_cast<Discret::Elements::FluidPoro*>(ele2);
   if (fluid != nullptr)
   {
-    if (so_base)
+    if (auto* solid_poro = dynamic_cast<Discret::Elements::SolidPoroPressureVelocityBased*>(ele1);
+        solid_poro != nullptr)
     {
-      fluid->set_kinematic_type(so_base->kinematic_type());
+      fluid->set_kinematic_type(solid_poro->kinematic_type());
+    }
+    else if (auto* wall_ele = dynamic_cast<Discret::Elements::Wall1*>(ele1); wall_ele != nullptr)
+    {
+      fluid->set_kinematic_type(wall_ele->kinematic_type());
     }
     else
       FOUR_C_THROW("ERROR: ele1 is not a solid element");
   }
   else
   {
-    FOUR_C_THROW(
-        "ERROR: Unsupported element type '%s'", Core::Utils::get_dynamic_type_name(*ele2).c_str());
+    FOUR_C_THROW("ERROR: Unsupported element type '{}'", Core::Utils::get_dynamic_type_name(*ele2));
   }
 }
 

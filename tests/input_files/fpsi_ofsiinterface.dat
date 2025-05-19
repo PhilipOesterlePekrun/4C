@@ -20,7 +20,6 @@ RANDSEED                        -1
 ----------------------------------------------------------------IO
 OUTPUT_BIN                      yes
 STRUCT_DISP                     Yes
-STRUCT_VEL_ACC                  No
 STRUCT_STRESS                   No
 STRUCT_COUPLING_STRESS          No
 STRUCT_STRAIN                   No
@@ -61,7 +60,7 @@ NORM_INCO                       Abs
 NORMCOMBI_DISPPRES              And
 NORMCOMBI_RESFINCO              And
 NORMCOMBI_RESFDISP              And
-STC_SCALING                     no
+STC_SCALING                     Inactive
 STC_LAYER                       1
 PTCDT                           0.1
 TOLCONSTR                       1e-08
@@ -71,7 +70,7 @@ ITERNORM                        L2
 DIVERCONT                       stop
 NLNSOL                          fullnewton
 LOADLIN                         no
-MASSLIN                         no
+MASSLIN                         none
 PREDICT                         ConstDis
 UZAWAPARAM                      1
 UZAWATOL                        1e-08
@@ -222,9 +221,6 @@ NAME                            ALE_Solver
 SOLVER                          UMFPACK
 AZSOLVE                         GMRES
 AZPREC                          ILU
-IFPACKOVERLAP                   0
-IFPACKGFILL                     0
-IFPACKCOMBINE                   Add
 AZSUB                           50
 AZCONV                          AZ_r0
 AZOUTPUT                        0
@@ -251,46 +247,38 @@ COMPONENT 0 SYMBOLIC_FUNCTION_OF_SPACE_TIME 20*(y-1)
 COMPONENT 0 SYMBOLIC_FUNCTION_OF_SPACE_TIME v
 VARIABLE 0 NAME v TYPE multifunction NUMPOINTS 3 TIMES 0.0 0.5 10.0 DESCRIPTION 0.5*(1-cos(2*t*pi)) 1.0
 -------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF 2
-E 1 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
-E 9 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.1 0.0 FUNCT 0 2 0
+E 1 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 9 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.1 0.0 FUNCT 0 2 0
 //E 8 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 //E 2 - NUMDOF 4 ONOFF 1 1 1 0 VAL 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0
 --------------------------------------DESIGN VOL DIRICH CONDITIONS
-DVOL   3
-E 1 - NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
-E 2 - NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
-E 3 - NUMDOF 4 ONOFF 0 0 1 0 VAL 0.0 0 0.0 0.0 FUNCT 0 0 0 0
+E 1 NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 2 NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 3 NUMDOF 4 ONOFF 0 0 1 0 VAL 0.0 0 0.0 0.0 FUNCT 0 0 0 0
 //---------------------------------------DESIGN VOL PORO DIRICH CONDITIONS
 //DVOL   1
 //E 2 - NUMDOF 4 ONOFF 1 0 1 0 VAL 0.0 0 0.0 0.0 FUNCT 0 0 0 0
 --------------------------------DESIGN SURF PORO DIRICH CONDITIONS
-DSURF 1
-E 8 - NUMDOF 4 ONOFF 1 1 1 0 VAL 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0
+E 8 NUMDOF 4 ONOFF 1 1 1 0 VAL 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0
 ---------------------------------DESIGN SURF ALE DIRICH CONDITIONS
-DSURF  1
-E 2 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 2 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 -------------------------------DESIGN FSI COUPLING SURF CONDITIONS
-DSURF  2
 // structure_coupling_surface
-E 3 - coupling_id 1
+E 3 coupling_id 1
 // fluid_coupling_surface
-E 4 - coupling_id 1
+E 4 coupling_id 1
 ------------------------------DESIGN FPSI COUPLING SURF CONDITIONS
-DSURF  2
 // structure_coupling_surface
-E 7 - coupling_id 1
+E 7 coupling_id 1
 // fluid_coupling_surface
-E 6 - coupling_id 1
+E 6 coupling_id 1
 --------------------------DESIGN SURFACE PORO PRESSURE INTEGRATION
-DSURF  2
 // structure_coupling_surface ... fpsi
-E 7 -
+E 7
 // p s coupling surface
-E 10 -
+E 10
 ------------------------------DESIGN VOLUME POROCOUPLING CONDITION
-DVOL   1
-E 2 -
+E 2
 ---------------------------DESIGN SURFACE PORO PARTIAL INTEGRATION
 //DSURF        0
 //E 7 -
@@ -398,7 +386,7 @@ NODE 22    COORD  -0.5  0.5  0.5
 NODE 23    COORD  -0.5  0.5  -0.5
 NODE 24    COORD  -1.5  0.5  -0.5
 ------------------------------------------------STRUCTURE ELEMENTS
-1 SOLIDH8PORO HEX8  5 6 7 8 9 10 11 12  MAT 1 KINEM nonlinear EAS none
+1 SOLIDPORO_PRESSURE_VELOCITY_BASED HEX8 5 6 7 8 9 10 11 12 MAT 1 KINEM nonlinear
 2 SOLID HEX8 1 2 3 4 5 6 7 8 MAT 2 KINEM nonlinear
 ----------------------------------------------------FLUID ELEMENTS
 3 FLUID HEX8  13 14 15 16 17 18 19 20   MAT 4 NA ALE

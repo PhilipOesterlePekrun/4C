@@ -11,12 +11,9 @@
 #include "4C_config.hpp"
 
 #include "4C_comm_pack_buffer.hpp"
-#include "4C_linalg_vector.hpp"
-#include "4C_utils_parameter_list.fwd.hpp"
 
 #include <map>
 #include <memory>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -56,8 +53,6 @@ namespace Core::Communication
     ParObjectType is responsible to register with ParObjectFactory and provide
     means to create its ParObject.
 
-    \author u.kue
-    \date 06/10
    */
   class ParObjectType
   {
@@ -93,8 +88,6 @@ namespace Core::Communication
     itself here. The factory is able to loop all ParObjectType objects and call
     the appropriate creation methods.
 
-    \author u.kue
-    \date 06/10
    */
   class ParObjectFactory
   {
@@ -115,14 +108,6 @@ namespace Core::Communication
 
     /// initialize all element types
     void initialize_elements(Core::FE::Discretization& dis);
-
-    /// preevaluate elements (via element types)
-    void pre_evaluate(Core::FE::Discretization& dis, Teuchos::ParameterList& p,
-        std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix1,
-        std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix2,
-        std::shared_ptr<Core::LinAlg::Vector<double>> systemvector1,
-        std::shared_ptr<Core::LinAlg::Vector<double>> systemvector2,
-        std::shared_ptr<Core::LinAlg::Vector<double>> systemvector3);
 
     /// setup definition of element input file lines
     void setup_element_definition(
@@ -146,11 +131,7 @@ namespace Core::Communication
     /// preregistered types
     std::vector<ParObjectType*> types_;
 
-    /// element types that are actually used
-    std::map<Core::FE::Discretization*, std::set<Core::Elements::ElementType*>> active_elements_;
-
     // no copying
-
     ParObjectFactory(const ParObjectFactory&);
     ParObjectFactory& operator=(const ParObjectFactory&);
   };

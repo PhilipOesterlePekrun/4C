@@ -64,8 +64,8 @@ namespace Core::IO
       case Core::FE::CellType::nurbs27:
         return get_vtk_cell_type_from_element_cell_type(Core::FE::CellType::hex27);
       default:
-        FOUR_C_THROW("The VTK cell type for the NURBS element %s is not implemented",
-            Core::FE::cell_type_to_string(celltype).c_str());
+        FOUR_C_THROW("The VTK cell type for the NURBS element {} is not implemented",
+            Core::FE::cell_type_to_string(celltype));
     }
   }
 
@@ -83,7 +83,7 @@ namespace Core::IO
       const Core::FE::Discretization& discret, std::vector<uint8_t>& cell_types,
       std::vector<double>& point_coordinates)
   {
-    constexpr int number_of_output_points = Core::FE::num_nodes<celltype>;
+    constexpr int number_of_output_points = Core::FE::num_nodes(celltype);
     constexpr int dim_nurbs = Core::FE::dim<celltype>;
     constexpr int dim_output = 3;
 
@@ -97,7 +97,8 @@ namespace Core::IO
     // Create the vertices for the visualization.
     {
       // Get the knots and weights of this element.
-      Core::LinAlg::Matrix<number_of_output_points, 1, double> weights(true);
+      Core::LinAlg::Matrix<number_of_output_points, 1, double> weights(
+          Core::LinAlg::Initialization::zero);
       std::vector<Core::LinAlg::SerialDenseVector> knots(true);
       const bool zero_size =
           Core::FE::Nurbs::get_my_nurbs_knots_and_weights(discret, &ele, knots, weights);
@@ -132,8 +133,8 @@ namespace Core::IO
                                                                   [i_dim_nurbs];
               break;
             default:
-              FOUR_C_THROW("The node numbering for the nurbs element shape %s is not implemented",
-                  Core::FE::cell_type_to_string(ele.shape()).c_str());
+              FOUR_C_THROW("The node numbering for the nurbs element shape {} is not implemented",
+                  Core::FE::cell_type_to_string(ele.shape()));
           }
         }
 
@@ -204,8 +205,8 @@ namespace Core::IO
         // Since this is not supported by vtu, we add a NaN in this case, see else branch
         if (nodedofs.size() > read_result_data_from_dofindex + idof)
         {
-          const int lid =
-              result_data_dofbased.Map().LID(nodedofs[idof + read_result_data_from_dofindex]);
+          const int lid = result_data_dofbased.get_block_map().LID(
+              nodedofs[idof + read_result_data_from_dofindex]);
           vtu_point_result_data.push_back((result_data_dofbased)[lid]);
         }
         else
@@ -248,7 +249,7 @@ namespace Core::IO
         if (lid > -1)
           point_result_data.push_back(column[lid]);
         else
-          FOUR_C_THROW("received illegal node local id: %d", lid);
+          FOUR_C_THROW("received illegal node local id: {}", lid);
       }
     }
 
@@ -272,7 +273,7 @@ namespace Core::IO
       const Core::LinAlg::Vector<double>& result_data_dofbased,
       const unsigned int read_result_data_from_dofindex, std::vector<double>& vtu_point_result_data)
   {
-    constexpr int number_of_output_points = Core::FE::num_nodes<celltype>;
+    constexpr int number_of_output_points = Core::FE::num_nodes(celltype);
     constexpr int dim_nurbs = Core::FE::dim<celltype>;
 
     // Get the vtk cell information
@@ -282,7 +283,8 @@ namespace Core::IO
     // Add the data at the nodes of the nurbs visualization.
     {
       // Get the knots and weights for this element.
-      Core::LinAlg::Matrix<number_of_output_points, 1, double> weights(true);
+      Core::LinAlg::Matrix<number_of_output_points, 1, double> weights(
+          Core::LinAlg::Initialization::zero);
       std::vector<Core::LinAlg::SerialDenseVector> knots(true);
       const bool zero_size =
           Core::FE::Nurbs::get_my_nurbs_knots_and_weights(discret, &ele, knots, weights);
@@ -291,10 +293,9 @@ namespace Core::IO
       // Get the element result vector.
       Core::LinAlg::Matrix<number_of_output_points * result_num_dofs_per_node, 1, double>
           dof_result;
-      std::vector<double> ele_dof_values;
       std::vector<int> lm, lmowner, lmstride;
       ele.location_vector(discret, lm, lmowner, lmstride);
-      Core::FE::extract_my_values(result_data_dofbased, ele_dof_values, lm);
+      std::vector<double> ele_dof_values = Core::FE::extract_values(result_data_dofbased, lm);
 
       const auto total_dofs_per_node = ele_dof_values.size() / number_of_output_points;
       FOUR_C_ASSERT((ele_dof_values.size() % total_dofs_per_node) == 0,
@@ -325,8 +326,8 @@ namespace Core::IO
               xi(i) = Core::FE::eleNodeNumbering_hex27_nodes_reference[numbering[i_node_nurbs]][i];
               break;
             default:
-              FOUR_C_THROW("The node numbering for the nurbs element shape %s is not implemented",
-                  Core::FE::cell_type_to_string(ele.shape()).c_str());
+              FOUR_C_THROW("The node numbering for the nurbs element shape {} is not implemented",
+                  Core::FE::cell_type_to_string(ele.shape()));
           }
         }
 
@@ -359,7 +360,7 @@ namespace Core::IO
       const Core::LinAlg::MultiVector<double>& result_data_nodebased,
       std::vector<double>& vtu_point_result_data)
   {
-    constexpr int number_of_output_points = Core::FE::num_nodes<celltype>;
+    constexpr int number_of_output_points = Core::FE::num_nodes(celltype);
     constexpr int dim_nurbs = Core::FE::dim<celltype>;
 
     // Get the vtk cell information
@@ -369,7 +370,8 @@ namespace Core::IO
     // Add the data at the nodes of the nurbs visualization.
     {
       // Get the knots and weights for this element.
-      Core::LinAlg::Matrix<number_of_output_points, 1, double> weights(true);
+      Core::LinAlg::Matrix<number_of_output_points, 1, double> weights(
+          Core::LinAlg::Initialization::zero);
       std::vector<Core::LinAlg::SerialDenseVector> knots(true);
       const bool zero_size =
           Core::FE::Nurbs::get_my_nurbs_knots_and_weights(discret, &ele, knots, weights);
@@ -407,8 +409,8 @@ namespace Core::IO
               xi(i) = Core::FE::eleNodeNumbering_hex27_nodes_reference[numbering[i_node_nurbs]][i];
               break;
             default:
-              FOUR_C_THROW("The node numbering for the nurbs element shape %s is not implemented",
-                  Core::FE::cell_type_to_string(ele.shape()).c_str());
+              FOUR_C_THROW("The node numbering for the nurbs element shape {} is not implemented",
+                  Core::FE::cell_type_to_string(ele.shape()));
           }
         }
 
@@ -462,7 +464,7 @@ namespace Core::IO
                   discret, result_data_dofbased, read_result_data_from_dofindex,
                   vtu_point_result_data);
             default:
-              FOUR_C_THROW("The case for result_num_dofs_per_node = %i is not implemented",
+              FOUR_C_THROW("The case for result_num_dofs_per_node = {} is not implemented",
                   result_num_dofs_per_node);
           }
         });
@@ -497,7 +499,7 @@ namespace Core::IO
               return append_visualization_node_based_result_data_vector_nurbs<celltype_t(), 6>(
                   ele, discret, result_data_nodebased, vtu_point_result_data);
             default:
-              FOUR_C_THROW("The case for result_num_components_per_node = %i is not implemented",
+              FOUR_C_THROW("The case for result_num_components_per_node = {} is not implemented",
                   result_num_components_per_node);
           }
         });

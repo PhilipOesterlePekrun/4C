@@ -469,7 +469,7 @@ void XFEM::ConditionManager::update_level_set_field()
 
       std::shared_ptr<Core::LinAlg::Vector<double>> tmp =
           coupling->get_level_set_field_as_node_row_vector();
-      const int err = bg_phinp_->Update(1.0, *tmp, 0.0);
+      const int err = bg_phinp_->update(1.0, *tmp, 0.0);
       if (err) FOUR_C_THROW("update did not work - vectors based on wrong maps?");
     }
     else  // apply boolean combinations for the further level-set fields
@@ -492,8 +492,8 @@ void XFEM::ConditionManager::update_level_set_field()
   Core::LinAlg::export_to(node_lsc_coup_idx, node_lsc_coup_idx_col);
 
   // set the levelset coupling index for all row elements
-  const Epetra_Map* elerowmap = bg_dis_->element_row_map();
-  const Epetra_Map* nodecolmap = bg_dis_->node_col_map();
+  const Core::LinAlg::Map* elerowmap = bg_dis_->element_row_map();
+  const Core::LinAlg::Map* nodecolmap = bg_dis_->node_col_map();
 
   // loop all row elements on the processor
   for (int leleid = 0; leleid < bg_dis_->num_my_row_elements(); ++leleid)
@@ -558,7 +558,8 @@ void XFEM::ConditionManager::combine_level_set_field(Core::LinAlg::Vector<double
 void XFEM::ConditionManager::check_for_equal_maps(
     Core::LinAlg::Vector<double>& vec1, Core::LinAlg::Vector<double>& vec2)
 {
-  if (not vec1.Map().PointSameAs(vec2.Map())) FOUR_C_THROW("maps do not match!");
+  if (not vec1.get_block_map().PointSameAs(vec2.get_block_map()))
+    FOUR_C_THROW("maps do not match!");
 }
 
 
@@ -584,7 +585,7 @@ void XFEM::ConditionManager::set_minimum(Core::LinAlg::Vector<double>& vec1,
     if (arg == 2) (node_lsc_coup_idx)[lnodeid] = lsc_index_2;  // else keep the old lsc coupling
 
     // now copy the values
-    err = vec1.ReplaceMyValue(lnodeid, 0, final_val);
+    err = vec1.replace_local_value(lnodeid, 0, final_val);
     if (err != 0) FOUR_C_THROW("error while inserting value into phinp_");
   }
 }
@@ -611,7 +612,7 @@ void XFEM::ConditionManager::set_maximum(Core::LinAlg::Vector<double>& vec1,
     if (arg == 2) (node_lsc_coup_idx)[lnodeid] = lsc_index_2;  // else keep the old lsc coupling
 
     // now copy the values
-    err = vec1.ReplaceMyValue(lnodeid, 0, final_val);
+    err = vec1.replace_local_value(lnodeid, 0, final_val);
     if (err != 0) FOUR_C_THROW("error while inserting value into phinp_");
   }
 }
@@ -638,7 +639,7 @@ void XFEM::ConditionManager::set_difference(Core::LinAlg::Vector<double>& vec1,
     if (arg == 2) (node_lsc_coup_idx)[lnodeid] = lsc_index_2;  // else keep the old lsc coupling
 
     // now copy the values
-    err = vec1.ReplaceMyValue(lnodeid, 0, final_val);
+    err = vec1.replace_local_value(lnodeid, 0, final_val);
     if (err != 0) FOUR_C_THROW("error while inserting value into phinp_");
   }
 }
@@ -675,7 +676,7 @@ void XFEM::ConditionManager::set_symmetric_difference(Core::LinAlg::Vector<doubl
 
 
     // now copy the values
-    err = vec1.ReplaceMyValue(lnodeid, 0, final_val);
+    err = vec1.replace_local_value(lnodeid, 0, final_val);
     if (err != 0) FOUR_C_THROW("error while inserting value into phinp_");
   }
 }
@@ -683,7 +684,7 @@ void XFEM::ConditionManager::set_symmetric_difference(Core::LinAlg::Vector<doubl
 
 void XFEM::ConditionManager::build_complementary_level_set(Core::LinAlg::Vector<double>& vec1)
 {
-  vec1.Scale(-1.0);
+  vec1.scale(-1.0);
 }
 
 
@@ -905,7 +906,7 @@ void XFEM::ConditionManager::get_interface_slave_material(
   }
   else
     FOUR_C_THROW(
-        "The coupling-side id: %d does not correspond to a mesh or levelset coupling object.",
+        "The coupling-side id: {} does not correspond to a mesh or levelset coupling object.",
         coup_sid);
 }
 
@@ -998,7 +999,7 @@ Core::Elements::Element* XFEM::ConditionManager::get_coupling_element(
   }
   else
     FOUR_C_THROW(
-        "there is no valid mesh-/levelset-coupling condition object for side: %i", coup_sid);
+        "there is no valid mesh-/levelset-coupling condition object for side: {}", coup_sid);
 
 
   return nullptr;

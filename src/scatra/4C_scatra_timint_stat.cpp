@@ -11,6 +11,7 @@
 #include "4C_global_data.hpp"
 #include "4C_io.hpp"
 #include "4C_scatra_ele_action.hpp"
+#include "4C_scatra_ele_parameter_timint.hpp"
 #include "4C_scatra_timint_meshtying_strategy_base.hpp"
 #include "4C_utils_parameter_list.hpp"
 
@@ -46,7 +47,7 @@ void ScaTra::TimIntStationary::init()
   // vectors and matrices
   //                 local <-> global dof numbering
   // -------------------------------------------------------------------
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   // fine-scale vector
   if (fssgd_ != Inpar::ScaTra::fssugrdiff_no)
@@ -80,8 +81,6 @@ void ScaTra::TimIntStationary::set_element_time_parameter(bool forcedincremental
 {
   Teuchos::ParameterList eleparams;
 
-  Core::Utils::add_enum_class_to_parameter_list<ScaTra::Action>(
-      "action", ScaTra::Action::set_time_parameter, eleparams);
   eleparams.set<bool>("using generalized-alpha time integration", false);
   eleparams.set<bool>("using stationary formulation", true);
   if (!forcedincrementalsolver)
@@ -94,8 +93,8 @@ void ScaTra::TimIntStationary::set_element_time_parameter(bool forcedincremental
   eleparams.set<double>("time factor", 1.0);
   eleparams.set<double>("alpha_F", 1.0);
 
-  // call standard loop over elements
-  discret_->evaluate(eleparams, nullptr, nullptr, nullptr, nullptr, nullptr);
+  Discret::Elements::ScaTraEleParameterTimInt::instance(discret_->name())
+      ->set_parameters(eleparams);
 }
 
 /*----------------------------------------------------------------------*
@@ -126,7 +125,7 @@ void ScaTra::TimIntStationary::set_old_part_of_righthandside()
   // call base class routine
   ScaTraTimIntImpl::set_old_part_of_righthandside();
 
-  hist_->PutScalar(0.0);
+  hist_->put_scalar(0.0);
 }
 
 
@@ -135,7 +134,7 @@ void ScaTra::TimIntStationary::set_old_part_of_righthandside()
  *----------------------------------------------------------------------*/
 void ScaTra::TimIntStationary::add_neumann_to_residual()
 {
-  residual_->Update(1.0, *neumann_loads_, 1.0);
+  residual_->update(1.0, *neumann_loads_, 1.0);
 }
 
 
@@ -151,7 +150,7 @@ void ScaTra::TimIntStationary::avm3_separation()
   Sep_->multiply(false, *phinp_, *fsphinp_);
 
   // set fine-scale vector
-  discret_->set_state("fsphinp", fsphinp_);
+  discret_->set_state("fsphinp", *fsphinp_);
 }
 
 
@@ -163,8 +162,8 @@ void ScaTra::TimIntStationary::add_time_integration_specific_vectors(bool forced
   // call base class routine
   ScaTraTimIntImpl::add_time_integration_specific_vectors(forcedincrementalsolver);
 
-  discret_->set_state("hist", hist_);
-  discret_->set_state("phinp", phinp_);
+  discret_->set_state("hist", *hist_);
+  discret_->set_state("phinp", *phinp_);
 }
 
 

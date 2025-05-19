@@ -46,10 +46,10 @@ FSI::MortarMonolithicFluidSplitSaddlePoint::MortarMonolithicFluidSplitSaddlePoin
   // ---------------------------------------------------------------------------
   // Create intersection of slave DOFs that hold a Dirichlet boundary condition
   // and are located at the FSI interface
-  std::vector<std::shared_ptr<const Epetra_Map>> intersectionmaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> intersectionmaps;
   intersectionmaps.push_back(fluid_field()->get_dbc_map_extractor()->cond_map());
   intersectionmaps.push_back(fluid_field()->interface()->fsi_cond_map());
-  std::shared_ptr<Epetra_Map> intersectionmap =
+  std::shared_ptr<Core::LinAlg::Map> intersectionmap =
       Core::LinAlg::MultiMapExtractor::intersect_maps(intersectionmaps);
 
   // Check whether the intersection is empty
@@ -134,7 +134,7 @@ FSI::MortarMonolithicFluidSplitSaddlePoint::MortarMonolithicFluidSplitSaddlePoin
                 "------------+"
              << std::endl;
 
-    FOUR_C_THROW(errormsg.str());
+    FOUR_C_THROW("{}", errormsg.str());
   }
   // ---------------------------------------------------------------------------
 
@@ -220,8 +220,8 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_system()
     Coupling::Adapter::Coupling& coup_fluid_ale = fluid_ale_coupling();
 
     // the fluid-ale coupling always matches
-    const Epetra_Map* fluidnodemap = fluid_field()->discretization()->node_row_map();
-    const Epetra_Map* alenodemap = ale_field()->discretization()->node_row_map();
+    const Core::LinAlg::Map* fluidnodemap = fluid_field()->discretization()->node_row_map();
+    const Core::LinAlg::Map* alenodemap = ale_field()->discretization()->node_row_map();
 
     coup_fluid_ale.setup_coupling(*fluid_field()->discretization(), *ale_field()->discretization(),
         *fluidnodemap, *alenodemap, ndim);
@@ -281,7 +281,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::create_lagrange_multiplier_dof_
   const int num_loc_elem_fluid_interface =
       fluid_field()->interface()->fsi_cond_map()->NumMyElements();
   const int max_gid_ale = ale_field()->dof_row_map()->MaxAllGID();
-  lag_mult_dof_map_ = std::make_shared<Epetra_Map>(num_glob_elem_fluid_interface,
+  lag_mult_dof_map_ = std::make_shared<Core::LinAlg::Map>(num_glob_elem_fluid_interface,
       num_loc_elem_fluid_interface, max_gid_ale + 1, Core::Communication::as_epetra_comm(comm_));
 }
 
@@ -289,7 +289,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::create_lagrange_multiplier_dof_
 /*----------------------------------------------------------------------------*/
 void FSI::MortarMonolithicFluidSplitSaddlePoint::create_combined_dof_row_map()
 {
-  std::vector<std::shared_ptr<const Epetra_Map>> vecSpaces;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> vecSpaces;
   vecSpaces.push_back(structure_field()->dof_row_map());
   vecSpaces.push_back(fluid_field()->dof_row_map());
   vecSpaces.push_back(ale_field()->interface()->other_map());
@@ -381,7 +381,7 @@ FSI::MortarMonolithicFluidSplitSaddlePoint::create_status_test(
   // setup tests for fluid velocity field
   // ---------------------------------------------------------------------------
   // build mapextractor
-  std::vector<std::shared_ptr<const Epetra_Map>> fluidvel;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> fluidvel;
   fluidvel.push_back(fluid_field()->inner_velocity_row_map());
   fluidvel.push_back(nullptr);
   Core::LinAlg::MultiMapExtractor fluidvelextract(*dof_row_map(), fluidvel);
@@ -424,7 +424,7 @@ FSI::MortarMonolithicFluidSplitSaddlePoint::create_status_test(
   // setup tests for fluid pressure field
   // ---------------------------------------------------------------------------
   // build mapextractor
-  std::vector<std::shared_ptr<const Epetra_Map>> fluidpress;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> fluidpress;
   fluidpress.push_back(fluid_field()->pressure_row_map());
   fluidpress.push_back(nullptr);
   Core::LinAlg::MultiMapExtractor fluidpressextract(*dof_row_map(), fluidpress);
@@ -511,19 +511,20 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_dbc_map_extractor()
    * DOFs are not part of the final system of equations. Hence, we just need the
    * intersection of inner ALE DOFs with Dirichlet ALE DOFs.
    */
-  std::vector<std::shared_ptr<const Epetra_Map>> aleintersectionmaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> aleintersectionmaps;
   aleintersectionmaps.push_back(ale_field()->get_dbc_map_extractor()->cond_map());
   aleintersectionmaps.push_back(ale_field()->interface()->other_map());
-  std::shared_ptr<const Epetra_Map> aleintersectionmap =
+  std::shared_ptr<const Core::LinAlg::Map> aleintersectionmap =
       Core::LinAlg::MultiMapExtractor::intersect_maps(aleintersectionmaps);
 
   // Merge Dirichlet maps of structure, fluid and ALE to global FSI Dirichlet map
-  std::vector<std::shared_ptr<const Epetra_Map>> dbcmaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> dbcmaps;
   dbcmaps.push_back(structure_field()->get_dbc_map_extractor()->cond_map());
   dbcmaps.push_back(fluid_field()->get_dbc_map_extractor()->cond_map());
   dbcmaps.push_back(aleintersectionmap);
 
-  std::shared_ptr<const Epetra_Map> dbcmap = Core::LinAlg::MultiMapExtractor::merge_maps(dbcmaps);
+  std::shared_ptr<const Core::LinAlg::Map> dbcmap =
+      Core::LinAlg::MultiMapExtractor::merge_maps(dbcmaps);
 
   // Finally, create the global FSI Dirichlet map extractor
   dbcmaps_ = std::make_shared<Core::LinAlg::MapExtractor>(*dof_row_map(), dbcmap, true);
@@ -626,7 +627,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_rhs_lambda(Core::LinAlg::
       Mortar::matrix_row_transform_gids(*mortar_d, *lag_mult_dof_map_);
 
   Core::LinAlg::Vector<double> lag_mult_step_increment(*lag_mult_dof_map_, true);
-  lag_mult_step_increment.Update(1.0, *lag_mult_, -1.0, *lag_mult_old_, 0.0);
+  lag_mult_step_increment.update(1.0, *lag_mult_, -1.0, *lag_mult_old_, 0.0);
 
   // helper variables
   Core::LinAlg::Vector<double> lag_mult_old_rhs_struct_interf(mortar_m_transf->domain_map(), true);
@@ -640,7 +641,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_rhs_lambda(Core::LinAlg::
   std::shared_ptr<Core::LinAlg::Vector<double>> lag_mult_old_rhs_fluid_interf_full =
       fluid_field()->interface()->insert_fsi_cond_vector(lag_mult_old_rhs_fluid_interf);
 
-  lag_mult_old_rhs_fluid_interf_full->Scale(-1.0 / fluid_res_scale);
+  lag_mult_old_rhs_fluid_interf_full->scale(-1.0 / fluid_res_scale);
 
   // add lagrange multiplier
   extractor().add_vector(*lag_mult_old_rhs_struct_interf_full, 0, f);
@@ -663,8 +664,8 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_rhs_lambda(Core::LinAlg::
   std::shared_ptr<Core::LinAlg::Vector<double>> lag_mult_step_increment_rhs_fluid_interf_full =
       fluid_field()->interface()->insert_fsi_cond_vector(lag_mult_step_increment_rhs_fluid_interf);
 
-  lag_mult_step_increment_rhs_struct_interf_full->Scale(1.0 * (1. - solid_time_int_param));
-  lag_mult_step_increment_rhs_fluid_interf_full->Scale(
+  lag_mult_step_increment_rhs_struct_interf_full->scale(1.0 * (1. - solid_time_int_param));
+  lag_mult_step_increment_rhs_fluid_interf_full->scale(
       -1.0 * (1. - fluid_time_int_param) / fluid_res_scale);
 
   // add lagrange multiplier
@@ -727,7 +728,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_rhs_firstiter(
 
     fluid_mesh_inner_interf.Apply(*fluid_veln, *rhs);
 
-    rhs->Scale(dt());
+    rhs->scale(dt());
 
     rhs = fluid_field()->interface()->insert_other_vector(*rhs);
 
@@ -752,7 +753,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_rhs_firstiter(
         std::make_shared<Core::LinAlg::Vector<double>>(fluid_mesh_interf_interf.range_map(), true);
 
     fluid_mesh_interf_interf.Apply(*fluid_veln, *rhs);
-    rhs->Scale(dt());
+    rhs->scale(dt());
     rhs = fluid_field()->interface()->insert_fsi_cond_vector(*rhs);
 
     extractor().add_vector(*rhs, 1, f);
@@ -771,7 +772,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_rhs_firstiter(
   // ----------addressing term 1
   rhs = std::make_shared<Core::LinAlg::Vector<double>>(ale_inner_interf.range_map(), true);
   ale_inner_interf.Apply(*fluid_veln, *rhs);
-  rhs->Scale(-1. * dt());
+  rhs->scale(-1. * dt());
 
   extractor().add_vector(*rhs, 2, f);
   // ----------end of term 1
@@ -791,7 +792,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_rhs_firstiter(
   rhs = std::make_shared<Core::LinAlg::Vector<double>>(*lag_mult_dof_map_, true);
 
   mortar_d_transf->Apply(*fluid_veln, *rhs);
-  rhs->Scale(dt());
+  rhs->scale(dt());
 
   extractor().add_vector(*rhs, 3, f);
   // ----------end of term 1
@@ -800,7 +801,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_rhs_firstiter(
   rhs = std::make_shared<Core::LinAlg::Vector<double>>(*lag_mult_dof_map_, true);
 
   mortar_m_transf->Apply(*ddgpred_, *rhs);
-  rhs->Scale(-1.);
+  rhs->scale(-1.);
 
   extractor().add_vector(*rhs, 3, f);
   // ----------end of term 2
@@ -815,11 +816,11 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_system_matrix(
   TEUCHOS_FUNC_TIME_MONITOR("FSI::MortarMonolithicFluidSplitSaddlePoint::setup_system_matrix");
 
   // get the mortar structure to fluid coupling matrix M
-  const std::shared_ptr<const Core::LinAlg::SparseMatrix> mortar_m =
+  std::shared_ptr<Core::LinAlg::SparseMatrix> mortar_m =
       coupling_solid_fluid_mortar_->get_mortar_matrix_m();
 
   // get the mortar fluid to structure coupling matrix D
-  const std::shared_ptr<const Core::LinAlg::SparseMatrix> mortar_d =
+  std::shared_ptr<Core::LinAlg::SparseMatrix> mortar_d =
       coupling_solid_fluid_mortar_->get_mortar_matrix_d();
 
   // get time integration parameters of structure and fluid time integrators
@@ -857,7 +858,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_system_matrix(
   // Block numbering in comments ranges from (1,1) to (6,6).
 
   // ---------Addressing contribution to blocks (1,1),(1,2),(2,1),(2,2)
-  mat.assign(0, 0, Core::LinAlg::View, *solidblock);
+  mat.assign(0, 0, Core::LinAlg::DataAccess::View, *solidblock);
 
   // ---------Addressing contribution to blocks (3,3),(3,4),(4,3),(4,4)
   Core::LinAlg::SparseMatrix aux_fluidblock(fluidblock->full_row_map(), 108, false);
@@ -878,17 +879,17 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_system_matrix(
   aux_ale_inner_interf->scale(1. / fluid_timescale);
   aux_ale_inner_interf->complete(fluidblock->domain_map(), aux_ale_inner_interf->range_map(), true);
 
-  mat.assign(2, 1, Core::LinAlg::View, *aux_ale_inner_interf);
+  mat.assign(2, 1, Core::LinAlg::DataAccess::View, *aux_ale_inner_interf);
 
   // ---------Addressing contribution to block (5,5)
-  mat.assign(2, 2, Core::LinAlg::View, ale_inner_inner);
+  mat.assign(2, 2, Core::LinAlg::DataAccess::View, ale_inner_inner);
 
   // ---------Addressing contribution to block (6,2)
   std::shared_ptr<Core::LinAlg::SparseMatrix> aux_mortar_m =
       Mortar::matrix_row_transform_gids(*mortar_m, *lag_mult_dof_map_);
   aux_mortar_m->complete(solidblock->domain_map(), *lag_mult_dof_map_, true);
 
-  mat.assign(3, 0, Core::LinAlg::View, *aux_mortar_m);
+  mat.assign(3, 0, Core::LinAlg::DataAccess::View, *aux_mortar_m);
 
   // ---------Addressing contribution to block (2,6)
   aux_mortar_m = Mortar::matrix_row_transform_gids(*mortar_m, *lag_mult_dof_map_);
@@ -896,7 +897,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_system_matrix(
   aux_mortar_m_trans.add(*aux_mortar_m, true, -1.0 * (1.0 - solid_time_int_param), 0.0);
   aux_mortar_m_trans.complete(*lag_mult_dof_map_, solidblock->range_map(), true);
 
-  mat.assign(0, 3, Core::LinAlg::View, aux_mortar_m_trans);
+  mat.assign(0, 3, Core::LinAlg::DataAccess::View, aux_mortar_m_trans);
 
   // ---------Addressing contribution to block (6,4)
   std::shared_ptr<Core::LinAlg::SparseMatrix> aux_mortar_d =
@@ -905,7 +906,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_system_matrix(
   aux_mortar_d->scale(-1.0 / fluid_timescale);
   aux_mortar_d->complete(fluidblock->full_domain_map(), *lag_mult_dof_map_, true);
 
-  mat.assign(3, 1, Core::LinAlg::View, *aux_mortar_d);
+  mat.assign(3, 1, Core::LinAlg::DataAccess::View, *aux_mortar_d);
 
   // ---------Addressing contribution to block (4,6)
   aux_mortar_d = Mortar::matrix_row_transform_gids(*mortar_d, *lag_mult_dof_map_);
@@ -914,7 +915,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_system_matrix(
       *aux_mortar_d, true, 1.0 * (1.0 - fluid_time_int_param) / fluid_res_scale, 0.0);
   aux_mortar_d_trans.complete(*lag_mult_dof_map_, fluidblock->full_range_map(), true);
 
-  mat.assign(1, 3, Core::LinAlg::View, aux_mortar_d_trans);
+  mat.assign(1, 3, Core::LinAlg::DataAccess::View, aux_mortar_d_trans);
 
   /*--------------------------------------------------------------------------*/
   // add optional fluid linearization with respect to mesh motion block
@@ -956,7 +957,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::setup_system_matrix(
   }
 
   // finally assign fluid matrix to block (1,1)
-  mat.assign(1, 1, Core::LinAlg::View, aux_fluidblock);
+  mat.assign(1, 1, Core::LinAlg::DataAccess::View, aux_fluidblock);
 
   // done. make sure all blocks are filled.
   mat.complete();
@@ -977,41 +978,35 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::scale_system(
   if (scaling_infnorm)
   {
     // do scaling of structure rows
-    std::shared_ptr<Epetra_CrsMatrix> A = mat.matrix(0, 0).epetra_matrix();
-    srowsum_ = std::make_shared<Core::LinAlg::Vector<double>>(A->RowMap(), false);
-    scolsum_ = std::make_shared<Core::LinAlg::Vector<double>>(A->RowMap(), false);
-    A->InvRowSums(*srowsum_->get_ptr_of_Epetra_Vector());
-    A->InvColSums(*scolsum_->get_ptr_of_Epetra_Vector());
-    if (A->LeftScale(*srowsum_) or A->RightScale(*scolsum_) or
-        mat.matrix(0, 1).epetra_matrix()->LeftScale(*srowsum_) or
-        mat.matrix(0, 2).epetra_matrix()->LeftScale(*srowsum_) or
-        mat.matrix(0, 3).epetra_matrix()->LeftScale(*srowsum_) or
-        mat.matrix(1, 0).epetra_matrix()->RightScale(*scolsum_) or
-        mat.matrix(2, 0).epetra_matrix()->RightScale(*scolsum_) or
-        mat.matrix(3, 0).epetra_matrix()->RightScale(*scolsum_))
+    Core::LinAlg::SparseMatrix& A_00 = mat.matrix(0, 0);
+    srowsum_ = std::make_shared<Core::LinAlg::Vector<double>>(A_00.row_map(), false);
+    scolsum_ = std::make_shared<Core::LinAlg::Vector<double>>(A_00.row_map(), false);
+    A_00.inv_row_sums(*srowsum_);
+    A_00.inv_col_sums(*scolsum_);
+    if (A_00.left_scale(*srowsum_) or A_00.right_scale(*scolsum_) or
+        mat.matrix(0, 1).left_scale(*srowsum_) or mat.matrix(0, 2).left_scale(*srowsum_) or
+        mat.matrix(0, 3).left_scale(*srowsum_) or mat.matrix(1, 0).right_scale(*scolsum_) or
+        mat.matrix(2, 0).right_scale(*scolsum_) or mat.matrix(3, 0).right_scale(*scolsum_))
       FOUR_C_THROW("structure scaling failed");
 
     // do scaling of ale rows
-    A = mat.matrix(2, 2).epetra_matrix();
-    arowsum_ = std::make_shared<Core::LinAlg::Vector<double>>(A->RowMap(), false);
-    acolsum_ = std::make_shared<Core::LinAlg::Vector<double>>(A->RowMap(), false);
-    A->InvRowSums(*arowsum_->get_ptr_of_Epetra_Vector());
-    A->InvColSums(*acolsum_->get_ptr_of_Epetra_Vector());
-    if (A->LeftScale(*arowsum_) or A->RightScale(*acolsum_) or
-        mat.matrix(2, 0).epetra_matrix()->LeftScale(*arowsum_) or
-        mat.matrix(2, 1).epetra_matrix()->LeftScale(*arowsum_) or
-        mat.matrix(2, 3).epetra_matrix()->LeftScale(*arowsum_) or
-        mat.matrix(0, 2).epetra_matrix()->RightScale(*acolsum_) or
-        mat.matrix(1, 2).epetra_matrix()->RightScale(*acolsum_) or
-        mat.matrix(3, 2).epetra_matrix()->RightScale(*acolsum_))
+    Core::LinAlg::SparseMatrix& A_22 = mat.matrix(2, 2);
+    arowsum_ = std::make_shared<Core::LinAlg::Vector<double>>(A_22.row_map(), false);
+    acolsum_ = std::make_shared<Core::LinAlg::Vector<double>>(A_22.row_map(), false);
+    A_22.inv_row_sums(*arowsum_);
+    A_22.inv_col_sums(*acolsum_);
+    if (A_22.left_scale(*arowsum_) or A_22.right_scale(*acolsum_) or
+        mat.matrix(2, 0).left_scale(*arowsum_) or mat.matrix(2, 1).left_scale(*arowsum_) or
+        mat.matrix(2, 3).left_scale(*arowsum_) or mat.matrix(0, 2).right_scale(*acolsum_) or
+        mat.matrix(1, 2).right_scale(*acolsum_) or mat.matrix(3, 2).right_scale(*acolsum_))
       FOUR_C_THROW("ale scaling failed");
 
     // do scaling of structure and ale rhs vectors
     std::shared_ptr<Core::LinAlg::Vector<double>> sx = extractor().extract_vector(b, 0);
     std::shared_ptr<Core::LinAlg::Vector<double>> ax = extractor().extract_vector(b, 2);
 
-    if (sx->Multiply(1.0, *srowsum_, *sx, 0.0)) FOUR_C_THROW("structure scaling failed");
-    if (ax->Multiply(1.0, *arowsum_, *ax, 0.0)) FOUR_C_THROW("ale scaling failed");
+    if (sx->multiply(1.0, *srowsum_, *sx, 0.0)) FOUR_C_THROW("structure scaling failed");
+    if (ax->multiply(1.0, *arowsum_, *ax, 0.0)) FOUR_C_THROW("ale scaling failed");
 
     extractor().insert_vector(*sx, 0, b);
     extractor().insert_vector(*ax, 2, b);
@@ -1034,8 +1029,8 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::unscale_solution(
     std::shared_ptr<Core::LinAlg::Vector<double>> sy = extractor().extract_vector(x, 0);
     std::shared_ptr<Core::LinAlg::Vector<double>> ay = extractor().extract_vector(x, 2);
 
-    if (sy->Multiply(1.0, *scolsum_, *sy, 0.0)) FOUR_C_THROW("structure scaling failed");
-    if (ay->Multiply(1.0, *acolsum_, *ay, 0.0)) FOUR_C_THROW("ale scaling failed");
+    if (sy->multiply(1.0, *scolsum_, *sy, 0.0)) FOUR_C_THROW("structure scaling failed");
+    if (ay->multiply(1.0, *acolsum_, *ay, 0.0)) FOUR_C_THROW("ale scaling failed");
 
     extractor().insert_vector(*sy, 0, x);
     extractor().insert_vector(*ay, 2, x);
@@ -1043,40 +1038,34 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::unscale_solution(
     std::shared_ptr<Core::LinAlg::Vector<double>> sx = extractor().extract_vector(b, 0);
     std::shared_ptr<Core::LinAlg::Vector<double>> ax = extractor().extract_vector(b, 2);
 
-    if (sx->ReciprocalMultiply(1.0, *srowsum_, *sx, 0.0)) FOUR_C_THROW("structure scaling failed");
-    if (ax->ReciprocalMultiply(1.0, *arowsum_, *ax, 0.0)) FOUR_C_THROW("ale scaling failed");
+    if (sx->reciprocal_multiply(1.0, *srowsum_, *sx, 0.0)) FOUR_C_THROW("structure scaling failed");
+    if (ax->reciprocal_multiply(1.0, *arowsum_, *ax, 0.0)) FOUR_C_THROW("ale scaling failed");
 
     extractor().insert_vector(*sx, 0, b);
     extractor().insert_vector(*ax, 2, b);
 
-    std::shared_ptr<Epetra_CrsMatrix> A = mat.matrix(0, 0).epetra_matrix();
-    srowsum_->Reciprocal(*srowsum_);
-    scolsum_->Reciprocal(*scolsum_);
-    if (A->LeftScale(*srowsum_) or A->RightScale(*scolsum_) or
-        mat.matrix(0, 1).epetra_matrix()->LeftScale(*srowsum_) or
-        mat.matrix(0, 2).epetra_matrix()->LeftScale(*srowsum_) or
-        mat.matrix(0, 3).epetra_matrix()->LeftScale(*srowsum_) or
-        mat.matrix(1, 0).epetra_matrix()->RightScale(*scolsum_) or
-        mat.matrix(2, 0).epetra_matrix()->RightScale(*scolsum_) or
-        mat.matrix(3, 0).epetra_matrix()->RightScale(*scolsum_))
+    Core::LinAlg::SparseMatrix& A_00 = mat.matrix(0, 0);
+    srowsum_->reciprocal(*srowsum_);
+    scolsum_->reciprocal(*scolsum_);
+    if (A_00.left_scale(*srowsum_) or A_00.right_scale(*scolsum_) or
+        mat.matrix(0, 1).left_scale(*srowsum_) or mat.matrix(0, 2).left_scale(*srowsum_) or
+        mat.matrix(0, 3).left_scale(*srowsum_) or mat.matrix(1, 0).right_scale(*scolsum_) or
+        mat.matrix(2, 0).right_scale(*scolsum_) or mat.matrix(3, 0).right_scale(*scolsum_))
       FOUR_C_THROW("structure scaling failed");
 
-    A = mat.matrix(2, 2).epetra_matrix();
-    arowsum_->Reciprocal(*arowsum_);
-    acolsum_->Reciprocal(*acolsum_);
-    if (A->LeftScale(*arowsum_) or A->RightScale(*acolsum_) or
-        mat.matrix(2, 0).epetra_matrix()->LeftScale(*arowsum_) or
-        mat.matrix(2, 1).epetra_matrix()->LeftScale(*arowsum_) or
-        mat.matrix(2, 3).epetra_matrix()->LeftScale(*arowsum_) or
-        mat.matrix(0, 2).epetra_matrix()->RightScale(*acolsum_) or
-        mat.matrix(1, 2).epetra_matrix()->RightScale(*acolsum_) or
-        mat.matrix(3, 2).epetra_matrix()->RightScale(*acolsum_))
+    Core::LinAlg::SparseMatrix& A_22 = mat.matrix(2, 2);
+    arowsum_->reciprocal(*arowsum_);
+    acolsum_->reciprocal(*acolsum_);
+    if (A_22.left_scale(*arowsum_) or A_22.right_scale(*acolsum_) or
+        mat.matrix(2, 0).left_scale(*arowsum_) or mat.matrix(2, 1).left_scale(*arowsum_) or
+        mat.matrix(2, 3).left_scale(*arowsum_) or mat.matrix(0, 2).right_scale(*acolsum_) or
+        mat.matrix(1, 2).right_scale(*acolsum_) or mat.matrix(3, 2).right_scale(*acolsum_))
       FOUR_C_THROW("ale scaling failed");
   }
 
-  Core::LinAlg::Vector<double> r(b.Map());
+  Core::LinAlg::Vector<double> r(b.get_block_map());
   mat.Apply(x, r);
-  r.Update(1., b, 1.);
+  r.update(1., b, 1.);
 
   std::shared_ptr<Core::LinAlg::Vector<double>> sr = extractor().extract_vector(r, 0);
   std::shared_ptr<Core::LinAlg::Vector<double>> fr = extractor().extract_vector(r, 1);
@@ -1084,25 +1073,25 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::unscale_solution(
   std::shared_ptr<Core::LinAlg::Vector<double>> lmr = extractor().extract_vector(r, 3);
 
   // increment additional ale residual
-  aleresidual_->Update(-1., *ar, 0.);
+  aleresidual_->update(-1., *ar, 0.);
 
   std::ios_base::fmtflags flags = utils()->out().flags();
 
   double n, ns, nf, na, nlm;
-  r.Norm2(&n);
-  sr->Norm2(&ns);
-  fr->Norm2(&nf);
-  ar->Norm2(&na);
-  lmr->Norm2(&nlm);
+  r.norm_2(&n);
+  sr->norm_2(&ns);
+  fr->norm_2(&nf);
+  ar->norm_2(&na);
+  lmr->norm_2(&nlm);
   utils()->out() << std::scientific << "\nlinear solver quality:\n"
                  << "L_2-norms:\n"
                  << "   |r|=" << n << "   |rs|=" << ns << "   |rf|=" << nf << "   |ra|=" << na
                  << "   |rlm|=" << nlm << "\n";
-  r.NormInf(&n);
-  sr->NormInf(&ns);
-  fr->NormInf(&nf);
-  ar->NormInf(&na);
-  lmr->NormInf(&nlm);
+  r.norm_inf(&n);
+  sr->norm_inf(&ns);
+  fr->norm_inf(&nf);
+  ar->norm_inf(&na);
+  lmr->norm_inf(&nlm);
   utils()->out() << "L_inf-norms:\n"
                  << "   |r|=" << n << "   |rs|=" << ns << "   |rf|=" << nf << "   |ra|=" << na
                  << "   |rlm|=" << nlm << "\n";
@@ -1168,7 +1157,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::evaluate(
     if (lagx != nullptr)
     {
       Teuchos::Time tlm("lag_mult", true);
-      lag_mult_->Update(1.0, *lag_mult_old_, 1.0, *lagx, 0.0);
+      lag_mult_->update(1.0, *lag_mult_old_, 1.0, *lagx, 0.0);
       if (verbosity_ >= Inpar::FSI::verbosity_medium)
         utils()->out() << "Lagrange multiplier: " << tlm.totalElapsedTime(true) << " sec\n";
     }
@@ -1243,7 +1232,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::extract_field_vectors(
 void FSI::MortarMonolithicFluidSplitSaddlePoint::update()
 {
   // save Lagrange multiplier for the next time step
-  lag_mult_old_->Update(1.0, *lag_mult_, 0.0);
+  lag_mult_old_->update(1.0, *lag_mult_, 0.0);
 
   // call update()-routine in base class to handle the single fields
   FSI::BlockMonolithic::update();
@@ -1279,7 +1268,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::output_lambda()
    * output or restart data.
    */
   Core::LinAlg::Vector<double> copy(*lag_mult_);
-  copy.ReplaceMap(*fluid_field()->interface()->fsi_cond_map());
+  copy.replace_map(*fluid_field()->interface()->fsi_cond_map());
   std::shared_ptr<Core::LinAlg::Vector<double>> lambdafull =
       fluid_field()->interface()->insert_fsi_cond_vector(copy);
   const int uprestart = timeparams_.get<int>("RESTARTEVERY");
@@ -1305,7 +1294,7 @@ void FSI::MortarMonolithicFluidSplitSaddlePoint::read_restart(int step)
   auto lag_mult_old_on_fluid_map = fluid_field()->interface()->extract_fsi_cond_vector(*lambdafull);
 
   // Convert Lagrange multipliers to their actual map
-  lag_mult_old_on_fluid_map->ReplaceMap(*lag_mult_dof_map_);
+  lag_mult_old_on_fluid_map->replace_map(*lag_mult_dof_map_);
   lag_mult_old_ = std::make_shared<Core::LinAlg::Vector<double>>(*lag_mult_old_on_fluid_map);
 
   // Note: the above is normally enough. However, we can use the restart in order to periodically

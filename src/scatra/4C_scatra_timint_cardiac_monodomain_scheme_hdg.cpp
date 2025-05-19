@@ -66,9 +66,9 @@ void ScaTra::TimIntCardiacMonodomainHDG::element_material_time_update()
   Core::Utils::add_enum_class_to_parameter_list<ScaTra::Action>(
       "action", ScaTra::Action::time_update_material, eleparams);
 
-  discret_->set_state("phiaf", phinp_);
-  discret_->set_state(nds_intvar_, "intphin", intphin_);
-  discret_->set_state(0, "phin", phin_);
+  discret_->set_state("phiaf", *phinp_);
+  discret_->set_state(nds_intvar_, "intphin", *intphin_);
+  discret_->set_state(0, "phin", *phin_);
 
 
   Core::LinAlg::SerialDenseMatrix dummyMat;
@@ -79,7 +79,7 @@ void ScaTra::TimIntCardiacMonodomainHDG::element_material_time_update()
   for (int iele = 0; iele < discret_->num_my_col_elements(); ++iele)
   {
     Core::Elements::Element* ele = discret_->l_col_element(iele);
-    ele->location_vector(*discret_, la, false);
+    ele->location_vector(*discret_, la);
 
     ele->evaluate(eleparams, *discret_, la, dummyMat, dummyMat, dummyVec, dummyVec, dummyVec);
   }
@@ -145,10 +145,10 @@ void ScaTra::TimIntCardiacMonodomainHDG::write_restart() const
   std::shared_ptr<Core::LinAlg::Vector<double>> dofphi =
       Core::LinAlg::create_vector(*discret_->node_row_map());
 
-  for (int i = 0; i < dofphi->MyLength(); ++i)
+  for (int i = 0; i < dofphi->local_length(); ++i)
   {
     int dofgid = discret_->node_row_map()->GID(i);
-    dofphi->ReplaceMyValue(discret_->node_row_map()->LID(dofgid), 0, (*interpolatedPhinp_)[i]);
+    dofphi->replace_local_value(discret_->node_row_map()->LID(dofgid), 0, (*interpolatedPhinp_)[i]);
   }
 
   output_->write_vector("phinp", dofphi);
@@ -165,7 +165,7 @@ void ScaTra::TimIntCardiacMonodomainHDG::collect_problem_specific_runtime_output
   // Compute and write activation time
   if (activation_time_interpol_ != nullptr)
   {
-    for (int k = 0; k < interpolatedPhi->MyLength(); k++)
+    for (int k = 0; k < interpolatedPhi->local_length(); k++)
     {
       if ((*interpolatedPhi)[k] >= activation_threshold_ &&
           (*activation_time_interpol_)[k] <= dta_ * 0.9)

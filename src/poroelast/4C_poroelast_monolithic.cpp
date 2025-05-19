@@ -14,6 +14,7 @@
 #include "4C_contact_meshtying_contact_bridge.hpp"
 #include "4C_contact_meshtying_poro_lagrange_strategy.hpp"
 #include "4C_contact_nitsche_strategy_poro.hpp"
+#include "4C_fem_discretization.hpp"
 #include "4C_fem_general_assemblestrategy.hpp"
 #include "4C_fem_general_elements_paramsminimal.hpp"
 #include "4C_fluid_ele_action.hpp"
@@ -30,6 +31,8 @@
 #include "4C_linear_solver_method_parameters.hpp"
 #include "4C_mortar_manager_base.hpp"
 #include "4C_structure_aux.hpp"
+#include "4C_structure_new_model_evaluator_contact.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <Teuchos_Time.hpp>
 #include <Teuchos_TimeMonitor.hpp>
@@ -230,7 +233,7 @@ void PoroElast::Monolithic::solve()
   }
   else if (iter_ >= itermax_)
   {
-    FOUR_C_THROW("Newton unconverged in %d iterations", iter_);
+    FOUR_C_THROW("Newton unconverged in {} iterations", iter_);
   }
 }
 
@@ -278,11 +281,6 @@ void PoroElast::Monolithic::update_state_incrementally(
   // apply current velocity and pressures to structure
   set_fluid_solution();
 
-  // apply current velocity of fluid to ContactManager if contact problem
-  if (no_penetration_)
-    set_poro_contact_states();  // ATM svel is set in structure evaluate as the vel of the structure
-                                // is evaluated there ...
-
   // Monolithic Poroelasticity accesses the linearised structure problem:
   //   UpdaterIterIncrementally(sx),
   structure_field()->update_state_incrementally(s_iterinc);
@@ -293,6 +291,11 @@ void PoroElast::Monolithic::update_state_incrementally(
 
   // set structure displacements onto the fluid
   set_struct_solution();
+
+  // apply current velocity of fluid to ContactManager if contact problem
+  if (no_penetration_)
+    set_poro_contact_states();  // ATM svel is set in structure evaluate as the vel of the structure
+                                // is evaluated there ...
 }
 
 void PoroElast::Monolithic::evaluate(
@@ -394,9 +397,35 @@ void PoroElast::Monolithic::extract_field_vectors(
 
 void PoroElast::Monolithic::setup_system()
 {
+  // new timint with nitsche contact. For old timint this is in the constructor but for new it has
+  // to be after poroalgo->read_restart(restart);
+  if ((!oldstructimint_) && structure_field()->have_model(Inpar::Solid::model_contact))
+  {
+    auto& model_evaluator_contact = dynamic_cast<Solid::ModelEvaluator::Contact&>(
+        structure_field()->model_evaluator(Inpar::Solid::model_contact));
+
+    std::shared_ptr<CONTACT::NitscheStrategyPoro> contact_strategy_nitsche_poro =
+        std::dynamic_pointer_cast<CONTACT::NitscheStrategyPoro>(
+            model_evaluator_contact.strategy_ptr());
+
+    if (contact_strategy_nitsche_poro != nullptr)
+    {
+      nit_contact_ = true;
+      no_penetration_ = contact_strategy_nitsche_poro->has_poro_no_penetration();
+    }
+  }
+
+  if (no_penetration_ && not(strmethodname_ == Inpar::Solid::DynamicType::OneStepTheta))
+  {
+    FOUR_C_THROW(
+        "Porous contact with no penetration is only implemented for OneStepTheta. Please set "
+        "DYNAMICTYPE to OneStepTheta.");
+  }
+
+
   {
     // -------------------------------------------------------------create combined map
-    std::vector<std::shared_ptr<const Epetra_Map>> vecSpaces;
+    std::vector<std::shared_ptr<const Core::LinAlg::Map>> vecSpaces;
 
     // Note:
     // when using constraints applied via Lagrange-Multipliers there is a
@@ -522,13 +551,13 @@ void PoroElast::Monolithic::setup_system_matrix(Core::LinAlg::BlockSparseMatrixB
   }
 
   // assign structure part to the Poroelasticity matrix
-  mat.assign(0, 0, Core::LinAlg::View, *k_ss);
+  mat.assign(0, 0, Core::LinAlg::DataAccess::View, *k_ss);
   // assign coupling part to the Poroelasticity matrix
-  mat.assign(0, 1, Core::LinAlg::View, *k_sf);
+  mat.assign(0, 1, Core::LinAlg::DataAccess::View, *k_sf);
   // assign fluid part to the poroelasticity matrix
-  mat.assign(1, 1, Core::LinAlg::View, *k_ff);
+  mat.assign(1, 1, Core::LinAlg::DataAccess::View, *k_ff);
   // assign coupling part to the Poroelasticity matrix
-  mat.assign(1, 0, Core::LinAlg::View, *k_fs);
+  mat.assign(1, 0, Core::LinAlg::DataAccess::View, *k_fs);
 
   /*----------------------------------------------------------------------*/
   // done. make sure all blocks are filled.
@@ -560,7 +589,7 @@ void PoroElast::Monolithic::linear_solve()
     solver_params.nonlin_residual = normrhs_;
     solver_params.lin_tol_better = solveradaptolbetter_;
   }
-  iterinc_->PutScalar(0.0);  // Useful? depends on solver and more
+  iterinc_->put_scalar(0.0);  // Useful? depends on solver and more
 
   // equilibrate global system of equations if necessary
   equilibration_->equilibrate_system(systemmatrix_, rhs_, blockrowdofmap_);
@@ -649,7 +678,7 @@ void PoroElast::Monolithic::create_linear_solver()
     std::cout << " uses the structural solver and fluid solver blocks" << std::endl;
     std::cout << " for building the internal inverses" << std::endl;
     std::cout << " Remove the old BGS PRECONDITIONER BLOCK entries " << std::endl;
-    std::cout << " in the dat files!" << std::endl;
+    std::cout << " in the input files!" << std::endl;
     std::cout << "!!!!!!!!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!!!!!!!" << std::endl;
     FOUR_C_THROW("Iterative solver expected");
   }
@@ -713,7 +742,7 @@ void PoroElast::Monolithic::setup_vector(Core::LinAlg::Vector<double>& f,
   // noticing the block number
 
   extractor()->insert_vector(*sv, 0, f);
-  if (not oldstructimint_) f.Scale(-1);
+  if (not oldstructimint_) f.scale(-1);
   extractor()->insert_vector(*fv, 1, f);
 }
 
@@ -819,8 +848,8 @@ void PoroElast::Monolithic::print_newton_iter_header_stream(std::ostringstream& 
 {
   oss << "------------------------------------------------------------" << std::endl;
   oss << "                   Newton-Raphson Scheme                    " << std::endl;
-  oss << "                NormRES " << vector_norm_string(vectornormfres_);
-  oss << "     NormINC " << vector_norm_string(vectornorminc_) << "                    "
+  oss << "                NormRES " << EnumTools::enum_name(vectornormfres_);
+  oss << "     NormINC " << EnumTools::enum_name(vectornorminc_) << "                    "
       << std::endl;
   oss << "------------------------------------------------------------" << std::endl;
 
@@ -997,8 +1026,8 @@ void PoroElast::Monolithic::apply_str_coupl_matrix(
   }
 
   structure_field()->discretization()->clear_state();
-  structure_field()->discretization()->set_state(0, "displacement", structure_field()->dispnp());
-  structure_field()->discretization()->set_state(0, "velocity", structure_field()->velnp());
+  structure_field()->discretization()->set_state(0, "displacement", *structure_field()->dispnp());
+  structure_field()->discretization()->set_state(0, "velocity", *structure_field()->velnp());
 
   // build specific assemble strategy for mechanical-fluid system matrix
   // from the point of view of structure_field:
@@ -1036,27 +1065,27 @@ void PoroElast::Monolithic::apply_fluid_coupl_matrix(
   fluid_field()->discretization()->clear_state();
 
   // set general vector values needed by elements
-  fluid_field()->discretization()->set_state(0, "dispnp", fluid_field()->dispnp());
-  fluid_field()->discretization()->set_state(0, "dispn", fluid_field()->dispn());
-  fluid_field()->discretization()->set_state(0, "gridv", fluid_field()->grid_vel());
-  fluid_field()->discretization()->set_state(0, "gridvn", fluid_field()->grid_veln());
-  fluid_field()->discretization()->set_state(0, "veln", fluid_field()->veln());
-  fluid_field()->discretization()->set_state(0, "accnp", fluid_field()->accnp());
-  fluid_field()->discretization()->set_state(0, "accam", fluid_field()->accam());
-  fluid_field()->discretization()->set_state(0, "accn", fluid_field()->accn());
+  fluid_field()->discretization()->set_state(0, "dispnp", *fluid_field()->dispnp());
+  fluid_field()->discretization()->set_state(0, "dispn", *fluid_field()->dispn());
+  fluid_field()->discretization()->set_state(0, "gridv", *fluid_field()->grid_vel());
+  fluid_field()->discretization()->set_state(0, "gridvn", *fluid_field()->grid_veln());
+  fluid_field()->discretization()->set_state(0, "veln", *fluid_field()->veln());
+  fluid_field()->discretization()->set_state(0, "accnp", *fluid_field()->accnp());
+  fluid_field()->discretization()->set_state(0, "accam", *fluid_field()->accam());
+  fluid_field()->discretization()->set_state(0, "accn", *fluid_field()->accn());
 
-  fluid_field()->discretization()->set_state(0, "scaaf", fluid_field()->scaaf());
+  fluid_field()->discretization()->set_state(0, "scaaf", *fluid_field()->scaaf());
 
-  fluid_field()->discretization()->set_state(0, "hist", fluid_field()->hist());
+  fluid_field()->discretization()->set_state(0, "hist", *fluid_field()->hist());
 
   // set scheme-specific element parameters and vector values
   if (fluid_field()->tim_int_scheme() == Inpar::FLUID::timeint_npgenalpha or
       fluid_field()->tim_int_scheme() == Inpar::FLUID::timeint_npgenalpha)
-    fluid_field()->discretization()->set_state(0, "velaf", fluid_field()->velaf());
+    fluid_field()->discretization()->set_state(0, "velaf", *fluid_field()->velaf());
   else
-    fluid_field()->discretization()->set_state(0, "velaf", fluid_field()->velnp());
+    fluid_field()->discretization()->set_state(0, "velaf", *fluid_field()->velnp());
 
-  fluid_field()->discretization()->set_state(0, "velnp", fluid_field()->velnp());
+  fluid_field()->discretization()->set_state(0, "velnp", *fluid_field()->velnp());
 
   // build specific assemble strategy for the fluid-mechanical system matrix
   // from the point of view of fluid_field:
@@ -1085,10 +1114,10 @@ void PoroElast::Monolithic::apply_fluid_coupl_matrix(
     params.set<Inpar::FLUID::PhysicalType>("Physical Type", fluid_field()->physical_type());
 
     fluid_field()->discretization()->clear_state();
-    fluid_field()->discretization()->set_state(0, "dispnp", fluid_field()->dispnp());
-    fluid_field()->discretization()->set_state(0, "gridv", fluid_field()->grid_vel());
-    fluid_field()->discretization()->set_state(0, "velnp", fluid_field()->velnp());
-    fluid_field()->discretization()->set_state(0, "scaaf", fluid_field()->scaaf());
+    fluid_field()->discretization()->set_state(0, "dispnp", *fluid_field()->dispnp());
+    fluid_field()->discretization()->set_state(0, "gridv", *fluid_field()->grid_vel());
+    fluid_field()->discretization()->set_state(0, "velnp", *fluid_field()->velnp());
+    fluid_field()->discretization()->set_state(0, "scaaf", *fluid_field()->scaaf());
 
     fluid_field()->discretization()->evaluate_condition(params, fluidstrategy, "PoroPartInt");
 
@@ -1104,8 +1133,8 @@ void PoroElast::Monolithic::apply_fluid_coupl_matrix(
     params.set<Inpar::FLUID::PhysicalType>("Physical Type", fluid_field()->physical_type());
 
     fluid_field()->discretization()->clear_state();
-    fluid_field()->discretization()->set_state(0, "dispnp", fluid_field()->dispnp());
-    fluid_field()->discretization()->set_state(0, "velnp", fluid_field()->velnp());
+    fluid_field()->discretization()->set_state(0, "dispnp", *fluid_field()->dispnp());
+    fluid_field()->discretization()->set_state(0, "velnp", *fluid_field()->velnp());
 
     fluid_field()->discretization()->evaluate_condition(params, fluidstrategy, "PoroPresInt");
 
@@ -1138,43 +1167,41 @@ void PoroElast::Monolithic::apply_fluid_coupl_matrix(
   iterinc = Core::LinAlg::create_vector(*dof_row_map(), true);
   abs_iterinc = Core::LinAlg::create_vector(*dof_row_map(), true);
 
-  const int dofs = iterinc->GlobalLength();
+  const int dofs = iterinc->global_length();
   std::cout << "in total " << dofs << " DOFs" << std::endl;
   const double delta = 1e-8;
 
-  iterinc->PutScalar(0.0);
+  iterinc->put_scalar(0.0);
 
-  iterinc->ReplaceGlobalValue(0, 0, delta);
+  iterinc->replace_global_value(0, 0, delta);
 
-  abs_iterinc->Update(1.0, *iterinc_, 0.0);
+  abs_iterinc->update(1.0, *iterinc_, 0.0);
 
-  std::shared_ptr<Epetra_CrsMatrix> stiff_approx = nullptr;
-  stiff_approx = Core::LinAlg::create_matrix(*dof_row_map(), 81);
+  auto stiff_approx = std::make_shared<Core::LinAlg::SparseMatrix>(*dof_row_map(), 81);
 
   Core::LinAlg::Vector<double> rhs_old(*dof_row_map(), true);
-  rhs_old.Update(1.0, *rhs_, 0.0);
+  rhs_old.update(1.0, *rhs_, 0.0);
   Core::LinAlg::Vector<double> rhs_copy(*dof_row_map(), true);
 
-  std::shared_ptr<Core::LinAlg::SparseMatrix> sparse = systemmatrix_->merge();
-  Core::LinAlg::SparseMatrix sparse_copy(sparse->epetra_matrix(), Core::LinAlg::Copy);
+  Core::LinAlg::SparseMatrix sparse(*systemmatrix_->merge());
 
   bool output = false;
   if (output)
   {
     std::cout << "iterinc_" << std::endl;
-    iterinc_->Print(std::cout);
+    iterinc_->print(std::cout);
     std::cout << "meshdisp: " << std::endl;
-    fluid_field()->dispnp()->Print(std::cout);
+    fluid_field()->dispnp()->print(std::cout);
     std::cout << "disp: " << std::endl;
-    structure_field()->dispnp()->Print(std::cout);
+    structure_field()->dispnp()->print(std::cout);
     std::cout << "fluid vel" << std::endl;
-    fluid_field()->velnp()->Print(std::cout);
+    fluid_field()->velnp()->print(std::cout);
     std::cout << "fluid acc" << std::endl;
-    fluid_field()->accnp()->Print(std::cout);
+    fluid_field()->accnp()->print(std::cout);
     std::cout << "gridvel fluid" << std::endl;
-    fluid_field()->grid_vel()->Print(std::cout);
+    fluid_field()->grid_vel()->print(std::cout);
     std::cout << "gridvel struct" << std::endl;
-    structure_field()->velnp()->Print(std::cout);
+    structure_field()->velnp()->print(std::cout);
   }
 
   const int row_number = -1;
@@ -1183,9 +1210,9 @@ void PoroElast::Monolithic::apply_fluid_coupl_matrix(
   {
     if (combined_dbc_map()->MyGID(i))
     {
-      iterinc->ReplaceGlobalValue(i, 0, 0.0);
+      iterinc->replace_global_value(i, 0, 0.0);
     }
-    abs_iterinc->Update(1.0, *iterinc, 1.0);
+    abs_iterinc->update(1.0, *iterinc, 1.0);
 
     if (i == column_number)
       std::cout << "\n******************" << column_number + 1 << ". Spalte!!***************"
@@ -1193,11 +1220,11 @@ void PoroElast::Monolithic::apply_fluid_coupl_matrix(
 
     evaluate(iterinc, iter_ == 1);
 
-    rhs_copy.Update(1.0, *rhs_, 0.0);
+    rhs_copy.update(1.0, *rhs_, 0.0);
 
-    iterinc_->PutScalar(0.0);  // Useful? depends on solver and more
+    iterinc_->put_scalar(0.0);  // Useful? depends on solver and more
     Core::LinAlg::apply_dirichlet_to_system(
-        sparse_copy, *iterinc_, rhs_copy, *zeros_, *combined_dbc_map());
+        sparse, *iterinc_, rhs_copy, *zeros_, *combined_dbc_map());
 
 
     if (i == column_number)
@@ -1206,33 +1233,33 @@ void PoroElast::Monolithic::apply_fluid_coupl_matrix(
       std::cout << "rhs_old: " << (rhs_old)[row_number] << std::endl;
     }
 
-    rhs_copy.Update(-1.0, rhs_old, 1.0);
-    rhs_copy.Scale(-1.0 / delta);
+    rhs_copy.update(-1.0, rhs_old, 1.0);
+    rhs_copy.scale(-1.0 / delta);
 
     int* index = &i;
     for (int j = 0; j < dofs; ++j)
     {
       double value = (rhs_copy)[j];
-      stiff_approx->InsertGlobalValues(j, 1, &value, index);
+      stiff_approx->insert_global_values(j, 1, &value, index);
 
       if ((j == row_number) and (i == column_number))
       {
         std::cout << "\n******************" << row_number + 1 << ". Row!!***************"
                   << std::endl;
         std::cout << "iterinc_" << std::endl;
-        iterinc_->Print(std::cout);
+        iterinc_->print(std::cout);
         std::cout << "meshdisp: " << std::endl;
-        fluid_field()->dispnp()->Print(std::cout);
+        fluid_field()->dispnp()->print(std::cout);
         std::cout << "disp: " << std::endl;
-        structure_field()->dispnp()->Print(std::cout);
+        structure_field()->dispnp()->print(std::cout);
         std::cout << "fluid vel" << std::endl;
-        fluid_field()->velnp()->Print(std::cout);
+        fluid_field()->velnp()->print(std::cout);
         std::cout << "fluid acc" << std::endl;
-        fluid_field()->accnp()->Print(std::cout);
+        fluid_field()->accnp()->print(std::cout);
         std::cout << "gridvel fluid" << std::endl;
-        fluid_field()->grid_vel()->Print(std::cout);
+        fluid_field()->grid_vel()->print(std::cout);
         std::cout << "gridvel struct" << std::endl;
-        structure_field()->velnp()->Print(std::cout);
+        structure_field()->velnp()->print(std::cout);
 
         std::cout << "stiff_apprx(" << row_number << "," << column_number
                   << "): " << (rhs_copy)[row_number] << std::endl;
@@ -1243,11 +1270,11 @@ void PoroElast::Monolithic::apply_fluid_coupl_matrix(
       }
     }
 
-    if (not combined_dbc_map()->MyGID(i)) iterinc->ReplaceGlobalValue(i, 0, -delta);
+    if (not combined_dbc_map()->MyGID(i)) iterinc->replace_global_value(i, 0, -delta);
 
-    iterinc->ReplaceGlobalValue(i - 1, 0, 0.0);
+    iterinc->replace_global_value(i - 1, 0, 0.0);
 
-    if (i != dofs - 1) iterinc->ReplaceGlobalValue(i + 1, 0, delta);
+    if (i != dofs - 1) iterinc->replace_global_value(i + 1, 0, delta);
 
     if (i == column_number)
       std::cout << "\n******************" << column_number + 1 << ". Column End!!***************"
@@ -1256,20 +1283,13 @@ void PoroElast::Monolithic::apply_fluid_coupl_matrix(
 
   evaluate(iterinc, iter_ == 1);
 
-  stiff_approx->FillComplete();
+  stiff_approx->complete();
 
-  std::shared_ptr<Core::LinAlg::SparseMatrix> stiff_approx_sparse = nullptr;
-  stiff_approx_sparse =
-      std::make_shared<Core::LinAlg::SparseMatrix>(stiff_approx, Core::LinAlg::Copy);
+  auto stiff_approx_sparse = std::make_shared<Core::LinAlg::SparseMatrix>(*stiff_approx);
+  stiff_approx_sparse->add(sparse, false, -1.0, 1.0);
 
-  stiff_approx_sparse->add(sparse_copy, false, -1.0, 1.0);
-
-  std::shared_ptr<Epetra_CrsMatrix> sparse_crs = sparse_copy.epetra_matrix();
-
-  std::shared_ptr<Epetra_CrsMatrix> error_crs = stiff_approx_sparse->epetra_matrix();
-
-  error_crs->FillComplete();
-  sparse_crs->FillComplete();
+  stiff_approx_sparse->complete();
+  sparse.complete();
 
   bool success = true;
   double error_max = 0.0;
@@ -1289,11 +1309,11 @@ void PoroElast::Monolithic::apply_fluid_coupl_matrix(
           {
             // get error_crs entry ij
             int errornumentries;
-            int errorlength = error_crs->NumGlobalEntries(i);
+            int errorlength = stiff_approx_sparse->num_global_entries(i);
             std::vector<double> errorvalues(errorlength);
             std::vector<int> errorindices(errorlength);
             // int errorextractionstatus =
-            error_crs->ExtractGlobalRowCopy(
+            stiff_approx_sparse->extract_global_row_copy(
                 i, errorlength, errornumentries, errorvalues.data(), errorindices.data());
             for (int k = 0; k < errorlength; ++k)
             {
@@ -1310,11 +1330,11 @@ void PoroElast::Monolithic::apply_fluid_coupl_matrix(
           // get sparse_ij entry ij
           {
             int sparsenumentries;
-            int sparselength = sparse_crs->NumGlobalEntries(i);
+            int sparselength = sparse.num_global_entries(i);
             std::vector<double> sparsevalues(sparselength);
             std::vector<int> sparseindices(sparselength);
             // int sparseextractionstatus =
-            sparse_crs->ExtractGlobalRowCopy(
+            sparse.extract_global_row_copy(
                 i, sparselength, sparsenumentries, sparsevalues.data(), sparseindices.data());
             for (int k = 0; k < sparselength; ++k)
             {
@@ -1331,11 +1351,11 @@ void PoroElast::Monolithic::apply_fluid_coupl_matrix(
           // get stiff_approx entry ij
           {
             int approxnumentries;
-            int approxlength = stiff_approx->NumGlobalEntries(i);
+            int approxlength = stiff_approx->num_global_entries(i);
             std::vector<double> approxvalues(approxlength);
             std::vector<int> approxindices(approxlength);
             // int approxextractionstatus =
-            stiff_approx->ExtractGlobalRowCopy(
+            stiff_approx->extract_global_row_copy(
                 i, approxlength, approxnumentries, approxvalues.data(), approxindices.data());
             for (int k = 0; k < approxlength; ++k)
             {
@@ -1382,7 +1402,7 @@ void PoroElast::Monolithic::apply_fluid_coupl_matrix(
     std::cout << "******************finite difference check done***************\n\n" << std::endl;
   }
   else
-    FOUR_C_THROW("PoroFDCheck failed in step: %d, iter: %d", step(), iter_);
+    FOUR_C_THROW("PoroFDCheck failed in step: {}, iter: {}", step(), iter_);
 }
 
 void PoroElast::Monolithic::evaluate_condition(
@@ -1396,7 +1416,7 @@ void PoroElast::Monolithic::evaluate_condition(
 
   // evaluate condition on elements and assemble matrices
   fluid_field()->evaluate_no_penetration_cond(nopen_handle_->rhs(), ConstraintMatrix,
-      struct_vel_constraint_matrix, nopen_handle_->cond_vector(), *nopen_handle_->cond_i_ds(),
+      struct_vel_constraint_matrix, nopen_handle_->cond_vector(), *nopen_handle_->cond_ids(),
       coupltype);
 
   if (coupltype == PoroElast::fluidfluid)  // fluid fluid part
@@ -1417,8 +1437,9 @@ void PoroElast::Monolithic::evaluate_condition(
         fluid_field()->system_matrix()->range_map());
   }
 
-  const std::shared_ptr<const Epetra_Map>& nopenetrationmap = nopen_handle_->extractor()->Map(1);
-  const std::shared_ptr<const Epetra_Map>& othermap = nopen_handle_->extractor()->Map(0);
+  const std::shared_ptr<const Core::LinAlg::Map>& nopenetrationmap =
+      nopen_handle_->extractor()->map(1);
+  const std::shared_ptr<const Core::LinAlg::Map>& othermap = nopen_handle_->extractor()->map(0);
   ConstraintMatrix->apply_dirichlet(*othermap, false);
   Sysmat.apply_dirichlet(*nopenetrationmap, false);
   Sysmat.un_complete();
@@ -1485,13 +1506,13 @@ void PoroElast::Monolithic::setup_newton()
   if (iterinc_ == nullptr)
     iterinc_ = Core::LinAlg::create_vector(*dof_row_map(), true);
   else
-    iterinc_->PutScalar(0.0);
+    iterinc_->put_scalar(0.0);
 
   // a zero vector of full length
   if (zeros_ == nullptr)
     zeros_ = Core::LinAlg::create_vector(*dof_row_map(), true);
   else
-    zeros_->PutScalar(0.0);
+    zeros_->put_scalar(0.0);
 
   // AitkenReset();
 }
@@ -1531,7 +1552,7 @@ void PoroElast::Monolithic::build_convergence_norms()
 
 
   //------------------------------------------------------------- build residual increment norms
-  iterinc_->Norm2(&norminc_);
+  iterinc_->norm_2(&norminc_);
 
   // displacement and fluid velocity & pressure incremental vector
   std::shared_ptr<const Core::LinAlg::Vector<double>> interincs;
@@ -1635,11 +1656,11 @@ void PoroElast::Monolithic::increment_poro_iter() { iter_ += 1; }
 
 void PoroElast::Monolithic::update_poro_iterinc(const Core::LinAlg::Vector<double>& poroinc)
 {
-  iterinc_->PutScalar(0.0);
-  iterinc_->Update(1.0, poroinc, 0.0);
+  iterinc_->put_scalar(0.0);
+  iterinc_->update(1.0, poroinc, 0.0);
 }
 
-void PoroElast::Monolithic::clear_poro_iterinc() { iterinc_->PutScalar(0.0); }
+void PoroElast::Monolithic::clear_poro_iterinc() { iterinc_->put_scalar(0.0); }
 
 void PoroElast::Monolithic::aitken()
 {
@@ -1650,26 +1671,26 @@ void PoroElast::Monolithic::aitken()
   {
     del_ = Core::LinAlg::create_vector(*dof_row_map(), true);
     delhist_ = Core::LinAlg::create_vector(*dof_row_map(), true);
-    del_->PutScalar(1.0e20);
-    delhist_->PutScalar(0.0);
+    del_->put_scalar(1.0e20);
+    delhist_->put_scalar(0.0);
   }
 
   // calculate difference of current (i+1) and old (i) residual vector
   // delhist = ( r^{i+1}_{n+1} - r^i_{n+1} )
   // update history vector old increment r^i_{n+1}
-  delhist_->Update(1.0, *del_, 0.0);         // r^i_{n+1}
-  delhist_->Update(1.0, *iterinc_, (-1.0));  // update r^{i+1}_{n+1}
+  delhist_->update(1.0, *del_, 0.0);         // r^i_{n+1}
+  delhist_->update(1.0, *iterinc_, (-1.0));  // update r^{i+1}_{n+1}
 
 
   // del_ = r^{i+1}_{n+1} = T^{i+1}_{n+1} - T^{i}_{n+1}
-  del_->Update(1.0, *iterinc_, 0.0);
+  del_->update(1.0, *iterinc_, 0.0);
   // den = |r^{i+1} - r^{i}|^2
   double den = 0.0;
-  delhist_->Norm2(&den);
+  delhist_->norm_2(&den);
   // calculate dot product
   // dot = delhist_ . del_ = ( r^{i+1}_{n+1} - r^i_{n+1} )^T . r^{i+1}_{n+1}
   double top = 0.0;
-  delhist_->Dot(*del_, &top);
+  delhist_->dot(*del_, &top);
 
   // mu_: Aikten factor in Mok's version
   // mu_: relaxation parameter in Irons & Tuck
@@ -1678,7 +1699,7 @@ void PoroElast::Monolithic::aitken()
   // Uli's implementation: mu_ = mu_ + (mu_ - 1.0) * top / (den*den). with '-' included in top
   mu_ = mu_ + (mu_ - 1) * (-top) / (den * den);
 
-  iterinc_->Scale(1.0 - mu_);
+  iterinc_->scale(1.0 - mu_);
 }
 
 [[maybe_unused]] void PoroElast::Monolithic::aitken_reset()
@@ -1688,39 +1709,39 @@ void PoroElast::Monolithic::aitken()
     del_ = Core::LinAlg::create_vector(*dof_row_map(), true);
     delhist_ = Core::LinAlg::create_vector(*dof_row_map(), true);
   }
-  del_->PutScalar(1.0e20);
-  delhist_->PutScalar(0.0);
+  del_->put_scalar(1.0e20);
+  delhist_->put_scalar(0.0);
   mu_ = 0.0;
 }
 
-const Epetra_Map& PoroElast::Monolithic::fluid_range_map()
+const Core::LinAlg::Map& PoroElast::Monolithic::fluid_range_map()
 {
   return fluid_field()->system_matrix()->range_map();
 }
 
-const Epetra_Map& PoroElast::Monolithic::fluid_domain_map()
+const Core::LinAlg::Map& PoroElast::Monolithic::fluid_domain_map()
 {
   return fluid_field()->system_matrix()->domain_map();
 }
 
-const Epetra_Map& PoroElast::Monolithic::structure_domain_map()
+const Core::LinAlg::Map& PoroElast::Monolithic::structure_domain_map()
 {
   return structure_field()->domain_map();
 }
 
-std::shared_ptr<const Epetra_Map> PoroElast::Monolithic::dof_row_map()
+std::shared_ptr<const Core::LinAlg::Map> PoroElast::Monolithic::dof_row_map()
 {
   return blockrowdofmap_->full_map();
 }
 
-std::shared_ptr<const Epetra_Map> PoroElast::Monolithic::dof_row_map_structure()
+std::shared_ptr<const Core::LinAlg::Map> PoroElast::Monolithic::dof_row_map_structure()
 {
-  return blockrowdofmap_->Map(0);
+  return blockrowdofmap_->map(0);
 }
 
-std::shared_ptr<const Epetra_Map> PoroElast::Monolithic::dof_row_map_fluid()
+std::shared_ptr<const Core::LinAlg::Map> PoroElast::Monolithic::dof_row_map_fluid()
 {
-  return blockrowdofmap_->Map(1);
+  return blockrowdofmap_->map(1);
 }
 
 void PoroElast::Monolithic::recover_lagrange_multiplier_after_newton_step(
@@ -1800,13 +1821,13 @@ void PoroElast::Monolithic::set_poro_contact_states()
               std::make_shared<Core::LinAlg::Vector<double>>(
                   *fluid_field()->velocity_row_map(), true);
 
-          int* mygids = fpres->Map().MyGlobalElements();
-          double* val = fpres->Values();
+          int* mygids = fpres->get_block_map().MyGlobalElements();
+          double* val = fpres->get_values();
           const int ndim = Global::Problem::instance()->n_dim();
-          for (int i = 0; i < fpres->MyLength(); ++i)
+          for (int i = 0; i < fpres->local_length(); ++i)
           {
             int gid = mygids[i] - ndim;
-            modfpres->ReplaceGlobalValues(1, &val[i], &gid);
+            modfpres->replace_global_values(1, &val[i], &gid);
           }
 
           modfpres = fluid_structure_coupling().slave_to_master(*modfpres);
@@ -1826,6 +1847,32 @@ void PoroElast::Monolithic::set_poro_contact_states()
           costrategy.set_parent_state(Mortar::state_fvelocity, *fluid_field()->velnp(), *dis);
         }
       }
+    }
+  }
+  else if (nit_contact_)  // new time integration with nitsche contact
+  {
+    auto& model_evaluator_contact = dynamic_cast<Solid::ModelEvaluator::Contact&>(
+        structure_field()->model_evaluator(Inpar::Solid::model_contact));
+
+    std::shared_ptr<CONTACT::NitscheStrategyPoro> contact_strategy_nitsche_poro =
+        std::dynamic_pointer_cast<CONTACT::NitscheStrategyPoro>(
+            model_evaluator_contact.strategy_ptr());
+
+    if (contact_strategy_nitsche_poro != nullptr)
+    {
+      std::shared_ptr<Core::FE::Discretization> poro_dis =
+          Global::Problem::instance()->get_dis("porofluid");
+      if (poro_dis == nullptr) FOUR_C_THROW("didn't get my poro discretization");
+
+      contact_strategy_nitsche_poro->set_parent_state(
+          Mortar::state_fvelocity, *fluid_field()->velnp(), *poro_dis);
+
+      std::shared_ptr<Core::FE::Discretization> struct_dis =
+          Global::Problem::instance()->get_dis("structure");
+      if (struct_dis == nullptr) FOUR_C_THROW("didn't get my structure discretization");
+
+      contact_strategy_nitsche_poro->set_parent_state(
+          Mortar::state_svelocity, *structure_field()->velnp(), *struct_dis);
     }
   }
 }
@@ -1858,9 +1905,9 @@ void PoroElast::Monolithic::eval_poro_mortar()
               structure_field()->write_access_dispnp(), k_ss, k_sf, rhs_s, step(), iter_, false);
 
           // Assign modified matrixes & vectors
-          systemmatrix_->assign(0, 0, Core::LinAlg::Copy,
+          systemmatrix_->assign(0, 0, Core::LinAlg::DataAccess::Copy,
               *std::dynamic_pointer_cast<Core::LinAlg::SparseMatrix>(k_ss));
-          systemmatrix_->assign(0, 1, Core::LinAlg::Copy,
+          systemmatrix_->assign(0, 1, Core::LinAlg::DataAccess::Copy,
               *std::dynamic_pointer_cast<Core::LinAlg::SparseMatrix>(k_sf));
           extractor()->insert_vector(*rhs_s, 0, *rhs_);
 
@@ -1883,8 +1930,8 @@ void PoroElast::Monolithic::eval_poro_mortar()
             costrategy.evaluate_poro_no_pen_contact(k_fs, f, frhs);
 
             // Assign modified matrixes & vectors
-            systemmatrix_->assign(1, 1, Core::LinAlg::Copy, *f);
-            systemmatrix_->assign(1, 0, Core::LinAlg::Copy, *k_fs);
+            systemmatrix_->assign(1, 1, Core::LinAlg::DataAccess::Copy, *f);
+            systemmatrix_->assign(1, 0, Core::LinAlg::DataAccess::Copy, *k_fs);
 
             extractor()->insert_vector(*frhs, 1, *rhs_);
           }
@@ -1930,17 +1977,45 @@ void PoroElast::Monolithic::eval_poro_mortar()
         costrategy.evaluate_meshtying_poro_off_diag(k_sf);
 
         // Assign modified matrix
-        systemmatrix_->assign(0, 1, Core::LinAlg::Copy, *k_sf);
+        systemmatrix_->assign(0, 1, Core::LinAlg::DataAccess::Copy, *k_sf);
       }
+    }
+  }
+  else if (nit_contact_)  // new time integration with nitsche contact
+  {
+    auto& model_evaluator_contact = dynamic_cast<Solid::ModelEvaluator::Contact&>(
+        structure_field()->model_evaluator(Inpar::Solid::model_contact));
+
+    std::shared_ptr<CONTACT::NitscheStrategyPoro> contact_strategy_nitsche_poro =
+        std::dynamic_pointer_cast<CONTACT::NitscheStrategyPoro>(
+            model_evaluator_contact.strategy_ptr());
+
+    if (contact_strategy_nitsche_poro != nullptr)
+    {
+      systemmatrix_->un_complete();
+      systemmatrix_->matrix(0, 1).add(*contact_strategy_nitsche_poro->get_matrix_block_ptr(
+                                          CONTACT::MatBlockType::displ_porofluid),
+          false, 1.0, 1.0);
+      systemmatrix_->matrix(1, 1).add(*contact_strategy_nitsche_poro->get_matrix_block_ptr(
+                                          CONTACT::MatBlockType::porofluid_porofluid),
+          false, 1.0, 1.0);
+      systemmatrix_->matrix(1, 0).add(*contact_strategy_nitsche_poro->get_matrix_block_ptr(
+                                          CONTACT::MatBlockType::porofluid_displ),
+          false, 1.0, 1.0);
+      systemmatrix_->complete();
+
+      extractor()->add_vector(
+          *contact_strategy_nitsche_poro->get_rhs_block_ptr(CONTACT::VecBlockType::porofluid), 1,
+          *rhs_);
     }
   }
 }
 
 void PoroElast::Monolithic::build_combined_dbc_map()
 {
-  const std::shared_ptr<const Epetra_Map> scondmap =
+  const std::shared_ptr<const Core::LinAlg::Map> scondmap =
       structure_field()->get_dbc_map_extractor()->cond_map();
-  const std::shared_ptr<const Epetra_Map> fcondmap =
+  const std::shared_ptr<const Core::LinAlg::Map> fcondmap =
       fluid_field()->get_dbc_map_extractor()->cond_map();
   combinedDBCMap_ = Core::LinAlg::merge_map(scondmap, fcondmap, false);
 }

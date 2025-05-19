@@ -526,7 +526,7 @@ double Discret::Elements::ScaTraEleCalc<distype, probdim>::calc_char_ele_length(
     // normed velocity vector
     case Inpar::ScaTra::streamlength:
     {
-      Core::LinAlg::Matrix<nsd_, 1> velino(true);
+      Core::LinAlg::Matrix<nsd_, 1> velino(Core::LinAlg::Initialization::zero);
       if (vel_norm >= 1e-6)
         velino.update(1.0 / vel_norm, convelint);
       else
@@ -640,7 +640,7 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::calc_artificial_diff(
     if (phiref > 1e-12 and grad_norm > 1e-12)
     {
       // normalized gradient of phi
-      Core::LinAlg::Matrix<nsd_, 1> normalized_gradphi(true);
+      Core::LinAlg::Matrix<nsd_, 1> normalized_gradphi(Core::LinAlg::Initialization::zero);
       normalized_gradphi.update(1.0, gradphi, 0.0);
       normalized_gradphi.scale(1.0 / grad_norm);
 
@@ -862,7 +862,7 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::calc_strong_residual(
 
   // diffusive part used in stabilization terms
   double diff_phi(0.0);
-  Core::LinAlg::Matrix<nen_, 1> diff(true);
+  Core::LinAlg::Matrix<nen_, 1> diff(Core::LinAlg::Initialization::zero);
 
   // diffusive term using current scalar value for higher-order elements
   // Note: has to be recomputed here every time, since the diffusion coefficient may have changed
@@ -951,7 +951,7 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::calc_subgr_velocity(
       Core::Conditions::find_element_conditions(ele, "FluidLineNeumann", myfluidneumcond);
       break;
     default:
-      FOUR_C_THROW("Illegal number of space dimensions: %d", nsd_);
+      FOUR_C_THROW("Illegal number of space dimensions: {}", nsd_);
       break;
   }
 
@@ -965,7 +965,7 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::calc_subgr_velocity(
     const auto onoff = myfluidneumcond[0]->parameters().get<std::vector<int>>("ONOFF");
     const auto val = myfluidneumcond[0]->parameters().get<std::vector<double>>("VAL");
     const auto funct =
-        myfluidneumcond[0]->parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+        myfluidneumcond[0]->parameters().get<std::vector<std::optional<int>>>("FUNCT");
 
     // factor given by spatial function
     double functfac = 1.0;
@@ -995,7 +995,7 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::calc_subgr_velocity(
                     .evaluate((ele->nodes()[jnode])->x().data(), scatraparatimint_->time(), isd);
           }
           else
-            FOUR_C_THROW("Negative time value in body force calculation: time = %f",
+            FOUR_C_THROW("Negative time value in body force calculation: time = {}",
                 scatraparatimint_->time());
         }
         else

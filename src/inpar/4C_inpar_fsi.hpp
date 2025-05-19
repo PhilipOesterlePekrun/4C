@@ -10,8 +10,9 @@
 
 #include "4C_config.hpp"
 
-#include "4C_utils_parameter_list.fwd.hpp"
+#include "4C_io_input_spec.hpp"
 
+#include <map>
 #include <vector>
 
 FOUR_C_NAMESPACE_OPEN
@@ -25,8 +26,7 @@ namespace Core::Conditions
 /*----------------------------------------------------------------------*/
 /* The coupling methods for FSI. */
 /*----------------------------------------------------------------------*/
-// ToDo: put into the namespace Inpar::FSI ! No typedef?
-typedef enum FsiCoupling
+enum FsiCoupling
 {
   fsi_coupling_freesurface = -1,
   fsi_coupling_undefined = 0,
@@ -57,7 +57,7 @@ typedef enum FsiCoupling
   fsi_iter_sliding_monolithicfluidsplit,
   fsi_iter_sliding_monolithicstructuresplit,
   fsi_iter_mortar_monolithicfluidsplit_saddlepoint
-} FSI_COUPLING;
+};
 
 namespace Inpar
 {
@@ -148,7 +148,7 @@ namespace Inpar
     //@}
 
     /// set the fsi parameters
-    void set_valid_parameters(Teuchos::ParameterList& list);
+    void set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list);
 
     /// set specific fsi conditions
     void set_valid_conditions(std::vector<Core::Conditions::ConditionDefinition>& condlist);

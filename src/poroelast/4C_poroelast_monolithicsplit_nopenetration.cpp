@@ -69,7 +69,7 @@ void PoroElast::MonolithicSplitNoPenetration::setup_system()
   // use full maps of both fields. Only Lagrange multipliers are condensed
   {
     // create combined map
-    std::vector<std::shared_ptr<const Epetra_Map>> vecSpaces;
+    std::vector<std::shared_ptr<const Core::LinAlg::Map>> vecSpaces;
 
     vecSpaces.push_back(structure_field()->dof_row_map());
     vecSpaces.push_back(fluid_field()->dof_row_map());
@@ -129,12 +129,12 @@ void PoroElast::MonolithicSplitNoPenetration::setup_vector(Core::LinAlg::Vector<
 
     k_dn_->multiply(false, *lambda_, Dlam);  // D(n)*lambda(n)
 
-    Dlam.Scale(stiparam);  //*(1-b)
+    Dlam.scale(stiparam);  //*(1-b)
   }
-  Dlam.Update(-1.0, *fcv, 1.0);
+  Dlam.update(-1.0, *fcv, 1.0);
   k_lambdainv_d_->multiply(false, Dlam, couprhs);
 
-  couprhs.Update(1.0, *nopenetration_rhs_, 1.0);
+  couprhs.update(1.0, *nopenetration_rhs_, 1.0);
 
   // std::cout << "nopenetration_rhs_: " << *nopenetration_rhs_ << std::endl;
 
@@ -218,22 +218,22 @@ void PoroElast::MonolithicSplitNoPenetration::recover_lagrange_multiplier_after_
 
   Core::LinAlg::Vector<double> tmplambda(*fluid_field()->interface()->fsi_cond_map(), true);
 
-  tmplambda.Update(1.0, *cfsgiddi, 0.0);
-  tmplambda.Update(1.0, *fgiddi, 1.0);
-  tmplambda.Update(1.0, *cfsggddg, 1.0);
-  tmplambda.Update(1.0, *fggddg, 1.0);
-  tmplambda.Update(-1.0, *rhs_fgcur_, 1.0);
+  tmplambda.update(1.0, *cfsgiddi, 0.0);
+  tmplambda.update(1.0, *fgiddi, 1.0);
+  tmplambda.update(1.0, *cfsggddg, 1.0);
+  tmplambda.update(1.0, *fggddg, 1.0);
+  tmplambda.update(-1.0, *rhs_fgcur_, 1.0);
 
   if (k_dn_ != nullptr)  // for first timestep lambda = 0 !
   {
     Core::LinAlg::Vector<double> Dlam(*fluid_field()->interface()->fsi_cond_map(), true);
     k_dn_->Apply(*lambda_, Dlam);  // D(n)*lambda(n)
-    Dlam.Scale(stiparam);          //*(1-b)
-    tmplambda.Update(1.0, Dlam, 1.0);
+    Dlam.scale(stiparam);          //*(1-b)
+    tmplambda.update(1.0, Dlam, 1.0);
   }
 
   k_inv_d_->Apply(tmplambda, *lambdanp_);
-  lambdanp_->Scale(-1 / (1.0 - stiparam));  //*-1/b
+  lambdanp_->scale(-1 / (1.0 - stiparam));  //*-1/b
 }
 
 void PoroElast::MonolithicSplitNoPenetration::setup_system_matrix(
@@ -289,7 +289,7 @@ void PoroElast::MonolithicSplitNoPenetration::setup_system_matrix(
 
   /*----------------------------------------------------------------------*/
   // pure structural part
-  mat.assign(0, 0, Core::LinAlg::View, *s);
+  mat.assign(0, 0, Core::LinAlg::DataAccess::View, *s);
 
   // structure coupling part
   mat.matrix(0, 1).add(k_sf->matrix(sidx_other, fidx_other), false, 1.0, 0.0);
@@ -357,7 +357,7 @@ void PoroElast::MonolithicSplitNoPenetration::apply_fluid_coupl_matrix(
   k_lambda_->zero();
   k_porodisp_->zero();
   k_porofluid_->zero();
-  nopenetration_rhs_->PutScalar(0.0);
+  nopenetration_rhs_->put_scalar(0.0);
 
   std::shared_ptr<Core::LinAlg::SparseMatrix> tmp_k_D =
       std::make_shared<Core::LinAlg::SparseMatrix>(
@@ -375,10 +375,10 @@ void PoroElast::MonolithicSplitNoPenetration::apply_fluid_coupl_matrix(
     params.set<Inpar::FLUID::PhysicalType>("Physical Type", fluid_field()->physical_type());
 
     fluid_field()->discretization()->clear_state();
-    fluid_field()->discretization()->set_state(0, "dispnp", fluid_field()->dispnp());
-    fluid_field()->discretization()->set_state(0, "gridv", fluid_field()->grid_vel());
-    fluid_field()->discretization()->set_state(0, "velnp", fluid_field()->velnp());
-    fluid_field()->discretization()->set_state(0, "scaaf", fluid_field()->scaaf());
+    fluid_field()->discretization()->set_state(0, "dispnp", *fluid_field()->dispnp());
+    fluid_field()->discretization()->set_state(0, "gridv", *fluid_field()->grid_vel());
+    fluid_field()->discretization()->set_state(0, "velnp", *fluid_field()->velnp());
+    fluid_field()->discretization()->set_state(0, "scaaf", *fluid_field()->scaaf());
 
     // fluid_field()->discretization()->set_state(0,"lambda",
     //    fluid_field()->Interface()->insert_fsi_cond_vector(structure_to_fluid_at_interface(lambdanp_)));
@@ -413,13 +413,13 @@ void PoroElast::MonolithicSplitNoPenetration::apply_fluid_coupl_matrix(
     params.set<Inpar::FLUID::PhysicalType>("Physical Type", fluid_field()->physical_type());
 
     fluid_field()->discretization()->clear_state();
-    fluid_field()->discretization()->set_state(0, "dispnp", fluid_field()->dispnp());
-    fluid_field()->discretization()->set_state(0, "gridv", fluid_field()->grid_vel());
-    fluid_field()->discretization()->set_state(0, "velnp", fluid_field()->velnp());
-    fluid_field()->discretization()->set_state(0, "scaaf", fluid_field()->scaaf());
+    fluid_field()->discretization()->set_state(0, "dispnp", *fluid_field()->dispnp());
+    fluid_field()->discretization()->set_state(0, "gridv", *fluid_field()->grid_vel());
+    fluid_field()->discretization()->set_state(0, "velnp", *fluid_field()->velnp());
+    fluid_field()->discretization()->set_state(0, "scaaf", *fluid_field()->scaaf());
 
     fluid_field()->discretization()->set_state(0, "lambda",
-        fluid_field()->interface()->insert_fsi_cond_vector(
+        *fluid_field()->interface()->insert_fsi_cond_vector(
             *structure_to_fluid_at_interface(*lambdanp_)));
 
     // build specific assemble strategy for the fluid-mechanical system matrix
@@ -446,9 +446,9 @@ void PoroElast::MonolithicSplitNoPenetration::apply_fluid_coupl_matrix(
     params.set<Inpar::FLUID::PhysicalType>("Physical Type", fluid_field()->physical_type());
 
     fluid_field()->discretization()->clear_state();
-    fluid_field()->discretization()->set_state(0, "dispnp", fluid_field()->dispnp());
-    fluid_field()->discretization()->set_state(0, "gridv", fluid_field()->grid_vel());
-    fluid_field()->discretization()->set_state(0, "velnp", fluid_field()->velnp());
+    fluid_field()->discretization()->set_state(0, "dispnp", *fluid_field()->dispnp());
+    fluid_field()->discretization()->set_state(0, "gridv", *fluid_field()->grid_vel());
+    fluid_field()->discretization()->set_state(0, "velnp", *fluid_field()->velnp());
     //  fluid_field()->discretization()->set_state(0,"scaaf",fluid_field()->Scaaf());
 
     // build specific assemble strategy for the fluid-mechanical system matrix
@@ -475,9 +475,9 @@ void PoroElast::MonolithicSplitNoPenetration::apply_fluid_coupl_matrix(
     params.set<Inpar::FLUID::PhysicalType>("Physical Type", fluid_field()->physical_type());
 
     fluid_field()->discretization()->clear_state();
-    fluid_field()->discretization()->set_state(0, "dispnp", fluid_field()->dispnp());
-    fluid_field()->discretization()->set_state(0, "gridv", fluid_field()->grid_vel());
-    fluid_field()->discretization()->set_state(0, "velnp", fluid_field()->velnp());
+    fluid_field()->discretization()->set_state(0, "dispnp", *fluid_field()->dispnp());
+    fluid_field()->discretization()->set_state(0, "gridv", *fluid_field()->grid_vel());
+    fluid_field()->discretization()->set_state(0, "velnp", *fluid_field()->velnp());
 
     // build specific assemble strategy for the fluid-mechanical system matrix
     // from the point of view of fluid_field:
@@ -501,7 +501,7 @@ void PoroElast::MonolithicSplitNoPenetration::apply_fluid_coupl_matrix(
   //------------------------------invert D Matrix!-----------------------------------------------
   tmp_k_D->complete();
   std::shared_ptr<Core::LinAlg::SparseMatrix> invd =
-      std::make_shared<Core::LinAlg::SparseMatrix>(*tmp_k_D, Core::LinAlg::Copy);
+      std::make_shared<Core::LinAlg::SparseMatrix>(*tmp_k_D, Core::LinAlg::DataAccess::Copy);
   // invd->Complete();
 
   std::shared_ptr<Core::LinAlg::Vector<double>> diag =
@@ -514,7 +514,7 @@ void PoroElast::MonolithicSplitNoPenetration::apply_fluid_coupl_matrix(
       *diag);  // That the Reason, why tmp_k_D has to have Fluid Maps for Rows & Columns!!!
 
   // set zero diagonal values to dummy 1.0 ??
-  for (int i = 0; i < diag->MyLength(); ++i)
+  for (int i = 0; i < diag->local_length(); ++i)
   {
     if ((*diag)[i] == 0.0)
     {
@@ -525,7 +525,7 @@ void PoroElast::MonolithicSplitNoPenetration::apply_fluid_coupl_matrix(
   }
 
   // scalar inversion of diagonal values
-  err = diag->Reciprocal(*diag);
+  err = diag->reciprocal(*diag);
   if (err > 0) FOUR_C_THROW("ERROR: Reciprocal: Zero diagonal entry!");
 
   // re-insert inverted diagonal into invd
@@ -584,11 +584,11 @@ void PoroElast::MonolithicSplitNoPenetration::update()
   MonolithicSplit::update();
 
   // update lagrangean multiplier
-  lambda_->Update(1.0, *lambdanp_, 0.0);
+  lambda_->update(1.0, *lambdanp_, 0.0);
 
   // copy D matrix from current time step to old D matrix
   k_dn_ = std::make_shared<Core::LinAlg::SparseMatrix>(
-      *k_d_, Core::LinAlg::Copy);  // store D-Matrix from last timestep
+      *k_d_, Core::LinAlg::DataAccess::Copy);  // store D-Matrix from last timestep
 }
 
 void PoroElast::MonolithicSplitNoPenetration::output(bool forced_writerestart)
@@ -678,7 +678,7 @@ void PoroElast::MonolithicSplitNoPenetration::read_restart(const int step)
 
     // extract lambda on fsi interface vector
     lambda_ = structure_field()->interface()->extract_fsi_cond_vector(*fulllambda);
-    lambdanp_->Update(1.0, *lambda_, 0.0);
+    lambdanp_->update(1.0, *lambda_, 0.0);
 
     // call an additional evaluate to get the old D matrix
     setup_system();
@@ -687,7 +687,7 @@ void PoroElast::MonolithicSplitNoPenetration::read_restart(const int step)
 
     // copy D matrix from current time step to old D matrix
     k_dn_ = std::make_shared<Core::LinAlg::SparseMatrix>(
-        *k_d_, Core::LinAlg::Copy);  // store D-Matrix from last timestep
+        *k_d_, Core::LinAlg::DataAccess::Copy);  // store D-Matrix from last timestep
   }
 }
 

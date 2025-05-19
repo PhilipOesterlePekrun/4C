@@ -12,6 +12,7 @@
 
 #include "4C_comm_parobjectfactory.hpp"
 #include "4C_fem_general_node.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_utils_pairedvector.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -533,12 +534,12 @@ namespace Mortar
      */
     inline Mortar::NodeDataContainer& mo_data()
     {
-      if (modata_ == nullptr) FOUR_C_THROW("No mortar data attached. (node-id = %d)", id());
+      if (modata_ == nullptr) FOUR_C_THROW("No mortar data attached. (node-id = {})", id());
       return *modata_;
     }
     inline const Mortar::NodeDataContainer& mo_data() const
     {
-      if (modata_ == nullptr) FOUR_C_THROW("No mortar data attached. (node-id = %d)", id());
+      if (modata_ == nullptr) FOUR_C_THROW("No mortar data attached. (node-id = {})", id());
       return *modata_;
     }
 
@@ -600,7 +601,7 @@ namespace Mortar
      \brief Find closest node from given node set and return pointer
 
      This method will compute the distance of the active node to all
-     nodes of the given Epetra_Map on the given Core::FE::Discretization
+     nodes of the given Core::LinAlg::Map on the given Core::FE::Discretization
 
      \param intdis (in):         Master Node to project
      \param nodesearchmap (in):  Slave Celement to project on
@@ -608,7 +609,7 @@ namespace Mortar
 
      */
     virtual Mortar::Node* find_closest_node(const std::shared_ptr<Core::FE::Discretization> intdis,
-        const std::shared_ptr<Epetra_Map> nodesearchmap, double& mindist);
+        const std::shared_ptr<Core::LinAlg::Map> nodesearchmap, double& mindist);
 
     /*!
      \brief Check if mesh re-initialization for this node was feasible

@@ -38,13 +38,13 @@ namespace Core::Gen
   template <typename Key, typename T>
   class DefaultInsertPolicy
   {
-    typedef DefaultInsertPolicy<Key, T> class_type;
+    using class_type = DefaultInsertPolicy<Key, T>;
 
    protected:
-    typedef std::pair<Key, T> pair_type;
-    typedef std::vector<pair_type> pairedvector_type;
-    typedef typename pairedvector_type::iterator iterator;
-    typedef typename pairedvector_type::const_iterator const_iterator;
+    using pair_type = std::pair<Key, T>;
+    using pairedvector_type = std::vector<pair_type>;
+    using iterator = typename pairedvector_type::iterator;
+    using const_iterator = typename pairedvector_type::const_iterator;
 
    public:
     iterator begin(const iterator& first) { return first; }
@@ -130,7 +130,7 @@ namespace Core::Gen
      *   The default strategy does not use this feature. See quick_insert_policy
      *   for an example.
      *
-     *  @author hiermeier @date 11/17 */
+     */
     static size_t capacity_offset() { return 0; }
   };
 
@@ -138,14 +138,14 @@ namespace Core::Gen
   template <typename Key, typename T>
   class QuickInsertPolicy : public DefaultInsertPolicy<Key, T>
   {
-    typedef QuickInsertPolicy<Key, T> class_type;
+    using class_type = QuickInsertPolicy<Key, T>;
 
    protected:
-    typedef DefaultInsertPolicy<Key, T> base_type;
-    typedef typename base_type::pair_type pair_type;
-    typedef typename base_type::pairedvector_type pairedvector_type;
-    typedef typename base_type::iterator iterator;
-    typedef typename base_type::const_iterator const_iterator;
+    using base_type = DefaultInsertPolicy<Key, T>;
+    using pair_type = typename base_type::pair_type;
+    using pairedvector_type = typename base_type::pairedvector_type;
+    using iterator = typename base_type::iterator;
+    using const_iterator = typename base_type::const_iterator;
 
    public:
     /** @brief return a constant number of offset values
@@ -153,7 +153,7 @@ namespace Core::Gen
      *  This number will be added to a new capacity and can be used for
      *  sentinel values for example.
      *
-     *  @author hiermeier @date 11/17 */
+     */
     static size_t capacity_offset() { return 1; }
 
     T& get(const Key k, pairedvector_type& data, size_t& entries)
@@ -207,7 +207,7 @@ namespace Core::Gen
      *          key is not a part of the stored data, an iterator to one past
      *          the last position will be returned.
      *
-     *  @author hiermeier @date 11/17 */
+     */
     iterator find(const Key k, pairedvector_type& data, size_t entries)
     {
       // set sentinel values
@@ -219,8 +219,6 @@ namespace Core::Gen
         if (it->first == k) return it;
         ++it;
       }
-
-      exit(EXIT_FAILURE);
     }
 
     /** @brief Quick linear search routine (const version)
@@ -237,7 +235,7 @@ namespace Core::Gen
      *          the key is not a part of the stored data, an iterator to one past
      *          the last position will be returned.
      *
-     *  @author hiermeier @date 11/17 */
+     */
     const_iterator find(const Key k, const pairedvector_type& data, size_t entries) const
     {
       // set sentinel values
@@ -250,8 +248,6 @@ namespace Core::Gen
         if (cit->first == k) return cit;
         ++cit;
       }
-
-      exit(EXIT_FAILURE);
     }
 
     /** @brief repetitive access of the paired_vector entries in the same order
@@ -272,7 +268,7 @@ namespace Core::Gen
      *  @param[in] entries   Updated number of entries.
      *  @return The value corresponding to the given key.
      *
-     *  @author hiermeier @date 11/17 */
+     */
     T& repetitive_access(const Key k, const int rep_count, pairedvector_type& data, size_t& entries)
     {
 #ifdef FOUR_C_ENABLE_ASSERTIONS
@@ -323,10 +319,7 @@ namespace Core::Gen
         id_map_size_ = id_map_.size();
         if (id_index_ != id_map_size_)
         {
-          std::stringstream msg;
-          msg << "Size (== " << id_map_.size() << " ) <--> count (== " << id_index_
-              << " ) mismatch!\n";
-          FOUR_C_THROW(msg.str());
+          FOUR_C_THROW("Size (== {}) <--> count (== {}) mismatch!\n", id_map_.size(), id_index_);
         }
       }
 
@@ -355,7 +348,7 @@ namespace Core::Gen
      *  The old map is cleared, while the old size is used as an estimate for
      *  the necessary storage space.
      *
-     *  @author hiermeier @date 11/17 */
+     */
     void init_id_map()
     {
       // nothing to do, if it is a successive access in the first repetition
@@ -394,11 +387,10 @@ namespace Core::Gen
       pair_type& curr_pair = data[get_id()];
       if (curr_pair.first != k)
       {
-        std::stringstream msg;
-        msg << "quick_insert_policy::subsequent_access(): Mismatch of stored "
-               "key and given key: "
-            << curr_pair.first << " <--> " << k << "\n";
-        FOUR_C_THROW(msg.str());
+        FOUR_C_THROW(
+            "quick_insert_policy::subsequent_access(): Mismatch of stored "
+            "key and given key: {} <--> {}",
+            curr_pair.first, k);
       }
 
       return curr_pair.second;
@@ -419,14 +411,14 @@ namespace Core::Gen
   template <typename Key, typename T>
   class InsertAndSortPolicy : public DefaultInsertPolicy<Key, T>
   {
-    typedef InsertAndSortPolicy<Key, T> class_type;
+    using class_type = InsertAndSortPolicy<Key, T>;
 
    protected:
-    typedef DefaultInsertPolicy<Key, T> base_type;
-    typedef typename base_type::pair_type pair_type;
-    typedef typename base_type::pairedvector_type pairedvector_type;
-    typedef typename base_type::iterator iterator;
-    typedef typename base_type::const_iterator const_iterator;
+    using base_type = DefaultInsertPolicy<Key, T>;
+    using pair_type = typename base_type::pair_type;
+    using pairedvector_type = typename base_type::pairedvector_type;
+    using iterator = typename base_type::iterator;
+    using const_iterator = typename base_type::const_iterator;
 
    public:
     InsertAndSortPolicy()
@@ -507,7 +499,7 @@ namespace Core::Gen
      *  @param[in] entries Number of unique data in the data vector.
      *  @return Reference to a new slot to insert data.
      *
-     *  @author hiermeier @date 07/17 */
+     */
     T& operator()(const Key k, pairedvector_type& data, size_t& entries)
     {
       if (non_unique_entries_ == dyn_max_allowed_capacity_ and
@@ -593,7 +585,7 @@ namespace Core::Gen
      *  @param[in]     unique_entries Previous/old number of unique data.
      *  @return The number of the unique data in the end of this routine.
      *
-     *  @author hiermeier @data 07/17 */
+     */
     size_t mid_complete(pairedvector_type& unique_vec, const size_t unique_entries)
     {
       if (isfilled_) return unique_entries;
@@ -611,16 +603,12 @@ namespace Core::Gen
      *  @param[in] linenumber  Line number in the calling function.
      *  @param[in] functname   Function name of the calling function.
      *
-     *  @author hiermeier @date 07/17 */
+     */
     inline void throw_if_not_filled(int linenumber, const std::string& functname) const
     {
       if (not isfilled_)
       {
-        std::stringstream msg;
-        msg << "LINE " << linenumber << " in " << functname
-            << ": access denied! "
-               "call complete first.";
-        FOUR_C_THROW(msg.str());
+        FOUR_C_THROW("LINE {} in {}: access denied! call complete first.", linenumber, functname);
       }
     }
 
@@ -633,7 +621,7 @@ namespace Core::Gen
      *  @param[in]  unique_entries Number of old unique entries.
      *  @return Number of the new unique entries contained in unique_vec.
      *
-     *  @author hiermeier @date 07/17 */
+     */
     size_t group_and_merge(pairedvector_type& unique_vec, const size_t unique_entries)
     {
       // get total number of entries and merge all entries temporal in the
@@ -670,7 +658,7 @@ namespace Core::Gen
      *  content. The %_max_value and the current necessary dynamic
      *  maximal allowed capacity are also kept.
      *
-     *  @author hiermeier @date 07/17 */
+     */
     void mid_post_complete()
     {
       std::fill(
@@ -688,7 +676,7 @@ namespace Core::Gen
      *  The allocated memory for the %_non_unique_vec is freed. Furthermore,
      *  all class members which are only important during one call are reset.
      *
-     *  @author hiermeier @date 07/17 */
+     */
     void final_post_complete()
     {
       non_unique_vec_.clear();
@@ -709,7 +697,7 @@ namespace Core::Gen
      *  @param[in] sbegin  iterator pointing at the first element of the interval
      *  @return Number of groups.
      *
-     *  @author hiermeier @date 07/17 */
+     */
     size_t group_data(typename pairedvector_type::iterator sbegin, const size_t num_entries) const
     {
       switch (num_entries)
@@ -738,7 +726,7 @@ namespace Core::Gen
      *  @param[in] slast   iterator pointing one past the last element of the interval
      *  @return Number of groups.
      *
-     *  @author hiermeier @date 07/17 */
+     */
     size_t group_big_data(typename pairedvector_type::iterator sbegin,
         const typename pairedvector_type::iterator slast) const
     {
@@ -788,7 +776,7 @@ namespace Core::Gen
      *  @return Return the iterator pointing to one past the last entry of the
      *          result interval
      *
-     *  @author hiermeier @date 07/17 */
+     */
     typename pairedvector_type::iterator merge_group_data(
         typename pairedvector_type::const_iterator sbegin,
         typename pairedvector_type::iterator slast,
@@ -832,7 +820,7 @@ namespace Core::Gen
      *  @param[in] dyn_bound New dynamic bound value.
      *  @return If the threshold is modified, TRUE is returned, otherwise FALSE.
      *
-     *  @author hiermeier @date 07/17 */
+     */
     bool set_dynamic_max_allowed_capacity(const size_t dyn_bound)
     {
       if (dyn_bound > dyn_max_allowed_capacity_)
@@ -848,7 +836,7 @@ namespace Core::Gen
      *
      *  @param[in] curr_val This is the current value which is going to be inserted.
      *
-     *  @author hiermeier @date 07/17 */
+     */
     void set_max_value(const double curr_val)
     {
       const double abs_curr_val = std::abs(curr_val);
@@ -860,7 +848,7 @@ namespace Core::Gen
      *  Relative to the max value occurring during the current insertion
      *  interval. See set_max_value for more information.
      *
-     *  @author hiermeier @date 07/17 */
+     */
     inline double get_relative_machine_precision() const { return max_value_ * MACHINE_PRECISION; }
 
     inline void init_capacity()

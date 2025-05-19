@@ -4,19 +4,24 @@ patch of 20x20 quad4 membrane finite elements (plane stress, incompressible) wit
 dirichlet bc prescribing displacements of all nodes resulting in an uniaxial stretch
 in x-direction and a translation in y-direction
 --------------------------------------------------------PROBLEM TYPE
-PROBLEMTYPE                      Structure
+PROBLEMTYPE                     Structure
 -----------------------------------------------------------------IO
-STRUCT_DISP                     Yes
-STRUCT_VEL_ACC                  Yes
 STRUCT_STRESS                   Cauchy
 STRUCT_STRAIN                   GL
-STRUCT_OPTIONAL_QUANTITY        membranethickness
+----------------------------------------------IO/RUNTIME VTK OUTPUT
+OUTPUT_DATA_FORMAT              ascii
+INTERVAL_STEPS                  2
+EVERY_ITERATION                 no
+------------------------------------IO/RUNTIME VTK OUTPUT/STRUCTURE
+OUTPUT_STRUCTURE                yes
+ACCELERATION                    yes
+OPTIONAL_QUANTITY               membranethickness
 -------------------------------------------------STRUCTURAL DYNAMIC
 INT_STRATEGY                    Standard
-DYNAMICTYPE                      OneStepTheta
-RESULTSEVERY                     2
-RESEVERYERGY                     2
-RESTARTEVERY                     5
+DYNAMICTYPE                     OneStepTheta
+RESULTSEVERY                    2
+RESEVERYERGY                    2
+RESTARTEVERY                    5
 TIMESTEP                        0.1
 NUMSTEP                         10
 MAXTIME                         1.0
@@ -36,9 +41,9 @@ SOLVER                          UMFPACK
 MAT 1 MAT_Membrane_ElastHyper NUMMAT 1 MATIDS 2 DENS 1.0
 MAT 2 ELAST_IsoNeoHooke MUE 100
 -------------------------------------------------RESULT DESCRIPTION
-STRUCTURE SPECIAL QUANTITY internal_energy VALUE 1.12500000000000e+00 TOLERANCE 1e-10
-STRUCTURE SPECIAL QUANTITY kinetic_energy VALUE 5.00000000000000e-03 TOLERANCE 1e-10
-STRUCTURE SPECIAL QUANTITY total_energy VALUE 1.13000000000000e+00 TOLERANCE 1e-10
+STRUCTURE SPECIAL true QUANTITY internal_energy VALUE 1.12500000000000e+00 TOLERANCE 1e-10
+STRUCTURE SPECIAL true QUANTITY kinetic_energy VALUE 5.00000000000000e-03 TOLERANCE 1e-10
+STRUCTURE SPECIAL true QUANTITY total_energy VALUE 1.13000000000000e+00 TOLERANCE 1e-10
 -------------------------------------------------------------FUNCT1
 COMPONENT 0 SYMBOLIC_FUNCTION_OF_SPACE_TIME a*x
 COMPONENT 1 SYMBOLIC_FUNCTION_OF_SPACE_TIME b
@@ -46,8 +51,7 @@ COMPONENT 2 SYMBOLIC_FUNCTION_OF_SPACE_TIME 0.0
 VARIABLE 0 NAME a TYPE multifunction NUMPOINTS 3 TIMES 0.0 0.5 10.0 DESCRIPTION 2.0*t 1.0
 VARIABLE 1 NAME b TYPE multifunction NUMPOINTS 2 TIMES 0.0 10.0 DESCRIPTION t
 -------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF  1
-E 1 - NUMDOF 3 ONOFF 1 1 1 VAL 1.0 1.0 1.0 FUNCT 1 1 1
+E 1 NUMDOF 3 ONOFF 1 1 1 VAL 1.0 1.0 1.0 FUNCT 1 1 1
 -----------------------------------------------DSURF-NODE TOPOLOGY
 NODE    1 DSURFACE 1
 NODE    2 DSURFACE 1

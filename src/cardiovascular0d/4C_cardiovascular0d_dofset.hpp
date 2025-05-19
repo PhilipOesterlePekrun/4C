@@ -14,8 +14,7 @@
 #include "4C_comm_mpi_utils.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_dofset.hpp"
-
-#include <Epetra_Map.h>
+#include "4C_linalg_map.hpp"
 
 #include <list>
 #include <memory>
@@ -48,7 +47,7 @@ namespace Utils
   change back and forth use assign_degrees_of_freedom() and reset().
 
 
-  \author tk     */
+  */
   class Cardiovascular0DDofSet : public Core::DOFSets::DofSet
   {
    public:

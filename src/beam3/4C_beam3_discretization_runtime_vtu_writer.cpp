@@ -161,8 +161,8 @@ void BeamDiscretizationRuntimeOutputWriter::set_geometry_from_beam_discretizatio
 
     /* loop over the chosen visualization points (equidistant distribution in the element
      * parameter space xi \in [-1,1] ) and determine their interpolated (initial) positions r */
-    Core::LinAlg::Matrix<3, 1> interpolated_position(true);
-    Core::LinAlg::Matrix<3, 1> interpolated_position_priorpoint(true);
+    Core::LinAlg::Matrix<3, 1> interpolated_position(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<3, 1> interpolated_position_priorpoint(Core::LinAlg::Initialization::zero);
     double xi = 0.0;
 
     for (unsigned int ipoint = 0; ipoint < n_subsegments_ + 1; ++ipoint)
@@ -224,21 +224,21 @@ void BeamDiscretizationRuntimeOutputWriter::set_geometry_from_beam_discretizatio
   // safety checks
   if (cell_types.size() != cell_offsets.size())
   {
-    FOUR_C_THROW("RuntimeVtuWriter expected %d cell type values, but got %d", num_beam_row_elements,
+    FOUR_C_THROW("RuntimeVtuWriter expected {} cell type values, but got {}", num_beam_row_elements,
         cell_types.size());
   }
 
   if (periodic_boundingbox_ != nullptr and !periodic_boundingbox_->have_pbc() and
       (point_coordinates.size() != num_spatial_dimensions * num_visualization_points))
   {
-    FOUR_C_THROW("RuntimeVtuWriter expected %d coordinate values, but got %d",
+    FOUR_C_THROW("RuntimeVtuWriter expected {} coordinate values, but got {}",
         num_spatial_dimensions * num_visualization_points, point_coordinates.size());
   }
 
   if (periodic_boundingbox_ != nullptr and !periodic_boundingbox_->have_pbc() and
       (cell_offsets.size() != num_beam_row_elements))
   {
-    FOUR_C_THROW("RuntimeVtuWriter expected %d cell offset values, but got %d",
+    FOUR_C_THROW("RuntimeVtuWriter expected {} cell offset values, but got {}",
         num_beam_row_elements, cell_offsets.size());
   }
 }
@@ -618,7 +618,7 @@ void BeamDiscretizationRuntimeOutputWriter::append_element_filament_id_and_type(
     // get filament number (note so far only one filament for each element and node)
     Core::Conditions::Condition* cond = ele->nodes()[0]->get_condition("BeamLineFilamentCondition");
     if (cond == nullptr)
-      FOUR_C_THROW(" No filament number assigned to element with gid %i .", ele->id());
+      FOUR_C_THROW(" No filament number assigned to element with gid {} .", ele->id());
 
     double current_id = cond->parameters().get<int>("ID");
     double current_type = Inpar::BeamInteraction::string_to_filament_type(
@@ -1357,16 +1357,16 @@ void BeamDiscretizationRuntimeOutputWriter::append_element_orientation_parameter
 
     // length of element is approximated linearly, as also the direction of a element is calculated
     // linearly independent of centerline interpolation
-    Core::LinAlg::Matrix<3, 1> dirvec(true);
+    Core::LinAlg::Matrix<3, 1> dirvec(Core::LinAlg::Initialization::zero);
 
     std::vector<double> pos(2, 0.0);
     for (int dim = 0; dim < 3; ++dim)
     {
       pos[0] = ele->nodes()[0]->x()[dim] +
-               (displacement_state_vector)[displacement_state_vector.Map().LID(
+               (displacement_state_vector)[displacement_state_vector.get_block_map().LID(
                    discretization_->dof(ele->nodes()[0])[dim])];
       pos[1] = ele->nodes()[1]->x()[dim] +
-               (displacement_state_vector)[displacement_state_vector.Map().LID(
+               (displacement_state_vector)[displacement_state_vector.get_block_map().LID(
                    discretization_->dof(ele->nodes()[1])[dim])];
       dirvec(dim) = pos[1] - pos[0];
     }
@@ -1375,7 +1375,7 @@ void BeamDiscretizationRuntimeOutputWriter::append_element_orientation_parameter
     double curr_lin_ele_length = dirvec.norm2();
 
     // loop over all base vectors for orientation index x,y and z
-    Core::LinAlg::Matrix<3, 1> unit_base_vec(true);
+    Core::LinAlg::Matrix<3, 1> unit_base_vec(Core::LinAlg::Initialization::zero);
     std::vector<double> curr_ele_orientation_parameter(3, 0.0);
     for (int unsigned ibase = 0; ibase < 3; ++ibase)
     {
@@ -1454,12 +1454,12 @@ void BeamDiscretizationRuntimeOutputWriter::append_rve_crosssection_forces(
   std::vector<std::vector<double>> fint_sum(3, std::vector<double>(3, 0.0));
   std::vector<double> beamelement_displacement_vector;
   std::vector<double> beamelement_shift_displacement_vector;
-  Core::LinAlg::Matrix<3, 1> pos_node_1(true);
-  Core::LinAlg::Matrix<3, 1> pos_node_2(true);
+  Core::LinAlg::Matrix<3, 1> pos_node_1(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1> pos_node_2(Core::LinAlg::Initialization::zero);
 
   // create pseudo planes through center of RVE (like this it also works if
   // your box is not periodic, i.e. you do not have cut element on the box edges)
-  Core::LinAlg::Matrix<3, 2> box(true);
+  Core::LinAlg::Matrix<3, 2> box(Core::LinAlg::Initialization::zero);
   if (periodic_boundingbox_ != nullptr)
   {
     for (unsigned dim = 0; dim < 3; ++dim)
@@ -1470,7 +1470,7 @@ void BeamDiscretizationRuntimeOutputWriter::append_rve_crosssection_forces(
     }
   }
 
-  Core::LinAlg::Matrix<3, 1> xi_intersect(true);
+  Core::LinAlg::Matrix<3, 1> xi_intersect(Core::LinAlg::Initialization::zero);
 
   // loop over all my elements and build force sum of myrank's cut element
   for (unsigned int ibeamele = 0; ibeamele < num_beam_row_elements; ++ibeamele)

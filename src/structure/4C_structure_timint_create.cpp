@@ -9,7 +9,6 @@
 
 #include "4C_fem_discretization.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_validparameters.hpp"
 #include "4C_io.hpp"
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
 #include "4C_structure_timint_ab2.hpp"
@@ -79,7 +78,7 @@ std::shared_ptr<Solid::TimIntImpl> Solid::tim_int_impl_create(
   switch (Teuchos::getIntegralValue<Inpar::Solid::DynamicType>(sdyn, "DYNAMICTYPE"))
   {
     // Static analysis
-    case Inpar::Solid::dyna_statics:
+    case Inpar::Solid::DynamicType::Statics:
     {
       sti = std::make_shared<Solid::TimIntStatics>(
           timeparams, ioflags, sdyn, xparams, actdis, solver, contactsolver, output);
@@ -87,7 +86,7 @@ std::shared_ptr<Solid::TimIntImpl> Solid::tim_int_impl_create(
     }
 
     // Generalised-alpha time integration
-    case Inpar::Solid::dyna_genalpha:
+    case Inpar::Solid::DynamicType::GenAlpha:
     {
       sti = std::make_shared<Solid::TimIntGenAlpha>(
           timeparams, ioflags, sdyn, xparams, actdis, solver, contactsolver, output);
@@ -95,7 +94,7 @@ std::shared_ptr<Solid::TimIntImpl> Solid::tim_int_impl_create(
     }
 
     // One-step-theta (OST) time integration
-    case Inpar::Solid::dyna_onesteptheta:
+    case Inpar::Solid::DynamicType::OneStepTheta:
     {
       sti = std::make_shared<Solid::TimIntOneStepTheta>(
           timeparams, ioflags, sdyn, xparams, actdis, solver, contactsolver, output);
@@ -140,21 +139,21 @@ std::shared_ptr<Solid::TimIntExpl> Solid::tim_int_expl_create(
   switch (Teuchos::getIntegralValue<Inpar::Solid::DynamicType>(sdyn, "DYNAMICTYPE"))
   {
     // forward Euler time integration
-    case Inpar::Solid::dyna_expleuler:
+    case Inpar::Solid::DynamicType::ExplEuler:
     {
       sti = std::make_shared<Solid::TimIntExplEuler>(
           timeparams, ioflags, sdyn, xparams, actdis, solver, contactsolver, output);
       break;
     }
     // central differences time integration
-    case Inpar::Solid::dyna_centrdiff:
+    case Inpar::Solid::DynamicType::CentrDiff:
     {
       sti = std::make_shared<Solid::TimIntCentrDiff>(
           timeparams, ioflags, sdyn, xparams, actdis, solver, contactsolver, output);
       break;
     }
     // Adams-Bashforth 2nd order (AB2) time integration
-    case Inpar::Solid::dyna_ab2:
+    case Inpar::Solid::DynamicType::AdamsBashforth2:
     {
       sti = std::make_shared<Solid::TimIntAB2>(
           timeparams, ioflags, sdyn, xparams, actdis, solver, contactsolver, output);

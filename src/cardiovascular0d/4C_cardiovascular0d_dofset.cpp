@@ -45,7 +45,7 @@ int Utils::Cardiovascular0DDofSet::assign_degrees_of_freedom(
 
   // Add DofSets in order of assignment to list. Once it is there it has its
   // place and will get its starting id from the previous DofSet.
-  add_dof_setto_list();
+  add_dof_set_to_list();
 
   // We assume that all dof sets before this one have been set up. Otherwise
   // we'd have to reorder the list.
@@ -67,18 +67,18 @@ int Utils::Cardiovascular0DDofSet::assign_degrees_of_freedom(
   // from 0. Therefore, there is no need to add anything.)
   int count;
   if (mor == nullptr or not mor->have_mor())
-    count = max_gi_din_list(dis->get_comm()) + 1;
+    count = max_gid_in_list(dis->get_comm()) + 1;
   else
     count = mor->get_red_dim();
 
   // dofrowmap with index base = count, which is undesired
-  Epetra_Map dofrowmap(ndofs, count, Core::Communication::as_epetra_comm(dis->get_comm()));
+  Core::LinAlg::Map dofrowmap(ndofs, count, Core::Communication::as_epetra_comm(dis->get_comm()));
 
   std::vector<int> gids;
   for (int i = 0; i < dofrowmap.NumMyElements(); i++) gids.push_back(dofrowmap.GID(i));
 
   // dofrowmap with index base = 0
-  dofrowmap_ = std::make_shared<Epetra_Map>(
+  dofrowmap_ = std::make_shared<Core::LinAlg::Map>(
       -1, gids.size(), gids.data(), 0, Core::Communication::as_epetra_comm(dis->get_comm()));
 
   return count;

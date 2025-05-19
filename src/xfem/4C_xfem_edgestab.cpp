@@ -28,7 +28,7 @@
 FOUR_C_NAMESPACE_OPEN
 
 /*----------------------------------------------------------------------*
- |  prepares edge based stabilization and ghost penaly in case of XFEM  |
+ |  prepares edge based stabilization and ghost penalty in case of XFEM |
  |  and calls evaluate routine                             schott 03/12 |
  *----------------------------------------------------------------------*/
 void XFEM::XfemEdgeStab::evaluate_edge_stab_ghost_penalty(
@@ -284,7 +284,7 @@ void XFEM::XfemEdgeStab::evaluate_edge_stab_ghost_penalty(
           }
           else if (vcs.size() == 1)
           {
-            FOUR_C_THROW("just one vcs reasonable?! face %d", faceele->id());
+            FOUR_C_THROW("just one vcs reasonable?! face {}", faceele->id());
           }
         }  // facet outside or (inside and include_inner)
         else if ((*f)->position() == Cut::Point::undecided)
@@ -422,7 +422,7 @@ void XFEM::XfemEdgeStab::evaluate_edge_stab_ghost_penalty(
           }
           else if (vcs.size() == 1)
           {
-            FOUR_C_THROW("just one vcs reasonable?! face %d", faceele->id());
+            FOUR_C_THROW("just one vcs reasonable?! face {}", faceele->id());
           }
         }  // facet outside or (inside and include_inner)
         else if ((*f)->position() == Cut::Point::undecided)
@@ -585,7 +585,7 @@ void XFEM::XfemEdgeStab::evaluate_edge_stab_ghost_penalty(
 
 /*----------------------------------------------------------------------*
  | calls the evaluate and assemble routine for edge based stabilization |
- | and ghost penaly in the XFEM                            schott 03/12 |
+ | and ghost penalty in the XFEM                            schott 03/12 |
  *----------------------------------------------------------------------*/
 void XFEM::XfemEdgeStab::assemble_edge_stab_ghost_penalty(
     Teuchos::ParameterList& eleparams,         ///< element parameter list

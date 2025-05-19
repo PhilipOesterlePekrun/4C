@@ -47,7 +47,6 @@ Solid::TimeInt::BaseDataIO::BaseDataIO()
       outputeveryiter_(false),
       writesurfactant_(false),
       writestate_(false),
-      writevelacc_(false),
       writejac2matlab_(false),
       firstoutputofrun_(false),
       printscreen_(-1),
@@ -55,11 +54,11 @@ Solid::TimeInt::BaseDataIO::BaseDataIO()
       writerestartevery_(-1),
       writeresultsevery_(-1),
       writeenergyevery_(-1),
+      lastwrittenresultsstep_(-1),
       writestress_(Inpar::Solid::stress_none),
       writecouplstress_(Inpar::Solid::stress_none),
       writestrain_(Inpar::Solid::strain_none),
       writeplstrain_(Inpar::Solid::strain_none),
-      writeoptquantity_(Inpar::Solid::optquantity_none),
       conditionnumbertype_(Inpar::Solid::ConditionNumber::none)
 {
   // empty constructor
@@ -90,12 +89,10 @@ void Solid::TimeInt::BaseDataIO::init(const Teuchos::ParameterList& ioparams,
     writerestartevery_ = sdynparams.get<int>("RESTARTEVERY");
     writetimestepoffset_ = sdynparams.get<int>("OUTPUT_STEP_OFFSET");
     writestate_ = ioparams.get<bool>("STRUCT_DISP");
-    writevelacc_ = ioparams.get<bool>("STRUCT_VEL_ACC");
     writejac2matlab_ = ioparams.get<bool>("STRUCT_JACOBIAN_MATLAB");
     conditionnumbertype_ = ioparams.get<Inpar::Solid::ConditionNumber>("STRUCT_CONDITION_NUMBER");
     firstoutputofrun_ = true;
     writeresultsevery_ = sdynparams.get<int>("RESULTSEVERY");
-    writecurrentelevolume_ = ioparams.get<bool>("STRUCT_CURRENT_VOLUME");
     writestress_ = Teuchos::getIntegralValue<Inpar::Solid::StressType>(ioparams, "STRUCT_STRESS");
     writecouplstress_ =
         Teuchos::getIntegralValue<Inpar::Solid::StressType>(ioparams, "STRUCT_COUPLING_STRESS");
@@ -104,7 +101,6 @@ void Solid::TimeInt::BaseDataIO::init(const Teuchos::ParameterList& ioparams,
         Teuchos::getIntegralValue<Inpar::Solid::StrainType>(ioparams, "STRUCT_PLASTIC_STRAIN");
     writeenergyevery_ = sdynparams.get<int>("RESEVERYERGY");
     writesurfactant_ = ioparams.get<bool>("STRUCT_SURFACTANT");
-    writeoptquantity_ = ioparams.get<Inpar::Solid::OptQuantityType>("STRUCT_OPTIONAL_QUANTITY");
 
     // build params container for monitoring reaction forces
     params_monitor_dbc_ = std::make_shared<ParamsMonitorDBC>();
@@ -281,8 +277,7 @@ void Solid::TimeInt::BaseDataIO::set_last_written_results(const int step)
 NOX::Nln::Solver::PrePostOp::TimeInt::WriteOutputEveryIteration::WriteOutputEveryIteration(
     Core::IO::EveryIterationWriter& every_iter_writer)
     : every_iter_writer_(every_iter_writer)
-{
-  /* empty */
+{ /* empty */
 }
 
 /*----------------------------------------------------------------------------*

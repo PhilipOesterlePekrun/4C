@@ -53,8 +53,7 @@ void FLD::FluidResultTest::test_node(
 
   if (isnodeofanybody == 0)
   {
-    FOUR_C_THROW(
-        "Node %d does not belong to discretization %s", node + 1, fluiddis_->name().c_str());
+    FOUR_C_THROW("Node {} does not belong to discretization {}", node + 1, fluiddis_->name());
   }
   else
   {
@@ -67,7 +66,7 @@ void FLD::FluidResultTest::test_node(
 
       double result = 0.;
 
-      const Epetra_BlockMap& velnpmap = mysol_->Map();
+      const Epetra_BlockMap& velnpmap = mysol_->get_block_map();
 
       const int numdim = Global::Problem::instance()->n_dim();
 
@@ -84,26 +83,26 @@ void FLD::FluidResultTest::test_node(
       else if (position == "pressure")
       {
         if (fluiddis_->num_dof(0, actnode) < (numdim + 1))
-          FOUR_C_THROW("too few dofs at node %d for pressure testing", actnode->id());
+          FOUR_C_THROW("too few dofs at node {} for pressure testing", actnode->id());
         result = (*mysol_)[velnpmap.LID(fluiddis_->dof(0, actnode, numdim))];
       }
       else if (position == "tractionx")
-        result = (*mytraction_)[(mytraction_->Map()).LID(fluiddis_->dof(0, actnode, 0))];
+        result = (*mytraction_)[(mytraction_->get_block_map()).LID(fluiddis_->dof(0, actnode, 0))];
       else if (position == "tractiony")
-        result = (*mytraction_)[(mytraction_->Map()).LID(fluiddis_->dof(0, actnode, 1))];
+        result = (*mytraction_)[(mytraction_->get_block_map()).LID(fluiddis_->dof(0, actnode, 1))];
       else if (position == "tractionz")
       {
         if (numdim == 2) FOUR_C_THROW("Cannot test result for tractionz in 2D case.");
-        result = (*mytraction_)[(mytraction_->Map()).LID(fluiddis_->dof(0, actnode, 2))];
+        result = (*mytraction_)[(mytraction_->get_block_map()).LID(fluiddis_->dof(0, actnode, 2))];
       }
       else if (position == "wssx")
-        result = (*mywss_)[(mywss_->Map()).LID(fluiddis_->dof(0, actnode, 0))];
+        result = (*mywss_)[(mywss_->get_block_map()).LID(fluiddis_->dof(0, actnode, 0))];
       else if (position == "wssy")
-        result = (*mywss_)[(mywss_->Map()).LID(fluiddis_->dof(0, actnode, 1))];
+        result = (*mywss_)[(mywss_->get_block_map()).LID(fluiddis_->dof(0, actnode, 1))];
       else if (position == "wssz")
       {
         if (numdim == 2) FOUR_C_THROW("Cannot test result for wssz in 2D case.");
-        result = (*mywss_)[(mywss_->Map()).LID(fluiddis_->dof(0, actnode, 2))];
+        result = (*mywss_)[(mywss_->get_block_map()).LID(fluiddis_->dof(0, actnode, 2))];
       }
       else if (position == "L2errvel")
         result = (*myerror_)[0];
@@ -120,7 +119,7 @@ void FLD::FluidResultTest::test_node(
       else if (position == "L2errmom")
         result = (*myerror_)[2];
       else
-        FOUR_C_THROW("Quantity '%s' not supported in fluid testing", position.c_str());
+        FOUR_C_THROW("Quantity '{}' not supported in fluid testing", position);
 
       nerr += compare_values(result, "NODE", container);
       test_count++;

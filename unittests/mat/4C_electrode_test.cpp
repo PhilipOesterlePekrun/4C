@@ -12,6 +12,7 @@
 #include "4C_global_data_read.hpp"
 #include "4C_global_legacy_module.hpp"
 #include "4C_io_input_file.hpp"
+#include "4C_io_input_parameter_container.templates.hpp"
 #include "4C_mat_electrode.hpp"
 #include "4C_material_parameter_base.hpp"
 #include "4C_utils_singleton_owner.hpp"
@@ -390,14 +391,15 @@ namespace
       setup_template_csv_file(csv_template_file_name);
       setup_dummy_dat_file(dat_file_name, csv_template_file_name);
 
-      Core::IO::InputFile reader{dat_file_name, comm};
+      Core::IO::InputFile input_file = Global::set_up_input_file(comm);
+      input_file.read(dat_file_name);
 
-      Global::read_parameter(*problem, reader);
+      Global::read_parameter(*problem, input_file);
 
       {
         Core::Utils::FunctionManager function_manager;
         global_legacy_module_callbacks().AttachFunctionDefinitions(function_manager);
-        function_manager.read_input(reader);
+        function_manager.read_input(input_file);
         problem->set_function_manager(std::move(function_manager));
       }
     }
@@ -435,6 +437,8 @@ namespace
       std::ofstream dat_file{dat_file_name};
 
       // This is just a dummy dat file filled with the data necessary for the unit tests
+      dat_file << "------------------------------------------------------PROBLEM TYPE" << '\n';
+      dat_file << "PROBLEMTYPE Electrochemistry" << '\n';
       dat_file << "------------------------------------------------------ELCH CONTROL" << '\n';
       dat_file << "GAS_CONSTANT                    " << std::to_string(gasconstant_) << '\n';
       dat_file << "------------------------------------------------------------FUNCT1" << '\n';
@@ -443,7 +447,6 @@ namespace
       dat_file << "FASTPOLYNOMIAL NUMCOEFF 1 COEFF 0.0" << '\n';
       dat_file << "------------------------------------------------------------FUNCT3" << '\n';
       dat_file << "FASTPOLYNOMIAL NUMCOEFF 5 COEFF 4.563 2.595 -16.77 23.88 -10.72" << '\n';
-      dat_file << "---------------------------------------------------------------END" << '\n';
     }
 
     //! cathode material based on half cell open circuit potential obtained from cubic spline

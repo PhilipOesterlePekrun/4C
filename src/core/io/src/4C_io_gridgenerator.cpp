@@ -13,6 +13,7 @@
 #include "4C_fem_general_element.hpp"
 #include "4C_fem_general_element_definition.hpp"
 #include "4C_fem_general_node.hpp"
+#include "4C_io_input_parameter_container.hpp"
 #include "4C_io_pstream.hpp"
 #include "4C_io_value_parser.hpp"
 #include "4C_rebalance_binning_based.hpp"
@@ -57,10 +58,10 @@ namespace Core::IO::GridGenerator
         FOUR_C_THROW("intervals in domain reader must be greater than zero");
     }
 
-    std::shared_ptr<Epetra_Map> nodeRowMap;
-    std::shared_ptr<Epetra_Map> nodeColMap;
-    std::shared_ptr<Epetra_Map> elementRowMap;
-    std::shared_ptr<Epetra_Map> elementColMap;
+    std::shared_ptr<Core::LinAlg::Map> nodeRowMap;
+    std::shared_ptr<Core::LinAlg::Map> nodeColMap;
+    std::shared_ptr<Core::LinAlg::Map> elementRowMap;
+    std::shared_ptr<Core::LinAlg::Map> elementColMap;
 
     // Create initial (or final) map of row elements
     Core::FE::CellType distype_enum = Core::FE::string_to_cell_type(inputData.distype_);
@@ -72,7 +73,7 @@ namespace Core::IO::GridGenerator
       {
         scale = 2;
       }
-      elementRowMap = std::make_shared<Epetra_Map>(
+      elementRowMap = std::make_shared<Core::LinAlg::Map>(
           scale * numnewele, 0, Core::Communication::as_epetra_comm(comm));
     }
     else  // fancy final box map
@@ -149,11 +150,11 @@ namespace Core::IO::GridGenerator
           for (size_t ix = xranges[mysection[0]]; ix < xranges[mysection[0] + 1]; ++ix)
             mynewele[idx++] = (iz * inputData.interval_[1] + it) * inputData.interval_[0] + ix;
 
-      elementRowMap = std::make_shared<Epetra_Map>(
+      elementRowMap = std::make_shared<Core::LinAlg::Map>(
           -1, nummynewele, mynewele.data(), 0, Core::Communication::as_epetra_comm(comm));
     }
 
-    // Build an input line that matches what is expected from a dat file.
+    // Build an input line that matches what is expected from an input file.
     // Prepend the distype which is not part of the user-supplied arguments but must be parsed.
     // The distype is followed by nodal ids, which are set to dummy values of -1 here.
     const std::string argument_line = std::invoke(
@@ -161,8 +162,7 @@ namespace Core::IO::GridGenerator
         {
           std::ostringstream eleargstream;
           eleargstream << inputData.distype_;
-          const int num_nodes = Core::FE::cell_type_switch(
-              distype_enum, [](auto cell_type_t) { return Core::FE::num_nodes<cell_type_t()>; });
+          const int num_nodes = Core::FE::num_nodes(distype_enum);
           for (int i = 0; i < num_nodes; ++i)
           {
             eleargstream << " " << -1;
@@ -208,7 +208,7 @@ namespace Core::IO::GridGenerator
         }
         default:
           FOUR_C_THROW(
-              "The discretization type %s, is not implemented. Currently only HEX(8,20,27) and "
+              "The discretization type {}, is not implemented. Currently only HEX(8,20,27) and "
               "WEDGE(6,15) are implemented for the box geometry generation.",
               inputData.distype_.c_str());
       }
@@ -217,7 +217,7 @@ namespace Core::IO::GridGenerator
     // redistribute the elements
     if (inputData.autopartition_)
     {
-      std::shared_ptr<const Epetra_CrsGraph> nodeGraph =
+      std::shared_ptr<const Core::LinAlg::Graph> nodeGraph =
           Core::Rebalance::build_graph(dis, *elementRowMap);
 
       Teuchos::ParameterList rebalanceParams;
@@ -229,12 +229,12 @@ namespace Core::IO::GridGenerator
     }
     else  // do not destroy our manual partitioning
     {
-      std::shared_ptr<const Epetra_CrsGraph> graph =
+      std::shared_ptr<const Core::LinAlg::Graph> graph =
           Core::Rebalance::build_graph(dis, *elementRowMap);
-      nodeRowMap = std::make_shared<Epetra_Map>(-1, graph->RowMap().NumMyElements(),
-          graph->RowMap().MyGlobalElements(), 0, Core::Communication::as_epetra_comm(comm));
-      nodeColMap = std::make_shared<Epetra_Map>(-1, graph->ColMap().NumMyElements(),
-          graph->ColMap().MyGlobalElements(), 0, Core::Communication::as_epetra_comm(comm));
+      nodeRowMap = std::make_shared<Core::LinAlg::Map>(-1, graph->row_map().NumMyElements(),
+          graph->row_map().MyGlobalElements(), 0, Core::Communication::as_epetra_comm(comm));
+      nodeColMap = std::make_shared<Core::LinAlg::Map>(-1, graph->col_map().NumMyElements(),
+          graph->col_map().MyGlobalElements(), 0, Core::Communication::as_epetra_comm(comm));
     }
 
 
@@ -380,7 +380,7 @@ namespace Core::IO::GridGenerator
         nodeids[7] = nodeOffset + ((ez + 2) * ny + ey + 2) * nx + ex;
         break;
       default:
-        FOUR_C_THROW("The number of nodeids: %d, does not correspond to a supported HEX-element.",
+        FOUR_C_THROW("The number of nodeids: {}, does not correspond to a supported HEX-element.",
             nodeids.size());
         break;
     }
@@ -445,7 +445,7 @@ namespace Core::IO::GridGenerator
           //---------------------
         default:
           FOUR_C_THROW(
-              "The number of nodeids: %d, does not correspond to a supported WEDGE-element.",
+              "The number of nodeids: {}, does not correspond to a supported WEDGE-element.",
               nodeids.size());
           break;
       }
@@ -476,7 +476,7 @@ namespace Core::IO::GridGenerator
           //---------------------
         default:
           FOUR_C_THROW(
-              "The number of nodeids: %d, does not correspond to a supported WEDGE-element.",
+              "The number of nodeids: {}, does not correspond to a supported WEDGE-element.",
               nodeids.size());
           break;
       }

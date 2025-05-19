@@ -32,7 +32,7 @@ namespace Solid
      *  different implicit time integration strategies. It summarizes the functionality
      *  which all of the different implicit strategies share.
      *
-     *  \author Michael Hiermeier */
+     *  */
     class ImplicitBase : public Base
     {
      public:
@@ -88,9 +88,6 @@ namespace Solid
      protected:
       /// Returns the current solution group (pure virtual)
       virtual const ::NOX::Abstract::Group& get_solution_group() const = 0;
-
-      //! Returns the current solution group ptr
-      virtual std::shared_ptr<::NOX::Abstract::Group> solution_group_ptr() = 0;
     };
   }  // namespace TimeInt
 }  // namespace Solid

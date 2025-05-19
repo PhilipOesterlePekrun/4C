@@ -8,10 +8,12 @@
 #include "4C_shell7p_utils.hpp"
 
 #include "4C_comm_exporter.hpp"
+#include "4C_fem_discretization.hpp"
 #include "4C_fem_general_node.hpp"
 #include "4C_fem_general_utils_fem_shapefunctions.hpp"
 #include "4C_shell7p_ele.hpp"
 #include "4C_shell7p_ele_scatra.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -125,7 +127,7 @@ namespace
     else
       FOUR_C_THROW(
           "Unrecognized EAS type for quad4 to alleviate membrane locking. Only none, N_1, N_2, "
-          "N_3, N_4, N_5, N_7 are allowed. Given: %s",
+          "N_3, N_4, N_5, N_7 are allowed. Given: {}",
           type.c_str());
   }
 
@@ -154,7 +156,7 @@ namespace
     else
       FOUR_C_THROW(
           "Unrecognized EAS type for quad4 to alleviate bending locking. Only none, N_4, N_5, N_6, "
-          "N_7 are allowed. Given: %s",
+          "N_7 are allowed. Given: {}",
           type.c_str());
   }
 
@@ -192,7 +194,7 @@ namespace
       FOUR_C_THROW(
           "Unrecognized EAS type for quad4 to alleviate thickness locking. Only none, N_1, N_3, "
           "N_4, "
-          "N_6, N_8, N_9 are allowed. Given: %s",
+          "N_6, N_8, N_9 are allowed. Given: {}",
           type.c_str());
   }
 
@@ -213,7 +215,7 @@ namespace
     else
       FOUR_C_THROW(
           "Unrecognized EAS type for quad4 to alleviate transverse shear strain locking: Only "
-          "none, N_2, N_4 are allowed. Given: %s",
+          "none, N_2, N_4 are allowed. Given: {}",
           type.c_str());
   }
 
@@ -234,7 +236,7 @@ namespace
     else
       FOUR_C_THROW(
           "Unrecognized EAS type for quad9 to alleviate membrane locking. Only none, N_7, N_9 are "
-          "allowed. Given: %s",
+          "allowed. Given: {}",
           type.c_str());
   }
 
@@ -255,7 +257,7 @@ namespace
     else
       FOUR_C_THROW(
           "Unrecognized EAS type for quad9 to alleviate bending locking. Only none, N_9, N_11 are "
-          "allowed. Given: %s",
+          "allowed. Given: {}",
           type.c_str());
   }
 
@@ -292,7 +294,7 @@ namespace
     else
       FOUR_C_THROW(
           "Unrecognized EAS type for quad9 to alleviate thickness locking. Only none, N_1, N_3, "
-          "N_4, N_6, N_8, N_9 are allowed. Given: %s",
+          "N_4, N_6, N_8, N_9 are allowed. Given: {}",
           type.c_str());
   }
 
@@ -317,7 +319,7 @@ namespace
     else
       FOUR_C_THROW(
           "Unrecognized EAS type for quad9 to alleviate transverse shear strain locking. Only "
-          "none, N_2, N_4, N_6 are allowed. Given: %s",
+          "none, N_2, N_4, N_6 are allowed. Given: {}",
           type.c_str());
   }
 
@@ -411,7 +413,7 @@ void Solid::Utils::Shell::Director::setup_director_for_element(
 
     // get thickness direction derivative perpendicular to a1 and a2
     // -> a3 = (a1 x a2) / (|a1 x a2 |)
-    Core::LinAlg::Matrix<num_dim, 1> a1a2crossprod(true);
+    Core::LinAlg::Matrix<num_dim, 1> a1a2crossprod(Core::LinAlg::Initialization::zero);
     a1a2crossprod(0) = metrics_kovariant(0, 1) * metrics_kovariant(1, 2) -
                        metrics_kovariant(0, 2) * metrics_kovariant(1, 1);
     a1a2crossprod(1) = metrics_kovariant(0, 2) * metrics_kovariant(1, 0) -
@@ -429,15 +431,15 @@ void Solid::Utils::Shell::Director::setup_director_for_element(
 void Solid::Utils::Shell::Director::average_director(const Core::LinAlg::Matrix<3, 8>& dir_list,
     const int num_directors, Core::LinAlg::Matrix<3, 1>& nodal_director)
 {
-  Core::LinAlg::Matrix<3, 1> davn(true);
-  Core::LinAlg::Matrix<3, 1> averdir(true);
+  Core::LinAlg::Matrix<3, 1> davn(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1> averdir(Core::LinAlg::Initialization::zero);
   for (int dim = 0; dim < Discret::Elements::Shell::Internal::num_dim; ++dim)
     averdir(dim) = dir_list(dim, 0);
 
   for (int i = 1; i < num_directors; ++i)
   {
     // make cross product of two directors
-    Core::LinAlg::Matrix<3, 1> normal(true);
+    Core::LinAlg::Matrix<3, 1> normal(Core::LinAlg::Initialization::zero);
     normal(0) = averdir(1) * dir_list(2, i) - averdir(2) * dir_list(1, i);
     normal(1) = averdir(2) * dir_list(0, i) - averdir(0) * dir_list(2, i);
     normal(2) = averdir(0) * dir_list(1, i) - averdir(1) * dir_list(0, i);
@@ -496,8 +498,8 @@ void Solid::Utils::Shell::Director::export_director_map_from_row_to_col_map(
     std::map<int, std::vector<double>>& director_map)
 {
   // export this map from nodal row map to nodal col map
-  const Epetra_Map* noderowmap = dis.node_row_map();
-  const Epetra_Map* nodecolmap = dis.node_col_map();
+  const Core::LinAlg::Map* noderowmap = dis.node_row_map();
+  const Core::LinAlg::Map* nodecolmap = dis.node_col_map();
   Core::Communication::Exporter exporter(*noderowmap, *nodecolmap, dis.get_comm());
   exporter.do_export(director_map);
 
@@ -546,7 +548,7 @@ void Solid::Utils::Shell::Director::average_directors_at_nodes(
 {
   const int max_ele = 8;
   static constexpr int num_dim = Discret::Elements::Shell::Internal::num_dim;
-  Core::LinAlg::Matrix<num_dim, max_ele> collaverdir(true);
+  Core::LinAlg::Matrix<num_dim, max_ele> collaverdir(Core::LinAlg::Initialization::zero);
 
   // loop through all row nodes and build director map
   for (const auto& act_node : dis.my_row_node_range())
@@ -599,7 +601,7 @@ void Solid::Utils::Shell::Director::average_directors_at_nodes(
     }
     else  // average director at node actnode
     {
-      Core::LinAlg::Matrix<num_dim, 1> nodal_director(true);
+      Core::LinAlg::Matrix<num_dim, 1> nodal_director(Core::LinAlg::Initialization::zero);
       average_director(collaverdir, num_directors, nodal_director);
       director_map[act_node->id()].resize(num_dim);
       for (int dim = 0; dim < num_dim; ++dim)
@@ -694,7 +696,7 @@ void Solid::Utils::Shell::ReadElement::read_and_set_locking_types(const Core::FE
       break;
     }
     default:
-      FOUR_C_THROW("EAS is not supported with %s", distype);
+      FOUR_C_THROW("EAS is not supported with {}", distype);
   }
   locking_types.total = locking_types.membrane + locking_types.bending + locking_types.thickness +
                         locking_types.transverse_shear_strain_const +
@@ -721,7 +723,7 @@ int Solid::Utils::Shell::ReadElement::read_and_set_num_ans(const Core::FE::CellT
       return 6;
     }
     default:
-      FOUR_C_THROW("ANS is not supported with %s", distype);
+      FOUR_C_THROW("ANS is not supported with {}", distype);
   }
 }
 FOUR_C_NAMESPACE_CLOSE

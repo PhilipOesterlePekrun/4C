@@ -48,8 +48,8 @@ template <Core::FE::CellType distype>
 Discret::Elements::ScaTraEleCalcPoro<distype>::ScaTraEleCalcPoro(
     const int numdofpernode, const int numscal, const std::string& disname)
     : Discret::Elements::ScaTraEleCalc<distype>::ScaTraEleCalc(numdofpernode, numscal, disname),
-      xyze0_(true),
-      eporosity_(true),
+      xyze0_(Core::LinAlg::Initialization::zero),
+      eporosity_(Core::LinAlg::Initialization::zero),
       isnodalporosity_(false)
 {
   // initialization of diffusion manager (override initialization in base class)
@@ -65,11 +65,9 @@ template <Core::FE::CellType distype>
 int Discret::Elements::ScaTraEleCalcPoro<distype>::evaluate_action(Core::Elements::Element* ele,
     Teuchos::ParameterList& params, Core::FE::Discretization& discretization,
     const ScaTra::Action& action, Core::Elements::LocationArray& la,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3)
 {
   // determine and evaluate action
   switch (action)
@@ -88,13 +86,13 @@ int Discret::Elements::ScaTraEleCalcPoro<distype>::evaluate_action(Core::Element
       extract_element_and_node_values_poro(ele, params, discretization, la);
 
       // calculate scalars and domain integral
-      calculate_scalars(ele, elevec1_epetra, inverting, false);
+      calculate_scalars(ele, elevec1, inverting, false);
 
       break;
     }
     default:
-      return my::evaluate_action(ele, params, discretization, action, la, elemat1_epetra,
-          elemat2_epetra, elevec1_epetra, elevec2_epetra, elevec3_epetra);
+      return my::evaluate_action(
+          ele, params, discretization, action, la, elemat1, elemat2, elevec1, elevec2, elevec3);
       break;
   }
 
@@ -179,8 +177,7 @@ void Discret::Elements::ScaTraEleCalcPoro<distype>::extract_element_and_node_val
 
     if (disp != nullptr)
     {
-      std::vector<double> mydisp(la[ndsdisp].lm_.size());
-      Core::FE::extract_my_values(*disp, mydisp, la[ndsdisp].lm_);
+      std::vector<double> mydisp = Core::FE::extract_values(*disp, la[ndsdisp].lm_);
 
       for (unsigned inode = 0; inode < nen_; ++inode)  // number of nodes
         eporosity_(inode, 0) = mydisp[nsd_ + (inode * (nsd_ + 1))];
@@ -321,7 +318,7 @@ void Discret::Elements::ScaTraEleCalcPoro<distype>::compute_porosity(
   else
   {
     // gauss point displacements
-    Core::LinAlg::Matrix<nsd_, 1> dispint(false);
+    Core::LinAlg::Matrix<nsd_, 1> dispint(Core::LinAlg::Initialization::uninitialized);
     dispint.multiply(my::edispnp_, my::funct_);
 
     //------------------------get determinant of Jacobian dX / ds

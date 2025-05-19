@@ -12,6 +12,7 @@
 #include "4C_scatra_ele_calc.hpp"
 #include "4C_scatra_ele_parameter_std.hpp"
 #include "4C_scatra_ele_parameter_timint.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -21,11 +22,9 @@ FOUR_C_NAMESPACE_OPEN
 template <Core::FE::CellType distype, int probdim>
 int Discret::Elements::ScaTraEleCalc<distype, probdim>::evaluate_od(Core::Elements::Element* ele,
     Teuchos::ParameterList& params, Core::FE::Discretization& discretization,
-    Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra)
+    Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1,
+    Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+    Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3)
 {
   //--------------------------------------------------------------------------------
   // preparations for element
@@ -47,8 +46,8 @@ int Discret::Elements::ScaTraEleCalc<distype, probdim>::evaluate_od(Core::Elemen
   const auto action = Teuchos::getIntegralValue<ScaTra::Action>(params, "action");
 
   // evaluate action
-  evaluate_action_od(ele, params, discretization, action, la, elemat1_epetra, elemat2_epetra,
-      elevec1_epetra, elevec2_epetra, elevec3_epetra);
+  evaluate_action_od(
+      ele, params, discretization, action, la, elemat1, elemat2, elevec1, elevec2, elevec3);
 
   return 0;
 }
@@ -61,32 +60,30 @@ template <Core::FE::CellType distype, int probdim>
 int Discret::Elements::ScaTraEleCalc<distype, probdim>::evaluate_action_od(
     Core::Elements::Element* ele, Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, const ScaTra::Action& action,
-    Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra)
+    Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1,
+    Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+    Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3)
 {
   // determine and evaluate action
   switch (action)
   {
     case ScaTra::Action::calc_scatra_mono_odblock_mesh:
     {
-      sysmat_od_mesh(ele, elemat1_epetra, nsd_);
+      sysmat_od_mesh(ele, elemat1, nsd_);
 
       break;
     }
 
     case ScaTra::Action::calc_scatra_mono_odblock_fluid:
     {
-      sysmat_od_fluid(ele, elemat1_epetra, nsd_ + 1);
+      sysmat_od_fluid(ele, elemat1, nsd_ + 1);
 
       break;
     }
 
     default:
     {
-      FOUR_C_THROW("Not acting on action %i. Forgot implementation?", action);
+      FOUR_C_THROW("Not acting on action {}. Forgot implementation?", action);
       break;
     }
   }  // switch(action)
@@ -165,7 +162,8 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::sysmat_od_mesh(
     // J * N_x
     // J denotes the determinant of the Jacobian of the mapping between current and parameter space,
     // i.e. det(dx/ds)
-    static Core::LinAlg::Matrix<1, nsd_ * nen_> dJ_dmesh(false);
+    static Core::LinAlg::Matrix<1, nsd_ * nen_> dJ_dmesh(
+        Core::LinAlg::Initialization::uninitialized);
     calc_djd_mesh(dJ_dmesh);
     const double J = xjm_.determinant();
 
@@ -185,9 +183,9 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::sysmat_od_mesh(
 
 
       // subgrid-scale convective term
-      Core::LinAlg::Matrix<nen_, 1> sgconv(true);
+      Core::LinAlg::Matrix<nen_, 1> sgconv(Core::LinAlg::Initialization::zero);
       // subgrid-scale velocity vector in gausspoint
-      Core::LinAlg::Matrix<nsd_, 1> sgvelint(true);
+      Core::LinAlg::Matrix<nsd_, 1> sgvelint(Core::LinAlg::Initialization::zero);
 
       // residual of convection-diffusion-reaction eq
       double scatrares(0.0);
@@ -211,7 +209,7 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::sysmat_od_mesh(
       compute_rhs_int(rhsint, densam[k], densnp[k], scatravarmanager_->hist(k));
 
       // diffusive part used in stabilization terms
-      Core::LinAlg::Matrix<nen_, 1> diff(true);
+      Core::LinAlg::Matrix<nen_, 1> diff(Core::LinAlg::Initialization::zero);
       // diffusive term using current scalar value for higher-order elements
       if (use2ndderiv_)
       {
@@ -559,7 +557,7 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::calc_conv_cons_od_mesh(
   }
 
   // shape derivatives associated with divergence operator
-  Core::LinAlg::Matrix<nsd_, nsd_> gridvelderiv(true);
+  Core::LinAlg::Matrix<nsd_, nsd_> gridvelderiv(Core::LinAlg::Initialization::zero);
   gridvelderiv.multiply_nt(evelnp_, deriv_);
 
   if (nsd_ == 3)

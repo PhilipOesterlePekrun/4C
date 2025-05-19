@@ -202,7 +202,8 @@ void ScaTra::MeshtyingStrategyS2IElch::evaluate_point_coupling()
 
     // compute matrix and vector contributions according to kinetic model for current point coupling
     // condition
-    const int kinetic_model = cond_slave->parameters().get<int>("KINETIC_MODEL");
+    const int kinetic_model =
+        cond_slave->parameters().get<Inpar::S2I::KineticModels>("KINETIC_MODEL");
     switch (kinetic_model)
     {
       case Inpar::S2I::kinetics_butlervolmer:
@@ -278,8 +279,8 @@ void ScaTra::MeshtyingStrategyS2IElch::evaluate_point_coupling()
         const double eta = ed_pot - el_pot - epd;
 
         // Butler-Volmer exchange mass flux density
-        const double j0 = cond_slave->parameters().get<int>("KINETIC_MODEL") ==
-                                  Inpar::S2I::kinetics_butlervolmerreduced
+        const double j0 = cond_slave->parameters().get<Inpar::S2I::KineticModels>(
+                              "KINETIC_MODEL") == Inpar::S2I::kinetics_butlervolmerreduced
                               ? kr
                               : kr * std::pow(el_conc, alphaa) * std::pow(cmax - ed_conc, alphaa) *
                                     std::pow(ed_conc, alphac);
@@ -386,7 +387,7 @@ void ScaTra::MeshtyingStrategyS2IElch::update() const
     {
       // extract current condition
       // extract kinetic model from current condition
-      switch (condition->parameters().get<int>("KINETIC_MODEL"))
+      switch (condition->parameters().get<Inpar::S2I::GrowthKineticModels>("KINETIC_MODEL"))
       {
         case Inpar::S2I::growth_kinetics_butlervolmer:
         {
@@ -608,8 +609,8 @@ void ScaTra::MortarCellCalcElch<distype_s, distype_m>::evaluate_condition(
   const Core::FE::IntPointsAndWeights<2> intpoints(Core::FE::GaussRule2D::tri_7point);
 
   // dummy matrix of nodal temperature values
-  Core::LinAlg::Matrix<nen_slave_, 1> dummy_slave_temp(true);
-  Core::LinAlg::Matrix<nen_master_, 1> dummy_master_temp(true);
+  Core::LinAlg::Matrix<nen_slave_, 1> dummy_slave_temp(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<nen_master_, 1> dummy_master_temp(Core::LinAlg::Initialization::zero);
   // always in contact
   const double pseudo_contact_fac = 1.0;
 
@@ -671,8 +672,8 @@ void ScaTra::MortarCellCalcElch<distype_s, distype_m>::evaluate_condition_nts(
   my::eval_shape_func_at_slave_node(slavenode, slaveelement, masterelement);
 
   // dummy matrix of nodal temperature values
-  Core::LinAlg::Matrix<nen_slave_, 1> dummy_slave_temp(true);
-  Core::LinAlg::Matrix<nen_master_, 1> dummy_master_temp(true);
+  Core::LinAlg::Matrix<nen_slave_, 1> dummy_slave_temp(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<nen_master_, 1> dummy_master_temp(Core::LinAlg::Initialization::zero);
   // always in contact
   const double pseudo_contact_fac = 1.0;
 
@@ -750,7 +751,7 @@ ScaTra::MortarCellCalcElchSTIThermo<distype_s, distype_m>::MortarCellCalcElchSTI
       myelch::MortarCellCalcElch(couplingtype, lmside, numdofpernode_slave, numdofpernode_master),
 
       // initialize member variable
-      etempnp_slave_(true)
+      etempnp_slave_(Core::LinAlg::Initialization::zero)
 {
 }
 
@@ -847,8 +848,9 @@ void ScaTra::MortarCellCalcElchSTIThermo<distype_s, distype_m>::evaluate_conditi
   const Core::FE::IntPointsAndWeights<2> intpoints(Core::FE::GaussRule2D::tri_7point);
 
   // dummy matrix of nodal master temperature values and shape derivatives
-  Core::LinAlg::Matrix<nen_master_, 1> dummy_master_temp(true);
-  Core::LinAlg::Matrix<nsd_slave_ + 1, nen_slave_> dummy_shapederivatives(true);
+  Core::LinAlg::Matrix<nen_master_, 1> dummy_master_temp(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<nsd_slave_ + 1, nen_slave_> dummy_shapederivatives(
+      Core::LinAlg::Initialization::zero);
   // always in contact
   const double pseudo_contact_fac = 1.0;
 
@@ -963,8 +965,8 @@ ScaTra::MortarCellCalcSTIElch<distype_s, distype_m>::MortarCellCalcSTIElch(
       my::MortarCellCalc(couplingtype, lmside, numdofpernode_slave, numdofpernode_master),
 
       // initialize member variables
-      eelchnp_slave_(2, Core::LinAlg::Matrix<nen_slave_, 1>(true)),
-      eelchnp_master_(2, Core::LinAlg::Matrix<nen_master_, 1>(true))
+      eelchnp_slave_(2, Core::LinAlg::Matrix<nen_slave_, 1>(Core::LinAlg::Initialization::zero)),
+      eelchnp_master_(2, Core::LinAlg::Matrix<nen_master_, 1>(Core::LinAlg::Initialization::zero))
 {
 }
 
@@ -1222,7 +1224,7 @@ void ScaTra::MeshtyingStrategyS2IElchSCL::setup_meshtying()
     if (s2imeshtying_condition->parameters().get<int>("S2I_KINETICS_ID") != -1)
       FOUR_C_THROW("No kinetics condition is allowed for the coupled space-charge layer problem.");
 
-    switch (s2imeshtying_condition->parameters().get<int>("INTERFACE_SIDE"))
+    switch (s2imeshtying_condition->parameters().get<Inpar::S2I::InterfaceSides>("INTERFACE_SIDE"))
     {
       case Inpar::S2I::side_slave:
       {

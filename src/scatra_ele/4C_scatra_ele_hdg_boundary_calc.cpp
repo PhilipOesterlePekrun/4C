@@ -10,6 +10,7 @@
 #include "4C_fem_general_node.hpp"
 #include "4C_scatra_ele_action.hpp"
 #include "4C_scatra_ele_hdg.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_parameter_list.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -68,7 +69,7 @@ Discret::Elements::ScaTraHDGBoundaryImplInterface::impl(const Core::Elements::El
     }
     default:
       FOUR_C_THROW(
-          "Element shape %d (%d nodes) not activated. Just do it.", ele->shape(), ele->num_node());
+          "Element shape {} ({} nodes) not activated. Just do it.", ele->shape(), ele->num_node());
       break;
   }
   return nullptr;
@@ -92,11 +93,11 @@ Discret::Elements::ScaTraHDGBoundaryImpl<distype>::instance(Core::Utils::Singlet
  *----------------------------------------------------------------------*/
 template <Core::FE::CellType distype>
 Discret::Elements::ScaTraHDGBoundaryImpl<distype>::ScaTraHDGBoundaryImpl()
-    : xyze_(true),
-      funct_(true),
-      deriv_(true),
-      unitnormal_(true),
-      velint_(true),
+    : xyze_(Core::LinAlg::Initialization::zero),
+      funct_(Core::LinAlg::Initialization::zero),
+      deriv_(Core::LinAlg::Initialization::zero),
+      unitnormal_(Core::LinAlg::Initialization::zero),
+      velint_(Core::LinAlg::Initialization::zero),
       drs_(0.0),
       fac_(0.0)
 {
@@ -109,8 +110,7 @@ template <Core::FE::CellType distype>
 int Discret::Elements::ScaTraHDGBoundaryImpl<distype>::evaluate_neumann(
     Discret::Elements::ScaTraHDGBoundary* ele, Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, Core::Elements::LocationArray& la,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseVector& elevec1)
 {
   Core::LinAlg::SerialDenseVector dummy_vec2, dummy_vec3;
   Core::LinAlg::SerialDenseMatrix dummy_mat2;
@@ -143,8 +143,8 @@ int Discret::Elements::ScaTraHDGBoundaryImpl<distype>::evaluate_neumann(
     {
       // i is the number we were searching for!!!!
       params.set<int>("face", i);
-      ele->parent_element()->evaluate(params, discretization, la, elemat1_epetra, dummy_mat2,
-          elevec1_epetra, dummy_vec2, dummy_vec3);
+      ele->parent_element()->evaluate(
+          params, discretization, la, elemat1, dummy_mat2, elevec1, dummy_vec2, dummy_vec3);
       // break;
     }
   }

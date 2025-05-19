@@ -26,7 +26,7 @@ FOUR_C_NAMESPACE_OPEN
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-CONSTRAINTS::MPConstraint3Penalty::MPConstraint3Penalty(
+Constraints::MPConstraint3Penalty::MPConstraint3Penalty(
     std::shared_ptr<Core::FE::Discretization> discr,  ///< discretization constraint lives on
     const std::string& CondName  ///< Name of condition to create constraint from
     )
@@ -55,7 +55,7 @@ CONSTRAINTS::MPConstraint3Penalty::MPConstraint3Penalty(
     std::map<int, std::shared_ptr<Core::FE::Discretization>>::iterator discriter;
     for (discriter = constraintdis_.begin(); discriter != constraintdis_.end(); discriter++)
     {
-      std::shared_ptr<Epetra_Map> newcolnodemap =
+      std::shared_ptr<Core::LinAlg::Map> newcolnodemap =
           Core::Rebalance::compute_node_col_map(*actdisc_, *discriter->second);
       actdisc_->redistribute(*(actdisc_->node_row_map()), *newcolnodemap);
       std::shared_ptr<Core::DOFSets::DofSet> newdofset =
@@ -72,11 +72,13 @@ CONSTRAINTS::MPConstraint3Penalty::MPConstraint3Penalty(
       nummyele = numele;
     }
     // initialize maps and importer
-    errormap_ = std::make_shared<Epetra_Map>(
+    errormap_ = std::make_shared<Core::LinAlg::Map>(
         numele, nummyele, 0, Core::Communication::as_epetra_comm(actdisc_->get_comm()));
     rederrormap_ = Core::LinAlg::allreduce_e_map(*errormap_);
-    errorexport_ = std::make_shared<Epetra_Export>(*rederrormap_, *errormap_);
-    errorimport_ = std::make_shared<Epetra_Import>(*rederrormap_, *errormap_);
+    errorexport_ = std::make_shared<Epetra_Export>(
+        rederrormap_->get_epetra_map(), errormap_->get_epetra_map());
+    errorimport_ = std::make_shared<Epetra_Import>(
+        rederrormap_->get_epetra_map(), errormap_->get_epetra_map());
     acterror_ = std::make_shared<Core::LinAlg::Vector<double>>(*rederrormap_);
     initerror_ = std::make_shared<Core::LinAlg::Vector<double>>(*rederrormap_);
   }
@@ -84,7 +86,7 @@ CONSTRAINTS::MPConstraint3Penalty::MPConstraint3Penalty(
 
 /*------------------------------------------------------------------------*
  *------------------------------------------------------------------------*/
-void CONSTRAINTS::MPConstraint3Penalty::initialize(const double& time)
+void Constraints::MPConstraint3Penalty::initialize(const double& time)
 {
   for (auto* cond : constrcond_)
   {
@@ -106,7 +108,7 @@ void CONSTRAINTS::MPConstraint3Penalty::initialize(const double& time)
 
 /*-----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
-void CONSTRAINTS::MPConstraint3Penalty::initialize(
+void Constraints::MPConstraint3Penalty::initialize(
     Teuchos::ParameterList& params, std::shared_ptr<Core::LinAlg::Vector<double>> systemvector)
 {
   FOUR_C_THROW("method not used for penalty formulation!");
@@ -114,7 +116,7 @@ void CONSTRAINTS::MPConstraint3Penalty::initialize(
 
 /*-----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
-void CONSTRAINTS::MPConstraint3Penalty::initialize(Teuchos::ParameterList& params)
+void Constraints::MPConstraint3Penalty::initialize(Teuchos::ParameterList& params)
 {
   const double time = params.get("total time", -1.0);
 
@@ -148,7 +150,7 @@ void CONSTRAINTS::MPConstraint3Penalty::initialize(Teuchos::ParameterList& param
 
 /*-----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
-void CONSTRAINTS::MPConstraint3Penalty::evaluate(Teuchos::ParameterList& params,
+void Constraints::MPConstraint3Penalty::evaluate(Teuchos::ParameterList& params,
     std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix1,
     std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix2,
     std::shared_ptr<Core::LinAlg::Vector<double>> systemvector1,
@@ -167,10 +169,9 @@ void CONSTRAINTS::MPConstraint3Penalty::evaluate(Teuchos::ParameterList& params,
       FOUR_C_THROW("Constraint/monitor is not an multi point constraint!");
   }
 
-  acterror_->PutScalar(0.0);
+  acterror_->put_scalar(0.0);
   std::map<int, std::shared_ptr<Core::FE::Discretization>>::iterator discriter;
   for (discriter = constraintdis_.begin(); discriter != constraintdis_.end(); discriter++)
-
     evaluate_error(*discriter->second, params, *acterror_);
 
   //    std::cout << "current error "<< *acterror_<<std::endl;
@@ -196,7 +197,7 @@ void CONSTRAINTS::MPConstraint3Penalty::evaluate(Teuchos::ParameterList& params,
 /*-----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
 std::map<int, std::shared_ptr<Core::FE::Discretization>>
-CONSTRAINTS::MPConstraint3Penalty::create_discretization_from_condition(
+Constraints::MPConstraint3Penalty::create_discretization_from_condition(
     std::shared_ptr<Core::FE::Discretization> actdisc,
     std::vector<Core::Conditions::Condition*> constrcondvec, const std::string& discret_name,
     const std::string& element_name, int& startID)
@@ -227,7 +228,7 @@ CONSTRAINTS::MPConstraint3Penalty::create_discretization_from_condition(
     const int myrank = Core::Communication::my_mpi_rank(newdis->get_comm());
     std::set<int> rownodeset;
     std::set<int> colnodeset;
-    const Epetra_Map* actnoderowmap = actdisc->node_row_map();
+    const Core::LinAlg::Map* actnoderowmap = actdisc->node_row_map();
     // get node IDs, this vector will only contain FREE nodes in the end
     std::vector<int> ngid = *((*conditer)->get_nodes());
     std::vector<int> defnv;
@@ -313,15 +314,15 @@ CONSTRAINTS::MPConstraint3Penalty::create_discretization_from_condition(
     // build unique node row map
     std::vector<int> boundarynoderowvec(rownodeset.begin(), rownodeset.end());
     rownodeset.clear();
-    Epetra_Map constraintnoderowmap(-1, boundarynoderowvec.size(), boundarynoderowvec.data(), 0,
-        Core::Communication::as_epetra_comm(newdis->get_comm()));
+    Core::LinAlg::Map constraintnoderowmap(-1, boundarynoderowvec.size(), boundarynoderowvec.data(),
+        0, Core::Communication::as_epetra_comm(newdis->get_comm()));
     boundarynoderowvec.clear();
 
     // build overlapping node column map
     std::vector<int> constraintnodecolvec(colnodeset.begin(), colnodeset.end());
     colnodeset.clear();
-    Epetra_Map constraintnodecolmap(-1, constraintnodecolvec.size(), constraintnodecolvec.data(), 0,
-        Core::Communication::as_epetra_comm(newdis->get_comm()));
+    Core::LinAlg::Map constraintnodecolmap(-1, constraintnodecolvec.size(),
+        constraintnodecolvec.data(), 0, Core::Communication::as_epetra_comm(newdis->get_comm()));
 
     constraintnodecolvec.clear();
     newdis->redistribute(constraintnoderowmap, constraintnodecolmap);
@@ -337,7 +338,7 @@ CONSTRAINTS::MPConstraint3Penalty::create_discretization_from_condition(
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-void CONSTRAINTS::MPConstraint3Penalty::evaluate_constraint(
+void Constraints::MPConstraint3Penalty::evaluate_constraint(
     std::shared_ptr<Core::FE::Discretization> disc, Teuchos::ParameterList& params,
     std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix1,
     std::shared_ptr<Core::LinAlg::SparseOperator> systemmatrix2,
@@ -407,11 +408,11 @@ void CONSTRAINTS::MPConstraint3Penalty::evaluate_constraint(
       int err = actele->evaluate(
           params, *disc, lm, elematrix1, elematrix2, elevector1, elevector2, elevector3);
       if (err)
-        FOUR_C_THROW("Proc %d: Element %d returned err=%d",
+        FOUR_C_THROW("Proc {}: Element {} returned err={}",
             Core::Communication::my_mpi_rank(disc->get_comm()), eid, err);
 
       // loadcurve business
-      const auto curvenum = cond->parameters().get<Core::IO::Noneable<int>>("curve");
+      const auto curvenum = cond->parameters().get<std::optional<int>>("curve");
       double curvefac = 1.0;
       if (curvenum.has_value() && curvenum.value() > 0 && time >= 0.0)
       {
@@ -436,7 +437,7 @@ void CONSTRAINTS::MPConstraint3Penalty::evaluate_constraint(
 
 /*-----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
-void CONSTRAINTS::MPConstraint3Penalty::evaluate_error(Core::FE::Discretization& disc,
+void Constraints::MPConstraint3Penalty::evaluate_error(Core::FE::Discretization& disc,
     Teuchos::ParameterList& params, Core::LinAlg::Vector<double>& systemvector, bool init)
 {
   if (!(disc.filled())) FOUR_C_THROW("fill_complete() was not called");
@@ -480,7 +481,7 @@ void CONSTRAINTS::MPConstraint3Penalty::evaluate_error(Core::FE::Discretization&
       int err = actele->evaluate(
           params, disc, lm, elematrix1, elematrix2, elevector1, elevector2, elevector3);
       if (err)
-        FOUR_C_THROW("Proc %d: Element %d returned err=%d",
+        FOUR_C_THROW("Proc {}: Element {} returned err={}",
             Core::Communication::my_mpi_rank(disc.get_comm()), eid, err);
     }
 
@@ -502,8 +503,8 @@ void CONSTRAINTS::MPConstraint3Penalty::evaluate_error(Core::FE::Discretization&
   }
 
   Core::LinAlg::Vector<double> acterrdist(*errormap_);
-  acterrdist.Export(systemvector, *errorexport_, Add);
-  systemvector.Import(acterrdist, *errorimport_, Insert);
+  acterrdist.export_to(systemvector, *errorexport_, Add);
+  systemvector.import(acterrdist, *errorimport_, Insert);
   return;
 }  // end of evaluate_error
 

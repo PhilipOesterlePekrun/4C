@@ -8,6 +8,7 @@
 #include "4C_utils_result_test.hpp"
 
 #include "4C_comm_mpi_utils.hpp"
+#include "4C_io_input_parameter_container.hpp"
 #include "4C_io_pstream.hpp"
 #include "4C_utils_exceptions.hpp"
 
@@ -58,8 +59,7 @@ int Core::Utils::ResultTest::compare_values(
   double tolerance = container.get<double>("TOLERANCE");
   // safety check
   if (tolerance <= 0.) FOUR_C_THROW("Tolerance for result test must be strictly positive!");
-  // name is an optional input argument!
-  auto name = container.get_or<std::string>("NAME", "");
+  auto name = container.get<std::optional<std::string>>("NAME");
 
   // return value (0 if results are correct, 1 if results are not correct)
   int ret = 0;
@@ -70,12 +70,12 @@ int Core::Utils::ResultTest::compare_values(
 
   if (type != "SPECIAL")
   {
-    msghead << std::left << std::setw(12) << container.get_or<std::string>("DIS", "");
+    msghead << std::left << std::setw(16) << container.get_or<std::string>("DIS", "");
   }
 
   msghead << std::left << std::setw(8) << quantity.c_str();
 
-  if (name != "") msghead << "(" << name << ")";
+  if (name) msghead << "(" << *name << ")";
 
   if (type != "SPECIAL")
   {
@@ -178,7 +178,7 @@ void Core::Utils::ResultTestManager::test_all(MPI_Comm comm)
 
   if (numerr > 0)
   {
-    FOUR_C_THROW("Result check failed with %d errors out of %d tests", numerr, size);
+    FOUR_C_THROW("Result check failed with {} errors out of {} tests", numerr, size);
   }
 
   /* test_count == -1 means we had a special test routine. It's thus
@@ -195,7 +195,7 @@ void Core::Utils::ResultTestManager::test_all(MPI_Comm comm)
      * FOUR_C_THROW to go off in that case. */
     if (count < size)
     {
-      FOUR_C_THROW("expected %d tests but performed %d", size, count);
+      FOUR_C_THROW("expected {} tests but performed {}", size, count);
     }
   }
 

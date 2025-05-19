@@ -12,6 +12,7 @@
 #include "4C_mat_par_bundle.hpp"
 #include "4C_red_airways_elem_params.hpp"
 #include "4C_red_airways_elementbase.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <vector>
 
@@ -115,7 +116,7 @@ void Mat::Maxwell0dAcinusDoubleExponential::unpack(Core::Communication::UnpackBu
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::Maxwell0dAcinusDoubleExponential*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
 }
@@ -129,16 +130,15 @@ void Mat::Maxwell0dAcinusDoubleExponential::unpack(Core::Communication::UnpackBu
 void Mat::Maxwell0dAcinusDoubleExponential::setup(
     const Core::IO::InputParameterContainer& container)
 {
-  e1_01_ = container.get<double>("E1_01");
-  e1_lin1_ = container.get<double>("E1_LIN1");
-  e1_exp1_ = container.get<double>("E1_EXP1");
-  tau1_ = container.get<double>("TAU1");
+  e1_01_ = *container.get<std::optional<double>>("E1_01");
+  e1_lin1_ = *container.get<std::optional<double>>("E1_LIN1");
+  e1_exp1_ = *container.get<std::optional<double>>("E1_EXP1");
+  tau1_ = *container.get<std::optional<double>>("TAU1");
 
-  e1_02_ = container.get<double>("E1_02");
-  e1_lin2_ = container.get<double>("E1_LIN2");
-  e1_exp2_ = container.get<double>("E1_EXP2");
-  tau2_ = container.get<double>("TAU2");
-  // TODO bool -variable init, in Evaluate abfragen ob init=true
+  e1_02_ = *container.get<std::optional<double>>("E1_02");
+  e1_lin2_ = *container.get<std::optional<double>>("E1_LIN2");
+  e1_exp2_ = *container.get<std::optional<double>>("E1_EXP2");
+  tau2_ = *container.get<std::optional<double>>("TAU2");
 }
 
 
@@ -171,7 +171,7 @@ void Mat::Maxwell0dAcinusDoubleExponential::evaluate(Core::LinAlg::SerialDenseVe
   // Safety check for NumOfAcini
   if (NumOfAcini < 1.0)
   {
-    FOUR_C_THROW("Acinus condition at node (%d) has zero acini");
+    FOUR_C_THROW("Acinus condition has zero acini");
   }
 
   // Calculate volume and flow difference per acinuar duct

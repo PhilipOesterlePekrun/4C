@@ -11,13 +11,12 @@
 #include "4C_fluid_utils_mapextractor.hpp"
 #include "4C_fluid_xfluid.hpp"
 #include "4C_fluid_xfluid_fluid.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_mapextractor.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_xfem_condition_manager.hpp"
 #include "4C_xfem_discretization.hpp"
-
-#include <Epetra_Map.h>
 
 #include <memory>
 #include <set>
@@ -149,7 +148,8 @@ void Adapter::XFluidFSI::apply_struct_mesh_displacement(
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-void Adapter::XFluidFSI::set_mesh_map(std::shared_ptr<const Epetra_Map> mm, const int nds_master)
+void Adapter::XFluidFSI::set_mesh_map(
+    std::shared_ptr<const Core::LinAlg::Map> mm, const int nds_master)
 {
   // check nds_master
   if (nds_master != 0) FOUR_C_THROW("nds_master is supposed to be 0 here");
@@ -187,7 +187,7 @@ void Adapter::XFluidFSI::displacement_to_velocity(
 
 #ifdef FOUR_C_ENABLE_ASSERTIONS
   // check, whether maps are the same
-  if (!fcx->Map().PointSameAs(veln->Map()))
+  if (!fcx->get_block_map().PointSameAs(veln->get_block_map()))
   {
     FOUR_C_THROW("Maps do not match, but they have to.");
   }
@@ -201,7 +201,7 @@ void Adapter::XFluidFSI::displacement_to_velocity(
    *             \ = 1 / dt   if interface time integration is first order
    */
   const double timescale = time_scaling();
-  fcx->Update(-timescale * xfluid_->dt(), *veln, timescale);
+  fcx->update(-timescale * xfluid_->dt(), *veln, timescale);
 }
 
 

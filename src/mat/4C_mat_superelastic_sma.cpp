@@ -15,6 +15,7 @@
 #include "4C_linalg_utils_densematrix_eigen.hpp"
 #include "4C_mat_par_bundle.hpp"
 #include "4C_mat_service.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -198,7 +199,7 @@ void Mat::SuperElasticSMA::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::SuperElasticSMA*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
 
@@ -376,11 +377,10 @@ void Mat::SuperElasticSMA::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
    **********************************************************
    */
   // b = F * F^T
-  Core::LinAlg::Matrix<3, 3> cauchy_green_tensor(true);
+  Core::LinAlg::Matrix<3, 3> cauchy_green_tensor(Core::LinAlg::Initialization::zero);
   cauchy_green_tensor.multiply_nt(*defgrd, *defgrd);
 
   // To compute the spectral decomposition, the Cauchy-Green tensor
-  // must be converted to Epetra format
   Core::LinAlg::SerialDenseMatrix cauchy_green_eigenvectors(3, 3);
   Core::LinAlg::SerialDenseVector cauchy_green_eigenvalues(3);
 
@@ -398,8 +398,10 @@ void Mat::SuperElasticSMA::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
    */
 
   double logarithmic_strain_volumetric;
-  Core::LinAlg::Matrix<3, 3> logarithmic_strain_deviatoric_tensor(true);
-  Core::LinAlg::Matrix<3, 3> material_scaled_load_deviatoric_tensor(true);
+  Core::LinAlg::Matrix<3, 3> logarithmic_strain_deviatoric_tensor(
+      Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 3> material_scaled_load_deviatoric_tensor(
+      Core::LinAlg::Initialization::zero);
   double logarithmic_strain_deviatoric_norm = 0.0;
   std::vector<Core::LinAlg::Matrix<3, 1>> spatial_principal_directions(true);
   spatial_principal_directions.resize(3);
@@ -415,7 +417,7 @@ void Mat::SuperElasticSMA::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
       spatial_principal_directions.at(i)(j) = cauchy_green_eigenvectors(j, i);
     }
 
-    Core::LinAlg::Matrix<3, 1> material_principal_direction(true);
+    Core::LinAlg::Matrix<3, 1> material_principal_direction(Core::LinAlg::Initialization::zero);
     material_principal_direction.multiply_nn(
         deformation_gradient_invert, spatial_principal_directions.at(i));
     material_principal_direction.scale(cauchy_green_eigenvalues(i));
@@ -557,7 +559,7 @@ void Mat::SuperElasticSMA::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
   {
     // Return back and update martensitic fraction
 
-    Core::LinAlg::Matrix<2, 1> lambda_S(true);
+    Core::LinAlg::Matrix<2, 1> lambda_S(Core::LinAlg::Initialization::zero);
 
 
     // Parameter for the damped Newton
@@ -578,11 +580,11 @@ void Mat::SuperElasticSMA::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
     {
       iter = 0;
 
-      Core::LinAlg::Matrix<2, 1> res_vec(true);
-      Core::LinAlg::Matrix<2, 1> R_k(true);
-      Core::LinAlg::Matrix<2, 1> R_p(true);
-      Core::LinAlg::Matrix<2, 2> d_R_d_lambda(true);
-      Core::LinAlg::Matrix<2, 2> d_R_d_lambda_inv(true);
+      Core::LinAlg::Matrix<2, 1> res_vec(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<2, 1> R_k(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<2, 1> R_p(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<2, 2> d_R_d_lambda(Core::LinAlg::Initialization::zero);
+      Core::LinAlg::Matrix<2, 2> d_R_d_lambda_inv(Core::LinAlg::Initialization::zero);
       lambda_S(0) = lambda_AS;
       lambda_S(1) = lambda_SA;
       Core::LinAlg::Matrix<2, 1> lambda_S_p(lambda_S);
@@ -677,7 +679,7 @@ void Mat::SuperElasticSMA::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
       }
       else
       {
-        FOUR_C_THROW("Local Newton iteration unconverged in %i iterations. Residual: %e Tol: %e",
+        FOUR_C_THROW("Local Newton iteration unconverged in {} iterations. Residual: {} Tol: {}",
             maxiter, fp, tol);
       }
     }
@@ -707,8 +709,8 @@ void Mat::SuperElasticSMA::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
   for (int i = 0; i < 3; i++) kirchhoff_stress(i, i) += kirchhoff_stress_volumetric;
 
   // Convert Kirchhoff stress tensor in the second Piola-Kirchhoff tensor
-  Core::LinAlg::Matrix<3, 3> PK2(true);
-  Core::LinAlg::Matrix<3, 3> tmp(true);
+  Core::LinAlg::Matrix<3, 3> PK2(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 3> tmp(Core::LinAlg::Initialization::zero);
 
   tmp.multiply_nn(deformation_gradient_invert, kirchhoff_stress);
   PK2.multiply_nt(tmp, deformation_gradient_invert);
@@ -832,15 +834,15 @@ void Mat::SuperElasticSMA::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
 
   if (xi_S > 0.0)
   {
-    Core::LinAlg::Matrix<3, 3> eye(true);
+    Core::LinAlg::Matrix<3, 3> eye(Core::LinAlg::Initialization::zero);
     for (int i = 0; i < 3; i++) eye(i, i) = 1.0;
-    Core::LinAlg::Matrix<6, 6> cmat_eul(true);
-    Core::LinAlg::Matrix<6, 6> cmat_eul_tmp(true);
-    Core::LinAlg::Matrix<6, 6> cmat_eul_1(true);
-    Core::LinAlg::Matrix<6, 6> cmat_eul_2(true);
-    Core::LinAlg::Matrix<6, 6> cmat_eul_3(true);
-    Core::LinAlg::Matrix<6, 6> cmat_eul_4(true);
-    Core::LinAlg::Matrix<6, 6> cmat_eul_4_tmp(true);
+    Core::LinAlg::Matrix<6, 6> cmat_eul(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<6, 6> cmat_eul_tmp(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<6, 6> cmat_eul_1(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<6, 6> cmat_eul_2(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<6, 6> cmat_eul_3(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<6, 6> cmat_eul_4(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<6, 6> cmat_eul_4_tmp(Core::LinAlg::Initialization::zero);
 
     // Build up (1 (x) 1) and scale with K*
     for (int i = 0; i < 3; i++)
@@ -884,7 +886,7 @@ void Mat::SuperElasticSMA::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
     Core::LinAlg::Matrix<3, 3> tmp2;
 
     // 3x3 2nd-order identity matrix
-    Core::LinAlg::Matrix<3, 3> id2(true);
+    Core::LinAlg::Matrix<3, 3> id2(Core::LinAlg::Initialization::zero);
     Core::LinAlg::Matrix<3, 3> Idev;
     for (int i = 0; i < 3; i++)
     {
@@ -904,7 +906,7 @@ void Mat::SuperElasticSMA::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
     for (int i = 0; i < 3; i++)
       for (int j = 0; j < 3; j++) D_ep_principal(i, j) += matdata.bulk;
 
-    Core::LinAlg::Matrix<3, 1> dev_KH(true);
+    Core::LinAlg::Matrix<3, 1> dev_KH(Core::LinAlg::Initialization::zero);
     Core::LinAlg::SerialDenseVector lambda_trial_square(3);
     std::vector<Core::LinAlg::Matrix<3, 1>> material_principal_directions;
     material_principal_directions.resize(3);

@@ -57,7 +57,7 @@ void Core::FE::assemble_nodal_element_count(
 {
   for (int n = 0; n < ele.num_node(); ++n)
   {
-    const int lid = global_count.Map().LID(ele.node_ids()[n]);
+    const int lid = global_count.get_block_map().LID(ele.node_ids()[n]);
 
     if (lid != -1)
     {
@@ -160,8 +160,8 @@ void Core::FE::extrapolate_gauss_point_quantity_to_nodes(Core::Elements::Element
     }
     break;
     default:
-      FOUR_C_THROW("Your discretization type (%s) is not yet in the list!",
-          Core::FE::cell_type_to_string(ele.shape()).c_str());
+      FOUR_C_THROW("Your discretization type ({}) is not yet in the list!",
+          Core::FE::cell_type_to_string(ele.shape()));
   }
 }
 

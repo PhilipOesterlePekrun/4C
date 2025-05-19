@@ -231,9 +231,9 @@ bool Solid::ModelEvaluator::Contact::assemble_force(
     // --- constr. - block --------------------------------------------------
     block_vec_ptr = strategy().get_rhs_block_ptr(CONTACT::VecBlockType::constraint);
     if (!block_vec_ptr) return true;
-    Core::LinAlg::Vector<double> tmp(f.Map());
+    Core::LinAlg::Vector<double> tmp(f.get_block_map());
     Core::LinAlg::export_to(*block_vec_ptr, tmp);
-    f.Update(1., tmp, 1.);
+    f.update(1., tmp, 1.);
   }
 
   return true;
@@ -279,7 +279,7 @@ bool Solid::ModelEvaluator::Contact::assemble_jacobian(
   // ---------------------------------------------------------------------
   // saddle-point system of equations or no contact contributions
   // ---------------------------------------------------------------------
-  else if (strategy().system_type() == Inpar::CONTACT::system_saddlepoint)
+  else if (strategy().system_type() == CONTACT::SystemType::saddlepoint)
   {
     // --- Kdd - block ---------------------------------------------------
     block_ptr =
@@ -323,7 +323,7 @@ bool Solid::ModelEvaluator::Contact::assemble_jacobian(
     else
     {
       Core::LinAlg::Vector<double> ones(global_state().block_map(type()), false);
-      err = ones.PutScalar(1.0);
+      err = ones.put_scalar(1.0);
       block_ptr = std::make_shared<Core::LinAlg::SparseMatrix>(ones);
       global_state().assign_model_block(jac, *block_ptr, type(), Solid::MatBlockType::lm_lm);
     }
@@ -383,7 +383,7 @@ void Solid::ModelEvaluator::Contact::update_step_state(const double& timefac_n)
   {
     std::shared_ptr<Core::LinAlg::Vector<double>>& fstructold_ptr =
         global_state().get_fstructure_old();
-    fstructold_ptr->Update(timefac_n, *strcontactrhs_ptr, 1.0);
+    fstructold_ptr->update(timefac_n, *strcontactrhs_ptr, 1.0);
   }
 
   /* Note: DisN() and dis_np() have the same value at this stage, since
@@ -480,18 +480,18 @@ void Solid::ModelEvaluator::Contact::output_step_state(
 
   // evaluate active set and slip set
   Core::LinAlg::Vector<double> activeset(*strategy().active_row_nodes());
-  activeset.PutScalar(1.0);
+  activeset.put_scalar(1.0);
   if (strategy().is_friction())
   {
     Core::LinAlg::Vector<double> slipset(*strategy().slip_row_nodes());
-    slipset.PutScalar(1.0);
+    slipset.put_scalar(1.0);
     Core::LinAlg::Vector<double> slipsetexp(*strategy().active_row_nodes());
     Core::LinAlg::export_to(slipset, slipsetexp);
-    activeset.Update(1.0, slipsetexp, 1.0);
+    activeset.update(1.0, slipsetexp, 1.0);
   }
 
   // export to problem node row map
-  std::shared_ptr<const Epetra_Map> problemnodes = strategy().problem_nodes();
+  std::shared_ptr<const Core::LinAlg::Map> problemnodes = strategy().problem_nodes();
   std::shared_ptr<Core::LinAlg::Vector<double>> activesetexp =
       std::make_shared<Core::LinAlg::Vector<double>>(*problemnodes);
   Core::LinAlg::export_to(activeset, *activesetexp);
@@ -499,16 +499,16 @@ void Solid::ModelEvaluator::Contact::output_step_state(
   if (strategy().wear_both_discrete())
   {
     Core::LinAlg::Vector<double> mactiveset(*strategy().master_active_nodes());
-    mactiveset.PutScalar(1.0);
+    mactiveset.put_scalar(1.0);
     Core::LinAlg::Vector<double> slipset(*strategy().master_slip_nodes());
-    slipset.PutScalar(1.0);
+    slipset.put_scalar(1.0);
     Core::LinAlg::Vector<double> slipsetexp(*strategy().master_active_nodes());
     Core::LinAlg::export_to(slipset, slipsetexp);
-    mactiveset.Update(1.0, slipsetexp, 1.0);
+    mactiveset.update(1.0, slipsetexp, 1.0);
 
     Core::LinAlg::Vector<double> mactivesetexp(*problemnodes);
     Core::LinAlg::export_to(mactiveset, mactivesetexp);
-    activesetexp->Update(1.0, mactivesetexp, 1.0);
+    activesetexp->update(1.0, mactivesetexp, 1.0);
   }
 
   iowriter.write_vector("activeset", activesetexp, Core::IO::nodevector);
@@ -518,7 +518,7 @@ void Solid::ModelEvaluator::Contact::output_step_state(
   // *********************************************************************
 
   // export to problem dof row map
-  std::shared_ptr<const Epetra_Map> problemdofs = strategy().problem_dofs();
+  std::shared_ptr<const Core::LinAlg::Map> problemdofs = strategy().problem_dofs();
 
   // normal direction
   std::shared_ptr<const Core::LinAlg::Vector<double>> normalstresses =
@@ -623,7 +623,8 @@ const CONTACT::AbstractStrategy& Solid::ModelEvaluator::Contact::strategy() cons
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-std::shared_ptr<const Epetra_Map> Solid::ModelEvaluator::Contact::get_block_dof_row_map_ptr() const
+std::shared_ptr<const Core::LinAlg::Map> Solid::ModelEvaluator::Contact::get_block_dof_row_map_ptr()
+    const
 {
   Global::Problem* problem = Global::Problem::instance();
 
@@ -632,10 +633,10 @@ std::shared_ptr<const Epetra_Map> Solid::ModelEvaluator::Contact::get_block_dof_
     return global_state().dof_row_map();
   else
   {
-    auto systype = Teuchos::getIntegralValue<Inpar::CONTACT::SystemType>(
-        problem->contact_dynamic_params(), "SYSTEM");
+    auto systype =
+        Teuchos::getIntegralValue<CONTACT::SystemType>(problem->contact_dynamic_params(), "SYSTEM");
 
-    if (systype == Inpar::CONTACT::system_saddlepoint)
+    if (systype == CONTACT::SystemType::saddlepoint)
       return strategy().lin_system_lm_dof_row_map_ptr();
     else
       return global_state().dof_row_map();
@@ -649,15 +650,15 @@ Solid::ModelEvaluator::Contact::get_current_solution_ptr() const
 {
   // TODO: this should be removed!
   Global::Problem* problem = Global::Problem::instance();
-  auto systype = Teuchos::getIntegralValue<Inpar::CONTACT::SystemType>(
-      problem->contact_dynamic_params(), "SYSTEM");
-  if (systype == Inpar::CONTACT::system_condensed) return nullptr;
+  auto systype =
+      Teuchos::getIntegralValue<CONTACT::SystemType>(problem->contact_dynamic_params(), "SYSTEM");
+  if (systype == CONTACT::SystemType::condensed) return nullptr;
 
   if (strategy().lagrange_multiplier_np(false) != nullptr)
   {
     std::shared_ptr<Core::LinAlg::Vector<double>> curr_lm_ptr =
         std::make_shared<Core::LinAlg::Vector<double>>(*strategy().lagrange_multiplier_np(false));
-    if (curr_lm_ptr) curr_lm_ptr->ReplaceMap(strategy().lm_dof_row_map(false));
+    if (curr_lm_ptr) curr_lm_ptr->replace_map(strategy().lm_dof_row_map(false));
 
     extend_lagrange_multiplier_domain(curr_lm_ptr);
 
@@ -673,15 +674,15 @@ std::shared_ptr<const Core::LinAlg::Vector<double>>
 Solid::ModelEvaluator::Contact::get_last_time_step_solution_ptr() const
 {
   Global::Problem* problem = Global::Problem::instance();
-  auto systype = Teuchos::getIntegralValue<Inpar::CONTACT::SystemType>(
-      problem->contact_dynamic_params(), "SYSTEM");
-  if (systype == Inpar::CONTACT::system_condensed) return nullptr;
+  auto systype =
+      Teuchos::getIntegralValue<CONTACT::SystemType>(problem->contact_dynamic_params(), "SYSTEM");
+  if (systype == CONTACT::SystemType::condensed) return nullptr;
 
   if (strategy().lagrange_multiplier_n(false) == nullptr) return nullptr;
 
   std::shared_ptr<Core::LinAlg::Vector<double>> old_lm_ptr =
       std::make_shared<Core::LinAlg::Vector<double>>(*strategy().lagrange_multiplier_n(false));
-  if (old_lm_ptr) old_lm_ptr->ReplaceMap(strategy().lm_dof_row_map(false));
+  if (old_lm_ptr) old_lm_ptr->replace_map(strategy().lm_dof_row_map(false));
 
   extend_lagrange_multiplier_domain(old_lm_ptr);
 
@@ -828,7 +829,7 @@ Solid::ModelEvaluator::Contact::assemble_force_of_models(
 {
   std::shared_ptr<::NOX::Epetra::Vector> force_nox = global_state().create_global_vector();
   {
-    Core::LinAlg::VectorView force_view(force_nox->getEpetraVector());
+    Core::LinAlg::View force_view(force_nox->getEpetraVector());
     integrator().assemble_force(force_view, without_these_models);
   }
 

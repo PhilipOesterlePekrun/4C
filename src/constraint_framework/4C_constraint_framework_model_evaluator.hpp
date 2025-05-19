@@ -17,7 +17,7 @@
 
 FOUR_C_NAMESPACE_OPEN
 
-namespace CONSTRAINTS::SUBMODELEVALUATOR
+namespace Constraints::SubmodelEvaluator
 {
   class RveMultiPointConstraintManager;
 
@@ -37,13 +37,13 @@ namespace Solid
      * these applications and their submodel evaluators is still a
      * work in progress.
      */
-    class Constraints : public Generic
+    class Constraint : public Generic
     {
      public:
       using SubmodelevaluatorVector =
-          std::vector<std::shared_ptr<CONSTRAINTS::SUBMODELEVALUATOR::ConstraintBase>>;
+          std::vector<std::shared_ptr<Constraints::SubmodelEvaluator::ConstraintBase>>;
 
-      Constraints() = default;
+      Constraint() = default;
 
       /*! \brief Setup of the model evaluator and submodel evaluator
        *
@@ -109,7 +109,7 @@ namespace Solid
 
       void runtime_output_step_state() const override;
 
-      std::shared_ptr<const Epetra_Map> get_block_dof_row_map_ptr() const override;
+      std::shared_ptr<const Core::LinAlg::Map> get_block_dof_row_map_ptr() const override;
 
       std::shared_ptr<const Core::LinAlg::Vector<double>> get_current_solution_ptr() const override;
 
@@ -144,7 +144,7 @@ namespace Solid
       //!@name data for submodel management
       //! @{
       /// active model types for the model evaluator
-      std::set<enum Inpar::CONSTRAINTS::SubModelType> submodeltypes_;
+      std::set<enum Inpar::Constraints::SubModelType> submodeltypes_;
 
       //! vector of submodelevaluators
       SubmodelevaluatorVector sub_model_vec_ptr_;

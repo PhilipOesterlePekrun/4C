@@ -17,11 +17,11 @@
 #include "4C_scatra_ele_boundary_calc_elch_NP.hpp"
 #include "4C_scatra_ele_boundary_calc_loma.hpp"
 #include "4C_scatra_ele_boundary_calc_poro.hpp"
-#include "4C_scatra_ele_boundary_calc_refconc_reac.hpp"
 #include "4C_scatra_ele_boundary_calc_std.hpp"
 #include "4C_scatra_ele_boundary_calc_sti_electrode.hpp"
 #include "4C_scatra_ele_boundary_interface.hpp"
 #include "4C_scatra_ele_calc.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -110,7 +110,7 @@ Discret::Elements::ScaTraBoundaryInterface* Discret::Elements::ScaTraBoundaryFac
     default:
     {
       FOUR_C_THROW(
-          "Element shape %d (%d nodes) not activated. Just do it.", ele->shape(), ele->num_node());
+          "Element shape {} ({} nodes) not activated. Just do it.", ele->shape(), ele->num_node());
       break;
     }
   }
@@ -179,12 +179,6 @@ Discret::Elements::ScaTraBoundaryFactory::define_problem_type(
     case Inpar::ScaTra::impltype_pororeac:
     {
       return Discret::Elements::ScaTraEleBoundaryCalcPoro<distype, probdim>::instance(
-          numdofpernode, numscal, disname);
-      break;
-    }
-    case Inpar::ScaTra::impltype_refconcreac:
-    {
-      return Discret::Elements::ScaTraEleBoundaryCalcRefConcReac<distype, probdim>::instance(
           numdofpernode, numscal, disname);
       break;
     }

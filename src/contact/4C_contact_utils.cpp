@@ -7,14 +7,15 @@
 
 #include "4C_contact_utils.hpp"
 
+#include "4C_contact_input.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_element.hpp"
 #include "4C_fem_general_node.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_inpar_mortar.hpp"
 #include "4C_io_every_iteration_writer.hpp"
 #include "4C_linalg_serialdensematrix.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 
@@ -39,7 +40,7 @@ std::string CONTACT::vec_block_type_to_str(const CONTACT::VecBlockType bt)
     case VecBlockType::elch:
       return "elch";
     default:
-      FOUR_C_THROW("Unknown block type %d", bt);
+      FOUR_C_THROW("Unknown block type {}", bt);
   }
 }
 
@@ -139,7 +140,7 @@ void CONTACT::Utils::get_contact_condition_groups(
     }
 
     // now we should have found a group of conditions
-    if (!foundit) FOUR_C_THROW("Cannot find matching contact condition for id %i", groupid1);
+    if (!foundit) FOUR_C_THROW("Cannot find matching contact condition for id {}", groupid1);
 
     // see whether we found this group before
     bool foundbefore = false;
@@ -331,11 +332,11 @@ void CONTACT::Utils::get_initialization_info(bool& Two_half_pass,
         (problemtype != Core::ProblemType::fpsi_xfem) and (problemtype != Core::ProblemType::ssi))
       FOUR_C_THROW(
           "two half pass algorithm only implemented in structural, fsi/fpsi and ssi problems");
-    if (Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(contact, "STRATEGY") !=
-        Inpar::CONTACT::solution_nitsche)
+    if (Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(contact, "STRATEGY") !=
+        CONTACT::SolvingStrategy::nitsche)
       FOUR_C_THROW("two half pass algorithm only with nitsche contact formulation");
-    if (Teuchos::getIntegralValue<Inpar::CONTACT::NitscheWeighting>(contact, "NITSCHE_WEIGHTING") !=
-        Inpar::CONTACT::NitWgt_harmonic)
+    if (Teuchos::getIntegralValue<CONTACT::NitscheWeighting>(contact, "NITSCHE_WEIGHTING") !=
+        CONTACT::NitscheWeighting::harmonic)
       FOUR_C_THROW("two half pass algorithm only with harmonic weighting");
   }
 
@@ -456,22 +457,21 @@ void CONTACT::Utils::DbcHandler::detect_dbc_slave_nodes_and_elements(
 
       const Core::Conditions::Condition* sl_cond = ccond_grp[i];
 
-      const int dbc_handling_id = sl_cond->parameters().get<int>("DbcHandling");
-      const auto dbc_handling = static_cast<Inpar::Mortar::DBCHandling>(dbc_handling_id);
-
+      const auto dbc_handling =
+          sl_cond->parameters().get<Inpar::Mortar::DBCHandling>("DbcHandling");
       switch (dbc_handling)
       {
-        case Inpar::Mortar::DBCHandling::remove_dbc_nodes_from_slave_side:
+        case Inpar::Mortar::DBCHandling::RemoveDBCSlaveNodes:
         {
           sl_conds.push_back(sl_cond);
           break;
         }
-        case Inpar::Mortar::DBCHandling::do_nothing:
+        case Inpar::Mortar::DBCHandling::DoNothing:
         {
           break;
         }
         default:
-          FOUR_C_THROW("Unknown dbc_handlin enum %d", dbc_handling);
+          FOUR_C_THROW("Unknown dbc_handlin enum {}", dbc_handling);
       }
     }
   }

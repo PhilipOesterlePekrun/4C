@@ -10,6 +10,7 @@
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_element.hpp"
 #include "4C_fem_general_node.hpp"
+#include "4C_io_input_parameter_container.hpp"
 #include "4C_red_airways_implicitintegration.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -49,7 +50,7 @@ void Airway::RedAirwayResultTest::test_node(
 
   if (isnodeofanybody == 0)
   {
-    FOUR_C_THROW("Node %d does not belong to discretisation %s", node + 1, dis_->name().c_str());
+    FOUR_C_THROW("Node {} does not belong to discretisation {}", node + 1, dis_->name());
   }
   else
   {
@@ -61,7 +62,7 @@ void Airway::RedAirwayResultTest::test_node(
       if (actnode->owner() != Core::Communication::my_mpi_rank(dis_->get_comm())) return;
 
       double result = 0.;
-      const Epetra_BlockMap& nodemap = mynodesol_pressure_->Map();
+      const Epetra_BlockMap& nodemap = mynodesol_pressure_->get_block_map();
       std::string position = container.get<std::string>("QUANTITY");
 
       // test result value of single scalar field
@@ -80,8 +81,7 @@ void Airway::RedAirwayResultTest::test_node(
       // test result values for a system of scalars
       else
       {
-        FOUR_C_THROW(
-            "Quantity '%s' not supported in result-test of red_airway problems", position.c_str());
+        FOUR_C_THROW("Quantity '{}' not supported in result-test of red_airway problems", position);
       }
 
       nerr += compare_values(result, "NODE", container);
@@ -112,7 +112,7 @@ void Airway::RedAirwayResultTest::test_element(
 
   if (iselementofanybody == 0)
   {
-    FOUR_C_THROW("Node %d does not belong to discretisation %s", element + 1, dis_->name().c_str());
+    FOUR_C_THROW("Node {} does not belong to discretisation {}", element + 1, dis_->name());
   }
   else
   {
@@ -124,7 +124,7 @@ void Airway::RedAirwayResultTest::test_element(
       if (actelement->owner() != Core::Communication::my_mpi_rank(dis_->get_comm())) return;
 
       double result = 0.;
-      const Epetra_BlockMap& elementmap = myelemsol_acinivol_->Map();
+      const Epetra_BlockMap& elementmap = myelemsol_acinivol_->get_block_map();
       std::string position = container.get<std::string>("QUANTITY");
       if (position == "pressure_external")
       {
@@ -149,7 +149,7 @@ void Airway::RedAirwayResultTest::test_element(
       else
       {
         FOUR_C_THROW(
-            "Quantity '%s' not supported in result-test of red_airway problems.", position.c_str());
+            "Quantity '{}' not supported in result-test of red_airway problems.", position);
       }
 
       nerr += compare_values(result, "ELEMENT", container);

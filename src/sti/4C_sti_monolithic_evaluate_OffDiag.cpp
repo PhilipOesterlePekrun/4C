@@ -29,10 +29,10 @@ FOUR_C_NAMESPACE_OPEN
 STI::ScatraThermoOffDiagCoupling::ScatraThermoOffDiagCoupling(
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> block_map_thermo,
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> block_map_thermo_interface,
-    std::shared_ptr<const Epetra_Map> full_map_scatra,
-    std::shared_ptr<const Epetra_Map> full_map_thermo,
-    std::shared_ptr<const Epetra_Map> interface_map_scatra,
-    std::shared_ptr<const Epetra_Map> interface_map_thermo, bool isale,
+    std::shared_ptr<const Core::LinAlg::Map> full_map_scatra,
+    std::shared_ptr<const Core::LinAlg::Map> full_map_thermo,
+    std::shared_ptr<const Core::LinAlg::Map> interface_map_scatra,
+    std::shared_ptr<const Core::LinAlg::Map> interface_map_thermo, bool isale,
     std::shared_ptr<const ScaTra::MeshtyingStrategyS2I> meshtying_strategy_scatra,
     std::shared_ptr<const ScaTra::MeshtyingStrategyS2I> meshtying_strategy_thermo,
     std::shared_ptr<Adapter::ScaTraBaseAlgorithm> scatra,
@@ -177,10 +177,10 @@ STI::ScatraThermoOffDiagCouplingMatchingNodes::ScatraThermoOffDiagCouplingMatchi
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> block_map_thermo,
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> block_map_thermo_interface,
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> block_map_thermo_interface_slave,
-    std::shared_ptr<const Epetra_Map> full_map_scatra,
-    std::shared_ptr<const Epetra_Map> full_map_thermo,
-    std::shared_ptr<const Epetra_Map> interface_map_scatra,
-    std::shared_ptr<const Epetra_Map> interface_map_thermo, bool isale,
+    std::shared_ptr<const Core::LinAlg::Map> full_map_scatra,
+    std::shared_ptr<const Core::LinAlg::Map> full_map_thermo,
+    std::shared_ptr<const Core::LinAlg::Map> interface_map_scatra,
+    std::shared_ptr<const Core::LinAlg::Map> interface_map_thermo, bool isale,
     std::shared_ptr<const ScaTra::MeshtyingStrategyS2I> meshtying_strategy_scatra,
     std::shared_ptr<const ScaTra::MeshtyingStrategyS2I> meshtying_strategy_thermo,
     std::shared_ptr<Adapter::ScaTraBaseAlgorithm> scatra,
@@ -310,7 +310,7 @@ void STI::ScatraThermoOffDiagCouplingMatchingNodes::evaluate_scatra_thermo_inter
   for (const auto& kinetics_slave_cond :
       meshtying_strategy_scatra()->kinetics_conditions_meshtying_slave_side())
   {
-    if (kinetics_slave_cond.second->parameters().get<int>("KINETIC_MODEL") !=
+    if (kinetics_slave_cond.second->parameters().get<Inpar::S2I::KineticModels>("KINETIC_MODEL") !=
         static_cast<int>(Inpar::S2I::kinetics_nointerfaceflux))
     {
       // collect condition specific data and store to scatra boundary parameter class
@@ -408,7 +408,7 @@ void STI::ScatraThermoOffDiagCouplingMatchingNodes::copy_slave_to_master_scatra_
 
       // finalize master matrix
       mastermatrix->complete(
-          *interface_map_thermo(), *meshtying_strategy_scatra()->interface_maps()->Map(2));
+          *interface_map_thermo(), *meshtying_strategy_scatra()->interface_maps()->map(2));
 
       break;
     }
@@ -492,7 +492,7 @@ void STI::ScatraThermoOffDiagCouplingMatchingNodes::evaluate_off_diag_block_ther
   for (const auto& kinetics_slave_cond :
       meshtying_strategy_thermo()->kinetics_conditions_meshtying_slave_side())
   {
-    if (kinetics_slave_cond.second->parameters().get<int>("KINETIC_MODEL") !=
+    if (kinetics_slave_cond.second->parameters().get<Inpar::S2I::KineticModels>("KINETIC_MODEL") !=
         static_cast<int>(Inpar::S2I::kinetics_nointerfaceflux))
     {
       // collect condition specific data and store to scatra boundary parameter class
@@ -586,10 +586,10 @@ void STI::ScatraThermoOffDiagCouplingMatchingNodes::evaluate_off_diag_block_ther
 STI::ScatraThermoOffDiagCouplingMortarStandard::ScatraThermoOffDiagCouplingMortarStandard(
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> block_map_thermo,
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> block_map_thermo_interface,
-    std::shared_ptr<const Epetra_Map> full_map_scatra,
-    std::shared_ptr<const Epetra_Map> full_map_thermo,
-    std::shared_ptr<const Epetra_Map> interface_map_scatra,
-    std::shared_ptr<const Epetra_Map> interface_map_thermo, bool isale,
+    std::shared_ptr<const Core::LinAlg::Map> full_map_scatra,
+    std::shared_ptr<const Core::LinAlg::Map> full_map_thermo,
+    std::shared_ptr<const Core::LinAlg::Map> interface_map_scatra,
+    std::shared_ptr<const Core::LinAlg::Map> interface_map_thermo, bool isale,
     std::shared_ptr<const ScaTra::MeshtyingStrategyS2I> meshtying_strategy_scatra,
     std::shared_ptr<const ScaTra::MeshtyingStrategyS2I> meshtying_strategy_thermo,
     std::shared_ptr<Adapter::ScaTraBaseAlgorithm> scatra,
@@ -664,7 +664,8 @@ void STI::ScatraThermoOffDiagCouplingMortarStandard::
   for (const auto& condition : conditions)
   {
     // consider conditions for slave side only
-    if (condition->parameters().get<int>("INTERFACE_SIDE") == Inpar::S2I::side_slave)
+    if (condition->parameters().get<Inpar::S2I::InterfaceSides>("INTERFACE_SIDE") ==
+        Inpar::S2I::side_slave)
     {
       // add condition to parameter list
       condparams.set<Core::Conditions::Condition*>("condition", condition);
@@ -681,7 +682,7 @@ void STI::ScatraThermoOffDiagCouplingMortarStandard::
 
   // finalize auxiliary system matrices
   mastermatrix_sparse->complete(
-      *interface_map_thermo(), *meshtying_strategy_scatra()->interface_maps()->Map(2));
+      *interface_map_thermo(), *meshtying_strategy_scatra()->interface_maps()->map(2));
 
   std::shared_ptr<Core::LinAlg::SparseOperator> mastermatrix(nullptr);
   switch (scatra_field()->matrix_type())
@@ -701,7 +702,7 @@ void STI::ScatraThermoOffDiagCouplingMortarStandard::
     case Core::LinAlg::MatrixType::sparse:
     {
       slavematrix->complete(
-          *interface_map_thermo(), *meshtying_strategy_scatra()->interface_maps()->Map(1));
+          *interface_map_thermo(), *meshtying_strategy_scatra()->interface_maps()->map(1));
       mastermatrix = mastermatrix_sparse;
 
       break;
@@ -811,7 +812,8 @@ void STI::ScatraThermoOffDiagCouplingMortarStandard::
   for (const auto& condition : conditions)
   {
     // consider conditions for slave side only
-    if (condition->parameters().get<int>("INTERFACE_SIDE") == Inpar::S2I::side_slave)
+    if (condition->parameters().get<Inpar::S2I::InterfaceSides>("INTERFACE_SIDE") ==
+        Inpar::S2I::side_slave)
     {
       // add condition to parameter list
       condparams.set<Core::Conditions::Condition*>("condition", condition);
@@ -838,7 +840,7 @@ void STI::ScatraThermoOffDiagCouplingMortarStandard::
     case Core::LinAlg::MatrixType::sparse:
     {
       slavematrix->complete(
-          *interface_map_scatra(), *meshtying_strategy_thermo()->interface_maps()->Map(1));
+          *interface_map_scatra(), *meshtying_strategy_thermo()->interface_maps()->map(1));
       break;
     }
 
@@ -889,10 +891,10 @@ std::shared_ptr<STI::ScatraThermoOffDiagCoupling> STI::build_scatra_thermo_off_d
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> block_map_thermo,
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> block_map_thermo_interface,
     std::shared_ptr<const Core::LinAlg::MultiMapExtractor> block_map_thermo_interface_slave,
-    std::shared_ptr<const Epetra_Map> full_map_scatra,
-    std::shared_ptr<const Epetra_Map> full_map_thermo,
-    std::shared_ptr<const Epetra_Map> interface_map_scatra,
-    std::shared_ptr<const Epetra_Map> interface_map_thermo, bool isale,
+    std::shared_ptr<const Core::LinAlg::Map> full_map_scatra,
+    std::shared_ptr<const Core::LinAlg::Map> full_map_thermo,
+    std::shared_ptr<const Core::LinAlg::Map> interface_map_scatra,
+    std::shared_ptr<const Core::LinAlg::Map> interface_map_thermo, bool isale,
     std::shared_ptr<const ScaTra::MeshtyingStrategyS2I> meshtying_strategy_scatra,
     std::shared_ptr<const ScaTra::MeshtyingStrategyS2I> meshtying_strategy_thermo,
     std::shared_ptr<Adapter::ScaTraBaseAlgorithm> scatra,

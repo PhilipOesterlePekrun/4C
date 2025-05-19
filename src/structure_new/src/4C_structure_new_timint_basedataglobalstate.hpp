@@ -73,7 +73,7 @@ namespace Solid
      * jacobian (incl. the constraint blocks, if a saddle point system should be
      * solved).
      *
-     * \author Michael Hiermeier */
+     * */
     class BaseDataGlobalState
     {
      public:
@@ -93,7 +93,7 @@ namespace Solid
 
       /** \brief copy the init information only and set the issetup flag to false
        *
-       *  \date 02/17 \author hiermeier */
+       */
       virtual BaseDataGlobalState& operator=(const BaseDataGlobalState& source);
 
       /*! \brief Initialize class variables
@@ -175,7 +175,7 @@ namespace Solid
        *  \param mt (in)  : Model type of the desired block.
        *  \param bt (in)  : Desired matrix block type.
        *
-       *  \author hiermeier \date 04/17 */
+       *  */
       std::shared_ptr<const Core::LinAlg::SparseMatrix> get_jacobian_block(
           const Inpar::Solid::ModelType mt, const MatBlockType bt) const;
 
@@ -212,7 +212,7 @@ namespace Solid
           const Core::LinAlg::SparseMatrix& matrix, const Inpar::Solid::ModelType& mt,
           const MatBlockType& bt) const
       {
-        assign_model_block(jac, matrix, mt, bt, Core::LinAlg::View);
+        assign_model_block(jac, matrix, mt, bt, Core::LinAlg::DataAccess::View);
       };
       void assign_model_block(Core::LinAlg::SparseOperator& jac,
           const Core::LinAlg::SparseMatrix& matrix, const Inpar::Solid::ModelType& mt,
@@ -296,23 +296,23 @@ namespace Solid
       ///@{
 
       /// dof map of vector of unknowns
-      virtual std::shared_ptr<const Epetra_Map> dof_row_map() const;
+      virtual std::shared_ptr<const Core::LinAlg::Map> dof_row_map() const;
 
       /// dof map of vector of unknowns
       /// method for multiple dofsets
-      virtual std::shared_ptr<const Epetra_Map> dof_row_map(unsigned nds) const;
+      virtual std::shared_ptr<const Core::LinAlg::Map> dof_row_map(unsigned nds) const;
 
       /// view of dof map of vector of unknowns
-      virtual const Epetra_Map* dof_row_map_view() const;
+      virtual const Core::LinAlg::Map* dof_row_map_view() const;
 
       /// view of dof map of vector of additive unknowns
       /* in case we have non-additve DoFs in the structure discretization
        * (e.g. rotation vector DoFs of beams), this method is overloaded */
-      const Epetra_Map* additive_dof_row_map_view() const;
+      const Core::LinAlg::Map* additive_dof_row_map_view() const;
 
       /// view of dof map of vector of rotation vector unknowns
       /* (e.g. rotation vector DoFs of beams), this method is overloaded */
-      const Epetra_Map* rot_vec_dof_row_map_view() const;
+      const Core::LinAlg::Map* rot_vec_dof_row_map_view() const;
 
       ///@}
 
@@ -575,27 +575,19 @@ namespace Solid
       /// @name Access saddle-point system information
       /// @{
 
-      /** \brief Returns Epetra_Map pointer of the given model
+      /** \brief Returns Core::LinAlg::Map pointer of the given model
        *
        *  If the given model is not found, nullptr is returned. */
-      std::shared_ptr<const Epetra_Map> block_map_ptr(const Inpar::Solid::ModelType& mt) const
+      std::shared_ptr<const Core::LinAlg::Map> block_map_ptr(
+          const Inpar::Solid::ModelType& mt) const
       {
         if (model_maps_.find(mt) != model_maps_.end()) return model_maps_.at(mt);
 
         return nullptr;
       };
 
-      /// Returns Epetra_Map of the given model
-      Epetra_Map block_map(const Inpar::Solid::ModelType& mt) const
-      {
-        if (model_maps_.find(mt) == model_maps_.end())
-          FOUR_C_THROW(
-              "There is no block map for the given "
-              "modeltype \"%s\".",
-              Inpar::Solid::model_type_string(mt).c_str());
-
-        return *(model_maps_.at(mt));
-      };
+      /// Returns Core::LinAlg::Map of the given model
+      Core::LinAlg::Map block_map(const Inpar::Solid::ModelType& mt) const;
 
       /** \brief Returns the Block id of the given model type.
        *
@@ -615,13 +607,13 @@ namespace Solid
       };
 
       /// Returns global problem map pointer
-      std::shared_ptr<const Epetra_Map> global_problem_map_ptr() const
+      std::shared_ptr<const Core::LinAlg::Map> global_problem_map_ptr() const
       {
         return gproblem_map_ptr_;
       };
 
       /// Returns global problem map
-      const Epetra_Map& global_problem_map() const
+      const Core::LinAlg::Map& global_problem_map() const
       {
         FOUR_C_ASSERT(gproblem_map_ptr_, "The global problem map is not defined!");
         return *gproblem_map_ptr_;
@@ -898,15 +890,15 @@ namespace Solid
 
      protected:
       /// mutable access to the global problem map
-      std::shared_ptr<Epetra_Map>& global_problem_map_ptr() { return gproblem_map_ptr_; }
+      std::shared_ptr<Core::LinAlg::Map>& global_problem_map_ptr() { return gproblem_map_ptr_; }
 
       /** \brief mutable access to the structural stiffness member variable [PROTECTED ONLY]
        *
        *  Do NOT change this to PUBLIC! Use the ExtractMatrixBlock() function
        *  instead.
        *
-       *  \date 02/17
-       *  \author hiermier */
+
+       *  */
       std::shared_ptr<Core::LinAlg::SparseOperator>& stiff_ptr() { return stiff_; }
 
      protected:
@@ -1041,8 +1033,8 @@ namespace Solid
        *  member function! Only indirect access, e.g. via extract_model_block() or
        *  protected access is allowed!
        *
-       *  \date 02/17
-       *  \author hiermeier */
+
+       *  */
       std::shared_ptr<Core::LinAlg::SparseOperator> stiff_;
 
       /// mass matrix (constant)
@@ -1068,8 +1060,8 @@ namespace Solid
       /// @name variables to create a saddle-point system
       /// @{
 
-      /// Epetra_Map s of the different models
-      std::map<Inpar::Solid::ModelType, std::shared_ptr<const Epetra_Map>> model_maps_;
+      /// Core::LinAlg::Map s of the different models
+      std::map<Inpar::Solid::ModelType, std::shared_ptr<const Core::LinAlg::Map>> model_maps_;
 
       /// block information for the different models
       std::map<Inpar::Solid::ModelType, int> model_block_id_;
@@ -1077,7 +1069,7 @@ namespace Solid
       int max_block_num_;
 
       /// global problem map
-      std::shared_ptr<Epetra_Map> gproblem_map_ptr_;
+      std::shared_ptr<Core::LinAlg::Map> gproblem_map_ptr_;
 
       /// multi map extractor
       Core::LinAlg::MultiMapExtractor blockextractor_;
@@ -1113,7 +1105,7 @@ namespace NOX
            *  to update the non-additive rotation (pseudo-)vector DOFs in a consistent
            *  (multiplicative) manner.
            *
-           *  \author Maximilian Grill */
+           *  */
           class RotVecUpdater : public NOX::Nln::Abstract::PrePostOperator
           {
            public:

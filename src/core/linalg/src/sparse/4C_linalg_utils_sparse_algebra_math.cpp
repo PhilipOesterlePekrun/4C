@@ -9,6 +9,7 @@
 
 #include "4C_linalg_serialdensematrix.hpp"
 #include "4C_linalg_serialdensevector.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_exceptions.hpp"
 
 #include <Epetra_Import.h>
@@ -119,7 +120,7 @@ namespace Core::LinAlg
         int NumEntries = 0;
         int ierr =
             A.ExtractGlobalRowCopy(Row, Values.size(), NumEntries, Values.data(), Indices.data());
-        if (ierr) FOUR_C_THROW("Epetra_CrsMatrix::ExtractGlobalRowCopy returned err=%d", ierr);
+        if (ierr) FOUR_C_THROW("Epetra_CrsMatrix::ExtractGlobalRowCopy returned err={}", ierr);
         if (scalarA != 1.0)
           for (int j = 0; j < NumEntries; ++j) Values[j] *= scalarA;
         for (int j = 0; j < NumEntries; ++j)
@@ -128,7 +129,7 @@ namespace Core::LinAlg
           if (err < 0 || err == 2) err = B.InsertGlobalValues(Row, 1, &Values[j], &Indices[j]);
           if (err < 0)
             FOUR_C_THROW(
-                "Epetra_CrsMatrix::InsertGlobalValues returned err=%d at row %d", err, Row);
+                "Epetra_CrsMatrix::InsertGlobalValues returned err={} at row {}", err, Row);
         }
       }
 
@@ -181,11 +182,11 @@ void Core::LinAlg::add(const Epetra_CrsMatrix& A, const bool transposeA, const d
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
 void Core::LinAlg::matrix_put(const Core::LinAlg::SparseMatrix& A, const double scalarA,
-    std::shared_ptr<const Epetra_Map> rowmap, Core::LinAlg::SparseMatrixBase& B)
+    std::shared_ptr<const Core::LinAlg::Map> rowmap, Core::LinAlg::SparseMatrixBase& B)
 {
   // put values onto sysmat
   if (A.get_matrixtype() != Core::LinAlg::SparseMatrix::CRS_MATRIX)
-    FOUR_C_THROW("Please check code and see whether it is save to apply it to matrix type %d",
+    FOUR_C_THROW("Please check code and see whether it is save to apply it to matrix type {}",
         A.get_matrixtype());
   Epetra_CrsMatrix* Aprime = const_cast<Epetra_CrsMatrix*>(&(*(A.epetra_matrix())));
   if (Aprime == nullptr) FOUR_C_THROW("Cast failed");
@@ -195,11 +196,11 @@ void Core::LinAlg::matrix_put(const Core::LinAlg::SparseMatrix& A, const double 
 
   // define row map to tackle
   // if #rowmap (a subset of #RowMap()) is provided, a selective replacing is performed
-  const Epetra_Map* tomap = nullptr;
+  std::shared_ptr<const Map> tomap = nullptr;
   if (rowmap != nullptr)
-    tomap = &(*rowmap);
+    tomap = rowmap;
   else
-    tomap = &(B.row_map());
+    tomap = std::make_shared<const Map>(B.row_map());
 
   // working variables
   int NumEntries;
@@ -214,11 +215,11 @@ void Core::LinAlg::matrix_put(const Core::LinAlg::SparseMatrix& A, const double 
     if (Row < 0) FOUR_C_THROW("DOF not found on processor.");
     err =
         Aprime->ExtractGlobalRowCopy(Row, MaxNumEntries, NumEntries, Values.data(), Indices.data());
-    if (err) FOUR_C_THROW("ExtractGlobalRowCopy returned err=%d", err);
+    if (err) FOUR_C_THROW("ExtractGlobalRowCopy returned err={}", err);
     if (scalarA != 1.0)
       for (int j = 0; j < NumEntries; ++j) Values[j] *= scalarA;
     err = B.epetra_matrix()->ReplaceGlobalValues(Row, NumEntries, Values.data(), Indices.data());
-    if (err) FOUR_C_THROW("ReplaceGlobalValues returned err=%d", err);
+    if (err) FOUR_C_THROW("ReplaceGlobalValues returned err={}", err);
   }
 }
 
@@ -264,7 +265,7 @@ std::unique_ptr<Core::LinAlg::SparseMatrix> Core::LinAlg::matrix_multiply(
 
   int err = EpetraExt::MatrixMatrix::Multiply(
       *Atrans, transA, *Btrans, transB, *C->epetra_matrix(), complete);
-  if (err) FOUR_C_THROW("EpetraExt::MatrixMatrix::MatrixMultiply returned err = %d", err);
+  if (err) FOUR_C_THROW("EpetraExt::MatrixMatrix::MatrixMultiply returned err = {}", err);
 
   return C;
 }
@@ -283,7 +284,7 @@ std::unique_ptr<Core::LinAlg::SparseMatrix> Core::LinAlg::matrix_multiply(const 
   const int nnz = std::max(A.max_num_entries(), B.max_num_entries());
 
   // now create resultmatrix C with correct rowmap
-  auto map = transA ? A.domain_map() : A.range_map();
+  auto map = transA ? Map(A.domain_map()) : A.range_map();
   auto C = std::make_unique<SparseMatrix>(map, nnz, explicitdirichlet, savegraph);
 
   EpetraExt::RowMatrix_Transpose transposer;
@@ -312,7 +313,7 @@ std::unique_ptr<Core::LinAlg::SparseMatrix> Core::LinAlg::matrix_multiply(const 
 
   int err = EpetraExt::MatrixMatrix::Multiply(
       *Atrans, transA, *Btrans, transB, *C->epetra_matrix(), complete);
-  if (err) FOUR_C_THROW("EpetraExt::MatrixMatrix::MatrixMultiply returned err = %d", err);
+  if (err) FOUR_C_THROW("EpetraExt::MatrixMatrix::MatrixMultiply returned err = {}", err);
 
   return C;
 }
@@ -328,7 +329,7 @@ std::shared_ptr<Core::LinAlg::SparseMatrix> Core::LinAlg::matrix_transpose(const
 
   Epetra_CrsMatrix* a_prime = &(dynamic_cast<Epetra_CrsMatrix&>(transposer(*A.epetra_matrix())));
   matrix = std::make_shared<SparseMatrix>(Core::Utils::shared_ptr_from_ref(*a_prime),
-      Core::LinAlg::Copy, A.explicit_dirichlet(), A.save_graph());
+      Core::LinAlg::DataAccess::Copy, A.explicit_dirichlet(), A.save_graph());
 
   return matrix;
 }
@@ -336,7 +337,7 @@ std::shared_ptr<Core::LinAlg::SparseMatrix> Core::LinAlg::matrix_transpose(const
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
 std::shared_ptr<Core::LinAlg::SparseMatrix> Core::LinAlg::matrix_sparse_inverse(
-    const SparseMatrix& A, std::shared_ptr<Epetra_CrsGraph> sparsity_pattern)
+    const SparseMatrix& A, std::shared_ptr<Core::LinAlg::Graph> sparsity_pattern)
 {
   // construct the inverse matrix with the given sparsity pattern
   std::shared_ptr<Core::LinAlg::MultiMapExtractor> dbc_map = nullptr;
@@ -344,16 +345,16 @@ std::shared_ptr<Core::LinAlg::SparseMatrix> Core::LinAlg::matrix_sparse_inverse(
       std::make_shared<SparseMatrix>(sparsity_pattern, dbc_map);
 
   // gather missing rows from other procs to generate an overlapping map
-  Epetra_Import rowImport = Epetra_Import(sparsity_pattern->ColMap(), sparsity_pattern->RowMap());
+  Epetra_Import rowImport = Epetra_Import(sparsity_pattern->col_map(), sparsity_pattern->row_map());
   Epetra_CrsMatrix A_overlap = Epetra_CrsMatrix(*A.epetra_matrix(), rowImport);
 
   // loop over all rows of the inverse sparsity pattern (this can be done in parallel)
-  for (int k = 0; k < sparsity_pattern->NumMyRows(); k++)
+  for (int k = 0; k < sparsity_pattern->num_local_rows(); k++)
   {
     // 1. get column indices Ik of local row k
     int* Ik;
     int Ik_size;
-    sparsity_pattern->ExtractMyRowView(k, Ik_size, Ik);
+    sparsity_pattern->extract_local_row_view(k, Ik_size, Ik);
 
     // 2. get all local A(Ik,:) rows
     std::vector<int*> J(Ik_size);

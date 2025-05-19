@@ -31,7 +31,6 @@
 #include "4C_scatra_ele_calc_poro.hpp"
 #include "4C_scatra_ele_calc_poro_reac.hpp"
 #include "4C_scatra_ele_calc_poro_reac_ECM.hpp"
-#include "4C_scatra_ele_calc_refconc_reac.hpp"
 #include "4C_scatra_ele_calc_std.hpp"
 #include "4C_scatra_ele_calc_sti_diffcond.hpp"
 #include "4C_scatra_ele_calc_sti_electrode.hpp"
@@ -124,7 +123,7 @@ Discret::Elements::ScaTraEleInterface* Discret::Elements::ScaTraFactory::provide
       else
       {
         FOUR_C_THROW(
-            "QUAD9 transport element not implemented as part of %i-dimensional problem. Just do it",
+            "QUAD9 transport element not implemented as part of {}-dimensional problem. Just do it",
             ndim);
       }
       break;
@@ -137,7 +136,7 @@ Discret::Elements::ScaTraEleInterface* Discret::Elements::ScaTraFactory::provide
       else
       {
         FOUR_C_THROW(
-            "NURBS9 transport element not implemented as part of %i-dimensional problem. Just do "
+            "NURBS9 transport element not implemented as part of {}-dimensional problem. Just do "
             "it",
             ndim);
       }
@@ -163,7 +162,7 @@ Discret::Elements::ScaTraEleInterface* Discret::Elements::ScaTraFactory::provide
       else
       {
         FOUR_C_THROW(
-            "TRI6 transport element not implemented as part of %i-dimensional problem. Just do it",
+            "TRI6 transport element not implemented as part of {}-dimensional problem. Just do it",
             ndim);
       }
       break;
@@ -188,7 +187,7 @@ Discret::Elements::ScaTraEleInterface* Discret::Elements::ScaTraFactory::provide
       if (ndim != 1)
       {
         FOUR_C_THROW(
-            "LINE3 transport element not implemented as part of %i-dimensional problem. Just do it",
+            "LINE3 transport element not implemented as part of {}-dimensional problem. Just do it",
             ndim);
       }
       else
@@ -197,8 +196,8 @@ Discret::Elements::ScaTraEleInterface* Discret::Elements::ScaTraFactory::provide
       break;
     }
     default:
-      FOUR_C_THROW("Element shape %s not activated. Just do it.",
-          Core::FE::cell_type_to_string(distype).c_str());
+      FOUR_C_THROW(
+          "Element shape {} not activated. Just do it.", Core::FE::cell_type_to_string(distype));
       break;
   }
   return nullptr;
@@ -282,8 +281,8 @@ Discret::Elements::ScaTraEleInterface* Discret::Elements::ScaTraFactory::provide
           problem, numdofpernode, numscal, disname);
     }
     default:
-      FOUR_C_THROW("Element shape %s not activated. Just do it.",
-          Core::FE::cell_type_to_string(distype).c_str());
+      FOUR_C_THROW(
+          "Element shape {} not activated. Just do it.", Core::FE::cell_type_to_string(distype));
       break;
   }
   return nullptr;
@@ -306,8 +305,8 @@ Discret::Elements::ScaTraEleInterface* Discret::Elements::ScaTraFactory::define_
         problem != Inpar::ScaTra::impltype_no_physics and
         problem != Inpar::ScaTra::impltype_elch_electrode and
         problem != Inpar::ScaTra::impltype_elch_diffcond)
-      FOUR_C_THROW("ImplType '%s' not implemented for transport on manifolds!",
-          ScaTra::impl_type_to_string(problem).c_str());
+      FOUR_C_THROW("ImplType '{}' not implemented for transport on manifolds!",
+          ScaTra::impl_type_to_string(problem));
   }
 
   switch (problem)
@@ -387,11 +386,6 @@ Discret::Elements::ScaTraEleInterface* Discret::Elements::ScaTraFactory::define_
       return Discret::Elements::ScaTraEleCalcAdvReac<distype, probdim>::instance(
           numdofpernode, numscal, disname);
     }
-    case Inpar::ScaTra::impltype_refconcreac:
-    {
-      return Discret::Elements::ScaTraEleCalcRefConcReac<distype>::instance(
-          numdofpernode, numscal, disname);
-    }
     case Inpar::ScaTra::impltype_chemo:
     {
       return Discret::Elements::ScaTraEleCalcChemo<distype>::instance(
@@ -457,8 +451,8 @@ Discret::Elements::ScaTraEleInterface* Discret::Elements::ScaTraFactory::define_
   {
     if (problem != Inpar::ScaTra::impltype_std and
         problem != Inpar::ScaTra::impltype_cardiac_monodomain)
-      FOUR_C_THROW("ImplType '%s' not implemented for transport on manifolds!",
-          ScaTra::impl_type_to_string(problem).c_str());
+      FOUR_C_THROW("ImplType '{}' not implemented for transport on manifolds!",
+          ScaTra::impl_type_to_string(problem));
   }
 
   switch (problem)

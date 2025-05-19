@@ -31,7 +31,7 @@ XFEM::XfsCouplingManager::XfsCouplingManager(std::shared_ptr<ConditionManager> c
       interface_second_order_(false)
 {
   if (idx_.size() != 2)
-    FOUR_C_THROW("XFSCoupling_Manager required two block ( 2 != %d)", idx_.size());
+    FOUR_C_THROW("XFSCoupling_Manager required two block ( 2 != {})", idx_.size());
 
   const Teuchos::ParameterList& fsidyn = Global::Problem::instance()->fsi_dynamic_params();
   interface_second_order_ = fsidyn.get<bool>("SECONDORDER");
@@ -45,7 +45,7 @@ XFEM::XfsCouplingManager::XfsCouplingManager(std::shared_ptr<ConditionManager> c
   mcfsi_->set_time_fac(1. / get_interface_timefac());
 
   // safety check
-  if (!mcfsi_->i_dispnp()->Map().SameAs(*get_map_extractor(0)->Map(1)))
+  if (!mcfsi_->i_dispnp()->get_map().SameAs(*get_map_extractor(0)->map(1)))
     FOUR_C_THROW("XFSCoupling_Manager: Maps of Condition and Mesh Coupling do not fit!");
 
   // storage of the resulting Robin-type structural forces from the old timestep
@@ -81,15 +81,15 @@ void XFEM::XfsCouplingManager::set_coupling_states()
 
   // get interface velocity at t(n)
   std::shared_ptr<Core::LinAlg::Vector<double>> velnp =
-      std::make_shared<Core::LinAlg::Vector<double>>(mcfsi_->i_velnp()->Map(), true);
-  velnp->Update(1.0, *mcfsi_->i_dispnp(), -1.0, *mcfsi_->i_dispn(), 0.0);
+      std::make_shared<Core::LinAlg::Vector<double>>(mcfsi_->i_velnp()->get_block_map(), true);
+  velnp->update(1.0, *mcfsi_->i_dispnp(), -1.0, *mcfsi_->i_dispn(), 0.0);
 
   // inverse of FSI (1st order, 2nd order) scaling
   const double scaling_FSI = get_interface_timefac();  // 1/(theta_FSI * dt) =  1/weight^FSI_np
   const double dt = xfluid_->dt();
 
   // v^{n+1} = -(1-theta)/theta * v^{n} - 1/(theta*dt)*(d^{n+1}-d^{n0})
-  velnp->Update(-(dt - 1 / scaling_FSI) * scaling_FSI, *mcfsi_->i_veln(), scaling_FSI);
+  velnp->update(-(dt - 1 / scaling_FSI) * scaling_FSI, *mcfsi_->i_veln(), scaling_FSI);
 
   // 3 Set Structural Velocity onto ps mesh coupling
   insert_vector(0, velnp, 0, mcfsi_->i_velnp(), CouplingCommManager::partial_to_partial);
@@ -98,13 +98,13 @@ void XFEM::XfsCouplingManager::set_coupling_states()
   if (mcfsi_->get_averaging_strategy() != Inpar::XFEM::Xfluid_Sided)
   {
     // Set Dispnp (used to calc local coord of gausspoints)
-    struct_->discretization()->set_state("dispnp", struct_->dispnp());
+    struct_->discretization()->set_state("dispnp", *struct_->dispnp());
     // Set Velnp (used for interface integration)
     std::shared_ptr<Core::LinAlg::Vector<double>> fullvelnp =
-        std::make_shared<Core::LinAlg::Vector<double>>(struct_->velnp()->Map(), true);
-    fullvelnp->Update(1.0, *struct_->dispnp(), -1.0, *struct_->dispn(), 0.0);
-    fullvelnp->Update(-(dt - 1 / scaling_FSI) * scaling_FSI, *struct_->veln(), scaling_FSI);
-    struct_->discretization()->set_state("velaf", fullvelnp);
+        std::make_shared<Core::LinAlg::Vector<double>>(struct_->velnp()->get_block_map(), true);
+    fullvelnp->update(1.0, *struct_->dispnp(), -1.0, *struct_->dispn(), 0.0);
+    fullvelnp->update(-(dt - 1 / scaling_FSI) * scaling_FSI, *struct_->veln(), scaling_FSI);
+    struct_->discretization()->set_state("velaf", *fullvelnp);
   }
 }
 
@@ -152,8 +152,10 @@ void XFEM::XfsCouplingManager::add_coupling_matrix(
         ->scale(scaling * scaling_FSI);  //<   1/(theta_f*dt) * 1/(theta_FSI*dt) = 1/weight(t^f_np)
                                          //* 1/weight(t^FSI_np)
 
-    systemmatrix.assign(idx_[0], idx_[1], Core::LinAlg::View, *xfluid_->c_sx_matrix(cond_name_));
-    systemmatrix.assign(idx_[1], idx_[0], Core::LinAlg::View, *xfluid_->c_xs_matrix(cond_name_));
+    systemmatrix.assign(
+        idx_[0], idx_[1], Core::LinAlg::DataAccess::View, *xfluid_->c_sx_matrix(cond_name_));
+    systemmatrix.assign(
+        idx_[1], idx_[0], Core::LinAlg::DataAccess::View, *xfluid_->c_xs_matrix(cond_name_));
   }
   else if (probtype == Core::ProblemType::fpsi_xfem || is_xfluidfluid)
   {
@@ -195,15 +197,15 @@ void XFEM::XfsCouplingManager::add_coupling_rhs(std::shared_ptr<Core::LinAlg::Ve
     // scale factor for the structure system matrix w.r.t the new time step
     const double scaling_S = 1.0 / (1.0 - stiparam);  // 1/(1-alpha_F) = 1/weight^S_np
     // add Lagrange multiplier (structural forces from t^n)
-    int err = coup_rhs_sum.Update(stiparam * scaling_S, *lambda_, scaling);
-    if (err) FOUR_C_THROW("Update of Nit_Struct_FSI RHS failed with errcode = %d!", err);
+    int err = coup_rhs_sum.update(stiparam * scaling_S, *lambda_, scaling);
+    if (err) FOUR_C_THROW("Update of Nit_Struct_FSI RHS failed with errcode = {}!", err);
   }
   else
   {
-    coup_rhs_sum.Scale(scaling);
+    coup_rhs_sum.scale(scaling);
   }
 
-  Core::LinAlg::Vector<double> coup_rhs(*me.Map(idx_[0]), true);
+  Core::LinAlg::Vector<double> coup_rhs(*me.map(idx_[0]), true);
   Core::LinAlg::export_to(coup_rhs_sum, coup_rhs);  // use this command as long as poro is not split
                                                     // into two bocks in the monolithic algorithm!
   // insert_vector(0,coup_rhs_sum,0,coup_rhs,Coupling_Comm_Manager::partial_to_full);
@@ -222,7 +224,7 @@ void XFEM::XfsCouplingManager::update(double scaling)
   // scaling for the structural residual is done when it is added to the global residual vector
   // get the coupling rhs from the xfluid, this vector is based on the boundary dis which is part of
   // the structure dis
-  lambda_->Update(scaling, *xfluid_->rhs_s_vec(cond_name_), 0.0);
+  lambda_->update(scaling, *xfluid_->rhs_s_vec(cond_name_), 0.0);
   return;
 }
 

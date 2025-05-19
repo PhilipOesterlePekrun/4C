@@ -66,7 +66,7 @@ namespace
                          the initial field (i.e. u_0(x))
   \param initialvals (o) the initial field on output (i.e. u_cp)
 
-  \date 04/09
+
   */
 
   void apply_nurbs_initial_condition_solve(Core::FE::Discretization& dis,
@@ -101,7 +101,7 @@ namespace
     // vectors and matrices
     //                 local <-> global dof numbering
     // -------------------------------------------------------------------
-    const Epetra_Map* dofrowmap = dis.dof_row_map();
+    const Core::LinAlg::Map* dofrowmap = dis.dof_row_map();
 
     // -------------------------------------------------------------------
     // create empty mass matrix
@@ -344,7 +344,7 @@ namespace
                 // check for degenerated elements
                 if (det < 1E-16)
                 {
-                  FOUR_C_THROW("GLOBAL ELEMENT NO.%i\nZERO OR NEGATIVE JACOBIAN DETERMINANT: %f",
+                  FOUR_C_THROW("GLOBAL ELEMENT NO.{}\nZERO OR NEGATIVE JACOBIAN DETERMINANT: {}",
                       actele->id(), det);
                 }
 
@@ -469,7 +469,7 @@ namespace
                 if (det < 0.0)
                 {
                   FOUR_C_THROW(
-                      "GLOBAL ELEMENT NO.%i\nNEGATIVE JACOBIAN DETERMINANT: %f", actele->id(), det);
+                      "GLOBAL ELEMENT NO.{}\nNEGATIVE JACOBIAN DETERMINANT: {}", actele->id(), det);
                 }
 
                 // set total integration factor
@@ -529,7 +529,7 @@ namespace
 
     // always refactor and reset the matrix before a single new solver call
 
-    initialvals->PutScalar(0.0);
+    initialvals->put_scalar(0.0);
     Core::LinAlg::SolverParams solver_params;
     solver_params.refactor = true;
     solver_params.reset = true;

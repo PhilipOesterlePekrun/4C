@@ -91,11 +91,11 @@ REPARTITIONSTRATEGY             Everydt
 --------------------------------------------------------------BEAM POTENTIAL
 POT_LAW_PREFACTOR               -1.0
 POT_LAW_EXPONENT                6.0
-BEAMPOTENTIAL_TYPE              Volume
+TYPE                            volume
 CUTOFF_RADIUS                   100
-STRATEGY                        SingleLengthSpecific_SmallSepApprox_Simple
-NUM_INTEGRATION_SEGMENTS        1
-NUM_GAUSSPOINTS                 10
+STRATEGY                        single_length_specific_small_separations_simple
+N_INTEGRATION_SEGMENTS          1
+N_GAUSS_POINTS                  10
 POTENTIAL_REDUCTION_LENGTH      15.0
 ----------------------------------BEAM POTENTIAL/RUNTIME VTK OUTPUT
 VTK_OUTPUT_BEAM_POTENTIAL       yes
@@ -104,17 +104,15 @@ EVERY_ITERATION                 no
 FORCES                          yes
 MOMENTS                         yes
 ----------------------------------------------DESIGN POINT DIRICH CONDITIONS
-DPOINT                          4
-E 1 - NUMDOF 9 ONOFF 1 1 1 1 1 1 1 1 1 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0 0 TAG monitor_reaction
-E 2 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
-E 3 - NUMDOF 9 ONOFF 1 1 1 1 1 1 1 1 1 VAL 1.0 1.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 1 1 1 0 0 0 0 0 0 TAG monitor_reaction
-E 4 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 1 NUMDOF 9 ONOFF 1 1 1 1 1 1 1 1 1 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0 0 TAG monitor_reaction
+E 2 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 3 NUMDOF 9 ONOFF 1 1 1 1 1 1 1 1 1 VAL 1.0 1.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 1 1 1 0 0 0 0 0 0 TAG monitor_reaction
+E 4 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 -------------------------------------------------------------FUNCT1
 SYMBOLIC_FUNCTION_OF_SPACE_TIME 28.86751346*t
 --------------------------------DESIGN LINE BEAM POTENTIAL CHARGE CONDITIONS
-DLINE                           2
-E 1 - POTLAW 1 VAL 1.0 FUNCT none
-E 2 - POTLAW 1 VAL 1.0 FUNCT none
+E 1 POTLAW 1 VAL 1.0 FUNCT none
+E 2 POTLAW 1 VAL 1.0 FUNCT none
 ---------------------------------------------------------DNODE-NODE TOPOLOGY
 NODE  1 DNODE 1
 NODE  2 DNODE 2
@@ -268,4 +266,4 @@ NODE 42 COORD 56.51028204757100 56.51028204757100 60.18451666174576
 -------------------------------------------------------------------MATERIALS
 MAT 1 MAT_BeamReissnerElastHyper YOUNG 5.4e08 POISSONRATIO 0.3 DENS 1.0 CROSSAREA 3.1415 SHEARCORR 1.0 MOMINPOL 0.49702 MOMIN2 0.24851 MOMIN3 0.24851 INTERACTIONRADIUS 1.0
 ---------------------------------------------------------RESULT DESCRIPTION
-STRUCTURE SPECIAL QUANTITY beam_interaction_potential VALUE -1.74774244598921e+01 TOLERANCE 1e-10
+STRUCTURE SPECIAL true QUANTITY beam_interaction_potential VALUE -1.74774244598921e+01 TOLERANCE 1e-10

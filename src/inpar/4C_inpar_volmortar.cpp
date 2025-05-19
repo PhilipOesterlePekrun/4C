@@ -8,68 +8,84 @@
 #include "4C_inpar_volmortar.hpp"
 
 #include "4C_coupling_volmortar.hpp"
-#include "4C_utils_parameter_list.hpp"
-
+#include "4C_io_input_spec_builders.hpp"
 FOUR_C_NAMESPACE_OPEN
 
 
 
-void Inpar::VolMortar::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::VolMortar::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
-  using Teuchos::tuple;
+  using namespace Core::IO::InputSpecBuilders;
 
   /* parameters for volmortar */
-  Teuchos::ParameterList& volmortar = list.sublist("VOLMORTAR COUPLING", false, "");
+  list["VOLMORTAR COUPLING"] = group("VOLMORTAR COUPLING",
+      {
 
-  setStringToIntegralParameter<Coupling::VolMortar::IntType>("INTTYPE", "Elements",
-      "Type of numerical integration scheme",
-      tuple<std::string>("Elements", "elements", "Segments", "segments"),
-      tuple<Coupling::VolMortar::IntType>(Coupling::VolMortar::inttype_elements,
-          Coupling::VolMortar::inttype_elements, Coupling::VolMortar::inttype_segments,
-          Coupling::VolMortar::inttype_segments),
-      &volmortar);
+          deprecated_selection<Coupling::VolMortar::IntType>("INTTYPE",
+              {
+                  {"Elements", Coupling::VolMortar::inttype_elements},
+                  {"elements", Coupling::VolMortar::inttype_elements},
+                  {"Segments", Coupling::VolMortar::inttype_segments},
+                  {"segments", Coupling::VolMortar::inttype_segments},
+              },
+              {.description = "Type of numerical integration scheme",
+                  .default_value = Coupling::VolMortar::inttype_elements}),
 
-  setStringToIntegralParameter<Coupling::VolMortar::CouplingType>("COUPLINGTYPE", "Volmortar",
-      "Type of coupling",
-      tuple<std::string>("Volmortar", "volmortar", "consistentinterpolation", "consint"),
-      tuple<Coupling::VolMortar::CouplingType>(Coupling::VolMortar::couplingtype_volmortar,
-          Coupling::VolMortar::couplingtype_volmortar, Coupling::VolMortar::couplingtype_coninter,
-          Coupling::VolMortar::couplingtype_coninter),
-      &volmortar);
 
-  setStringToIntegralParameter<Coupling::VolMortar::Shapefcn>("SHAPEFCN", "Dual",
-      "Type of employed set of shape functions",
-      tuple<std::string>("Dual", "dual", "Standard", "standard", "std"),
-      tuple<Coupling::VolMortar::Shapefcn>(Coupling::VolMortar::shape_dual,
-          Coupling::VolMortar::shape_dual, Coupling::VolMortar::shape_std,
-          Coupling::VolMortar::shape_std, Coupling::VolMortar::shape_std),
-      &volmortar);
+          deprecated_selection<Coupling::VolMortar::CouplingType>("COUPLINGTYPE",
+              {
+                  {"Volmortar", Coupling::VolMortar::couplingtype_volmortar},
+                  {"volmortar", Coupling::VolMortar::couplingtype_volmortar},
+                  {"consistentinterpolation", Coupling::VolMortar::couplingtype_coninter},
+                  {"consint", Coupling::VolMortar::couplingtype_coninter},
+              },
+              {.description = "Type of coupling",
+                  .default_value = Coupling::VolMortar::couplingtype_volmortar}),
 
-  setStringToIntegralParameter<Coupling::VolMortar::CutType>("CUTTYPE", "dd",
-      "Type of cut procedure/ integration point calculation",
-      tuple<std::string>(
-          "dd", "directdivergence", "DirectDivergence", "tessellation", "t", "Tessellation"),
-      tuple<Coupling::VolMortar::CutType>(Coupling::VolMortar::cuttype_directdivergence,
-          Coupling::VolMortar::cuttype_directdivergence,
-          Coupling::VolMortar::cuttype_directdivergence, Coupling::VolMortar::cuttype_tessellation,
-          Coupling::VolMortar::cuttype_tessellation, Coupling::VolMortar::cuttype_tessellation),
-      &volmortar);
+          deprecated_selection<Coupling::VolMortar::Shapefcn>("SHAPEFCN",
+              {
+                  {"Dual", Coupling::VolMortar::shape_dual},
+                  {"dual", Coupling::VolMortar::shape_dual},
+                  {"Standard", Coupling::VolMortar::shape_std},
+                  {"standard", Coupling::VolMortar::shape_std},
+                  {"std", Coupling::VolMortar::shape_std},
+              },
+              {.description = "Type of employed set of shape functions",
+                  .default_value = Coupling::VolMortar::shape_dual}),
 
-  setStringToIntegralParameter<Coupling::VolMortar::DualQuad>("DUALQUAD", "nomod",
-      "Type of dual shape function for weighting function for quadr. problems",
-      tuple<std::string>("nm", "nomod", "lm", "lin_mod", "qm", "quad_mod"),
-      tuple<Coupling::VolMortar::DualQuad>(Coupling::VolMortar::dualquad_no_mod,
-          Coupling::VolMortar::dualquad_no_mod, Coupling::VolMortar::dualquad_lin_mod,
-          Coupling::VolMortar::dualquad_lin_mod, Coupling::VolMortar::dualquad_quad_mod,
-          Coupling::VolMortar::dualquad_quad_mod),
-      &volmortar);
+          deprecated_selection<Coupling::VolMortar::CutType>("CUTTYPE",
+              {
+                  {"dd", Coupling::VolMortar::cuttype_directdivergence},
+                  {"directdivergence", Coupling::VolMortar::cuttype_directdivergence},
+                  {"DirectDivergence", Coupling::VolMortar::cuttype_directdivergence},
+                  {"tessellation", Coupling::VolMortar::cuttype_tessellation},
+                  {"t", Coupling::VolMortar::cuttype_tessellation},
+                  {"Tessellation", Coupling::VolMortar::cuttype_tessellation},
+              },
+              {.description = "Type of cut procedure/ integration point calculation",
+                  .default_value = Coupling::VolMortar::cuttype_directdivergence}),
 
-  Core::Utils::bool_parameter(
-      "MESH_INIT", "No", "If chosen, mesh initialization procedure is performed", &volmortar);
+          deprecated_selection<Coupling::VolMortar::DualQuad>("DUALQUAD",
+              {
+                  {"nm", Coupling::VolMortar::dualquad_no_mod},
+                  {"nomod", Coupling::VolMortar::dualquad_no_mod},
+                  {"lm", Coupling::VolMortar::dualquad_lin_mod},
+                  {"lin_mod", Coupling::VolMortar::dualquad_lin_mod},
+                  {"qm", Coupling::VolMortar::dualquad_quad_mod},
+                  {"quad_mod", Coupling::VolMortar::dualquad_quad_mod},
+              },
+              {.description =
+                      "Type of dual shape function for weighting function for quadr. problems",
+                  .default_value = Coupling::VolMortar::dualquad_no_mod}),
 
-  Core::Utils::bool_parameter("KEEP_EXTENDEDGHOSTING", "Yes",
-      "If chosen, extended ghosting is kept for simulation", &volmortar);
+          parameter<bool>(
+              "MESH_INIT", {.description = "If chosen, mesh initialization procedure is performed",
+                               .default_value = false}),
+
+          parameter<bool>("KEEP_EXTENDEDGHOSTING",
+              {.description = "If chosen, extended ghosting is kept for simulation",
+                  .default_value = true})},
+      {.defaultable = true});
 }
 
 FOUR_C_NAMESPACE_CLOSE

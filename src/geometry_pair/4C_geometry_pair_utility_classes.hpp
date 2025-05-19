@@ -20,7 +20,7 @@
 
 FOUR_C_NAMESPACE_OPEN
 
-namespace GEOMETRYPAIR
+namespace GeometryPair
 {
   /**
    * \brief Result of a projection with the geometry pairs.
@@ -59,7 +59,7 @@ namespace GEOMETRYPAIR
           projection_result_(ProjectionResult::none),
           gauss_weight_(gauss_weight),
           intersection_face_(-1),
-          eta_cross_section_(true),
+          eta_cross_section_(Core::LinAlg::Initialization::zero),
           is_cross_section_point_(false) {};
 
     /**
@@ -75,7 +75,8 @@ namespace GEOMETRYPAIR
      * @param eta Parameter coordinate on the line.
      */
     ProjectionPoint1DTo3D(ScalarType eta)
-        : ProjectionPoint1DTo3D(eta, Core::LinAlg::Matrix<3, 1, ScalarType>(true), -1.) {};
+        : ProjectionPoint1DTo3D(eta,
+              Core::LinAlg::Matrix<3, 1, ScalarType>(Core::LinAlg::Initialization::zero), -1.) {};
 
     /**
      * \brief Empty constructor.
@@ -284,7 +285,7 @@ namespace GEOMETRYPAIR
       // Sanity check that eta_a is larger than eta_b.
       if (!(get_eta_a() < get_eta_b()))
         FOUR_C_THROW(
-            "The segment is created with eta_a=%f and eta_b=%f, this is not possible, as eta_a "
+            "The segment is created with eta_a={} and eta_b={}, this is not possible, as eta_a "
             "has "
             "to be smaller than eta_b!",
             Core::FADUtils::cast_to_double(get_eta_a()),
@@ -441,7 +442,7 @@ namespace GEOMETRYPAIR
     //! Vector to store projection points for this segment.
     std::vector<ProjectionPoint1DTo3D<ScalarType>> segment_projection_points_;
   };
-}  // namespace GEOMETRYPAIR
+}  // namespace GeometryPair
 
 
 FOUR_C_NAMESPACE_CLOSE

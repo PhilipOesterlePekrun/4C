@@ -13,6 +13,7 @@
 #include "4C_io.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
 #include "4C_scatra_ele_action.hpp"
+#include "4C_scatra_ele_parameter_timint.hpp"
 #include "4C_scatra_timint_meshtying_strategy_base.hpp"
 #include "4C_scatra_turbulence_hit_scalar_forcing.hpp"
 #include "4C_utils_parameter_list.hpp"
@@ -48,7 +49,7 @@ void ScaTra::TimIntBDF2::setup()
   // vectors and matrices
   //                 local <-> global dof numbering
   // -------------------------------------------------------------------
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   // state vector for solution at time t_{n-1}
   phinm_ = Core::LinAlg::create_vector(*dofrowmap, true);
@@ -96,8 +97,6 @@ void ScaTra::TimIntBDF2::set_element_time_parameter(bool forcedincrementalsolver
 {
   Teuchos::ParameterList eleparams;
 
-  Core::Utils::add_enum_class_to_parameter_list<ScaTra::Action>(
-      "action", ScaTra::Action::set_time_parameter, eleparams);
   eleparams.set<bool>("using generalized-alpha time integration", false);
   eleparams.set<bool>("using stationary formulation", false);
   if (!forcedincrementalsolver)
@@ -114,8 +113,8 @@ void ScaTra::TimIntBDF2::set_element_time_parameter(bool forcedincrementalsolver
   else
     eleparams.set<double>("time derivative factor", 3.0 / (2.0 * dta_));
 
-  // call standard loop over elements
-  discret_->evaluate(eleparams, nullptr, nullptr, nullptr, nullptr, nullptr);
+  Discret::Elements::ScaTraEleParameterTimInt::instance(discret_->name())
+      ->set_parameters(eleparams);
 }
 
 /*--------------------------------------------------------------------------*
@@ -146,7 +145,7 @@ void ScaTra::TimIntBDF2::set_old_part_of_righthandside()
   {
     double fact1 = 4.0 / 3.0;
     double fact2 = -1.0 / 3.0;
-    hist_->Update(fact1, *phin_, fact2, *phinm_, 0.0);
+    hist_->update(fact1, *phin_, fact2, *phinm_, 0.0);
 
     // for BDF2 theta is set to 2/3 for constant time-step length dt
     theta_ = 2.0 / 3.0;
@@ -154,7 +153,7 @@ void ScaTra::TimIntBDF2::set_old_part_of_righthandside()
   else
   {
     // for start-up of BDF2 we do one step with backward Euler
-    hist_->Update(1.0, *phin_, 0.0);
+    hist_->update(1.0, *phin_, 0.0);
 
     // backward Euler => use theta=1.0
     theta_ = 1.0;
@@ -168,7 +167,7 @@ void ScaTra::TimIntBDF2::explicit_predictor() const
   // call base class routine
   ScaTraTimIntImpl::explicit_predictor();
 
-  if (step_ > 1) phinp_->Update(-1.0, *phinm_, 2.0);
+  if (step_ > 1) phinp_->update(-1.0, *phinm_, 2.0);
   // for step == 1 phinp_ is already correctly initialized with the
   // initial field phin_
 }
@@ -177,7 +176,7 @@ void ScaTra::TimIntBDF2::explicit_predictor() const
  *----------------------------------------------------------------------*/
 void ScaTra::TimIntBDF2::add_neumann_to_residual()
 {
-  residual_->Update(theta_ * dta_, *neumann_loads_, 1.0);
+  residual_->update(theta_ * dta_, *neumann_loads_, 1.0);
 }
 
 /*----------------------------------------------------------------------*
@@ -191,7 +190,7 @@ void ScaTra::TimIntBDF2::avm3_separation()
   Sep_->multiply(false, *phinp_, *fsphinp_);
 
   // set fine-scale vector
-  discret_->set_state("fsphinp", fsphinp_);
+  discret_->set_state("fsphinp", *fsphinp_);
 }
 
 /*----------------------------------------------------------------------*
@@ -227,8 +226,8 @@ void ScaTra::TimIntBDF2::add_time_integration_specific_vectors(bool forcedincrem
   // call base class routine
   ScaTraTimIntImpl::add_time_integration_specific_vectors(forcedincrementalsolver);
 
-  discret_->set_state("hist", hist_);
-  discret_->set_state("phinp", phinp_);
+  discret_->set_state("hist", *hist_);
+  discret_->set_state("phinp", *phinp_);
 }
 
 /*----------------------------------------------------------------------*
@@ -243,14 +242,14 @@ void ScaTra::TimIntBDF2::compute_time_derivative()
     // time derivative of phi for first time step:
     // phidt(n+1) = (phi(n+1)-phi(n))/dt
     const double fact = 1.0 / dta_;
-    phidtnp_->Update(fact, *phinp_, -fact, *hist_, 0.0);
+    phidtnp_->update(fact, *phinp_, -fact, *hist_, 0.0);
   }
   else
   {
     // time derivative of phi:
     // phidt(n+1) = ((3/2)*phi(n+1)-2*phi(n)+(1/2)*phi(n-1))/dt
     const double fact = 3.0 / (2.0 * dta_);
-    phidtnp_->Update(fact, *phinp_, -fact, *hist_, 0.0);
+    phidtnp_->update(fact, *phinp_, -fact, *hist_, 0.0);
   }
 
   // We know the first time derivative on Dirichlet boundaries
@@ -277,8 +276,8 @@ void ScaTra::TimIntBDF2::update()
   }
 
   // solution of this step becomes most recent solution of the last step
-  phinm_->Update(1.0, *phin_, 0.0);
-  phin_->Update(1.0, *phinp_, 0.0);
+  phinm_->update(1.0, *phin_, 0.0);
+  phin_->update(1.0, *phinp_, 0.0);
 
   // call time update of forcing routine
   if (homisoturb_forcing_ != nullptr) homisoturb_forcing_->time_update_forcing();

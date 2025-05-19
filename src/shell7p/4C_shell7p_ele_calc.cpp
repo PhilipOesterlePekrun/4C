@@ -101,10 +101,8 @@ double Discret::Elements::Shell7pEleCalc<distype>::calculate_internal_energy(
       discretization.get_state("residual displacement");
   if (disp == nullptr || res == nullptr)
     FOUR_C_THROW("Cannot get state vectors 'displacement' and/or residual");
-  std::vector<double> displacement(dof_index_array.size());
-  Core::FE::extract_my_values(*disp, displacement, dof_index_array);
-  std::vector<double> residual(dof_index_array.size());
-  Core::FE::extract_my_values(*res, residual, dof_index_array);
+  std::vector<double> displacement = Core::FE::extract_values(*disp, dof_index_array);
+  std::vector<double> residual = Core::FE::extract_values(*res, dof_index_array);
 
   // init scale factor for scaled director approach (SDC)
   const double condfac = shell_data_.sdc;
@@ -207,10 +205,8 @@ void Discret::Elements::Shell7pEleCalc<distype>::calculate_stresses_strains(
       discretization.get_state("residual displacement");
   if (disp == nullptr || res == nullptr)
     FOUR_C_THROW("Cannot get state vectors 'displacement' and/or residual");
-  std::vector<double> displacement(dof_index_array.size());
-  Core::FE::extract_my_values(*disp, displacement, dof_index_array);
-  std::vector<double> residual(dof_index_array.size());
-  Core::FE::extract_my_values(*res, residual, dof_index_array);
+  std::vector<double> displacement = Core::FE::extract_values(*disp, dof_index_array);
+  std::vector<double> residual = Core::FE::extract_values(*res, dof_index_array);
 
   // init gauss point in thickness direction that will be modified via SDC
   double zeta = 0.0;
@@ -282,7 +278,7 @@ void Discret::Elements::Shell7pEleCalc<distype>::calculate_stresses_strains(
 
           // update the deformation gradient
           Core::LinAlg::Matrix<Shell::Internal::num_dim, Shell::Internal::num_dim> defgrd_enh(
-              false);
+              Core::LinAlg::Initialization::uninitialized);
           Shell::calc_consistent_defgrd<Shell::Internal::num_dim>(
               strains.defgrd_, strains.gl_strain_, defgrd_enh);
           strains.defgrd_ = defgrd_enh;
@@ -314,10 +310,8 @@ void Discret::Elements::Shell7pEleCalc<distype>::evaluate_nonlinear_force_stiffn
       discretization.get_state("residual displacement");
   if (disp == nullptr || res == nullptr)
     FOUR_C_THROW("Cannot get state vectors 'displacement' and/or residual");
-  std::vector<double> displacement(dof_index_array.size());
-  Core::FE::extract_my_values(*disp, displacement, dof_index_array);
-  std::vector<double> residual(dof_index_array.size());
-  Core::FE::extract_my_values(*res, residual, dof_index_array);
+  std::vector<double> displacement = Core::FE::extract_values(*disp, dof_index_array);
+  std::vector<double> residual = Core::FE::extract_values(*res, dof_index_array);
 
   // init gauss point in thickness direction that will be modified via SDC
   double zeta = 0.0;
@@ -419,7 +413,7 @@ void Discret::Elements::Shell7pEleCalc<distype>::evaluate_nonlinear_force_stiffn
           if (solid_material.needs_defgrd())
           {
             Core::LinAlg::Matrix<Shell::Internal::num_dim, Shell::Internal::num_dim> defgrd_enh(
-                false);
+                Core::LinAlg::Initialization::uninitialized);
             Shell::calc_consistent_defgrd<Shell::Internal::num_dim>(
                 strains.defgrd_, strains.gl_strain_, defgrd_enh);
             strains.defgrd_ = defgrd_enh;
@@ -499,8 +493,7 @@ void Discret::Elements::Shell7pEleCalc<distype>::update(Core::Elements::Element&
   std::shared_ptr<const Core::LinAlg::Vector<double>> disp =
       discretization.get_state("displacement");
   if (disp == nullptr) FOUR_C_THROW("Cannot get state vectors 'displacement' ");
-  std::vector<double> displacement(dof_index_array.size());
-  Core::FE::extract_my_values(*disp, displacement, dof_index_array);
+  std::vector<double> displacement = Core::FE::extract_values(*disp, dof_index_array);
 
   // calculate and update inelastic deformation gradient if needed
   if (solid_material.uses_extended_update())
@@ -568,7 +561,7 @@ void Discret::Elements::Shell7pEleCalc<distype>::update(Core::Elements::Element&
             {
               // update the deformation gradient (if needed?)
               Core::LinAlg::Matrix<Shell::Internal::num_dim, Shell::Internal::num_dim> defgrd_enh(
-                  false);
+                  Core::LinAlg::Initialization::uninitialized);
               Shell::calc_consistent_defgrd<Shell::Internal::num_dim>(
                   strains.defgrd_, strains.gl_strain_, defgrd_enh);
               strains.defgrd_ = defgrd_enh;

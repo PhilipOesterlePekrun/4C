@@ -10,11 +10,13 @@
 #include "4C_fem_general_cell_type.hpp"
 #include "4C_fem_general_cell_type_traits.hpp"
 #include "4C_inpar_scatra.hpp"
+#include "4C_inpar_structure.hpp"
 #include "4C_io_input_spec_builders.hpp"
-#include "4C_so3_line.hpp"
-#include "4C_so3_nullspace.hpp"
-#include "4C_so3_surface.hpp"
 #include "4C_solid_3D_ele_interface_serializable.hpp"
+#include "4C_solid_3D_ele_line.hpp"
+#include "4C_solid_3D_ele_nullspace.hpp"
+#include "4C_solid_3D_ele_properties.hpp"
+#include "4C_solid_3D_ele_surface.hpp"
 #include "4C_solid_scatra_3D_ele_factory.hpp"
 #include "4C_solid_scatra_3D_ele_lib.hpp"
 
@@ -28,18 +30,28 @@ namespace
   auto get_default_input_spec()
   {
     return all_of({
-        entry<std::vector<int>>(
-            Core::FE::cell_type_to_string(celltype), {.size = Core::FE::num_nodes<celltype>}),
-        entry<int>("MAT"),
-        entry<std::string>("KINEM"),
-        entry<std::string>("TYPE"),
-        entry<std::string>("PRESTRESS_TECH", {.required = false}),
-        entry<std::vector<double>>("RAD", {.required = false, .size = 3}),
-        entry<std::vector<double>>("AXI", {.required = false, .size = 3}),
-        entry<std::vector<double>>("CIR", {.required = false, .size = 3}),
-        entry<std::vector<double>>("FIBER1", {.required = false, .size = 3}),
-        entry<std::vector<double>>("FIBER2", {.required = false, .size = 3}),
-        entry<std::vector<double>>("FIBER3", {.required = false, .size = 3}),
+        parameter<std::vector<int>>(
+            Core::FE::cell_type_to_string(celltype), {.size = Core::FE::num_nodes(celltype)}),
+        parameter<int>("MAT"),
+        deprecated_selection<Inpar::Solid::KinemType>("KINEM",
+            {
+                {kinem_type_string(Inpar::Solid::KinemType::linear),
+                    Inpar::Solid::KinemType::linear},
+                {kinem_type_string(Inpar::Solid::KinemType::nonlinearTotLag),
+                    Inpar::Solid::KinemType::nonlinearTotLag},
+            },
+            {.description = "Whether to use linear kinematics (small displacements) or nonlinear "
+                            "kinematics (large displacements)"}),
+        parameter<std::string>("TYPE"),
+        parameter<Discret::Elements::PrestressTechnology>(
+            "PRESTRESS_TECH", {.description = "The technology used for prestressing",
+                                  .default_value = Discret::Elements::PrestressTechnology::none}),
+        parameter<std::optional<std::vector<double>>>("RAD", {.size = 3}),
+        parameter<std::optional<std::vector<double>>>("AXI", {.size = 3}),
+        parameter<std::optional<std::vector<double>>>("CIR", {.size = 3}),
+        parameter<std::optional<std::vector<double>>>("FIBER1", {.size = 3}),
+        parameter<std::optional<std::vector<double>>>("FIBER2", {.size = 3}),
+        parameter<std::optional<std::vector<double>>>("FIBER3", {.size = 3}),
 
     });
   }
@@ -59,7 +71,21 @@ void Discret::Elements::SolidScatraType::setup_element_definition(
 
   defsgeneral[Core::FE::cell_type_to_string(Core::FE::CellType::hex8)] = all_of({
       get_default_input_spec<Core::FE::CellType::hex8>(),
-      entry<std::string>("TECH", {.required = false}),
+      deprecated_selection<ElementTechnology>("TECH",
+          {
+              {element_technology_string(ElementTechnology::none), ElementTechnology::none},
+              {element_technology_string(ElementTechnology::fbar), ElementTechnology::fbar},
+              {element_technology_string(ElementTechnology::eas_mild), ElementTechnology::eas_mild},
+              {element_technology_string(ElementTechnology::eas_full), ElementTechnology::eas_full},
+              {element_technology_string(ElementTechnology::shell_ans),
+                  ElementTechnology::shell_ans},
+              {element_technology_string(ElementTechnology::shell_eas),
+                  ElementTechnology::shell_eas},
+              {element_technology_string(ElementTechnology::shell_eas_ans),
+                  ElementTechnology::shell_eas_ans},
+              {element_technology_string(ElementTechnology::fbar), ElementTechnology::fbar},
+          },
+          {.default_value = ElementTechnology::none}),
   });
 
   defsgeneral[Core::FE::cell_type_to_string(Core::FE::CellType::hex27)] =
@@ -105,7 +131,7 @@ void Discret::Elements::SolidScatraType::nodal_block_information(
 Core::LinAlg::SerialDenseMatrix Discret::Elements::SolidScatraType::compute_null_space(
     Core::Nodes::Node& node, const double* x0, const int numdof, const int dimnsp)
 {
-  return compute_solid_3d_null_space(node, x0);
+  return compute_solid_null_space<3>(node.x(), x0);
 }
 
 Discret::Elements::SolidScatra::SolidScatra(int id, int owner) : Core::Elements::Element(id, owner)
@@ -134,12 +160,12 @@ int Discret::Elements::SolidScatra::num_volume() const
 
 std::vector<std::shared_ptr<Core::Elements::Element>> Discret::Elements::SolidScatra::lines()
 {
-  return Core::Communication::get_element_lines<StructuralLine, SolidScatra>(*this);
+  return Core::Communication::get_element_lines<SolidLine<3>, SolidScatra>(*this);
 }
 
 std::vector<std::shared_ptr<Core::Elements::Element>> Discret::Elements::SolidScatra::surfaces()
 {
-  return Core::Communication::get_element_surfaces<StructuralSurface, SolidScatra>(*this);
+  return Core::Communication::get_element_surfaces<SolidSurface, SolidScatra>(*this);
 }
 
 void Discret::Elements::SolidScatra::set_params_interface_ptr(const Teuchos::ParameterList& p)

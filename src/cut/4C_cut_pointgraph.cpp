@@ -12,7 +12,6 @@
 #include "4C_cut_pointgraph_simple.hpp"
 #include "4C_cut_side.hpp"
 
-#include <boost/graph/boyer_myrvold_planar_test.hpp>
 #include <boost/graph/graphviz.hpp>
 
 #include <cmath>
@@ -321,19 +320,19 @@ bool Cut::Impl::find_cycles(graph_t& g, Cut::Cycle& cycle,
   for (boost::tie(ei, ei_end) = boost::edges(g); ei != ei_end; ++ei)
     boost::put(e_index, *ei, edge_count++);
 
-  typedef std::vector<edge_t> vec_t;
+  using vec_t = std::vector<edge_t>;
   std::vector<vec_t> embedding(boost::num_vertices(g));
 
 
   // Use geometry to build embedding. The only safe way to do it.
 
 #ifdef CLN_CALC_OUTSIDE_KERNEL
-  typedef Core::CLN::ClnWrapper floatType;
+  using floatType = Core::CLN::ClnWrapper;
   // NOTE: Cln can be used, if one get problem with double arc and there is no other way to fix it
   // However, if running cln with as custom memory manager, this should be changed ( mostly to free
   // objects in a container, similarly as in cut_kernel )
 #else
-  typedef double floatType;
+  using floatType = double;
 #endif
 
   vertex_iterator vi, vi_end;
@@ -404,7 +403,7 @@ bool Cut::Impl::find_cycles(graph_t& g, Cut::Cycle& cycle,
             << previous->id() << std::endl;
         file.close();
 
-        FOUR_C_THROW(err_msg.str());
+        FOUR_C_THROW("{}", err_msg.str());
       }
 
       arcs[arc] = *ai;
@@ -608,7 +607,7 @@ void Cut::Impl::PointGraph::Graph::find_cycles(Side* side, Cycle& cycle)
   {
     for (int i = 0; i < num_comp; ++i)
     {
-      typedef boost::filtered_graph<graph_t, EdgeFilter> filtered_graph_t;
+      using filtered_graph_t = boost::filtered_graph<graph_t, EdgeFilter>;
       EdgeFilter filter(g, component, i);
       filtered_graph_t fg(g, filter);
 
@@ -792,7 +791,7 @@ void Cut::Impl::PointGraph::Graph::find_cycles(
     {
       for (int i = 0; i < num_comp; ++i)
       {
-        typedef boost::filtered_graph<graph_t, EdgeFilter> filtered_graph_t;
+        using filtered_graph_t = boost::filtered_graph<graph_t, EdgeFilter>;
         EdgeFilter filter(g, component, i);
         filtered_graph_t fg(g, filter);
 
@@ -1032,7 +1031,7 @@ bool Cut::Impl::PointGraph::Graph::has_touching_edge(Element* element, Side* sid
           err_msg << "The single cut point in pointgraph(Id=" << cut_point->id() << ")"
                   << " is not a nodal point of any of the edges connected to it (Not Touching)\n\
             This can for instance happen if your cut surface is not closed, so check your geometry first!\n";
-          FOUR_C_THROW(err_msg.str());
+          FOUR_C_THROW("{}", err_msg.str());
         }
       }
     }
@@ -1132,7 +1131,7 @@ Cut::Impl::PointGraph* Cut::Impl::PointGraph::create(Mesh& mesh, Element* elemen
       pg = new PointGraph(mesh, element, side, location, strategy);
       break;
     default:
-      FOUR_C_THROW("Unsupported element dimension! ( dim = %d )", dim);
+      FOUR_C_THROW("Unsupported element dimension! ( dim = {} )", dim);
       break;
   }
   return pg;
@@ -1152,7 +1151,6 @@ std::shared_ptr<Cut::Impl::PointGraph::Graph> Cut::Impl::PointGraph::create_grap
       return std::make_shared<PointGraph::Graph>();
     default:
       FOUR_C_THROW("Unsupported element dimension!");
-      exit(EXIT_FAILURE);
   }
 }
 

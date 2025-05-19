@@ -8,6 +8,7 @@
 #include "4C_ssti_resulttest.hpp"
 
 #include "4C_comm_mpi_utils.hpp"
+#include "4C_io_input_parameter_container.hpp"
 #include "4C_ssti_algorithm.hpp"
 #include "4C_utils_exceptions.hpp"
 
@@ -62,7 +63,7 @@ double SSTI::SSTIResultTest::result_special(const std::string& quantity) const
   else
   {
     FOUR_C_THROW(
-        "Quantity '%s' not supported by result testing functionality for scalar-structure-thermo "
+        "Quantity '{}' not supported by result testing functionality for scalar-structure-thermo "
         "interaction!",
         quantity.c_str());
   }

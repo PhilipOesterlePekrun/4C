@@ -8,13 +8,11 @@
 #include "4C_mat_micromaterialgp_static.hpp"
 
 #include "4C_fem_discretization.hpp"
-#include "4C_fem_general_elementtype.hpp"
 #include "4C_global_data.hpp"
 #include "4C_inpar_structure.hpp"
 #include "4C_io.hpp"
 #include "4C_io_control.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
-#include "4C_so3_hex8.hpp"
 #include "4C_stru_multi_microstatic.hpp"
 #include "4C_utils_singleton_owner.hpp"
 
@@ -131,7 +129,7 @@ void Mat::MicroMaterialGP::read_restart()
 
   *oldalpha_ = *lastalpha_;
 
-  disn_->Update(1.0, *dis_, 0.0);
+  disn_->update(1.0, *dis_, 0.0);
 }
 
 
@@ -241,40 +239,7 @@ std::string Mat::MicroMaterialGP::new_result_file_path(const std::string& newpre
   return newfilename;
 }
 
-void Mat::MicroMaterialGP::eas_init()
-{
-  std::shared_ptr<Core::FE::Discretization> discret =
-      (Global::Problem::instance(microdisnum_))->get_dis("structure");
-
-  for (int lid = 0; lid < discret->element_row_map()->NumMyElements(); ++lid)
-  {
-    Core::Elements::Element* actele = discret->l_row_element(lid);
-
-    if (actele->element_type() == Discret::Elements::SoHex8Type::instance())
-    {
-      // create the parameters for the discretization
-      Teuchos::ParameterList p;
-      // action for elements
-      p.set("action", "multi_eas_init");
-      p.set("lastalpha", lastalpha_);
-      p.set("oldalpha", oldalpha_);
-      p.set("oldfeas", oldfeas_);
-      p.set("oldKaainv", old_kaainv_);
-      p.set("oldKda", old_kda_);
-
-      Core::LinAlg::SerialDenseMatrix elematrix1;
-      Core::LinAlg::SerialDenseMatrix elematrix2;
-      Core::LinAlg::SerialDenseVector elevector1;
-      Core::LinAlg::SerialDenseVector elevector2;
-      Core::LinAlg::SerialDenseVector elevector3;
-      std::vector<int> lm;
-
-      actele->evaluate(p, *discret, lm, elematrix1, elematrix2, elevector1, elevector2, elevector3);
-    }
-  }
-
-  return;
-}
+void Mat::MicroMaterialGP::eas_init() {}
 
 /// Post setup routine which will be called after the end of the setup
 void Mat::MicroMaterialGP::post_setup()
@@ -343,11 +308,11 @@ void Mat::MicroMaterialGP::update()
   step_ = stepn_;
   stepn_++;
 
-  dis_->Update(1.0, *disn_, 0.0);
+  dis_->update(1.0, *disn_, 0.0);
 
   Global::Problem* microproblem = Global::Problem::instance(microdisnum_);
   std::shared_ptr<Core::FE::Discretization> microdis = microproblem->get_dis("structure");
-  const Epetra_Map* elemap = microdis->element_row_map();
+  const Core::LinAlg::Map* elemap = microdis->element_row_map();
 
   for (int i = 0; i < elemap->NumMyElements(); ++i) (*lastalpha_)[i] = (*oldalpha_)[i];
 

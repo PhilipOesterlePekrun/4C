@@ -7,24 +7,27 @@
 
 #include "4C_inpar_searchtree.hpp"
 
-#include "4C_utils_parameter_list.hpp"
-
+#include "4C_io_input_spec_builders.hpp"
 FOUR_C_NAMESPACE_OPEN
 
 
 
-void Inpar::Geo::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::Geo::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
-  using Teuchos::tuple;
+  using namespace Core::IO::InputSpecBuilders;
 
-  Teuchos::ParameterList& search_tree = list.sublist("SEARCH TREE", false, "");
+  list["SEARCH TREE"] = group("SEARCH TREE",
+      {
 
-  setStringToIntegralParameter<Inpar::Geo::TreeType>("TREE_TYPE", "notree", "set tree type",
-      tuple<std::string>("notree", "octree3d", "quadtree3d", "quadtree2d"),
-      tuple<Inpar::Geo::TreeType>(
-          Inpar::Geo::Notree, Inpar::Geo::Octree3D, Inpar::Geo::Quadtree3D, Inpar::Geo::Quadtree2D),
-      &search_tree);
+          deprecated_selection<Inpar::Geo::TreeType>("TREE_TYPE",
+              {
+                  {"notree", Inpar::Geo::Notree},
+                  {"octree3d", Inpar::Geo::Octree3D},
+                  {"quadtree3d", Inpar::Geo::Quadtree3D},
+                  {"quadtree2d", Inpar::Geo::Quadtree2D},
+              },
+              {.description = "set tree type", .default_value = Inpar::Geo::Notree})},
+      {.defaultable = true});
 }
 
 FOUR_C_NAMESPACE_CLOSE

@@ -54,39 +54,11 @@ namespace Solid
    * is compared to one obtained with an auxiliary time integrator. Based on this
    * estimation of the local truncation error, a new time step size is suggested.
    *
-   * \author bborn
-   * \date 07/08
+
    */
   class TimAda
   {
    public:
-    //! Provide the name as std::string
-    static std::string map_kind_enum_to_string(
-        const enum Inpar::Solid::TimAdaKind term  //!< the enum
-    )
-    {
-      switch (term)
-      {
-        case Inpar::Solid::timada_kind_zienxie:
-          return "ZienkiewiczXie";
-          break;
-        case Inpar::Solid::timada_kind_ab2:
-          return "AdamsBashforth2";
-          break;
-        case Inpar::Solid::timada_kind_expleuler:
-          return "ExplicitEuler";
-          break;
-        case Inpar::Solid::timada_kind_centraldiff:
-          return "CentralDifference";
-          break;
-        default:
-          FOUR_C_THROW("Cannot cope with name enum %d", term);
-          return "";
-          break;
-      }
-      return "";  // make compiler happy
-    }
-
     //! List type of local error control
     enum CtrlEnum
     {
@@ -182,7 +154,6 @@ namespace Solid
      *  that the new time step size also satisfies upper and lower bounds (#stepsizemax_
      *  and #stepsizemin_).
      *
-     *  \author mayr.mt \date 12/2013
      */
     virtual double calculate_dt(const double norm  ///< current norm of local discretization error
     );
@@ -192,7 +163,6 @@ namespace Solid
      *  Print to screen and reset certain quantities in case that the current time
      *  step has to be repeated.
      *
-     *  \author mayr.mt \date 12/2013
      */
     virtual void reset_step();
 
@@ -276,7 +246,7 @@ namespace Solid
     virtual enum Inpar::Solid::TimAdaKind method_name() const = 0;
 
     //! Provide the name as std::string
-    std::string method_title() const { return map_kind_enum_to_string(method_name()); }
+    std::string method_title() const;
 
     //! Provide local order of accuracy based upon linear test equation
     //! for displacements
@@ -394,7 +364,6 @@ namespace Solid
 /*!
  * \brief Out stream inserter for Solid::TimAda
  *
- * \author bborn \date 10/07
  */
 std::ostream& operator<<(std::ostream& str, const Solid::TimAda& ta);
 

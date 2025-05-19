@@ -17,7 +17,6 @@ OUTPUT_BIN                      yes
 OUTPUT_EVERY_ITER               no
 OEI_FILE_COUNTER                0
 STRUCT_DISP                     Yes
-STRUCT_VEL_ACC                  No
 STRUCT_STRESS                   Cauchy
 STRUCT_COUPLING_STRESS          No
 STRUCT_STRAIN                   No
@@ -41,12 +40,12 @@ TIMESTEP                        0.2
 NUMSTEP                         5
 TIMEINIT                        0
 MAXTIME                         1.0
-STC_SCALING                     no
+STC_SCALING                     Inactive
 STC_LAYER                       1
 NLNSOL                          fullnewton
 MATERIALTANGENT                 analytical
 LOADLIN                         No
-MASSLIN                         No
+MASSLIN                         none
 NEGLECTINERTIA                  No
 PREDICT                         TangDis
 LINEAR_SOLVER                   1
@@ -77,28 +76,25 @@ VARIABLE 0 NAME ramp TYPE linearinterpolation NUMPOINTS 3 TIMES 0.0 1.0 10.0 VAL
 STRUCTURE DIS structure NODE 474 QUANTITY dispx VALUE 1.33350000000000080e+00 TOLERANCE 1.0e-08
 STRUCTURE DIS structure NODE 474 QUANTITY dispy VALUE -1.95723355236326760e-03 TOLERANCE 1.0e-08
 STRUCTURE DIS structure NODE 474 QUANTITY dispz VALUE 8.28562203831327698e-02 TOLERANCE 1.0e-08
-STRUCTURE SPECIAL QUANTITY num_iter_step_1 VALUE 3.0 TOLERANCE 1.0e-20
-STRUCTURE SPECIAL QUANTITY num_iter_step_2 VALUE 3.0 TOLERANCE 1.0e-20
-STRUCTURE SPECIAL QUANTITY num_iter_step_3 VALUE 3.0 TOLERANCE 1.0e-20
-STRUCTURE SPECIAL QUANTITY num_iter_step_4 VALUE 3.0 TOLERANCE 1.0e-20
+STRUCTURE SPECIAL true QUANTITY num_iter_step_1 VALUE 3.0 TOLERANCE 1.0e-20
+STRUCTURE SPECIAL true QUANTITY num_iter_step_2 VALUE 3.0 TOLERANCE 1.0e-20
+STRUCTURE SPECIAL true QUANTITY num_iter_step_3 VALUE 3.0 TOLERANCE 1.0e-20
+STRUCTURE SPECIAL true QUANTITY num_iter_step_4 VALUE 3.0 TOLERANCE 1.0e-20
 ------------------------------------DESIGN POINT DIRICH CONDITIONS
-DPOINT 1
 // dbc_fix
-E 1 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0 TAG monitor_reaction
+E 1 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0 TAG monitor_reaction
 -------------------------------------DESIGN LINE DIRICH CONDITIONS
-DLINE  2
 // dbc_fix_xz
-E 1 - NUMDOF 3 ONOFF 1 0 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0 TAG monitor_reaction
+E 1 NUMDOF 3 ONOFF 1 0 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0 TAG monitor_reaction
 // dbc_fix_z_move_x
-E 2 - NUMDOF 3 ONOFF 1 0 1 VAL 1.0 0.0 0.0 FUNCT 1 0 0
+E 2 NUMDOF 3 ONOFF 1 0 1 VAL 1.0 0.0 0.0 FUNCT 1 0 0
 -------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF  3
 // dbc_symm_x
-E 1 - NUMDOF 3 ONOFF 1 0 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0 TAG monitor_reaction
+E 1 NUMDOF 3 ONOFF 1 0 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0 TAG monitor_reaction
 // dbc_move
-E 2 - NUMDOF 3 ONOFF 1 0 0 VAL 1.0 0.0 0.0 FUNCT 1 0 0
+E 2 NUMDOF 3 ONOFF 1 0 0 VAL 1.0 0.0 0.0 FUNCT 1 0 0
 // dbc_symm_z
-E 3 - NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0 TAG monitor_reaction
+E 3 NUMDOF 3 ONOFF 0 0 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0 TAG monitor_reaction
 -----------------------------------------------DNODE-NODE TOPOLOGY
 NODE    1 DNODE 1
 -----------------------------------------------DLINE-NODE TOPOLOGY

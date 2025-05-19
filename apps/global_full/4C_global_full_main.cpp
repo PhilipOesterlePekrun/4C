@@ -7,27 +7,24 @@
 
 #include "4C_config.hpp"
 #include "4C_config_revision.hpp"
-#include "4C_config_trilinos_version.hpp"
 
 #include "4C_comm_utils.hpp"
 #include "4C_contact_constitutivelaw_valid_laws.hpp"
 #include "4C_fem_general_element_definition.hpp"
 #include "4C_fem_general_utils_createdis.hpp"
 #include "4C_global_data.hpp"
+#include "4C_global_data_read.hpp"
 #include "4C_global_legacy_module.hpp"
-#include "4C_global_legacy_module_validmaterials.hpp"
-#include "4C_inpar_validconditions.hpp"
-#include "4C_inpar_validparameters.hpp"
 #include "4C_io_input_file_utils.hpp"
 #include "4C_io_input_spec_builders.hpp"
 #include "4C_utils_exceptions.hpp"
 #include "4C_utils_singleton_owner.hpp"
 
-#include <Epetra_MpiComm.h>
 #include <Kokkos_Core.hpp>
 #include <unistd.h>
 
 #include <csignal>
+#include <filesystem>
 #include <format>
 #include <iostream>
 
@@ -39,6 +36,75 @@ using namespace FourC;
 
 namespace
 {
+  void print_help_message()
+  {
+    std::cout
+        << "NAME\n"
+        << "\t"
+        << "4C - simulate just about anything\n"
+        << "\n"
+        << "SYNOPSIS\n"
+        << "\t"
+        << "4C [-h | --help] [-p | --parameters] [--to-yaml] [-d | --datfile] [-ngroup=<x>] \\ "
+           "\n"
+           "\t\t[-glayout=a,b,c,...] [-nptype=<parallelism_type>] \\ \n"
+        << "\t\t<dat_name> <output_name> [restart=<y>] [restartfrom=restart_file_name] \\ \n"
+           "\t\t[ <dat_name0> <output_name0> [restart=<y>] [restartfrom=restart_file_name] ... "
+           "] \\ \n"
+           "\t\t[--interactive]\n"
+        << "\n"
+        << "DESCRIPTION\n"
+        << "\tThe am besten simulation tool in the world.\n"
+        << "\n"
+        << "OPTIONS\n"
+        << "\t--help or -h\n"
+        << "\t\tPrint this message.\n"
+        << "\n"
+        << "\t--parameters or -p\n"
+        << "\t\tDumps information about the parameters for consumption by additional tools.\n"
+        << "\n"
+        << "\t--to-yaml <in_file_name> [<out_file_name>]\n"
+        << "\t\tRewrites a dat file to a yaml file. (default output: "
+           "<in_file_name_without_suffix>.4C.yaml\n"
+        << "\n"
+        << "\t-ngroup=<x>\n"
+        << "\t\tSpecify the number of groups for nested parallelism. (default: 1)\n"
+        << "\n"
+        << "\t-glayout=<a>,<b>,<c>,...\n"
+        << "\t\tSpecify the number of processors per group. \n"
+           "\t\tArgument \"-ngroup\" is mandatory and must be preceding. \n"
+           "\t\t(default: equal distribution)\n"
+        << "\n"
+        << "\t-nptype=<parallelism_type>\n"
+        << "\t\tAvailable options: \"separateDatFiles\" and \"everyGroupReadDatFile\"; \n"
+           "\t\tMust be set if \"-ngroup\" > 1.\n"
+        << "\t\t\"diffgroupx\" can be used to compare results from separate but parallel 4C "
+           "runs; \n"
+           "\t\tx must be 0 and 1 for the respective run\n"
+        << "\n"
+        << "\t<dat_name>\n"
+        << "\t\tName of the input file, including the suffix\n"
+        << "\n"
+        << "\t<output_name>\n"
+        << "\t\tPrefix of your output files.\n"
+        << "\n"
+        << "\trestart=<y>\n"
+        << "\t\tRestart the simulation from step <y>. \n"
+           "\t\tIt always refers to the previously defined <dat_name> and <output_name>. \n"
+           "\t\t(default: 0 or from <dat_name>)\n"
+           "\t\tIf y=last_possible, it will restart from the last restart step defined in the "
+           "control file.\n"
+        << "\n"
+        << "\trestartfrom=<restart_file_name>\n"
+        << "\t\tRestart the simulation from the files prefixed with <restart_file_name>. \n"
+           "\t\t(default: <output_name>)\n"
+        << "\n"
+        << "\t--interactive\n"
+        << "\t\t4C waits at the beginning for keyboard input. \n"
+           "\t\tHelpful for parallel debugging when attaching to a single job. \n"
+           "\t\tMust be specified at the end in the command line.\n"
+        << "\n";
+  }
 
   /** Collect and print data on memory high water mark of this run
    *
@@ -191,7 +257,7 @@ namespace
         FOUR_C_THROW("4C produced an unknown floating point exception.");
         break;
     }
-    FOUR_C_THROW("4C produced a %s floating point exception.", exception_string.c_str());
+    FOUR_C_THROW("4C produced a {} floating point exception.", exception_string);
   }
 #endif
 
@@ -269,52 +335,47 @@ int main(int argc, char* argv[])
   {
     if (Core::Communication::my_mpi_rank(lcomm) == 0)
     {
-      auto valid_parameters = Input::valid_parameters();
-      Core::IO::print_metadata_yaml(std::cout, *valid_parameters);
+      Core::IO::InputFile input_file = Global::set_up_input_file(lcomm);
+      input_file.emit_metadata(std::cout);
     }
   }
-  else if ((argc == 2) && ((strcmp(argv[1], "-d") == 0) || (strcmp(argv[1], "--datfile") == 0)))
+  else if ((argc >= 3) && (strcmp(argv[1], "--to-yaml") == 0))
   {
     if (Core::Communication::my_mpi_rank(lcomm) == 0)
     {
-      printf("\n\n");
-      print_default_dat_header();
-      print_condition_dat_header();
-
+      std::filesystem::path inputfile_name = argv[2];
+      // Always make the input file path relative to the working directory. This ensures that any
+      // absolute path encountered in the input file stays that way.
+      if (inputfile_name.is_absolute())
       {
-        std::vector<Core::IO::InputSpec> possible_materials;
+        inputfile_name = std::filesystem::relative(inputfile_name);
+      }
+
+      std::filesystem::path outputfile_name;
+      if (argc == 3)
+      {
+        outputfile_name = inputfile_name;
+        outputfile_name.replace_extension("4C.yaml");
+        if (std::filesystem::exists(outputfile_name))
         {
-          auto materials = global_legacy_module_callbacks().materials();
-          for (auto&& [type, spec] : materials)
-          {
-            possible_materials.emplace_back(std::move(spec));
-          }
+          printf("You did not provide an output file name.\n");
+          printf("The default is to replace the original suffix by .4C.yaml.\n");
+          printf("However, the file '%s' already exists. I will not continue\n",
+              outputfile_name.c_str());
+          exit(EXIT_FAILURE);
         }
-
-        using namespace Core::IO::InputSpecBuilders;
-        auto all_materials = all_of({
-            entry<int>("MAT"),
-            one_of(possible_materials),
-        });
-
-        Core::IO::print_section(std::cout, "MATERIALS", all_materials);
       }
-
+      else
       {
-        auto valid_co_laws = CONTACT::CONSTITUTIVELAW::valid_contact_constitutive_laws();
-        Core::IO::print_section_header(std::cout, "CONTACT CONSTITUTIVE LAWS");
-        valid_co_laws.print_as_dat(std::cout);
+        outputfile_name = argv[3];
       }
-
-      const auto lines = Core::FE::valid_cloning_material_map();
-      Core::IO::print_section(std::cout, "CLONING MATERIAL MAP", lines);
-
-      print_element_dat_header();
-
-      const auto result_spec = global_legacy_module_callbacks().valid_result_description_lines();
-      Core::IO::print_section(std::cout, "RESULT DESCRIPTION", result_spec);
-
-      printf("\n\n");
+      Core::IO::InputFile input_file = Global::set_up_input_file(lcomm);
+      input_file.read(inputfile_name);
+      std::ofstream output_file(outputfile_name);
+      input_file.write_as_yaml(output_file, outputfile_name);
+      printf("The input file has been converted to yaml format");
+      if (argc == 3) printf(", saved as %s", outputfile_name.c_str());
+      printf("\n");
     }
   }
   else
@@ -344,9 +405,9 @@ int main(int argc, char* argv[])
       std::cout << std::string(box_width, '*') << '\n';
       std::cout << '\n';
 
-      printf(
-          "Trilinos Version %s (git SHA1 %s)\n", TrilinosVersion.c_str(), TrilinosGitHash.c_str());
-      printf("Total number of processors: %d\n", Core::Communication::num_mpi_ranks(gcomm));
+      std::cout << "Trilinos Version: " << FOUR_C_TRILINOS_HASH << " (git SHA1)\n";
+      std::cout << "Total number of MPI ranks: " << Core::Communication::num_mpi_ranks(gcomm)
+                << '\n';
     }
 
     /* Here we turn the NaN and INF numbers off. No need to calculate

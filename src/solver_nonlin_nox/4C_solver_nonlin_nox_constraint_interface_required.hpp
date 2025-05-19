@@ -126,13 +126,13 @@ namespace NOX
             return ::NOX::StatusTest::Unevaluated;
           }
 
-          virtual Teuchos::RCP<const Epetra_Map> get_current_active_set_map(
+          virtual Teuchos::RCP<const Core::LinAlg::Map> get_current_active_set_map(
               enum NOX::Nln::StatusTest::QuantityType qt) const
           {
             return Teuchos::null;
           };
 
-          virtual Teuchos::RCP<const Epetra_Map> get_old_active_set_map(
+          virtual Teuchos::RCP<const Core::LinAlg::Map> get_old_active_set_map(
               enum NOX::Nln::StatusTest::QuantityType qt) const
           {
             return Teuchos::null;
@@ -141,10 +141,8 @@ namespace NOX
           //! @}
         };
       }  // end namespace Interface
-      // typedef
-      typedef std::map<NOX::Nln::SolutionType,
-          Teuchos::RCP<NOX::Nln::CONSTRAINT::Interface::Required>>
-          ReqInterfaceMap;
+      using ReqInterfaceMap =
+          std::map<NOX::Nln::SolutionType, Teuchos::RCP<NOX::Nln::CONSTRAINT::Interface::Required>>;
     }  // namespace CONSTRAINT
   }  // end namespace Nln
 }  // end namespace NOX

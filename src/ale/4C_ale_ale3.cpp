@@ -10,8 +10,9 @@
 #include "4C_comm_pack_helpers.hpp"
 #include "4C_comm_utils_factory.hpp"
 #include "4C_fem_discretization.hpp"
+#include "4C_fem_general_node.hpp"
 #include "4C_io_input_spec_builders.hpp"
-#include "4C_so3_nullspace.hpp"
+#include "4C_solid_3D_ele_nullspace.hpp"
 #include "4C_utils_exceptions.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -71,7 +72,7 @@ void Discret::Elements::Ale3Type::nodal_block_information(
 Core::LinAlg::SerialDenseMatrix Discret::Elements::Ale3Type::compute_null_space(
     Core::Nodes::Node& node, const double* x0, const int numdof, const int dimnsp)
 {
-  return compute_solid_3d_null_space(node, x0);
+  return compute_solid_null_space<3>(node.x(), x0);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -84,43 +85,43 @@ void Discret::Elements::Ale3Type::setup_element_definition(
   using namespace Core::IO::InputSpecBuilders;
 
   defs["HEX8"] = all_of({
-      entry<std::vector<int>>("HEX8", {.size = 8}),
-      entry<int>("MAT"),
+      parameter<std::vector<int>>("HEX8", {.size = 8}),
+      parameter<int>("MAT"),
   });
 
   defs["HEX20"] = all_of({
-      entry<std::vector<int>>("HEX20", {.size = 20}),
-      entry<int>("MAT"),
+      parameter<std::vector<int>>("HEX20", {.size = 20}),
+      parameter<int>("MAT"),
   });
 
   defs["HEX27"] = all_of({
-      entry<std::vector<int>>("HEX27", {.size = 27}),
-      entry<int>("MAT"),
+      parameter<std::vector<int>>("HEX27", {.size = 27}),
+      parameter<int>("MAT"),
   });
 
   defs["TET4"] = all_of({
-      entry<std::vector<int>>("TET4", {.size = 4}),
-      entry<int>("MAT"),
+      parameter<std::vector<int>>("TET4", {.size = 4}),
+      parameter<int>("MAT"),
   });
 
   defs["TET10"] = all_of({
-      entry<std::vector<int>>("TET10", {.size = 10}),
-      entry<int>("MAT"),
+      parameter<std::vector<int>>("TET10", {.size = 10}),
+      parameter<int>("MAT"),
   });
 
   defs["WEDGE6"] = all_of({
-      entry<std::vector<int>>("WEDGE6", {.size = 6}),
-      entry<int>("MAT"),
+      parameter<std::vector<int>>("WEDGE6", {.size = 6}),
+      parameter<int>("MAT"),
   });
 
   defs["WEDGE15"] = all_of({
-      entry<std::vector<int>>("WEDGE15", {.size = 15}),
-      entry<int>("MAT"),
+      parameter<std::vector<int>>("WEDGE15", {.size = 15}),
+      parameter<int>("MAT"),
   });
 
   defs["PYRAMID5"] = all_of({
-      entry<std::vector<int>>("PYRAMID5", {.size = 5}),
-      entry<int>("MAT"),
+      parameter<std::vector<int>>("PYRAMID5", {.size = 5}),
+      parameter<int>("MAT"),
   });
 }
 
@@ -173,7 +174,7 @@ Core::FE::CellType Discret::Elements::Ale3::shape() const
     case 27:
       return Core::FE::CellType::hex27;
     default:
-      FOUR_C_THROW("unexpected number of nodes %d", num_node());
+      FOUR_C_THROW("unexpected number of nodes {}", num_node());
       break;
   }
 }

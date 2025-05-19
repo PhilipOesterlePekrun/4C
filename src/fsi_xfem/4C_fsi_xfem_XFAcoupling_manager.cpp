@@ -28,7 +28,7 @@ XFEM::XfaCouplingManager::XfaCouplingManager(std::shared_ptr<FLD::XFluid> xfluid
       structure_(structure)
 {
   if (idx_.size() != static_cast<std::size_t>(2 + (structure_ != nullptr)))
-    FOUR_C_THROW("XFACoupling_Manager required (two + num coupled block) ( %d != %d)",
+    FOUR_C_THROW("XFACoupling_Manager required (two + num coupled block) ( {} != {})",
         (2 + (structure_ != nullptr)), idx_.size());
 
   if (structure_ != nullptr)
@@ -39,7 +39,7 @@ XFEM::XfaCouplingManager::XfaCouplingManager(std::shared_ptr<FLD::XFluid> xfluid
       if (ale_->discretization()->get_condition("StructAleCoupling")->get_nodes()->size() !=
           structure_->discretization()->get_condition("StructAleCoupling")->get_nodes()->size())
       {
-        FOUR_C_THROW("XFACoupling_Manager: For StructAleCoupling NumNodes not equal! (%d != %d)",
+        FOUR_C_THROW("XFACoupling_Manager: For StructAleCoupling NumNodes not equal! ({} != {})",
             ale_->discretization()->get_condition("StructAleCoupling")->get_nodes()->size(),
             structure_->discretization()->get_condition("StructAleCoupling")->get_nodes()->size());
       }
@@ -93,7 +93,7 @@ void XFEM::XfaCouplingManager::set_coupling_states()
 
   // 2 Get AleDisplacements
   std::shared_ptr<Core::LinAlg::Vector<double>> aledisplacements =
-      std::make_shared<Core::LinAlg::Vector<double>>(*get_map_extractor(0)->Map(1), true);
+      std::make_shared<Core::LinAlg::Vector<double>>(*get_map_extractor(0)->map(1), true);
   insert_vector(1, ale_->dispnp(), 0, aledisplacements, CouplingCommManager::partial_to_partial);
   // 3 Set Fluid Dispnp
   get_map_extractor(0)->insert_vector(*aledisplacements, 1, *xfluid_->write_access_dispnp());
@@ -120,7 +120,7 @@ void XFEM::XfaCouplingManager::add_coupling_matrix(
   // ALE Condensation
   Core::LinAlg::SparseMatrix& aii = a->matrix(aidx_other, aidx_other);
 
-  systemmatrix.assign(idx_[1], idx_[1], Core::LinAlg::View, aii);
+  systemmatrix.assign(idx_[1], idx_[1], Core::LinAlg::DataAccess::View, aii);
 
   if (ale_struct_coupling_ != nullptr)
   {

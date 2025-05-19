@@ -10,6 +10,7 @@
 #include "4C_adapter_ale_xffsi.hpp"
 #include "4C_adapter_fld_fluid_fluid_fsi.hpp"
 #include "4C_adapter_str_fsiwrapper.hpp"
+#include "4C_ale_input.hpp"
 #include "4C_ale_utils_mapextractor.hpp"
 #include "4C_constraint_manager.hpp"
 #include "4C_coupling_adapter.hpp"
@@ -19,7 +20,6 @@
 #include "4C_fsi_debugwriter.hpp"
 #include "4C_fsi_statustest.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_ale.hpp"
 #include "4C_inpar_fsi.hpp"
 #include "4C_inpar_xfem.hpp"
 #include "4C_io.hpp"
@@ -38,10 +38,10 @@ FSI::FluidFluidMonolithicStructureSplitNoNOX::FluidFluidMonolithicStructureSplit
     : MonolithicNoNOX(comm, timeparams)
 {
   // Throw an error if there are DBCs on structural interface DOFs.
-  std::vector<std::shared_ptr<const Epetra_Map>> intersectionmaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> intersectionmaps;
   intersectionmaps.push_back(structure_field()->get_dbc_map_extractor()->cond_map());
   intersectionmaps.push_back(structure_field()->interface()->fsi_cond_map());
-  std::shared_ptr<Epetra_Map> intersectionmap =
+  std::shared_ptr<Core::LinAlg::Map> intersectionmap =
       Core::LinAlg::MultiMapExtractor::intersect_maps(intersectionmaps);
 
   if (intersectionmap->NumGlobalElements() != 0)
@@ -90,7 +90,7 @@ FSI::FluidFluidMonolithicStructureSplitNoNOX::FluidFluidMonolithicStructureSplit
                 "------------+"
              << std::endl;
 
-    FOUR_C_THROW(errormsg.str());
+    FOUR_C_THROW("{}", errormsg.str());
   }
 
 #ifdef FOUR_C_ENABLE_ASSERTIONS
@@ -219,7 +219,7 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::setup_rhs(
     rhs = std::make_shared<Core::LinAlg::Vector<double>>(sig.row_map(), true);
     std::shared_ptr<Core::LinAlg::Vector<double>> fveln = fluid_field()->extract_interface_veln();
     sig.Apply(*fluid_to_struct(fveln), *rhs);
-    rhs->Scale(-dt);
+    rhs->scale(-dt);
 
     extractor().add_vector(*rhs, 0, f);
 
@@ -245,7 +245,7 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::setup_rhs(
       Core::LinAlg::SparseMatrix& fmig = mmm->matrix(0, 1);
       rhs = std::make_shared<Core::LinAlg::Vector<double>>(fmig.row_map(), true);
       fmig.Apply(*fveln, *rhs);
-      rhs->Scale(-dt);
+      rhs->scale(-dt);
 
       rhs = fluid_field()->interface()->insert_other_vector(*rhs);
       extractor().add_vector(*rhs, 1, f);
@@ -276,7 +276,7 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::setup_rhs(
       Core::LinAlg::SparseMatrix& fmgg = mmm->matrix(1, 1);
       rhs = std::make_shared<Core::LinAlg::Vector<double>>(fmgg.row_map(), true);
       fmgg.Apply(*fveln, *rhs);
-      rhs->Scale(-dt);
+      rhs->scale(-dt);
       rhs = fluid_field()->interface()->insert_fsi_cond_vector(*rhs);
       extractor().add_vector(*rhs, 1, f);
     }
@@ -284,7 +284,7 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::setup_rhs(
     // ----------addressing term 2
     rhs = std::make_shared<Core::LinAlg::Vector<double>>(sgg.row_map(), true);
     sgg.Apply(*fluid_to_struct(fveln), *rhs);
-    rhs->Scale(-dt * (1. - ftiparam) / ((1 - stiparam) * scale));
+    rhs->scale(-dt * (1. - ftiparam) / ((1 - stiparam) * scale));
 
     rhs = struct_to_fluid(rhs);
     rhs = fluid_field()->interface()->insert_fsi_cond_vector(*rhs);
@@ -293,7 +293,7 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::setup_rhs(
     // ----------addressing term 3
     rhs = std::make_shared<Core::LinAlg::Vector<double>>(sgg.row_map(), true);
     sgg.Apply(*ddgpred_, *rhs);
-    rhs->Scale((1. - ftiparam) / ((1 - stiparam) * scale));
+    rhs->scale((1. - ftiparam) / ((1 - stiparam) * scale));
 
     rhs = struct_to_fluid(rhs);
     rhs = fluid_field()->interface()->insert_fsi_cond_vector(*rhs);
@@ -303,7 +303,7 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::setup_rhs(
     rhs = std::make_shared<Core::LinAlg::Vector<double>>(aig.row_map(), true);
 
     aig.Apply(*fluid_to_ale_interface(fveln), *rhs);
-    rhs->Scale(-dt);
+    rhs->scale(-dt);
     extractor().add_vector(*rhs, 2, f);
     // ---------- end of inner ale DOFs
   }
@@ -363,7 +363,7 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::setup_system_matrix()
   // interface meshes.
   f->un_complete();
 
-  systemmatrix_->assign(0, 0, Core::LinAlg::View, s->matrix(0, 0));
+  systemmatrix_->assign(0, 0, Core::LinAlg::DataAccess::View, s->matrix(0, 0));
 
   (*sigtransform_)(s->full_row_map(), s->full_col_map(), s->matrix(0, 1), 1. / timescale,
       Coupling::Adapter::CouplingMasterConverter(coupsf), systemmatrix_->matrix(0, 1));
@@ -380,12 +380,12 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::setup_system_matrix()
   lsgi->complete(s->matrix(1, 0).domain_map(), f->range_map());
 
   // systemmatrix_->Assign(1,1,View,*f);
-  systemmatrix_->assign(1, 0, Core::LinAlg::View, *lsgi);
+  systemmatrix_->assign(1, 0, Core::LinAlg::DataAccess::View, *lsgi);
 
   (*aigtransform_)(a->full_row_map(), a->full_col_map(), aig, 1. / timescale,
       Coupling::Adapter::CouplingSlaveConverter(icoupfa), systemmatrix_->matrix(2, 1));
 
-  systemmatrix_->assign(2, 2, Core::LinAlg::View, aii);
+  systemmatrix_->assign(2, 2, Core::LinAlg::DataAccess::View, aii);
 
   /*----------------------------------------------------------------------*/
   // add optional fluid linearization with respect to mesh motion block
@@ -412,13 +412,13 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::setup_system_matrix()
 
     lfmgi.complete(aii.domain_map(), f->range_map());
 
-    systemmatrix_->assign(1, 2, Core::LinAlg::View, lfmgi);
+    systemmatrix_->assign(1, 2, Core::LinAlg::DataAccess::View, lfmgi);
   }
 
   f->complete();
 
   // finally assign fluid block
-  systemmatrix_->assign(1, 1, Core::LinAlg::View, *f);
+  systemmatrix_->assign(1, 1, Core::LinAlg::DataAccess::View, *f);
 
   // done. make sure all blocks are filled.
   systemmatrix_->complete();
@@ -448,37 +448,33 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::scale_system(
 
   if (scaling_infnorm)
   {
-    // The matrices are modified here. Do we have to change them back later on?
+    // TODO: The matrices are modified here. Do we have to change them back later on?
 
-    std::shared_ptr<Epetra_CrsMatrix> A = mat.matrix(0, 0).epetra_matrix();
-    srowsum_ = std::make_shared<Core::LinAlg::Vector<double>>(A->RowMap(), false);
-    scolsum_ = std::make_shared<Core::LinAlg::Vector<double>>(A->RowMap(), false);
-    A->InvRowSums(*srowsum_->get_ptr_of_Epetra_Vector());
-    A->InvColSums(*scolsum_->get_ptr_of_Epetra_Vector());
-    if (A->LeftScale(*srowsum_) or A->RightScale(*scolsum_) or
-        mat.matrix(0, 1).epetra_matrix()->LeftScale(*srowsum_) or
-        mat.matrix(0, 2).epetra_matrix()->LeftScale(*srowsum_) or
-        mat.matrix(1, 0).epetra_matrix()->RightScale(*scolsum_) or
-        mat.matrix(2, 0).epetra_matrix()->RightScale(*scolsum_))
+    Core::LinAlg::SparseMatrix& A_00 = mat.matrix(0, 0);
+    srowsum_ = std::make_shared<Core::LinAlg::Vector<double>>(A_00.row_map(), false);
+    scolsum_ = std::make_shared<Core::LinAlg::Vector<double>>(A_00.row_map(), false);
+    A_00.inv_row_sums(*srowsum_);
+    A_00.inv_col_sums(*scolsum_);
+    if (A_00.left_scale(*srowsum_) or A_00.right_scale(*scolsum_) or
+        mat.matrix(0, 1).left_scale(*srowsum_) or mat.matrix(0, 2).left_scale(*srowsum_) or
+        mat.matrix(1, 0).right_scale(*scolsum_) or mat.matrix(2, 0).right_scale(*scolsum_))
       FOUR_C_THROW("structure scaling failed");
 
-    A = mat.matrix(2, 2).epetra_matrix();
-    arowsum_ = std::make_shared<Core::LinAlg::Vector<double>>(A->RowMap(), false);
-    acolsum_ = std::make_shared<Core::LinAlg::Vector<double>>(A->RowMap(), false);
-    A->InvRowSums(*arowsum_->get_ptr_of_Epetra_Vector());
-    A->InvColSums(*acolsum_->get_ptr_of_Epetra_Vector());
-    if (A->LeftScale(*arowsum_) or A->RightScale(*acolsum_) or
-        mat.matrix(2, 0).epetra_matrix()->LeftScale(*arowsum_) or
-        mat.matrix(2, 1).epetra_matrix()->LeftScale(*arowsum_) or
-        mat.matrix(0, 2).epetra_matrix()->RightScale(*acolsum_) or
-        mat.matrix(1, 2).epetra_matrix()->RightScale(*acolsum_))
+    Core::LinAlg::SparseMatrix& A_22 = mat.matrix(2, 2);
+    arowsum_ = std::make_shared<Core::LinAlg::Vector<double>>(A_22.row_map(), false);
+    acolsum_ = std::make_shared<Core::LinAlg::Vector<double>>(A_22.row_map(), false);
+    A_22.inv_row_sums(*arowsum_);
+    A_22.inv_col_sums(*acolsum_);
+    if (A_22.left_scale(*arowsum_) or A_22.right_scale(*acolsum_) or
+        mat.matrix(2, 0).left_scale(*arowsum_) or mat.matrix(2, 1).left_scale(*arowsum_) or
+        mat.matrix(0, 2).right_scale(*acolsum_) or mat.matrix(1, 2).right_scale(*acolsum_))
       FOUR_C_THROW("ale scaling failed");
 
     std::shared_ptr<Core::LinAlg::Vector<double>> sx = extractor().extract_vector(b, 0);
     std::shared_ptr<Core::LinAlg::Vector<double>> ax = extractor().extract_vector(b, 2);
 
-    if (sx->Multiply(1.0, *srowsum_, *sx, 0.0)) FOUR_C_THROW("structure scaling failed");
-    if (ax->Multiply(1.0, *arowsum_, *ax, 0.0)) FOUR_C_THROW("ale scaling failed");
+    if (sx->multiply(1.0, *srowsum_, *sx, 0.0)) FOUR_C_THROW("structure scaling failed");
+    if (ax->multiply(1.0, *arowsum_, *ax, 0.0)) FOUR_C_THROW("ale scaling failed");
 
     extractor().insert_vector(*sx, 0, b);
     extractor().insert_vector(*ax, 2, b);
@@ -488,25 +484,26 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::scale_system(
 /*----------------------------------------------------------------------*
  |  map containing the dofs with Dirichlet BC
  *----------------------------------------------------------------------*/
-std::shared_ptr<Epetra_Map> FSI::FluidFluidMonolithicStructureSplitNoNOX::combined_dbc_map()
+std::shared_ptr<Core::LinAlg::Map> FSI::FluidFluidMonolithicStructureSplitNoNOX::combined_dbc_map()
 {
   // Create a combined map vector with the 3 field DBC maps
-  std::vector<std::shared_ptr<const Epetra_Map>> alldbcmaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> alldbcmaps;
 
   // structure DBC
   alldbcmaps.push_back(structure_field()->get_dbc_map_extractor()->cond_map());
   // fluid DBC
   alldbcmaps.push_back(fluid_field()->get_dbc_map_extractor()->cond_map());
   // ALE-DBC
-  std::vector<std::shared_ptr<const Epetra_Map>> aleintersectionmaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> aleintersectionmaps;
   aleintersectionmaps.push_back(ale_field()->get_dbc_map_extractor()->cond_map());
   aleintersectionmaps.push_back(ale_field()->interface()->other_map());
-  std::shared_ptr<Epetra_Map> aleintersectionmap =
+  std::shared_ptr<Core::LinAlg::Map> aleintersectionmap =
       Core::LinAlg::MultiMapExtractor::intersect_maps(aleintersectionmaps);
   alldbcmaps.push_back(aleintersectionmap);
 
   // Merge the maps
-  std::shared_ptr<Epetra_Map> alldbcmap = Core::LinAlg::MultiMapExtractor::merge_maps(alldbcmaps);
+  std::shared_ptr<Core::LinAlg::Map> alldbcmap =
+      Core::LinAlg::MultiMapExtractor::merge_maps(alldbcmaps);
 
   return alldbcmap;
 }
@@ -526,8 +523,8 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::unscale_solution(
     std::shared_ptr<Core::LinAlg::Vector<double>> sy = extractor().extract_vector(x, 0);
     std::shared_ptr<Core::LinAlg::Vector<double>> ay = extractor().extract_vector(x, 2);
 
-    if (sy->Multiply(1.0, *scolsum_, *sy, 0.0)) FOUR_C_THROW("structure scaling failed");
-    if (ay->Multiply(1.0, *acolsum_, *ay, 0.0)) FOUR_C_THROW("ale scaling failed");
+    if (sy->multiply(1.0, *scolsum_, *sy, 0.0)) FOUR_C_THROW("structure scaling failed");
+    if (ay->multiply(1.0, *acolsum_, *ay, 0.0)) FOUR_C_THROW("ale scaling failed");
 
     extractor().insert_vector(*sy, 0, x);
     extractor().insert_vector(*ay, 2, x);
@@ -535,30 +532,26 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::unscale_solution(
     std::shared_ptr<Core::LinAlg::Vector<double>> sx = extractor().extract_vector(b, 0);
     std::shared_ptr<Core::LinAlg::Vector<double>> ax = extractor().extract_vector(b, 2);
 
-    if (sx->ReciprocalMultiply(1.0, *srowsum_, *sx, 0.0)) FOUR_C_THROW("structure scaling failed");
-    if (ax->ReciprocalMultiply(1.0, *arowsum_, *ax, 0.0)) FOUR_C_THROW("ale scaling failed");
+    if (sx->reciprocal_multiply(1.0, *srowsum_, *sx, 0.0)) FOUR_C_THROW("structure scaling failed");
+    if (ax->reciprocal_multiply(1.0, *arowsum_, *ax, 0.0)) FOUR_C_THROW("ale scaling failed");
 
     extractor().insert_vector(*sx, 0, b);
     extractor().insert_vector(*ax, 2, b);
 
-    std::shared_ptr<Epetra_CrsMatrix> A = mat.matrix(0, 0).epetra_matrix();
-    srowsum_->Reciprocal(*srowsum_);
-    scolsum_->Reciprocal(*scolsum_);
-    if (A->LeftScale(*srowsum_) or A->RightScale(*scolsum_) or
-        mat.matrix(0, 1).epetra_matrix()->LeftScale(*srowsum_) or
-        mat.matrix(0, 2).epetra_matrix()->LeftScale(*srowsum_) or
-        mat.matrix(1, 0).epetra_matrix()->RightScale(*scolsum_) or
-        mat.matrix(2, 0).epetra_matrix()->RightScale(*scolsum_))
+    Core::LinAlg::SparseMatrix& A_00 = mat.matrix(0, 0);
+    srowsum_->reciprocal(*srowsum_);
+    scolsum_->reciprocal(*scolsum_);
+    if (A_00.left_scale(*srowsum_) or A_00.right_scale(*scolsum_) or
+        mat.matrix(0, 1).left_scale(*srowsum_) or mat.matrix(0, 2).left_scale(*srowsum_) or
+        mat.matrix(1, 0).right_scale(*scolsum_) or mat.matrix(2, 0).right_scale(*scolsum_))
       FOUR_C_THROW("structure scaling failed");
 
-    A = mat.matrix(2, 2).epetra_matrix();
-    arowsum_->Reciprocal(*arowsum_);
-    acolsum_->Reciprocal(*acolsum_);
-    if (A->LeftScale(*arowsum_) or A->RightScale(*acolsum_) or
-        mat.matrix(2, 0).epetra_matrix()->LeftScale(*arowsum_) or
-        mat.matrix(2, 1).epetra_matrix()->LeftScale(*arowsum_) or
-        mat.matrix(0, 2).epetra_matrix()->RightScale(*acolsum_) or
-        mat.matrix(1, 2).epetra_matrix()->RightScale(*acolsum_))
+    Core::LinAlg::SparseMatrix& A_22 = mat.matrix(2, 2);
+    arowsum_->reciprocal(*arowsum_);
+    acolsum_->reciprocal(*acolsum_);
+    if (A_22.left_scale(*arowsum_) or A_22.right_scale(*acolsum_) or
+        mat.matrix(2, 0).left_scale(*arowsum_) or mat.matrix(2, 1).left_scale(*arowsum_) or
+        mat.matrix(0, 2).right_scale(*acolsum_) or mat.matrix(1, 2).right_scale(*acolsum_))
       FOUR_C_THROW("ale scaling failed");
   }
 }
@@ -595,18 +588,18 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::setup_vector(Core::LinAlg::Ve
         fluid_field()->interface()->insert_fsi_cond_vector(*struct_to_fluid(scv));
 
     // modfv = modfv * 1/fluidscale * d/b
-    modfv->Scale((1. / fluidscale) * (1.0 - ftiparam) / (1.0 - stiparam));
+    modfv->scale((1. / fluidscale) * (1.0 - ftiparam) / (1.0 - stiparam));
 
     // add contribution of Lagrange multiplier from previous time step
     if (lambda_ != nullptr)
     {
       std::shared_ptr<Core::LinAlg::Vector<double>> lambdaglobal =
           fluid_field()->interface()->insert_fsi_cond_vector(*struct_to_fluid(lambda_));
-      modfv->Update((-ftiparam + stiparam * (1.0 - ftiparam) / (1.0 - stiparam)) / fluidscale,
+      modfv->update((-ftiparam + stiparam * (1.0 - ftiparam) / (1.0 - stiparam)) / fluidscale,
           *lambdaglobal, 1.0);
     }
 
-    modfv->Update(1.0, fv, 1.0);
+    modfv->update(1.0, fv, 1.0);
     extractor().insert_vector(*modfv, 1, f);
   }
   else
@@ -666,7 +659,7 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::extract_field_vectors(
   // std::shared_ptr<Core::LinAlg::Vector<double>> scx = fluid_to_struct(fcx);
   // convert ALE interface displacements to structure interface displacements
   std::shared_ptr<Core::LinAlg::Vector<double>> scx = ale_to_struct(acx);
-  scx->Update(-1.0, *ddgpred_, 1.0);
+  scx->update(-1.0, *ddgpred_, 1.0);
 
   std::shared_ptr<Core::LinAlg::Vector<double>> s =
       structure_field()->interface()->insert_other_vector(*sox);
@@ -680,14 +673,14 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::extract_field_vectors(
   // ----------------------
   // Store field vectors to know them later on as previous quantities
   if (solipre_ != nullptr)
-    ddiinc_->Update(1.0, *sox, -1.0, *solipre_, 0.0);  // compute current iteration increment
+    ddiinc_->update(1.0, *sox, -1.0, *solipre_, 0.0);  // compute current iteration increment
   else
     ddiinc_ = std::make_shared<Core::LinAlg::Vector<double>>(*sox);  // first iteration increment
 
   solipre_ = sox;  // store current step increment
 
   if (solgpre_ != nullptr)
-    ddginc_->Update(1.0, *scx, -1.0, *solgpre_, 0.0);  // compute current iteration increment
+    ddginc_->update(1.0, *scx, -1.0, *solgpre_, 0.0);  // compute current iteration increment
   else
     ddginc_ = std::make_shared<Core::LinAlg::Vector<double>>(*scx);  // first iteration increment
 
@@ -754,7 +747,7 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::create_combined_dof_row_map()
   TEUCHOS_FUNC_TIME_MONITOR("FSI::FluidFluidMonolithicStructureSplitNoNOX::SetupNewSystem()");
 
   // create combined map
-  std::vector<std::shared_ptr<const Epetra_Map>> vecSpaces;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> vecSpaces;
   vecSpaces.push_back(structure_field()->interface()->other_map());
   vecSpaces.push_back(fluid_field()->dof_row_map());
   vecSpaces.push_back(ale_field()->interface()->other_map());
@@ -773,83 +766,84 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::build_convergence_norms()
       "FSI::FluidFluidMonolithicStructureSplitNoNOX::build_convergence_norms()");
   //----------------------------
   // build residual norms
-  rhs_->Norm2(&normrhs_);
+  rhs_->norm_2(&normrhs_);
 
   // structural Dofs
   structure_field()
       ->interface()
       ->extract_other_vector(*structure_field()->rhs())
-      ->Norm2(&normstrrhsL2_);
+      ->norm_2(&normstrrhsL2_);
   structure_field()
       ->interface()
       ->extract_other_vector(*structure_field()->rhs())
-      ->NormInf(&normstrrhsInf_);
+      ->norm_inf(&normstrrhsInf_);
 
   // extract fluid Dofs
   std::shared_ptr<const Core::LinAlg::Vector<double>> rhs = extractor().extract_vector(*rhs_, 1);
 
-  fluid_field()->interface()->extract_fsi_cond_vector(*rhs)->Norm2(&norminterfacerhsL2_);
-  fluid_field()->interface()->extract_fsi_cond_vector(*rhs)->NormInf(&norminterfacerhsInf_);
+  fluid_field()->interface()->extract_fsi_cond_vector(*rhs)->norm_2(&norminterfacerhsL2_);
+  fluid_field()->interface()->extract_fsi_cond_vector(*rhs)->norm_inf(&norminterfacerhsInf_);
 
   // inner fluid velocity Dofs: inner velocity dofs without db-condition
-  std::vector<std::shared_ptr<const Epetra_Map>> innerfluidvel;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> innerfluidvel;
   innerfluidvel.push_back(fluid_field()->inner_velocity_row_map());
   innerfluidvel.push_back(nullptr);
   Core::LinAlg::MultiMapExtractor fluidvelextract(*(fluid_field()->dof_row_map()), innerfluidvel);
-  fluidvelextract.extract_vector(*fluid_field()->rhs(), 0)->Norm2(&normflvelrhsL2_);
-  fluidvelextract.extract_vector(*fluid_field()->rhs(), 0)->NormInf(&normflvelrhsInf_);
+  fluidvelextract.extract_vector(*fluid_field()->rhs(), 0)->norm_2(&normflvelrhsL2_);
+  fluidvelextract.extract_vector(*fluid_field()->rhs(), 0)->norm_inf(&normflvelrhsInf_);
 
   // fluid pressure Dofs: pressure dofs (at interface and inner) without db-condition
-  std::vector<std::shared_ptr<const Epetra_Map>> fluidpres;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> fluidpres;
   fluidpres.push_back(fluid_field()->pressure_row_map());
   fluidpres.push_back(nullptr);
   Core::LinAlg::MultiMapExtractor fluidpresextract(*(fluid_field()->dof_row_map()), fluidpres);
-  fluidpresextract.extract_vector(*fluid_field()->rhs(), 0)->Norm2(&normflpresrhsL2_);
-  fluidpresextract.extract_vector(*fluid_field()->rhs(), 0)->NormInf(&normflpresrhsInf_);
+  fluidpresextract.extract_vector(*fluid_field()->rhs(), 0)->norm_2(&normflpresrhsL2_);
+  fluidpresextract.extract_vector(*fluid_field()->rhs(), 0)->norm_inf(&normflpresrhsInf_);
 
   // ale
-  ale_field()->rhs()->Norm2(&normalerhsL2_);
+  ale_field()->rhs()->norm_2(&normalerhsL2_);
   //-------------------------------
   // build solution increment norms
 
   // build increment norm
-  iterinc_->Norm2(&norminc_);
+  iterinc_->norm_2(&norminc_);
 
   // structural Dofs
-  extractor().extract_vector(*iterinc_, 0)->Norm2(&normstrincL2_);
-  extractor().extract_vector(*iterinc_, 0)->NormInf(&normstrincInf_);
+  extractor().extract_vector(*iterinc_, 0)->norm_2(&normstrincL2_);
+  extractor().extract_vector(*iterinc_, 0)->norm_inf(&normstrincInf_);
 
   // interface
   std::shared_ptr<const Core::LinAlg::Vector<double>> inc =
       extractor().extract_vector(*iterinc_, 1);
-  fluid_field()->interface()->extract_fsi_cond_vector(*inc)->Norm2(&norminterfaceincL2_);
-  fluid_field()->interface()->extract_fsi_cond_vector(*inc)->NormInf(&norminterfaceincInf_);
+  fluid_field()->interface()->extract_fsi_cond_vector(*inc)->norm_2(&norminterfaceincL2_);
+  fluid_field()->interface()->extract_fsi_cond_vector(*inc)->norm_inf(&norminterfaceincInf_);
 
   // inner fluid velocity Dofs
   fluidvelextract.extract_vector(*extractor().extract_vector(*iterinc_, 1), 0)
-      ->Norm2(&normflvelincL2_);
+      ->norm_2(&normflvelincL2_);
   fluidvelextract.extract_vector(*extractor().extract_vector(*iterinc_, 1), 0)
-      ->NormInf(&normflvelincInf_);
+      ->norm_inf(&normflvelincInf_);
 
   // fluid pressure Dofs
   fluidpresextract.extract_vector(*extractor().extract_vector(*iterinc_, 1), 0)
-      ->Norm2(&normflpresincL2_);
+      ->norm_2(&normflpresincL2_);
   fluidpresextract.extract_vector(*extractor().extract_vector(*iterinc_, 1), 0)
-      ->NormInf(&normflpresincInf_);
+      ->norm_inf(&normflpresincInf_);
 
   // ale
-  extractor().extract_vector(*iterinc_, 2)->Norm2(&normaleincL2_);
+  extractor().extract_vector(*iterinc_, 2)->norm_2(&normaleincL2_);
 
   // get length of the structural, fluid and ale vector
-  ns_ = (*(structure_field()->rhs())).GlobalLength();                                   // structure
-  ni_ = (*(fluid_field()->interface()->extract_fsi_cond_vector(*rhs))).GlobalLength();  // fluid fsi
-  nf_ = (*(fluid_field()->rhs())).GlobalLength();  // fluid inner
+  ns_ = (*(structure_field()->rhs())).global_length();  // structure
+  ni_ =
+      (*(fluid_field()->interface()->extract_fsi_cond_vector(*rhs))).global_length();  // fluid fsi
+  nf_ = (*(fluid_field()->rhs())).global_length();  // fluid inner
   nfv_ = (*(fluidvelextract.extract_vector(*fluid_field()->rhs(), 0)))
-             .GlobalLength();  // fluid velocity
+             .global_length();  // fluid velocity
   nfp_ = (*(fluidpresextract.extract_vector(*fluid_field()->rhs(), 0)))
-             .GlobalLength();                    // fluid pressure
-  na_ = (*(ale_field()->rhs())).GlobalLength();  // ale
-  nall_ = (*rhs_).GlobalLength();                // all
+             .global_length();                    // fluid pressure
+  na_ = (*(ale_field()->rhs())).global_length();  // ale
+  nall_ = (*rhs_).global_length();                // all
 }
 
 /*----------------------------------------------------------------------*/
@@ -906,13 +900,13 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::recover_lagrange_multiplier()
    */
 
   // ---------Addressing term (1)
-  lambda_->Update(-stiparam, *lambda_, 0.0);
+  lambda_->update(-stiparam, *lambda_, 0.0);
   // ---------End of term (1)
 
   // ---------Addressing term (3)
   std::shared_ptr<Core::LinAlg::Vector<double>> structureresidual =
       structure_field()->interface()->extract_fsi_cond_vector(*structure_field()->rhs());
-  structureresidual->Scale(-1.0);  // invert sign to obtain residual, not rhs
+  structureresidual->scale(-1.0);  // invert sign to obtain residual, not rhs
   tmpvec = std::make_shared<Core::LinAlg::Vector<double>>(*structureresidual);
   // ---------End of term (3)
 
@@ -944,11 +938,11 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::recover_lagrange_multiplier()
   */
 
   // ---------Addressing term (2)
-  lambda_->Update(1.0, *tmpvec, 1.0);
+  lambda_->update(1.0, *tmpvec, 1.0);
   // ---------End of term (2)
 
   // finally, divide by -(1.-stiparam) which is common to all terms
-  lambda_->Scale(1. / (1.0 - stiparam));
+  lambda_->scale(1. / (1.0 - stiparam));
 
   // Finally, the Lagrange multiplier 'lambda_' is recovered here.
   // It represents nodal forces acting onto the structure.
@@ -986,7 +980,7 @@ void FSI::FluidFluidMonolithicStructureSplitNoNOX::handle_fluid_dof_map_change_i
   extractor().insert_vector(*sx_n, 0, *x_sum_);
   extractor().insert_vector(*fluid_field()->stepinc(), 1, *x_sum_);
   extractor().insert_vector(*ax_n, 2, *x_sum_);
-  nf_ = (*(fluid_field()->rhs())).GlobalLength();
+  nf_ = (*(fluid_field()->rhs())).global_length();
 }
 
 /*----------------------------------------------------------------------*/

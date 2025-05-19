@@ -24,7 +24,8 @@ FOUR_C_NAMESPACE_OPEN
 namespace Core::LinAlg
 {
   class Solver;
-}
+  class Map;
+}  // namespace Core::LinAlg
 
 namespace NOX
 {
@@ -36,9 +37,8 @@ namespace NOX
       {
         class Preconditioner;
       }  // namespace Interface
-      // typedef
-      typedef std::map<NOX::Nln::SolutionType, Teuchos::RCP<Interface::Preconditioner>>
-          PrecInterfaceMap;
+      using PrecInterfaceMap =
+          std::map<NOX::Nln::SolutionType, Teuchos::RCP<Interface::Preconditioner>>;
 
       namespace Interface
       {
@@ -54,8 +54,7 @@ namespace NOX
            *  and the function should return FALSE.
            *  Nevertheless, this may change during one of the following iterations!
            *
-           *  \author Michael Hiermeier
-           *  \date 04/2016 */
+           */
           virtual bool is_saddle_point_system() const = 0;
 
           /*! \brief Is the (CURRENT) system to solve a condensed system?
@@ -67,13 +66,12 @@ namespace NOX
            *  and the function should return FALSE.
            *  Nevertheless, this may change during one of the following iterations!
            *
-           *  \author Michael Hiermeier
-           *  \date 04/2016 */
+           */
           virtual bool is_condensed_system() const = 0;
 
           //! Get necessary maps for the preconditioner.
           virtual void fill_maps_for_preconditioner(
-              std::vector<Teuchos::RCP<Epetra_Map>>& maps) const = 0;
+              std::vector<Teuchos::RCP<Core::LinAlg::Map>>& maps) const = 0;
 
           //! Get the corresponding linear solver (optional)
           virtual Core::LinAlg::Solver* get_linear_solver() const { return nullptr; };

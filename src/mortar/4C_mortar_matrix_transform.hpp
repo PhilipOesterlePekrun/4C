@@ -11,11 +11,11 @@
 #include "4C_config.hpp"
 
 #include "4C_contact_utils.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_utils_exceptions.hpp"
 #include "4C_utils_pairedvector.hpp"
 
 #include <Epetra_Export.h>
-#include <Epetra_Map.h>
 
 #include <memory>
 
@@ -29,12 +29,12 @@ namespace Mortar
 {
   class MatrixRowColTransformer
   {
-    typedef Core::Gen::Pairedvector<CONTACT::MatBlockType, std::shared_ptr<Epetra_Export>>
-        plain_block_export_pairs;
+    using plain_block_export_pairs =
+        Core::Gen::Pairedvector<CONTACT::MatBlockType, std::shared_ptr<Epetra_Export>>;
 
    public:
-    typedef Core::Gen::Pairedvector<CONTACT::MatBlockType, std::shared_ptr<Epetra_Map>*>
-        plain_block_map_pairs;
+    using plain_block_map_pairs =
+        Core::Gen::Pairedvector<CONTACT::MatBlockType, std::shared_ptr<Core::LinAlg::Map>*>;
 
    public:
     /// constructor

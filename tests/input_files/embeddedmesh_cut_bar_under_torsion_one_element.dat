@@ -1,6 +1,3 @@
-==================================================================
-General Data File BACI
-==================================================================
 ---------------------------------------------------------------------------TITLE
 created by pre_exodus
 Cut an structure element of a bar subjected to torsion and tension:
@@ -35,7 +32,7 @@ NLNSOL                                fullnewton
 TIMESTEP                              1
 NUMSTEP                               1
 MAXTIME                               2.0
-DAMPING                               No
+DAMPING                               None
 M_DAMP                                0.00001
 K_DAMP                                0.00001
 TOLRES                                1.E-7
@@ -67,17 +64,13 @@ CONSTRAINT_ENFORCEMENT_PENALTYPARAM   1e+5
 -----------------------------------------------------------------------MATERIALS
 MAT 1 MAT_Struct_StVenantKirchhoff YOUNG 200 NUE 0.0 DENS 7.8e-07
 -----------------------------DESIGN EMBEDDED MESH SOLID SURF COUPLING CONDITIONS
-DSURF                                 1
-E 1 - COUPLINGID 1
+E 1 COUPLINGID 1
 ---------------------------------DESIGN EMBEDDED SOLID VOL BACKGROUND CONDITIONS
-DVOL                                  1
-E 1 - COUPLINGID 1
+E 1 COUPLINGID 1
 ---------------------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF 1
-E 3 - NUMDOF 3 ONOFF 1 1 1 VAL 0 0 0 FUNCT 0 0 0
+E 3 NUMDOF 3 ONOFF 1 1 1 VAL 0 0 0 FUNCT 0 0 0
 --------------------------------------------------DESIGN SURF NEUMANN CONDITIONS
-DSURF 1
-E 2 - NUMDOF 3 ONOFF 1 1 1 VAL 5 -5 10 FUNCT 0 0 0
+E 2 NUMDOF 3 ONOFF 1 1 1 VAL 5 -5 10 FUNCT 0 0 0
 -------------------------------------------------------------DSURF-NODE TOPOLOGY
 NODE    26 DSURFACE 1
 NODE    27 DSURFACE 1

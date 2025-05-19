@@ -61,18 +61,17 @@ AZOUTPUT                        50
 AZSOLVE                         GMRES
 AZPREC                          ILU
 AZREUSE                         1
-IFPACKGFILL                     3
 AZTOL                           1.0E-14
 AZCONV                          AZ_r0
 AZITER                          1000
 AZSUB                           1000
-IFPACKOVERLAP                   0
+IFPACK_XML_FILE                 xml/preconditioner/ifpack.xml
 -------------------------------------------------------------------MATERIALS
 MAT 1 MAT_fluid DYNVISCOSITY 0.0001 DENSITY 1.0 GAMMA 1.0
 ----------------------------------------------------------------------FUNCT1 // adapt the rhs function
-KIMMOIN-RHS MAT 1 ISSTAT 0 ISSTOKES 0
+FLUID_FUNCTION KIMMOIN-RHS MAT 1 ISSTAT 0 ISSTOKES 0
 ----------------------------------------------------------------------FUNCT2 // exact velocity/pressure solution
-KIMMOIN-UP  MAT 1 ISSTAT 0
+FLUID_FUNCTION KIMMOIN-UP  MAT 1 ISSTAT 0
 ----------------------------------------------------------RESULT DESCRIPTION
 FLUID DIS fluid NODE 377 QUANTITY velx     VALUE  3.64263484699005935e-01  TOLERANCE 1e-14
 FLUID DIS fluid NODE 377 QUANTITY vely     VALUE  1.16218137730263266e-01  TOLERANCE 1e-14
@@ -81,32 +80,28 @@ FLUID DIS fluid NODE 669 QUANTITY velx     VALUE  2.28933009598151073e-17  TOLER
 FLUID DIS fluid NODE 669 QUANTITY vely     VALUE  9.79963255467464989e-01  TOLERANCE 1e-14
 FLUID DIS fluid NODE 669 QUANTITY pressure VALUE  1.54312392369901027e-03  TOLERANCE 1e-14
 --------------------------------DESIGN SURF MODE FOR KRYLOV SPACE PROJECTION
-DSURF                          1
-E 1 - DIS fluid NUMMODES 3 ONOFF 0 0 1 WEIGHTVECDEF integration // ensure that integral of pressure remains 0.0
+E 1 DIS fluid NUMMODES 3 ONOFF 0 0 1 WEIGHTVECDEF integration // ensure that integral of pressure remains 0.0
 ----------------------------------------------DESIGN SURF NEUMANN CONDITIONS
-DSURF  1
 // Body_force
-E 1 - NUMDOF 6 ONOFF 1 1 0 0 0 0 VAL 1.0 1.0 0.0 0.0 0.0 0.0 FUNCT 1 1 0 0 0 0 TYPE Live
+E 1 NUMDOF 6 ONOFF 1 1 0 0 0 0 VAL 1.0 1.0 0.0 0.0 0.0 0.0 FUNCT 1 1 0 0 0 0 TYPE Live
 ----------------------------------------------DESIGN POINT DIRICH CONDITIONS
-DPOINT 4
 // Topleft
-E 1 - NUMDOF 3 ONOFF 1 1 0 VAL 1.0 1.0 0.0 FUNCT 2 2 0
+E 1 NUMDOF 3 ONOFF 1 1 0 VAL 1.0 1.0 0.0 FUNCT 2 2 0
 // Bottomleft
-E 2 - NUMDOF 3 ONOFF 1 1 0 VAL 1.0 1.0 0.0 FUNCT 2 2 0
+E 2 NUMDOF 3 ONOFF 1 1 0 VAL 1.0 1.0 0.0 FUNCT 2 2 0
 // Bottomright
-E 3 - NUMDOF 3 ONOFF 1 1 0 VAL 1.0 1.0 0.0 FUNCT 2 2 0
+E 3 NUMDOF 3 ONOFF 1 1 0 VAL 1.0 1.0 0.0 FUNCT 2 2 0
 // Topright
-E 4 - NUMDOF 3 ONOFF 1 1 0 VAL 1.0 1.0 0.0 FUNCT 2 2 0
+E 4 NUMDOF 3 ONOFF 1 1 0 VAL 1.0 1.0 0.0 FUNCT 2 2 0
 -----------------------------------------------DESIGN LINE DIRICH CONDITIONS
-DLINE  4
 // Line_top
-E 1 - NUMDOF 3 ONOFF 1 1 0 VAL 1.0 1.0 0.0 FUNCT 2 2 0
+E 1 NUMDOF 3 ONOFF 1 1 0 VAL 1.0 1.0 0.0 FUNCT 2 2 0
 // Line_left
-E 2 - NUMDOF 3 ONOFF 1 1 0 VAL 1.0 1.0 0.0 FUNCT 2 2 0
+E 2 NUMDOF 3 ONOFF 1 1 0 VAL 1.0 1.0 0.0 FUNCT 2 2 0
 // Line_bottom
-E 3 - NUMDOF 3 ONOFF 1 1 0 VAL 1.0 1.0 0.0 FUNCT 2 2 0
+E 3 NUMDOF 3 ONOFF 1 1 0 VAL 1.0 1.0 0.0 FUNCT 2 2 0
 // Line_right
-E 4 - NUMDOF 3 ONOFF 1 1 0 VAL 1.0 1.0 0.0 FUNCT 2 2 0
+E 4 NUMDOF 3 ONOFF 1 1 0 VAL 1.0 1.0 0.0 FUNCT 2 2 0
 ---------------------------------------------------------DNODE-NODE TOPOLOGY
 NODE    51 DNODE 1
 NODE    676 DNODE 2

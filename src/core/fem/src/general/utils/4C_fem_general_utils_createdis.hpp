@@ -127,7 +127,7 @@ namespace Core::FE
     {
       MPI_Comm com = sourcedis.get_comm();
       const int myrank = Core::Communication::my_mpi_rank(com);
-      const Epetra_Map* sourcenoderowmap = sourcedis.node_row_map();
+      const Core::LinAlg::Map* sourcenoderowmap = sourcedis.node_row_map();
 
       std::shared_ptr<Core::FE::Discretization> targetdis;
 
@@ -161,7 +161,7 @@ namespace Core::FE
         if (std::count_if(nids.begin(), nids.end(),
                 Core::Conditions::MyGID(sourcedis.node_col_map())) != (int)(nids.size()))
         {
-          FOUR_C_THROW("element %d owned by proc %d has remote non-ghost nodes", sourceele->id(),
+          FOUR_C_THROW("element {} owned by proc {} has remote non-ghost nodes", sourceele->id(),
               sourceele->owner());
         }
 
@@ -254,8 +254,8 @@ namespace Core::FE
         Core::FE::Discretization& targetdis, const std::set<int>& rownodeset,
         const std::set<int>& colnodeset, const bool isnurbsdis) const;
 
-    //! construct and return Epetra_Map
-    std::shared_ptr<Epetra_Map> create_map(
+    //! construct and return Core::LinAlg::Map
+    std::shared_ptr<Core::LinAlg::Map> create_map(
         std::set<int>& gidset, const Core::FE::Discretization& targetdis) const;
 
     //! do some checks
@@ -278,13 +278,13 @@ namespace Core::FE
     //! vector for holding each (desired) element type std::string
     std::vector<std::string> eletype_;
     //! map containing gids of owned nodes
-    std::shared_ptr<Epetra_Map> targetnoderowmap_;
+    std::shared_ptr<Core::LinAlg::Map> targetnoderowmap_;
     //! map containing gids of owned + ghosted nodes
-    std::shared_ptr<Epetra_Map> targetnodecolmap_;
+    std::shared_ptr<Core::LinAlg::Map> targetnodecolmap_;
     //! map containing gids of owned elements
-    std::shared_ptr<Epetra_Map> targetelerowmap_;
+    std::shared_ptr<Core::LinAlg::Map> targetelerowmap_;
     //! map containing gids of owned + ghosted elements
-    std::shared_ptr<Epetra_Map> targetelecolmap_;
+    std::shared_ptr<Core::LinAlg::Map> targetelecolmap_;
     //! local number of skipped elements during cloning
     int numeleskips_;
 
@@ -313,8 +313,8 @@ namespace Core::FE
       std::pair<std::string, std::string> key(sourcedis.name(), targetdis.name());
       matmap = clonefieldmatmap.at(key);
       if (matmap.size() < 1)
-        FOUR_C_THROW("Key pair '%s/%s' not defined in --CLONING MATERIAL MAP.",
-            sourcedis.name().c_str(), targetdis.name().c_str());
+        FOUR_C_THROW("Key pair '{}/{}' not defined in --CLONING MATERIAL MAP.", sourcedis.name(),
+            targetdis.name());
 
       return;
     };  // create_clone_field_mat_map
@@ -366,7 +366,7 @@ namespace Core::FE
     {
 #ifdef FOUR_C_ENABLE_ASSERTIONS
       if (!(sourcedis.have_global_node(sourcedis.node_row_map()->GID(0))))
-        FOUR_C_THROW("Cloning not possible since node with GID %d is not stored on this proc!",
+        FOUR_C_THROW("Cloning not possible since node with GID {} is not stored on this proc!",
             sourcedis.node_row_map()->GID(0));
 #endif
       // try to cast sourcedis to NurbsDiscretisation
@@ -395,36 +395,6 @@ namespace Core::FE
       // call redistribute, fill_complete etc.
       finalize(sourcedis, targetdis);
     };  // create_matching_discretization
-
-    /// method for cloning a new discretization from an existing condition using the actual
-    /// condition
-    void create_matching_discretization_from_condition(
-        const Core::FE::Discretization& sourcedis,  ///< ref. to source discretization
-        const std::vector<Core::Conditions::Condition*>&
-            conds,  ///< vector of conditions containing the elements to clone
-        Core::FE::Discretization& targetdis,  ///< std::shared_ptr to empty target discretization
-        const std::map<int, int>&
-            matmap  ///< map of material IDs (source element -> target element)
-    )
-    {
-      // check and analyze source and target discretization
-      initial_checks(sourcedis, targetdis);
-
-      std::vector<Core::Conditions::Condition*>::const_iterator cit;
-      for (cit = conds.begin(); cit != conds.end(); ++cit)
-      {
-        // check the source condition
-        if ((*cit)->get_nodes() == nullptr or (*cit)->get_nodes()->size() == 0)
-          FOUR_C_THROW("The condition has no nodes!");
-      }
-
-      // get this condition vector's elements
-      std::map<int, std::shared_ptr<Core::Elements::Element>> sourceelements;
-      Core::Conditions::find_condition_objects(sourceelements, conds);
-
-      create_matching_discretization_from_condition(sourcedis, sourceelements, targetdis, matmap);
-      return;
-    };  // create_matching_discretization_from_condition
 
     /// method for cloning a new discretization from an existing condition using the condition
     /// name
@@ -487,7 +457,7 @@ namespace Core::FE
         std::set<int>& rownodeset, std::set<int>& colnodeset, std::set<int>& roweleset,
         std::set<int>& coleleset)
     {
-      const Epetra_Map* noderowmap = sourcedis.node_row_map();
+      const Core::LinAlg::Map* noderowmap = sourcedis.node_row_map();
 
       // We need to test for all elements (including ghosted ones) to
       // catch all nodes attached to the elements of the source discretization
@@ -533,8 +503,8 @@ namespace Core::FE
         std::set<int>& roweleset, std::set<int>& coleleset)
     {
       const int myrank = Core::Communication::my_mpi_rank(sourcedis.get_comm());
-      const Epetra_Map* sourcenoderowmap = sourcedis.node_row_map();
-      const Epetra_Map* sourcenodecolmap = sourcedis.node_col_map();
+      const Core::LinAlg::Map* sourcenoderowmap = sourcedis.node_row_map();
+      const Core::LinAlg::Map* sourcenodecolmap = sourcedis.node_col_map();
 
       // construct new elements
       std::map<int, std::shared_ptr<Core::Elements::Element>>::const_iterator sourceele_iter;
@@ -572,7 +542,7 @@ namespace Core::FE
           if (std::count_if(nids.begin(), nids.end(), Core::Conditions::MyGID(sourcenodecolmap)) !=
               (int)(nids.size()))
           {
-            FOUR_C_THROW("element %d owned by proc %d has remote non-ghost nodes", actele->id(),
+            FOUR_C_THROW("element {} owned by proc {} has remote non-ghost nodes", actele->id(),
                 actele->owner());
           }
 
@@ -683,7 +653,7 @@ namespace Core::FE
           for (mat_iter = matmap.begin(); mat_iter != matmap.end(); mat_iter++)
             std::cout << mat_iter->first << " -> " << mat_iter->second << std::endl;
 
-          FOUR_C_THROW("no matching material ID (%d) in map", src_matid);
+          FOUR_C_THROW("no matching material ID ({}) in map", src_matid);
         }
         it++;
       }
@@ -717,7 +687,7 @@ namespace Core::FE
             sourceelements.find(*it);
         if (src_ele_citer == sourceelements.end())
           FOUR_C_THROW(
-              "The source element %d could not be found in the source "
+              "The source element {} could not be found in the source "
               "condition element map!",
               *it);
 
@@ -810,7 +780,7 @@ namespace Core::FE
           for (mat_iter = matmap.begin(); mat_iter != matmap.end(); mat_iter++)
             std::cout << mat_iter->first << " -> " << mat_iter->second << std::endl;
 
-          FOUR_C_THROW("no matching material ID (%d) in map", src_matid);
+          FOUR_C_THROW("no matching material ID ({}) in map", src_matid);
         }
         it++;
       }

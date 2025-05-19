@@ -23,7 +23,6 @@
 #include "4C_fsi_monolithicstructuresplit.hpp"
 #include "4C_fsi_utils.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_validparameters.hpp"
 #include "4C_io_control.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
 #include "4C_linear_solver_method.hpp"
@@ -487,23 +486,21 @@ void FS3I::PartFS3I::setup_system()
     const int numscal = currscatra->scatra_field()->num_scal();
     std::shared_ptr<Core::LinAlg::MultiMapExtractor> mapex =
         std::make_shared<Core::LinAlg::MultiMapExtractor>();
-    Core::Conditions::MultiConditionSelector mcs;
-    mcs.add_selector(std::make_shared<Core::Conditions::NDimConditionSelector>(
-        *currdis, "ScaTraCoupling", 0, numscal));
-    mcs.setup_extractor(*currdis, *currdis->dof_row_map(), *mapex);
+    Core::Conditions::setup_extractor(
+        *currdis, *mapex, {Core::Conditions::Selector("ScaTraCoupling", 0, numscal)});
     scatrafieldexvec_.push_back(mapex);
   }
 
   scatracoup_->setup_condition_coupling(*(scatravec_[0]->scatra_field()->discretization()),
-      scatrafieldexvec_[0]->Map(1), *(scatravec_[1]->scatra_field()->discretization()),
-      scatrafieldexvec_[1]->Map(1), "ScaTraCoupling",
+      scatrafieldexvec_[0]->map(1), *(scatravec_[1]->scatra_field()->discretization()),
+      scatrafieldexvec_[1]->map(1), "ScaTraCoupling",
       scatravec_[0]
           ->scatra_field()
           ->num_scal());  // we assume here that both discretisation have the same number of scalars
 
   // create map extractor for coupled scatra fields
   // the second field (currently structure) is always split
-  std::vector<std::shared_ptr<const Epetra_Map>> maps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> maps;
 
   // In the limiting case of an infinite permeability of the interface between
   // different scatra fields, the concentrations on both sides of the interface are
@@ -515,14 +512,14 @@ void FS3I::PartFS3I::setup_system()
   if (infperm_)
   {
     maps.push_back(scatrafieldexvec_[0]->full_map());
-    maps.push_back(scatrafieldexvec_[1]->Map(0));
+    maps.push_back(scatrafieldexvec_[1]->map(0));
   }
   else
   {
     maps.push_back(scatrafieldexvec_[0]->full_map());
     maps.push_back(scatrafieldexvec_[1]->full_map());
   }
-  std::shared_ptr<Epetra_Map> fullmap = Core::LinAlg::MultiMapExtractor::merge_maps(maps);
+  std::shared_ptr<Core::LinAlg::Map> fullmap = Core::LinAlg::MultiMapExtractor::merge_maps(maps);
   scatraglobalex_->setup(*fullmap, maps);
 
   // create coupling vectors and matrices (only needed for finite surface permeabilities)
@@ -531,14 +528,15 @@ void FS3I::PartFS3I::setup_system()
     for (unsigned i = 0; i < scatravec_.size(); ++i)
     {
       std::shared_ptr<Core::LinAlg::Vector<double>> scatracoupforce =
-          std::make_shared<Core::LinAlg::Vector<double>>(*(scatraglobalex_->Map(i)), true);
+          std::make_shared<Core::LinAlg::Vector<double>>(*(scatraglobalex_->map(i)), true);
       scatracoupforce_.push_back(scatracoupforce);
 
       std::shared_ptr<Core::LinAlg::SparseMatrix> scatracoupmat =
-          std::make_shared<Core::LinAlg::SparseMatrix>(*(scatraglobalex_->Map(i)), 27, false, true);
+          std::make_shared<Core::LinAlg::SparseMatrix>(*(scatraglobalex_->map(i)), 27, false, true);
       scatracoupmat_.push_back(scatracoupmat);
 
-      const Epetra_Map* dofrowmap = scatravec_[i]->scatra_field()->discretization()->dof_row_map();
+      const Core::LinAlg::Map* dofrowmap =
+          scatravec_[i]->scatra_field()->discretization()->dof_row_map();
       std::shared_ptr<Core::LinAlg::Vector<double>> zeros =
           Core::LinAlg::create_vector(*dofrowmap, true);
       scatrazeros_.push_back(zeros);
@@ -672,7 +670,7 @@ void FS3I::PartFS3I::set_fsi_solution()
 void FS3I::PartFS3I::set_struct_scatra_solution() const
 {
   fsi_->structure_field()->discretization()->set_state(
-      1, "scalarfield", structure_scalar_to_structure(scatravec_[1]->scatra_field()->phinp()));
+      1, "scalarfield", *structure_scalar_to_structure(scatravec_[1]->scatra_field()->phinp()));
 }
 
 
@@ -683,12 +681,12 @@ void FS3I::PartFS3I::set_mesh_disp() const
   // fluid field
   std::shared_ptr<Adapter::ScaTraBaseAlgorithm> fluidscatra = scatravec_[0];
   fluidscatra->scatra_field()->apply_mesh_movement(
-      fluid_to_fluid_scalar(fsi_->fluid_field()->dispnp()));
+      *fluid_to_fluid_scalar(fsi_->fluid_field()->dispnp()));
 
   // structure field
   std::shared_ptr<Adapter::ScaTraBaseAlgorithm> structscatra = scatravec_[1];
   structscatra->scatra_field()->apply_mesh_movement(
-      structure_to_structure_scalar(fsi_->structure_field()->dispnp()));
+      *structure_to_structure_scalar(fsi_->structure_field()->dispnp()));
 }
 
 
@@ -702,9 +700,9 @@ void FS3I::PartFS3I::set_velocity_fields() const
 
   for (unsigned i = 0; i < scatravec_.size(); ++i)
   {
-    std::shared_ptr<Adapter::ScaTraBaseAlgorithm> scatra = scatravec_[i];
-    scatra->scatra_field()->set_velocity_field(vol_mortar_master_to_slavei(i, convel[i]), nullptr,
-        vol_mortar_master_to_slavei(i, vel[i]), nullptr);
+    scatravec_[i]->scatra_field()->set_convective_velocity(
+        *vol_mortar_master_to_slavei(i, convel[i]));
+    scatravec_[i]->scatra_field()->set_velocity_field(*vol_mortar_master_to_slavei(i, vel[i]));
   }
 }
 
@@ -725,7 +723,7 @@ void FS3I::PartFS3I::extract_vel(
           std::make_shared<Core::LinAlg::Vector<double>>(*(fsi_->fluid_field()->velaf()));
       vel.push_back(fluidconvel);
       // now subtract the grid velocity
-      fluidconvel->Update(-1.0, *(fsi_->fluid_field()->grid_vel()), 1.0);
+      fluidconvel->update(-1.0, *(fsi_->fluid_field()->grid_vel()), 1.0);
       convel.push_back(fluidconvel);
     }
     break;
@@ -747,7 +745,7 @@ void FS3I::PartFS3I::extract_vel(
   vel.push_back(velocity);
   // structure ScaTra: velocity and grid velocity are identical!
   std::shared_ptr<Core::LinAlg::Vector<double>> zeros =
-      std::make_shared<Core::LinAlg::Vector<double>>(velocity->Map(), true);
+      std::make_shared<Core::LinAlg::Vector<double>>(velocity->get_block_map(), true);
   convel.push_back(zeros);
 }
 
@@ -762,7 +760,7 @@ void FS3I::PartFS3I::set_wall_shear_stresses() const
   for (unsigned i = 0; i < scatravec_.size(); ++i)
   {
     std::shared_ptr<Adapter::ScaTraBaseAlgorithm> scatra = scatravec_[i];
-    scatra->scatra_field()->set_wall_shear_stresses(vol_mortar_master_to_slavei(i, wss[i]));
+    scatra->scatra_field()->set_wall_shear_stresses(*vol_mortar_master_to_slavei(i, wss[i]));
   }
 }
 

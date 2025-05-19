@@ -19,11 +19,38 @@
 #include "4C_linear_solver_method_linalg.hpp"
 #include "4C_structure_aux.hpp"
 #include "4C_structure_timint.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <iostream>
 
 FOUR_C_NAMESPACE_OPEN
 
+
+namespace
+{
+  std::string map_kind_enum_to_string(Inpar::Solid::TimAdaKind term)
+  {
+    switch (term)
+    {
+      case Inpar::Solid::timada_kind_zienxie:
+        return "ZienkiewiczXie";
+        break;
+      case Inpar::Solid::timada_kind_ab2:
+        return "AdamsBashforth2";
+        break;
+      case Inpar::Solid::timada_kind_expleuler:
+        return "ExplicitEuler";
+        break;
+      case Inpar::Solid::timada_kind_centraldiff:
+        return "CentralDifference";
+        break;
+      default:
+        FOUR_C_THROW("Cannot cope with name enum {}", term);
+        return "";
+        break;
+    }
+  }
+}  // namespace
 
 /*----------------------------------------------------------------------*/
 /* Constructor */
@@ -241,18 +268,18 @@ void Solid::TimAda::evaluate_local_error_dis()
   {
     const double coeffmarch = sti_->method_lin_err_coeff_dis();
     const double coeffaux = method_lin_err_coeff_dis();
-    locerrdisn_->Update(-1.0, *(sti_->disn_), 1.0);
-    locerrdisn_->Scale(coeffmarch / (coeffaux - coeffmarch));
+    locerrdisn_->update(-1.0, *(sti_->disn_), 1.0);
+    locerrdisn_->scale(coeffmarch / (coeffaux - coeffmarch));
   }
   else
   {
     // schemes do not have the same order of accuracy
-    locerrdisn_->Update(-1.0, *(sti_->disn_), 1.0);
+    locerrdisn_->update(-1.0, *(sti_->disn_), 1.0);
   }
 
   // blank Dirichlet DOFs since they always carry the exact solution
   std::shared_ptr<Core::LinAlg::Vector<double>> zeros =
-      std::make_shared<Core::LinAlg::Vector<double>>(locerrdisn_->Map(), true);
+      std::make_shared<Core::LinAlg::Vector<double>>(locerrdisn_->get_block_map(), true);
   Core::LinAlg::apply_dirichlet_to_system(
       *locerrdisn_, *zeros, *(sti_->get_dbc_map_extractor()->cond_map()));
 }
@@ -455,6 +482,8 @@ void Solid::TimAda::output_step_size()
   }
 }
 
+std::string Solid::TimAda::method_title() const { return map_kind_enum_to_string(method_name()); }
+
 /*----------------------------------------------------------------------*/
 /* Print constants */
 void Solid::TimAda::print_constants(std::ostream& str) const
@@ -470,7 +499,7 @@ void Solid::TimAda::print_constants(std::ostream& str) const
       << "   Max size ratio = " << sizeratiomax_ << std::endl
       << "   Min size ratio = " << sizeratiomin_ << std::endl
       << "   Size ratio scale = " << sizeratioscale_ << std::endl
-      << "   Error norm = " << Inpar::Solid::vector_norm_string(errnorm_) << std::endl
+      << "   Error norm = " << errnorm_ << std::endl
       << "   Error order = " << errorder_ << std::endl
       << "   Error tolerance = " << errtol_ << std::endl
       << "   Max adaptations = " << adaptstepmax_ << std::endl;

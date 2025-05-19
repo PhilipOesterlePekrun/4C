@@ -10,10 +10,10 @@
 #include "4C_contact_element.hpp"
 #include "4C_contact_node.hpp"
 #include "4C_fem_general_utils_boundary_integration.hpp"
-#include "4C_so3_hex8.hpp"
-#include "4C_so3_poro.hpp"
 #include "4C_solid_3D_ele.hpp"
 #include "4C_solid_3D_ele_calc_lib_nitsche.hpp"
+#include "4C_solid_poro_3D_ele_calc_lib_nitsche.hpp"
+#include "4C_solid_poro_3D_ele_pressure_velocity_based.hpp"
 #include "4C_xfem_xfluid_contact_communicator.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -119,7 +119,7 @@ void CONTACT::IntegratorNitscheFsi::gpts_forces(Mortar::Element& sele, Mortar::E
   bool FSI_integrated = true;  // bool indicates if fsi condition is already evaluated ... --> if
                                // true no contribution here ...
 
-  Core::LinAlg::Matrix<dim, 1> pxsi(true);
+  Core::LinAlg::Matrix<dim, 1> pxsi(Core::LinAlg::Initialization::zero);
   Core::LinAlg::Matrix<dim, dim> derivtravo_slave;
   CONTACT::Utils::map_gp_to_parent<dim>(sele, sxi, wgt, pxsi, derivtravo_slave);
 
@@ -127,15 +127,6 @@ void CONTACT::IntegratorNitscheFsi::gpts_forces(Mortar::Element& sele, Mortar::E
 
   double normal_contact_transition = xf_c_comm_->get_fsi_traction(&sele, pxsi,
       Core::LinAlg::Matrix<dim - 1, 1>(sxi, false), normal, FSI_integrated, gp_on_this_proc);
-#ifdef WRITE_GMSH
-  {
-    Core::LinAlg::Matrix<3, 1> sgp_x;
-    for (int i = 0; i < sele.num_node(); ++i)
-      for (int d = 0; d < dim; ++d)
-        sgp_x(d) += sval(i) * dynamic_cast<CONTACT::Node*>(sele.Nodes()[i])->xspatial()[d];
-    xf_c_comm_->Gmsh_Write(sgp_x, gp_on_this_proc, 7);
-  }
-#endif
 
   if (!gp_on_this_proc) return;
 
@@ -156,33 +147,13 @@ void CONTACT::IntegratorNitscheFsi::gpts_forces(Mortar::Element& sele, Mortar::E
       wm * CONTACT::Utils::solid_cauchy_at_xi(dynamic_cast<CONTACT::Element*>(&mele),
                Core::LinAlg::Matrix<dim - 1, 1>(mxi, true), normal, normal) +
       pen * gap;
-#ifdef WRITE_GMSH
-  {
-    Core::LinAlg::Matrix<3, 1> sgp_x;
-    for (int i = 0; i < sele.num_node(); ++i)
-      for (int d = 0; d < dim; ++d)
-        sgp_x(d) += sval(i) * dynamic_cast<CONTACT::Node*>(sele.Nodes()[i])->xspatial()[d];
-    xf_c_comm_->Gmsh_Write(sgp_x, snn_pengap, 4);
-    xf_c_comm_->Gmsh_Write(sgp_x, normal_contact_transition, 5);
-  }
-#endif
-
 
   if (snn_pengap >= normal_contact_transition && !FSI_integrated)
   {
     Core::Gen::Pairedvector<int, double> lin_fluid_traction(0);
     integrate_test<dim>(-1., sele, sval, sderiv, dsxi, jac, jacintcellmap, wgt,
         normal_contact_transition, lin_fluid_traction, normal, dnmap_unit);
-#ifdef WRITE_GMSH
-    {
-      Core::LinAlg::Matrix<3, 1> sgp_x;
-      for (int i = 0; i < sele.num_node(); ++i)
-        for (int d = 0; d < dim; ++d)
-          sgp_x(d) += sval(i) * dynamic_cast<CONTACT::Node*>(sele.Nodes()[i])->xspatial()[d];
-      xf_c_comm_->Gmsh_Write(sgp_x, normal_contact_transition, 0);
-      xf_c_comm_->Gmsh_Write(sgp_x, 2.0, 2);
-    }
-#endif
+
     update_ele_contact_state(sele, 0);
   }
 
@@ -229,17 +200,7 @@ void CONTACT::IntegratorNitscheFsi::gpts_forces(Mortar::Element& sele, Mortar::E
       d_snn_av_pen_gap, normal, dnmap_unit);
 
   update_ele_contact_state(sele, 1);
-#ifdef WRITE_GMSH
-  {
-    Core::LinAlg::Matrix<3, 1> sgp_x;
-    for (int i = 0; i < sele.num_node(); ++i)
-      for (int d = 0; d < dim; ++d)
-        sgp_x(d) += sval(i) * dynamic_cast<CONTACT::Node*>(sele.Nodes()[i])->xspatial()[d];
 
-    xf_c_comm_->Gmsh_Write(sgp_x, snn_av_pen_gap, 0);
-    xf_c_comm_->Gmsh_Write(sgp_x, 1.0, 2);
-  }
-#endif
   xf_c_comm_->inc_gp(0);
 }
 
@@ -266,7 +227,7 @@ double CONTACT::Utils::solid_cauchy_at_xi(CONTACT::Element* cele,
   if (cele->parent_element()->shape() != Core::FE::CellType::hex8)
     FOUR_C_THROW("This Element shape is not implemented for CONTACT::Utils::CauchyStressatXi");
 
-  Core::LinAlg::Matrix<3, 1> pxsi(true);
+  Core::LinAlg::Matrix<3, 1> pxsi(Core::LinAlg::Initialization::zero);
   Core::LinAlg::Matrix<3, 3> trafo;
   CONTACT::Utils::so_ele_gp<Core::FE::CellType::hex8, 3>(*cele, 1., xsi.data(), pxsi, trafo);
 
@@ -274,18 +235,11 @@ double CONTACT::Utils::solid_cauchy_at_xi(CONTACT::Element* cele,
 
   if (!cele->mo_data().parent_pf_pres().size())
   {  // The element can be either an old so3 element or a new solid element
-    if (auto* solid_ele = dynamic_cast<Discret::Elements::SoBase*>(cele->parent_element());
-        solid_ele != nullptr)
-    {
-      solid_ele->get_cauchy_n_dir_and_derivatives_at_xi(pxsi, cele->mo_data().parent_disp(), n, dir,
-          sigma_nt, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-          nullptr, nullptr, nullptr, nullptr);
-    }
-    else if (auto* solid_ele = dynamic_cast<Discret::Elements::Solid*>(cele->parent_element());
+    if (auto* solid_ele = dynamic_cast<Discret::Elements::Solid*>(cele->parent_element());
         solid_ele != nullptr)
     {
       Discret::Elements::CauchyNDirLinearizations<3> cauchy_linearizations{};
-      sigma_nt = solid_ele->get_normal_cauchy_stress_at_xi<3>(
+      sigma_nt = solid_ele->get_normal_cauchy_stress_at_xi(
           cele->mo_data().parent_disp(), pxsi, n, dir, cauchy_linearizations);
     }
     else
@@ -295,11 +249,19 @@ double CONTACT::Utils::solid_cauchy_at_xi(CONTACT::Element* cele,
   }
   else
   {
-    dynamic_cast<Discret::Elements::So3Poro<Discret::Elements::SoHex8, Core::FE::CellType::hex8>*>(
-        cele->parent_element())
-        ->get_cauchy_n_dir_and_derivatives_at_xi(pxsi, cele->mo_data().parent_disp(),
-            cele->mo_data().parent_pf_pres(), n, dir, sigma_nt, nullptr, nullptr, nullptr, nullptr,
-            nullptr);
+    if (auto* solid_ele = dynamic_cast<Discret::Elements::SolidPoroPressureVelocityBased*>(
+            cele->parent_element());
+        solid_ele != nullptr)
+    {
+      Discret::Elements::SolidPoroCauchyNDirLinearizations<3> cauchy_linearizations{};
+
+      sigma_nt = solid_ele->get_normal_cauchy_stress_at_xi(cele->mo_data().parent_disp(),
+          cele->mo_data().parent_pf_pres(), pxsi, n, dir, cauchy_linearizations);
+    }
+    else
+    {
+      FOUR_C_THROW("Unsupported solid-poro element type");
+    }
   }
   return sigma_nt;
 }

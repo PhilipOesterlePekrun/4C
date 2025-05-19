@@ -24,6 +24,7 @@
 #include "4C_scatra_ele_parameter_std.hpp"
 #include "4C_scatra_ele_parameter_timint.hpp"
 #include "4C_scatra_ele_parameter_turbulence.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 
 #include <vector>
@@ -42,31 +43,31 @@ Discret::Elements::ScaTraEleCalc<distype, probdim>::ScaTraEleCalc(
       scatraparatimint_(Discret::Elements::ScaTraEleParameterTimInt::instance(disname)),
       diffmanager_(std::make_shared<ScaTraEleDiffManager>(numscal_)),
       reamanager_(std::make_shared<ScaTraEleReaManager>(numscal_)),
-      ephin_(numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true)),
-      ephinp_(numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true)),
-      ehist_(numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true)),
-      fsphinp_(numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true)),
+      ephin_(numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero)),
+      ephinp_(numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero)),
+      ehist_(numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero)),
+      fsphinp_(numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero)),
       rotsymmpbc_(std::make_shared<FLD::RotationallySymmetricPeriodicBC<distype, nsd_ + 1,
               Discret::Elements::Fluid::none>>()),
-      evelnp_(true),
-      econvelnp_(true),
-      efsvel_(true),
-      eaccnp_(true),
-      edispnp_(true),
-      eprenp_(true),
+      evelnp_(),
+      econvelnp_(),
+      efsvel_(),
+      eaccnp_(),
+      edispnp_(),
+      eprenp_(),
       tpn_(0.0),
-      xsi_(true),
-      xyze_(true),
-      funct_(true),
-      deriv_(true),
-      deriv2_(true),
-      derxy_(true),
-      derxy2_(true),
-      xjm_(true),
-      xij_(true),
-      xder2_(true),
+      xsi_(),
+      xyze_(),
+      funct_(),
+      deriv_(),
+      deriv2_(),
+      derxy_(),
+      derxy2_(),
+      xjm_(),
+      xij_(),
+      xder2_(),
       bodyforce_(numdofpernode_),
-      weights_(true),
+      weights_(),
       myknots_(nsd_),
       eid_(0),
       ele_(nullptr),
@@ -119,6 +120,13 @@ int Discret::Elements::ScaTraEleCalc<distype, probdim>::setup_calc(
   rotsymmpbc_->setup(ele);
 
   std::shared_ptr<Core::Mat::Material> material = ele->material();
+  if (material->material_type() == Core::Materials::m_scatra)
+  {
+    const std::shared_ptr<const Mat::ScatraMat> single_material =
+        std::static_pointer_cast<const Mat::ScatraMat>(material);
+    scatravarmanager_->set_reacts_to_force(single_material->reacts_to_external_force(), 0);
+  }
+
   if (material->material_type() == Core::Materials::m_matlist or
       material->material_type() == Core::Materials::m_matlist_reactions)
   {
@@ -148,11 +156,9 @@ int Discret::Elements::ScaTraEleCalc<distype, probdim>::setup_calc(
 template <Core::FE::CellType distype, int probdim>
 int Discret::Elements::ScaTraEleCalc<distype, probdim>::evaluate(Core::Elements::Element* ele,
     Teuchos::ParameterList& params, Core::FE::Discretization& discretization,
-    Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra)
+    Core::Elements::LocationArray& la, Core::LinAlg::SerialDenseMatrix& elemat1,
+    Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+    Core::LinAlg::SerialDenseVector& elevec2, Core::LinAlg::SerialDenseVector& elevec3)
 {
   //--------------------------------------------------------------------------------
   // preparations for element
@@ -177,12 +183,12 @@ int Discret::Elements::ScaTraEleCalc<distype, probdim>::evaluate(Core::Elements:
   // calculate element coefficient matrix and rhs
   //--------------------------------------------------------------------------------
 
-  sysmat(ele, elemat1_epetra, elevec1_epetra, elevec2_epetra);
+  sysmat(ele, elemat1, elevec1, elevec2);
 
   // perform finite difference check on element level
   if (scatrapara_->fd_check() == Inpar::ScaTra::fdcheck_local and
       ele->owner() == Core::Communication::my_mpi_rank(discretization.get_comm()))
-    fd_check(ele, elemat1_epetra, elevec1_epetra, elevec2_epetra);
+    fd_check(ele, elemat1, elevec1, elevec2);
 
   // ---------------------------------------------------------------------
   // output values of Prt, diffeff and Cs_delta_sq_Prt (channel flow only)
@@ -489,7 +495,7 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::sysmat(Core::Elements::
   // calculation of model coefficients B (velocity) and D (scalar)
   // at element center
   // coefficient B of fine-scale velocity
-  Core::LinAlg::Matrix<nsd_, 1> B_mfs(true);
+  Core::LinAlg::Matrix<nsd_, 1> B_mfs(Core::LinAlg::Initialization::zero);
   // coefficient D of fine-scale scalar
   double D_mfs = 0.0;
   if (turbparams_->turb_model() == Inpar::FLUID::multifractal_subgrid_scales)
@@ -507,7 +513,7 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::sysmat(Core::Elements::
 
       // provide necessary velocities and gradients at element center
       // get velocity at element center
-      Core::LinAlg::Matrix<nsd_, 1> fsvelint(true);
+      Core::LinAlg::Matrix<nsd_, 1> fsvelint(Core::LinAlg::Initialization::zero);
       fsvelint.multiply(efsvel_, funct_);
 
       // calculate model coefficients
@@ -541,7 +547,7 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::sysmat(Core::Elements::
     if (scatrapara_->is_conservative()) get_divergence(vdiv, evelnp_);
 
     // get fine-scale velocity and its derivatives at integration point
-    Core::LinAlg::Matrix<nsd_, 1> fsvelint(true);
+    Core::LinAlg::Matrix<nsd_, 1> fsvelint(Core::LinAlg::Initialization::zero);
     if (turbparams_->turb_model() == Inpar::FLUID::multifractal_subgrid_scales)
       fsvelint.multiply(efsvel_, funct_);
 
@@ -553,7 +559,7 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::sysmat(Core::Elements::
       rea_phi = densnp[k] * scatravarmanager_->phinp(k) * reamanager_->get_rea_coeff(k);
 
       // compute gradient of fine-scale part of scalar value
-      Core::LinAlg::Matrix<nsd_, 1> fsgradphi(true);
+      Core::LinAlg::Matrix<nsd_, 1> fsgradphi(Core::LinAlg::Initialization::zero);
       if (turbparams_->fssgd()) fsgradphi.multiply(derxy_, fsphinp_[k]);
 
       // compute rhs containing bodyforce (divided by specific heat capacity) and,
@@ -569,9 +575,9 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::sysmat(Core::Elements::
       //--------------------------------------------------------------------
 
       // subgrid-scale convective term
-      Core::LinAlg::Matrix<nen_, 1> sgconv(true);
+      Core::LinAlg::Matrix<nen_, 1> sgconv(Core::LinAlg::Initialization::zero);
       // subgrid-scale velocity vector in gausspoint
-      Core::LinAlg::Matrix<nsd_, 1> sgvelint(true);
+      Core::LinAlg::Matrix<nsd_, 1> sgvelint(Core::LinAlg::Initialization::zero);
 
       double scatrares(0.0);
       // calculate strong residual
@@ -635,7 +641,7 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::sysmat(Core::Elements::
             scatravarmanager_->con_vel(k), vol);  // TODO:(Thon) do we really have to do this??
       }
 
-      Core::LinAlg::Matrix<nen_, 1> diff(true);
+      Core::LinAlg::Matrix<nen_, 1> diff(Core::LinAlg::Initialization::zero);
       // diffusive term using current scalar value for higher-order elements
       if (use2ndderiv_)
       {
@@ -648,10 +654,10 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::sysmat(Core::Elements::
       // calculation of model coefficients B (velocity) and D (scalar)
       // at Gauss point as well as calculation
       // of multifractal subgrid-scale quantities
-      Core::LinAlg::Matrix<nsd_, 1> mfsgvelint(true);
+      Core::LinAlg::Matrix<nsd_, 1> mfsgvelint(Core::LinAlg::Initialization::zero);
       double mfsvdiv(0.0);
       double mfssgphi(0.0);
-      Core::LinAlg::Matrix<nsd_, 1> mfsggradphi(true);
+      Core::LinAlg::Matrix<nsd_, 1> mfsggradphi(Core::LinAlg::Initialization::zero);
       if (turbparams_->turb_model() == Inpar::FLUID::multifractal_subgrid_scales)
       {
         if (turbparams_->bd_gp())
@@ -821,11 +827,6 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::sysmat(Core::Elements::
       if (ele->material()->material_type() == Core::Materials::m_scatra_multiscale)
         calc_mat_and_rhs_multi_scale(ele, emat, erhs, k, iquad, timefacfac, rhsfac);
 
-      //----------------------------------------------------------------
-      // 8) Compute Rhs for ElectroMagnetic Diffusion equation
-      // the term includes the divergence og the electric current
-      //----------------------------------------------------------------
-      if (scatrapara_->is_emd()) calc_rhsemd(ele, erhs, rhsfac);
     }  // end loop all scalars
   }  // end loop Gauss points
 }
@@ -851,7 +852,7 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::body_force(
       Core::Conditions::find_element_conditions(ele, "LineNeumann", myneumcond);
       break;
     default:
-      FOUR_C_THROW("Illegal number of spatial dimensions: %d", nsd_ele_);
+      FOUR_C_THROW("Illegal number of spatial dimensions: {}", nsd_ele_);
       break;
   }
 
@@ -860,8 +861,7 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::body_force(
   if (myneumcond.size() == 1)
   {
     // (SPATIAL) FUNCTION BUSINESS
-    const auto funct =
-        myneumcond[0]->parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+    const auto funct = myneumcond[0]->parameters().get<std::vector<std::optional<int>>>("FUNCT");
 
     // get values and switches from the condition
     const auto onoff = myneumcond[0]->parameters().get<std::vector<int>>("ONOFF");
@@ -972,7 +972,7 @@ double Discret::Elements::ScaTraEleCalc<distype, probdim>::eval_shape_func_and_d
   const double det = eval_shape_func_and_derivs_in_parameter_space();
 
   if (det < 1E-16)
-    FOUR_C_THROW("GLOBAL ELEMENT NO. %d \nZERO OR NEGATIVE JACOBIAN DETERMINANT: %lf", eid_, det);
+    FOUR_C_THROW("GLOBAL ELEMENT NO. {} \nZERO OR NEGATIVE JACOBIAN DETERMINANT: {}", eid_, det);
 
   // compute global spatial derivatives
   derxy_.multiply(xij_, deriv_);
@@ -1088,7 +1088,7 @@ Discret::Elements::ScaTraEleCalc<distype, probdim>::eval_shape_func_and_derivs_i
         xyze_, deriv_red, metrictensor, det, throw_error_if_negative_determinant, &normalvec);
 
     if (det < 1E-16)
-      FOUR_C_THROW("GLOBAL ELEMENT NO. %d \nZERO OR NEGATIVE JACOBIAN DETERMINANT: %lf", eid_, det);
+      FOUR_C_THROW("GLOBAL ELEMENT NO. {} \nZERO OR NEGATIVE JACOBIAN DETERMINANT: {}", eid_, det);
 
     // transform the derivatives and Jacobians to the higher dimensional coordinates(problem
     // dimension)
@@ -1205,7 +1205,7 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::materials(
 
     default:
     {
-      FOUR_C_THROW("Material type %i is not supported!", material->material_type());
+      FOUR_C_THROW("Material type {} is not supported!", material->material_type());
       break;
     }
   }
@@ -1238,7 +1238,7 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::mat_scatra(
     // get corresponding fluid element (it has the same global ID as the scatra element)
     Core::Elements::Element* fluidele = fluiddis->g_element(eid_);
     if (fluidele == nullptr)
-      FOUR_C_THROW("Fluid element %i not on local processor", eid_);
+      FOUR_C_THROW("Fluid element {} not on local processor", eid_);
     else
     {
       // get fluid material
@@ -2089,43 +2089,6 @@ void Discret::Elements::ScaTraEleCalc<distype, probdim>::calc_mat_and_rhs_multi_
   // macro-scale vector contribution
   const double rhsterm = rhsfac * q_micro * matmultiscale->specific_micro_scale_surface_area(detF);
   for (unsigned vi = 0; vi < nen_; ++vi) erhs[vi * numdofpernode_ + k] -= funct_(vi) * rhsterm;
-}
-
-/*-------------------------------------------------------------------- *
- *---------------------------------------------------------------------*/
-template <Core::FE::CellType distype, int probdim>
-void Discret::Elements::ScaTraEleCalc<distype, probdim>::calc_rhsemd(
-    const Core::Elements::Element* const ele, Core::LinAlg::SerialDenseVector& erhs,
-    const double rhsfac)
-{
-  // (SPATIAL) FUNCTION BUSINESS
-  const int functno = scatrapara_->emd_source();
-  if (functno <= 0)
-  {
-    FOUR_C_THROW(
-        "For electromagnetic diffusion simulations a current density source function has to be "
-        "given.");
-  }
-
-  std::vector<double> current(nsd_, 0);
-  for (unsigned jnode = 0; jnode < nen_; jnode++)
-  {
-    for (int d = 0; d < static_cast<int>(nsd_); ++d)
-    {
-      current[d] += funct_(jnode) *
-                    Global::Problem::instance()
-                        ->function_by_id<Core::Utils::FunctionOfSpaceTime>(functno)
-                        .evaluate((ele->nodes()[jnode])->x().data(), scatraparatimint_->time(), d);
-    }
-  }
-
-  for (int vi = 0; vi < static_cast<int>(nen_); ++vi)
-  {
-    for (unsigned int d = 0; d < nsd_; ++d)
-    {
-      erhs[vi] += derxy_(d, vi) * current[d] * rhsfac;
-    }
-  }
 }
 
 /*------------------------------------------------------------------------------*

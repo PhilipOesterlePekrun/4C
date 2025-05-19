@@ -20,15 +20,12 @@
 #include "4C_coupling_volmortar_utils.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_tsi.hpp"
 #include "4C_io.hpp"
 #include "4C_mortar_multifield_coupling.hpp"
 #include "4C_solid_3D_ele.hpp"
-#include "4C_structure_new_model_evaluator_contact.hpp"
 #include "4C_structure_new_model_evaluator_structure.hpp"
 #include "4C_thermo_adapter.hpp"
-#include "4C_thermo_element.hpp"
-#include "4C_tsi_defines.hpp"
+#include "4C_tsi_input.hpp"
 #include "4C_tsi_utils.hpp"
 #include "4C_utils_parameter_list.hpp"
 
@@ -88,7 +85,7 @@ TSI::Algorithm::Algorithm(MPI_Comm comm)
   else
   {
     Thermo::BaseAlgorithm thermo(Global::Problem::instance()->tsi_dynamic_params(), thermodis);
-    thermo_ = thermo.thermo_fieldrcp();
+    thermo_ = thermo.thermo_field();
 
     //  // access structural dynamic params list which will be possibly modified while creating the
     //  time integrator
@@ -100,24 +97,24 @@ TSI::Algorithm::Algorithm(MPI_Comm comm)
 
     // set the temperature; Monolithic does this in it's own constructor with potentially
     // redistributed discretizations
-    if (Teuchos::getIntegralValue<Inpar::TSI::SolutionSchemeOverFields>(
+    if (Teuchos::getIntegralValue<TSI::SolutionSchemeOverFields>(
             Global::Problem::instance()->tsi_dynamic_params(), "COUPALGO") !=
-        Inpar::TSI::Monolithic)
+        TSI::SolutionSchemeOverFields::Monolithic)
     {
       if (matchinggrid_)
-        structdis->set_state(1, "temperature", thermo_field()->tempnp());
+        structdis->set_state(1, "temperature", *thermo_field()->tempnp());
       else
         structdis->set_state(
-            1, "temperature", volcoupl_->apply_vector_mapping12(*thermo_field()->tempnp()));
+            1, "temperature", *volcoupl_->apply_vector_mapping12(*thermo_field()->tempnp()));
     }
 
     adapterbase_ptr->setup();
     structure_ =
         std::dynamic_pointer_cast<Adapter::StructureWrapper>(adapterbase_ptr->structure_field());
 
-    if (restart && Teuchos::getIntegralValue<Inpar::TSI::SolutionSchemeOverFields>(
+    if (restart && Teuchos::getIntegralValue<TSI::SolutionSchemeOverFields>(
                        Global::Problem::instance()->tsi_dynamic_params(), "COUPALGO") ==
-                       Inpar::TSI::Monolithic)
+                       TSI::SolutionSchemeOverFields::Monolithic)
       structure_->setup();
 
     structure_field()->discretization()->clear_state(true);
@@ -338,7 +335,7 @@ void TSI::Algorithm::output_deformation_in_thermo(
   int err(0);
 
   // get dofrowmap of structural discretisation
-  const Epetra_Map* structdofrowmap = structdis.dof_row_map(0);
+  const Core::LinAlg::Map* structdofrowmap = structdis.dof_row_map(0);
 
   // loop over all local nodes of thermal discretisation
   for (int lnodeid = 0; lnodeid < (thermo_field()->discretization()->num_my_row_nodes()); lnodeid++)
@@ -396,7 +393,7 @@ std::shared_ptr<const Core::LinAlg::Vector<double>> TSI::Algorithm::calc_velocit
   vel = std::make_shared<Core::LinAlg::Vector<double>>(*(structure_field()->dispn()));
   // calculate velocity with timestep Dt()
   //  V_n+1^k = (D_n+1^k - D_n) / Dt
-  vel->Update(1. / dt(), dispnp, -1. / dt());
+  vel->update(1. / dt(), dispnp, -1. / dt());
 
   return vel;
 }  // calc_velocity()
@@ -411,15 +408,15 @@ void TSI::Algorithm::apply_thermo_coupling_state(
 {
   if (matchinggrid_)
   {
-    if (temp != nullptr) structure_field()->discretization()->set_state(1, "temperature", temp);
+    if (temp != nullptr) structure_field()->discretization()->set_state(1, "temperature", *temp);
     if (temp_res != nullptr)
-      structure_field()->discretization()->set_state(1, "residual temperature", temp_res);
+      structure_field()->discretization()->set_state(1, "residual temperature", *temp_res);
   }
   else
   {
     if (temp != nullptr)
       structure_field()->discretization()->set_state(
-          1, "temperature", volcoupl_->apply_vector_mapping12(*temp));
+          1, "temperature", *volcoupl_->apply_vector_mapping12(*temp));
   }
 
   // set new temperatures to contact
@@ -440,17 +437,17 @@ void TSI::Algorithm::apply_struct_coupling_state(
 {
   if (matchinggrid_)
   {
-    if (disp != nullptr) thermo_field()->discretization()->set_state(1, "displacement", disp);
-    if (vel != nullptr) thermo_field()->discretization()->set_state(1, "velocity", vel);
+    if (disp != nullptr) thermo_field()->discretization()->set_state(1, "displacement", *disp);
+    if (vel != nullptr) thermo_field()->discretization()->set_state(1, "velocity", *vel);
   }
   else
   {
     if (disp != nullptr)
       thermo_field()->discretization()->set_state(
-          1, "displacement", volcoupl_->apply_vector_mapping21(*disp));
+          1, "displacement", *volcoupl_->apply_vector_mapping21(*disp));
     if (vel != nullptr)
       thermo_field()->discretization()->set_state(
-          1, "velocity", volcoupl_->apply_vector_mapping21(*vel));
+          1, "velocity", *volcoupl_->apply_vector_mapping21(*vel));
   }
 }  // apply_struct_coupling_state()
 
@@ -458,10 +455,10 @@ void TSI::Algorithm::apply_struct_coupling_state(
 /*----------------------------------------------------------------------*/
 void TSI::Algorithm::prepare_contact_strategy()
 {
-  auto stype = Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(
+  auto stype = Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(
       Global::Problem::instance()->contact_dynamic_params(), "STRATEGY");
 
-  if (stype == Inpar::CONTACT::solution_lagmult)
+  if (stype == CONTACT::SolvingStrategy::lagmult)
   {
     if (structure_field()->have_model(Inpar::Solid::model_contact))
       FOUR_C_THROW(
@@ -534,6 +531,12 @@ void TSI::Algorithm::prepare_contact_strategy()
       contact_strategy_lagrange_->set_coupling(coupST_);
     }
   }
+}
+
+void TSI::Algorithm::post_setup()
+{
+  // call the post_setup routine of the structure field
+  structure_->post_setup();
 }
 
 FOUR_C_NAMESPACE_CLOSE

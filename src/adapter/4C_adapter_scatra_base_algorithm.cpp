@@ -14,7 +14,6 @@
 #include "4C_io.hpp"
 #include "4C_io_control.hpp"
 #include "4C_levelset_timint_ost.hpp"
-#include "4C_levelset_timint_stat.hpp"
 #include "4C_linear_solver_method.hpp"
 #include "4C_linear_solver_method_linalg.hpp"
 #include "4C_scatra_resulttest_hdg.hpp"
@@ -63,7 +62,7 @@ Adapter::ScaTraBaseAlgorithm::ScaTraBaseAlgorithm(const Teuchos::ParameterList& 
   // -------------------------------------------------------------------
   auto output = discret->writer();
   if (discret->num_global_elements() == 0)
-    FOUR_C_THROW("No elements in discretization %s", discret->name().c_str());
+    FOUR_C_THROW("No elements in discretization {}", discret->name());
   output->write_mesh(0, 0.0);
 
   // -------------------------------------------------------------------
@@ -117,19 +116,17 @@ Adapter::ScaTraBaseAlgorithm::ScaTraBaseAlgorithm(const Teuchos::ParameterList& 
       scatratimeparams->set<Inpar::ScaTra::ConvForm>(
           "CONVFORM", prbdyn.get<Inpar::ScaTra::ConvForm>("STRUCTSCAL_CONVFORM"));
 
+      auto initial_field =
+          Teuchos::getIntegralValue<Inpar::ScaTra::InitialField>(prbdyn, "STRUCTSCAL_INITIALFIELD");
+
+      scatratimeparams->set("INITIALFIELD", initial_field);
       // scatra2 get's in initial functions from FS3I DYNAMICS
-      switch (
-          Teuchos::getIntegralValue<Inpar::ScaTra::InitialField>(prbdyn, "STRUCTSCAL_INITIALFIELD"))
+      switch (initial_field)
       {
         case Inpar::ScaTra::initfield_zero_field:
-          scatratimeparams->set<std::string>("INITIALFIELD",
-              "zero_field");  // we want zero initial conditions for the structure scalar
           scatratimeparams->set<int>("INITFUNCNO", -1);
           break;
         case Inpar::ScaTra::initfield_field_by_function:
-          scatratimeparams->set<std::string>(
-              "INITIALFIELD", "field_by_function");  // we want the same initial conditions for
-                                                     // structure scalar as for the fluid scalar
           scatratimeparams->set<int>("INITFUNCNO", prbdyn.get<int>("STRUCTSCAL_INITFUNCNO"));
           break;
         default:
@@ -162,11 +159,6 @@ Adapter::ScaTraBaseAlgorithm::ScaTraBaseAlgorithm(const Teuchos::ParameterList& 
   extraparams->sublist("SUBGRID VISCOSITY") = fdyn.sublist("SUBGRID VISCOSITY");
   extraparams->sublist("MULTIFRACTAL SUBGRID SCALES") = fdyn.sublist("MULTIFRACTAL SUBGRID SCALES");
   extraparams->sublist("TURBULENT INFLOW") = fdyn.sublist("TURBULENT INFLOW");
-
-  // ------------------------------------get electromagnetic parameters
-  extraparams->set<bool>(
-      "ELECTROMAGNETICDIFFUSION", scatradyn.get<bool>("ELECTROMAGNETICDIFFUSION"));
-  extraparams->set<int>("EMDSOURCE", scatradyn.get<int>("EMDSOURCE"));
 
   // -------------------------------------------------------------------
   // algorithm construction depending on problem type and
@@ -264,86 +256,26 @@ Adapter::ScaTraBaseAlgorithm::ScaTraBaseAlgorithm(const Teuchos::ParameterList& 
       }
       default:
         FOUR_C_THROW("Unknown time integration scheme for electrochemistry!");
-        break;
     }
   }
 
-  // levelset
-  else if (probtype == Core::ProblemType::level_set or probtype == Core::ProblemType::fluid_xfem_ls)
+  // level-set
+  else if (probtype == Core::ProblemType::level_set)
   {
-    std::shared_ptr<Teuchos::ParameterList> lsparams = nullptr;
-    switch (probtype)
-    {
-      case Core::ProblemType::level_set:
-        lsparams = std::make_shared<Teuchos::ParameterList>(prbdyn);
-        break;
-      default:
-      {
-        if (!lsparams)
-          lsparams = std::make_shared<Teuchos::ParameterList>(
-              Global::Problem::instance()->level_set_control());
-        // overrule certain parameters for coupled problems
-        // this has already been ensured for scatratimeparams, but has also been ensured for the
-        // level-set parameter in a hybrid approach time step size
-        lsparams->set<double>("TIMESTEP", prbdyn.get<double>("TIMESTEP"));
-        // maximum simulation time
-        lsparams->set<double>("MAXTIME", prbdyn.get<double>("MAXTIME"));
-        // maximum number of timesteps
-        lsparams->set<int>("NUMSTEP", prbdyn.get<int>("NUMSTEP"));
-        // restart
-        lsparams->set<int>("RESTARTEVERY", prbdyn.get<int>("RESTARTEVERY"));
-        // solution output
-        lsparams->set<int>("RESULTSEVERY", prbdyn.get<int>("RESULTSEVERY"));
-
-        break;
-      }
-    }
+    auto lsparams = std::make_shared<Teuchos::ParameterList>(prbdyn);
 
     switch (timintscheme)
     {
       case Inpar::ScaTra::timeint_one_step_theta:
       {
-        // create instance of time integration class (call the constructor)
+        // create an instance of time integration class
         scatra_ = std::make_shared<ScaTra::LevelSetTimIntOneStepTheta>(
             discret, solver, lsparams, scatratimeparams, extraparams, output);
         break;
       }
-      case Inpar::ScaTra::timeint_stationary:
-      {
-        // create instance of time integration class (call the constructor)
-        switch (probtype)
-        {
-          case Core::ProblemType::level_set:
-          {
-            FOUR_C_THROW(
-                "Stationary time integration scheme only supported for a selection of coupled "
-                "level-set problems!");
-            exit(EXIT_FAILURE);
-          }
-          default:
-          {
-            scatra_ = std::make_shared<ScaTra::LevelSetTimIntStationary>(
-                discret, solver, lsparams, scatratimeparams, extraparams, output);
-            break;
-          }
-        }
-        break;
-      }
-      case Inpar::ScaTra::timeint_gen_alpha:
-      {
-        switch (probtype)
-        {
-          default:
-            FOUR_C_THROW("Unknown time-integration scheme for level-set problem");
-            exit(EXIT_FAILURE);
-        }
-
-        break;
-      }
       default:
         FOUR_C_THROW("Unknown time-integration scheme for level-set problem");
-        break;
-    }  // switch(timintscheme)
+    }
   }
 
   // cardiac monodomain

@@ -10,8 +10,8 @@
 
 #include "4C_config.hpp"
 
+#include "4C_io_exodus.hpp"
 #include "4C_legacy_enum_definitions_conditions.hpp"
-#include "4C_pre_exodus_reader.hpp"
 #include "4C_utils_exceptions.hpp"
 
 #include <iostream>
@@ -50,7 +50,7 @@ namespace EXODUS
     MeshEntity me;      ///< referring to underlying mesh entity
     std::string sec;    ///< FLUID,STRUCTURE,ALE,etc.
     std::string desc;   ///< like "MAT 1 EAS full"
-    std::string ename;  ///< FLUID,SOLIDSH8,etc
+    std::string ename;  ///< FLUID,SOLID,etc
   };
 
   //! this is what fully defines a 4C condition
@@ -60,7 +60,7 @@ namespace EXODUS
     MeshEntity me;     ///< referring to underlying mesh entity
     std::string sec;   ///< see valid_condition 'sectionname'
     std::string desc;  ///< see valid_condition 'description'
-    int e_id;          ///< refers to datfile 'E num -'
+    int e_id;          ///< refers to outfile 'E num -'
     Core::Conditions::GeometryType gtype;
   };
 
@@ -91,19 +91,19 @@ namespace EXODUS
 
   // ! Correct nodal coordinates for periodic boundary conditions
   void correct_nodal_coordinates_for_periodic_boundary_conditions(
-      EXODUS::Mesh& mesh, std::vector<EXODUS::CondDef> condefs);
+      Core::IO::Exodus::Mesh& mesh, std::vector<EXODUS::CondDef> condefs);
 
   // ! Correct nodal coordinates in the YZ plane for periodic boundary conditions
   void correct_yz_plane_for_periodic_boundary_conditions(
-      EXODUS::Mesh& mesh, const std::vector<EXODUS::CondDef>& condefs);
+      Core::IO::Exodus::Mesh& mesh, const std::vector<EXODUS::CondDef>& condefs);
 
   // ! Correct nodal coordinates in the XZ plane for periodic boundary conditions
   void correct_xz_plane_for_periodic_boundary_conditions(
-      EXODUS::Mesh& mesh, const std::vector<EXODUS::CondDef>& condefs);
+      Core::IO::Exodus::Mesh& mesh, const std::vector<EXODUS::CondDef>& condefs);
 
   // ! Correct nodal coordinates in the XY plane for periodic boundary conditions
   void correct_xy_plane_for_periodic_boundary_conditions(
-      EXODUS::Mesh& mesh, const std::vector<EXODUS::CondDef>& condefs);
+      Core::IO::Exodus::Mesh& mesh, const std::vector<EXODUS::CondDef>& condefs);
 
 }  // namespace EXODUS
 

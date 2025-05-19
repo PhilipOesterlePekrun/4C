@@ -20,7 +20,7 @@ namespace Core::LinAlg
   class BlockMatrix
   {
    public:
-    typedef typename ValueType::scalar_type scalar_type;
+    using scalar_type = typename ValueType::scalar_type;
 
     BlockMatrix() { std::fill(blocks_, blocks_ + brows * bcols, static_cast<ValueType*>(nullptr)); }
 
@@ -59,7 +59,7 @@ namespace Core::LinAlg
       ValueType* b = blocks_[p];
       if (b == nullptr)
       {
-        b = new ValueType(true);
+        b = new ValueType(Core::LinAlg::Initialization::zero);
         blocks_[p] = b;
       }
       return b;

@@ -11,6 +11,7 @@
 #include "4C_config.hpp"
 
 #include <memory>
+#include <optional>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -18,12 +19,22 @@ namespace Core::IO
 {
   class InputParameterContainer;
   class ValueParser;
-  class YamlEmitter;
+  class YamlNodeRef;
+  class ConstYamlNodeRef;
 
   namespace Internal
   {
-    class InputSpecTypeErasedBase;
+    class InputSpecImpl;
   }  // namespace Internal
+
+  struct InputSpecEmitOptions
+  {
+    /**
+     * If set to true, entries which have a default value are emitted even if their values are equal
+     * to the default.
+     */
+    bool emit_defaulted_values{false};
+  };
 
   /**
    * Objects of this class encapsulate knowledge about the input. You can create objects using the
@@ -37,7 +48,7 @@ namespace Core::IO
 
     ~InputSpec();
 
-    InputSpec(std::unique_ptr<Internal::InputSpecTypeErasedBase> pimpl);
+    InputSpec(std::unique_ptr<Internal::InputSpecImpl> pimpl);
 
     InputSpec(const InputSpec& other);
     InputSpec& operator=(const InputSpec& other);
@@ -52,6 +63,22 @@ namespace Core::IO
     void fully_parse(ValueParser& parser, InputParameterContainer& container) const;
 
     /**
+     * Match the content in @p yaml to the expected input format of this InputSpec. If the content
+     * matches, fill the @p container with the parsed data. If the content does not match, throws an
+     * exception. A successful match means that @p yaml contains all required entries and no unknown
+     * content.
+     */
+    void match(ConstYamlNodeRef yaml, InputParameterContainer& container) const;
+
+    /**
+     * Emit the data in @p container to @p yaml. The data in @p container has to fit the
+     * specification encoded in this InputSpec; otherwise an exception is thrown. This function is
+     * the inverse of match().
+     */
+    void emit(YamlNodeRef yaml, InputParameterContainer& container,
+        InputSpecEmitOptions options = {}) const;
+
+    /**
      * Print the expected input format of this InputSpec to @p stream in dat format.
      */
     void print_as_dat(std::ostream& stream) const;
@@ -59,24 +86,24 @@ namespace Core::IO
     /**
      * Emit metadata about the InputSpec to the @p yaml emitter.
      */
-    void emit_metadata(YamlEmitter& yaml) const;
+    void emit_metadata(YamlNodeRef yaml) const;
 
     /**
      * Access the opaque implementation class. This is used in the implementation files where the
      * definition is known. There is nothing you can or should do with this function in the user
      * code.
      */
-    Internal::InputSpecTypeErasedBase& impl();
+    Internal::InputSpecImpl& impl();
 
     /**
      * Access the opaque implementation class. This is used in the implementation files where the
      * definition is known. There is nothing you can or should do with this function in the user
      * code.
      */
-    [[nodiscard]] const Internal::InputSpecTypeErasedBase& impl() const;
+    [[nodiscard]] const Internal::InputSpecImpl& impl() const;
 
    private:
-    std::unique_ptr<Internal::InputSpecTypeErasedBase> pimpl_;
+    std::unique_ptr<Internal::InputSpecImpl> pimpl_;
   };
 }  // namespace Core::IO
 

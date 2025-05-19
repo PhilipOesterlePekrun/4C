@@ -27,7 +27,6 @@
 #include "4C_linear_solver_method_linalg.hpp"
 #include "4C_mortar_manager_base.hpp"
 #include "4C_poroelast_utils.hpp"
-#include "4C_so3_base.hpp"
 #include "4C_solid_3D_ele.hpp"
 #include "4C_structure_aux.hpp"
 #include "4C_utils_parameter_list.hpp"
@@ -152,11 +151,11 @@ PoroElast::PoroBase::PoroBase(MPI_Comm comm, const Teuchos::ParameterList& timep
     auto fluidtimealgo =
         Teuchos::getIntegralValue<Inpar::FLUID::TimeIntegrationScheme>(fdyn, "TIMEINTEGR");
 
-    if (not((structtimealgo == Inpar::Solid::dyna_onesteptheta and
+    if (not((structtimealgo == Inpar::Solid::DynamicType::OneStepTheta and
                 fluidtimealgo == Inpar::FLUID::timeint_one_step_theta) or
-            (structtimealgo == Inpar::Solid::dyna_statics and
+            (structtimealgo == Inpar::Solid::DynamicType::Statics and
                 fluidtimealgo == Inpar::FLUID::timeint_stationary) or
-            (structtimealgo == Inpar::Solid::dyna_genalpha and
+            (structtimealgo == Inpar::Solid::DynamicType::GenAlpha and
                 (fluidtimealgo == Inpar::FLUID::timeint_afgenalpha or
                     fluidtimealgo == Inpar::FLUID::timeint_npgenalpha))))
     {
@@ -172,7 +171,7 @@ PoroElast::PoroBase::PoroBase(MPI_Comm comm, const Teuchos::ParameterList& timep
           "theory or use afgenalpha instead!");
     }
 
-    if (structtimealgo == Inpar::Solid::dyna_onesteptheta and
+    if (structtimealgo == Inpar::Solid::DynamicType::OneStepTheta and
         fluidtimealgo == Inpar::FLUID::timeint_one_step_theta)
     {
       double theta_struct = sdyn.sublist("ONESTEPTHETA").get<double>("THETA");
@@ -188,7 +187,7 @@ PoroElast::PoroBase::PoroBase(MPI_Comm comm, const Teuchos::ParameterList& timep
 
     auto damping = Teuchos::getIntegralValue<Inpar::Solid::DampKind>(sdyn, "DAMPING");
     if (damping != Inpar::Solid::DampKind::damp_material &&
-        structtimealgo != Inpar::Solid::dyna_statics)
+        structtimealgo != Inpar::Solid::DynamicType::Statics)
     {
       FOUR_C_THROW(
           "Material damping has to be used for dynamic porous media simulations! Set DAMPING to "
@@ -292,6 +291,13 @@ void PoroElast::PoroBase::read_restart(const int step)
   }
 }
 
+void PoroElast::PoroBase::post_setup()
+{
+  // call post_setup routine of the structural field
+  structure_->post_setup();
+}
+
+
 void PoroElast::PoroBase::prepare_time_step()
 {
   // counter and print header
@@ -359,8 +365,9 @@ std::shared_ptr<Core::LinAlg::Vector<double>> PoroElast::PoroBase::structure_to_
     std::shared_ptr<Core::LinAlg::Vector<double>> sv =
         Core::LinAlg::create_vector(*(fluid_field()->vel_pres_splitter()->other_map()));
 
-    std::copy(mv->Values(),
-        mv->Values() + (static_cast<ptrdiff_t>(mv->MyLength() * mv->NumVectors())), sv->Values());
+    std::copy(mv->get_values(),
+        mv->get_values() + (static_cast<ptrdiff_t>(mv->local_length() * mv->num_vectors())),
+        sv->get_values());
     return sv;
   }
 }
@@ -392,12 +399,12 @@ void PoroElast::PoroBase::set_fluid_solution()
 {
   if (matchinggrid_)
   {
-    structure_field()->discretization()->set_state(1, "fluidvel", fluid_field()->velnp());
+    structure_field()->discretization()->set_state(1, "fluidvel", *fluid_field()->velnp());
   }
   else
   {
     structure_field()->discretization()->set_state(
-        1, "fluidvel", volcoupl_->apply_vector_mapping12(*fluid_field()->velnp()));
+        1, "fluidvel", *volcoupl_->apply_vector_mapping12(*fluid_field()->velnp()));
   }
 }
 
@@ -428,8 +435,8 @@ void PoroElast::PoroBase::setup_coupling()
 
   // if one discretization is a subset of the other, they will differ in node number (and element
   // number) we assume matching grids for the overlapping part here
-  const Epetra_Map* structnoderowmap = structdis->node_row_map();
-  const Epetra_Map* fluidnoderowmap = fluiddis->node_row_map();
+  const Core::LinAlg::Map* structnoderowmap = structdis->node_row_map();
+  const Core::LinAlg::Map* fluidnoderowmap = fluiddis->node_row_map();
 
   const int numglobalstructnodes = structnoderowmap->NumGlobalElements();
   const int numglobalfluidnodes = fluidnoderowmap->NumGlobalElements();
@@ -557,7 +564,7 @@ void PoroElast::PoroBase::check_for_poro_conditions()
 }
 
 void PoroElast::NoPenetrationConditionHandle::build_no_penetration_map(
-    MPI_Comm comm, std::shared_ptr<const Epetra_Map> dofRowMap)
+    MPI_Comm comm, std::shared_ptr<const Core::LinAlg::Map> dofRowMap)
 {
   std::vector<int> condIDs;
   std::set<int>::iterator it;
@@ -565,7 +572,7 @@ void PoroElast::NoPenetrationConditionHandle::build_no_penetration_map(
   {
     condIDs.push_back(*it);
   }
-  std::shared_ptr<Epetra_Map> nopendofmap = std::make_shared<Epetra_Map>(
+  std::shared_ptr<Core::LinAlg::Map> nopendofmap = std::make_shared<Core::LinAlg::Map>(
       -1, int(condIDs.size()), condIDs.data(), 0, Core::Communication::as_epetra_comm(comm));
 
   nopenetration_ = std::make_shared<Core::LinAlg::MapExtractor>(*dofRowMap, nopendofmap);
@@ -576,7 +583,7 @@ void PoroElast::NoPenetrationConditionHandle::apply_cond_rhs(
 {
   if (has_cond_)
   {
-    const std::shared_ptr<const Epetra_Map>& nopenetrationmap = nopenetration_->Map(1);
+    const std::shared_ptr<const Core::LinAlg::Map>& nopenetrationmap = nopenetration_->map(1);
     Core::LinAlg::apply_dirichlet_to_system(iterinc, rhs, *cond_rhs_, *nopenetrationmap);
   }
 }
@@ -585,20 +592,20 @@ void PoroElast::NoPenetrationConditionHandle::clear(PoroElast::Coupltype couplty
 {
   if (has_cond_)
   {
-    cond_rhs_->PutScalar(0.0);
+    cond_rhs_->put_scalar(0.0);
     cond_ids_->clear();
     switch (coupltype)
     {
       case PoroElast::fluidfluid:
         fluid_fluid_constraint_matrix_->zero();
-        cond_dofs_->PutScalar(0.0);
+        cond_dofs_->put_scalar(0.0);
         break;
       case PoroElast::fluidstructure:
         fluid_structure_constraint_matrix_->zero();
         structure_vel_constraint_matrix_->zero();
         break;
       default:
-        cond_dofs_->PutScalar(0.0);
+        cond_dofs_->put_scalar(0.0);
         fluid_fluid_constraint_matrix_->zero();
         fluid_structure_constraint_matrix_->zero();
         structure_vel_constraint_matrix_->zero();
@@ -608,7 +615,7 @@ void PoroElast::NoPenetrationConditionHandle::clear(PoroElast::Coupltype couplty
 }
 
 void PoroElast::NoPenetrationConditionHandle::setup(
-    const Epetra_Map& dofRowMap, const Epetra_Map* dofRowMapFluid)
+    const Core::LinAlg::Map& dofRowMap, const Core::LinAlg::Map* dofRowMapFluid)
 {
   if (has_cond_)
   {

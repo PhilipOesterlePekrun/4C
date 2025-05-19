@@ -12,10 +12,9 @@
 
 #include "4C_adapter_fld_wrapper.hpp"
 #include "4C_inpar_fsi.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
-
-#include <Epetra_Map.h>
 
 #include <memory>
 
@@ -60,9 +59,9 @@ namespace Adapter
     /// initialize algorithm
     void init() override;
 
-    std::shared_ptr<const Epetra_Map> dof_row_map() override;
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map() override;
 
-    std::shared_ptr<const Epetra_Map> dof_row_map(unsigned nds) override;
+    std::shared_ptr<const Core::LinAlg::Map> dof_row_map(unsigned nds) override;
 
     /// Velocity-displacement conversion at the fsi interface
     double time_scaling() const override;
@@ -85,7 +84,7 @@ namespace Adapter
     /// update slave dofs for multifield simulations with fluid mesh tying
     virtual void update_slave_dof(std::shared_ptr<Core::LinAlg::Vector<double>>& f);
 
-    std::shared_ptr<const Epetra_Map> inner_velocity_row_map() override;
+    std::shared_ptr<const Core::LinAlg::Map> inner_velocity_row_map() override;
 
     std::shared_ptr<Core::LinAlg::Vector<double>> extract_interface_forces() override;
 
@@ -115,7 +114,8 @@ namespace Adapter
 
     void apply_mesh_velocity(std::shared_ptr<const Core::LinAlg::Vector<double>> gridvel) override;
 
-    void set_mesh_map(std::shared_ptr<const Epetra_Map> mm, const int nds_master = 0) override;
+    void set_mesh_map(
+        std::shared_ptr<const Core::LinAlg::Map> mm, const int nds_master = 0) override;
 
     //! @name Conversion between displacement and velocity at interface
 
@@ -151,7 +151,6 @@ namespace Adapter
      *
      *  The vector \$f R \$f ensures that interface and Dirichlet DOFs are not modified.
      *
-     *  \author mayr.mt \date  06/2012
      */
     void proj_vel_to_div_zero();
 
@@ -170,13 +169,11 @@ namespace Adapter
      *  scheme. Result is stored in #locerrvelnp_ and is used later to estimate
      *  the local discretization error of the marching time integration scheme.
      *
-     *  \author mayr.mt \date 12/2013
      */
     void time_step_auxiliary() override;
 
     /*! \brief Indicate norms of temporal discretization error
      *
-     *  \author mayr.mt \date 12/2013
      */
     void indicate_error_norms(
         double& err,       ///< L2-norm of temporal discretization error based on all DOFs
@@ -190,13 +187,11 @@ namespace Adapter
 
     /*! \brief Error order for adaptive fluid time integration
      *
-     *  \author mayr.mt \date 04/2015
      */
     double get_tim_ada_err_order() const;
 
     /*! \brief Name of auxiliary time integrator
      *
-     *  \author mayr.mt \date 04/2015
      */
     std::string get_tim_ada_method_name() const;
 
@@ -252,7 +247,7 @@ namespace Adapter
     std::shared_ptr<Core::LinAlg::MapExtractor> meshmap_;
 
     /// all velocity dofs not at the interface
-    std::shared_ptr<Epetra_Map> innervelmap_;
+    std::shared_ptr<Core::LinAlg::Map> innervelmap_;
 
    private:
     //! Time step size adaptivity in monolithic FSI
@@ -268,7 +263,6 @@ namespace Adapter
      *    x_{n+1} = x_{n} + \Delta t_{n} \dot{x}_{n}
      *  \f]
      *
-     *  \author mayr.mt \date 10/2013
      */
     void explicit_euler(const Core::LinAlg::Vector<double>& veln,  ///< velocity at \f$t_n\f$
         const Core::LinAlg::Vector<double>& accn,                  ///< acceleration at \f$t_n\f$
@@ -303,7 +297,6 @@ namespace Adapter
      *       Stepping for Incompressible Flow Part II: Navier-Stokes Equations,
      *       SIAM J. Sci. Comput. (32), pp. 111-128, 2010 </li>
      *
-     *  \author mayr.mt \date 11/2013
      */
     void adams_bashforth2(const Core::LinAlg::Vector<double>& veln,  ///< velocity at \f$t_n\f$
         const Core::LinAlg::Vector<double>& accn,                    ///< acceleration at \f$t_n\f$

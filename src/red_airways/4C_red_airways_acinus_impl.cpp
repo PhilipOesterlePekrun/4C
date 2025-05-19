@@ -18,6 +18,7 @@
 #include "4C_mat_par_bundle.hpp"
 #include "4C_red_airways_elem_params.hpp"
 #include "4C_red_airways_evaluation_data.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 #include "4C_utils_function_of_time.hpp"
 
@@ -45,7 +46,7 @@ Discret::Elements::RedAcinusImplInterface* Discret::Elements::RedAcinusImplInter
     }
     default:
       FOUR_C_THROW(
-          "shape %d (%d nodes) not supported", red_acinus->shape(), red_acinus->num_node());
+          "shape {} ({} nodes) not supported", red_acinus->shape(), red_acinus->num_node());
       break;
   }
   return nullptr;
@@ -107,7 +108,6 @@ void sysmat(Discret::Elements::RedAcinus* ele, Core::LinAlg::SerialDenseVector& 
   else
   {
     FOUR_C_THROW("Material law is not a valid reduced dimensional lung acinus material.");
-    exit(1);
   }
 }
 
@@ -118,13 +118,11 @@ void sysmat(Discret::Elements::RedAcinus* ele, Core::LinAlg::SerialDenseVector& 
 template <Core::FE::CellType distype>
 int Discret::Elements::AcinusImpl<distype>::evaluate(RedAcinus* ele, Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, std::vector<int>& lm,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra, std::shared_ptr<Core::Mat::Material> mat)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3, std::shared_ptr<Core::Mat::Material> mat)
 {
-  const int elemVecdim = elevec1_epetra.length();
+  const int elemVecdim = elevec1.length();
 
   Discret::ReducedLung::EvaluationData& evaluation_data =
       Discret::ReducedLung::EvaluationData::get();
@@ -147,20 +145,16 @@ int Discret::Elements::AcinusImpl<distype>::evaluate(RedAcinus* ele, Teuchos::Pa
     FOUR_C_THROW("Cannot get state vectors 'pnp', 'on', and/or 'pnm''");
 
   // Extract local values from the global vectors
-  std::vector<double> mypnp(lm.size());
-  Core::FE::extract_my_values(*pnp, mypnp, lm);
+  std::vector<double> mypnp = Core::FE::extract_values(*pnp, lm);
 
   // Extract local values from the global vectors
-  std::vector<double> mypn(lm.size());
-  Core::FE::extract_my_values(*on, mypn, lm);
+  std::vector<double> mypn = Core::FE::extract_values(*on, lm);
 
   // Extract local values from the global vectors
-  std::vector<double> mypnm(lm.size());
-  Core::FE::extract_my_values(*pnm, mypnm, lm);
+  std::vector<double> mypnm = Core::FE::extract_values(*pnm, lm);
 
   // Extract local values from the global vectors
-  std::vector<double> myial(lm.size());
-  Core::FE::extract_my_values(*ial, myial, lm);
+  std::vector<double> myial = Core::FE::extract_values(*ial, lm);
 
   // Create objects for element arrays
   Core::LinAlg::SerialDenseVector epnp(elemVecdim);
@@ -198,15 +192,14 @@ int Discret::Elements::AcinusImpl<distype>::evaluate(RedAcinus* ele, Teuchos::Pa
   elem_params.lungVolume_nm = evaluation_data.lungVolume_nm;
 
   // Call routine for calculating element matrix and right hand side
-  sysmat<distype>(
-      ele, epnp, epn, epnm, elemat1_epetra, elevec1_epetra, *mat, elem_params, time, dt);
+  sysmat<distype>(ele, epnp, epn, epnm, elemat1, elevec1, *mat, elem_params, time, dt);
 
   // Put zeros on second line of matrix and rhs in case of interacinar linker
   if (myial[1] > 0.0)
   {
-    elemat1_epetra(1, 0) = 0.0;
-    elemat1_epetra(1, 1) = 0.0;
-    elevec1_epetra(1) = 0.0;
+    elemat1(1, 0) = 0.0;
+    elemat1(1, 1) = 0.0;
+    elevec1(1) = 0.0;
   }
 
   return 0;
@@ -236,16 +229,16 @@ void Discret::Elements::AcinusImpl<distype>::initial(RedAcinus* ele, Teuchos::Pa
   {
     int gid = lm[0];
     double val = 0.0;
-    evaluation_data.p0np->ReplaceGlobalValues(1, &val, &gid);
-    evaluation_data.p0n->ReplaceGlobalValues(1, &val, &gid);
-    evaluation_data.p0nm->ReplaceGlobalValues(1, &val, &gid);
+    evaluation_data.p0np->replace_global_values(1, &val, &gid);
+    evaluation_data.p0n->replace_global_values(1, &val, &gid);
+    evaluation_data.p0nm->replace_global_values(1, &val, &gid);
   }
 
   // Find the volume of an acinus element
   {
     int gid2 = ele->id();
     double acin_vol = acinus_params.volume_relaxed;
-    evaluation_data.acini_e_volume->ReplaceGlobalValues(1, &acin_vol, &gid2);
+    evaluation_data.acini_e_volume->replace_global_values(1, &acin_vol, &gid2);
   }
 
   // Get the generation numbers
@@ -256,14 +249,14 @@ void Discret::Elements::AcinusImpl<distype>::initial(RedAcinus* ele, Teuchos::Pa
       // find the acinus condition
       int gid = ele->id();
       double val = 1.0;
-      evaluation_data.acini_bc->ReplaceGlobalValues(1, &val, &gid);
+      evaluation_data.acini_bc->replace_global_values(1, &val, &gid);
     }
   }
   {
     int gid = ele->id();
     int generation = -1;
     double val = double(generation);
-    evaluation_data.generations->ReplaceGlobalValues(1, &val, &gid);
+    evaluation_data.generations->replace_global_values(1, &val, &gid);
   }
 
 }  // AcinusImpl::Initial
@@ -294,8 +287,7 @@ void Discret::Elements::AcinusImpl<distype>::evaluate_terminal_bc(RedAcinus* ele
   if (pnp == nullptr) FOUR_C_THROW("Cannot get state vectors 'pnp'");
 
   // Extract local values from the global vectors
-  std::vector<double> mypnp(lm.size());
-  Core::FE::extract_my_values(*pnp, mypnp, lm);
+  std::vector<double> mypnp = Core::FE::extract_values(*pnp, lm);
 
   // Create objects for element arrays
   Core::LinAlg::SerialDenseVector epnp(numnode);
@@ -328,10 +320,9 @@ void Discret::Elements::AcinusImpl<distype>::evaluate_terminal_bc(RedAcinus* ele
           Bc = (condition->parameters().get<std::string>("boundarycond"));
 
           const auto vals = condition->parameters().get<std::vector<double>>("VAL");
-          const auto curve =
-              condition->parameters().get<std::vector<Core::IO::Noneable<int>>>("curve");
+          const auto curve = condition->parameters().get<std::vector<std::optional<int>>>("curve");
           const auto functions =
-              condition->parameters().get<std::vector<Core::IO::Noneable<int>>>("funct");
+              condition->parameters().get<std::vector<std::optional<int>>>("funct");
 
           // Read in the value of the applied BC
           // Get factor of first CURVE
@@ -346,7 +337,6 @@ void Discret::Elements::AcinusImpl<distype>::evaluate_terminal_bc(RedAcinus* ele
           else
           {
             FOUR_C_THROW("no boundary condition defined!");
-            exit(1);
           }
 
           // Get factor of FUNCT
@@ -373,9 +363,8 @@ void Discret::Elements::AcinusImpl<distype>::evaluate_terminal_bc(RedAcinus* ele
           int local_id = discretization.node_row_map()->LID(ele->nodes()[i]->id());
           if (local_id < 0)
           {
-            FOUR_C_THROW("node (%d) doesn't exist on proc(%d)", ele->nodes()[i]->id(),
+            FOUR_C_THROW("node ({}) doesn't exist on proc({})", ele->nodes()[i]->id(),
                 Core::Communication::my_mpi_rank(discretization.get_comm()));
-            exit(1);
           }
         }
         /**
@@ -396,7 +385,6 @@ void Discret::Elements::AcinusImpl<distype>::evaluate_terminal_bc(RedAcinus* ele
             FOUR_C_THROW(
                 "Cannot prescribe a boundary condition from 3D to reduced D, if the parameters "
                 "passed don't exist");
-            exit(1);
           }
 
           // -----------------------------------------------------------------
@@ -466,8 +454,7 @@ void Discret::Elements::AcinusImpl<distype>::evaluate_terminal_bc(RedAcinus* ele
             Bc = (condition->parameters().get<std::string>("phase2"));
           }
 
-          const auto curve =
-              condition->parameters().get<std::vector<Core::IO::Noneable<int>>>("curve");
+          const auto curve = condition->parameters().get<std::vector<std::optional<int>>>("curve");
           double curvefac = 1.0;
           const auto vals = condition->parameters().get<std::vector<double>>("VAL");
 
@@ -483,16 +470,14 @@ void Discret::Elements::AcinusImpl<distype>::evaluate_terminal_bc(RedAcinus* ele
           else
           {
             FOUR_C_THROW("no boundary condition defined!");
-            exit(1);
           }
 
           // Get the local id of the node to whom the bc is prescribed
           int local_id = discretization.node_row_map()->LID(ele->nodes()[i]->id());
           if (local_id < 0)
           {
-            FOUR_C_THROW("node (%d) doesn't exist on proc(%d)", ele->nodes()[i]->id(),
+            FOUR_C_THROW("node ({}) doesn't exist on proc({})", ele->nodes()[i]->id(),
                 Core::Communication::my_mpi_rank(discretization.get_comm()));
-            exit(1);
           }
         }
         else
@@ -512,7 +497,7 @@ void Discret::Elements::AcinusImpl<distype>::evaluate_terminal_bc(RedAcinus* ele
             if (pplCond)
             {
               const auto curve =
-                  pplCond->parameters().get<std::vector<Core::IO::Noneable<int>>>("curve");
+                  pplCond->parameters().get<std::vector<std::optional<int>>>("curve");
               double curvefac = 1.0;
               const auto vals = pplCond->parameters().get<std::vector<double>>("VAL");
 
@@ -542,7 +527,7 @@ void Discret::Elements::AcinusImpl<distype>::evaluate_terminal_bc(RedAcinus* ele
               {
                 FOUR_C_THROW(
                     "TLC is not used for the following type of VolumeDependentPleuralPressure BC: "
-                    "%s.\n Set TLC = 0.0",
+                    "{}.\n Set TLC = 0.0",
                     ppl_Type.c_str());
               }
 
@@ -589,7 +574,7 @@ void Discret::Elements::AcinusImpl<distype>::evaluate_terminal_bc(RedAcinus* ele
               }
               else
               {
-                FOUR_C_THROW("Unknown volume pleural pressure type: %s", ppl_Type.c_str());
+                FOUR_C_THROW("Unknown volume pleural pressure type: {}", ppl_Type);
               }
               Pp_np *= curvefac * (vals[0]);
             }
@@ -609,11 +594,11 @@ void Discret::Elements::AcinusImpl<distype>::evaluate_terminal_bc(RedAcinus* ele
 
           gid = lm[i];
           val = BCin;
-          evaluation_data.bcval->ReplaceGlobalValues(1, &val, &gid);
+          evaluation_data.bcval->replace_global_values(1, &val, &gid);
 
           gid = lm[i];
           val = 1;
-          evaluation_data.dbctog->ReplaceGlobalValues(1, &val, &gid);
+          evaluation_data.dbctog->replace_global_values(1, &val, &gid);
         }
         /**
          * For flow bc
@@ -633,8 +618,7 @@ void Discret::Elements::AcinusImpl<distype>::evaluate_terminal_bc(RedAcinus* ele
         }
         else
         {
-          FOUR_C_THROW("prescribed [%s] is not defined for reduced acinuss", Bc.c_str());
-          exit(1);
+          FOUR_C_THROW("prescribed [{}] is not defined for reduced acinuss", Bc);
         }
       }
       /**
@@ -649,9 +633,8 @@ void Discret::Elements::AcinusImpl<distype>::evaluate_terminal_bc(RedAcinus* ele
           int local_id = discretization.node_row_map()->LID(ele->nodes()[i]->id());
           if (local_id < 0)
           {
-            FOUR_C_THROW("node (%d) doesn't exist on proc(%d)", ele->nodes()[i],
+            FOUR_C_THROW("node ({}) doesn't exist on proc({})", ele->nodes()[i]->id(),
                 Core::Communication::my_mpi_rank(discretization.get_comm()));
-            exit(1);
           }
 
           Discret::ReducedLung::EvaluationData& evaluation_data =
@@ -663,11 +646,11 @@ void Discret::Elements::AcinusImpl<distype>::evaluate_terminal_bc(RedAcinus* ele
 
           gid = lm[i];
           val = 0.0;
-          evaluation_data.bcval->ReplaceGlobalValues(1, &val, &gid);
+          evaluation_data.bcval->replace_global_values(1, &val, &gid);
 
           gid = lm[i];
           val = 1;
-          evaluation_data.dbctog->ReplaceGlobalValues(1, &val, &gid);
+          evaluation_data.dbctog->replace_global_values(1, &val, &gid);
         }
       }  // END of if there is no BC but the node still is at the terminal
 
@@ -707,16 +690,13 @@ void Discret::Elements::AcinusImpl<distype>::calc_flow_rates(RedAcinus* ele,
     FOUR_C_THROW("Cannot get state vectors 'pnp', 'on', and/or 'pnm''");
 
   // Extract local values from the global vectors
-  std::vector<double> mypnp(lm.size());
-  Core::FE::extract_my_values(*pnp, mypnp, lm);
+  std::vector<double> mypnp = Core::FE::extract_values(*pnp, lm);
 
   // Extract local values from the global vectors
-  std::vector<double> mypn(lm.size());
-  Core::FE::extract_my_values(*on, mypn, lm);
+  std::vector<double> mypn = Core::FE::extract_values(*on, lm);
 
   // Extract local values from the global vectors
-  std::vector<double> mypnm(lm.size());
-  Core::FE::extract_my_values(*pnm, mypnm, lm);
+  std::vector<double> mypnm = Core::FE::extract_values(*pnm, lm);
 
   // Create objects for element arrays
   Core::LinAlg::SerialDenseVector epnp(elemVecdim);
@@ -763,19 +743,19 @@ void Discret::Elements::AcinusImpl<distype>::calc_flow_rates(RedAcinus* ele,
 
   int gid = ele->id();
 
-  evaluation_data.qin_np->ReplaceGlobalValues(1, &qnp, &gid);
-  evaluation_data.qout_np->ReplaceGlobalValues(1, &qnp, &gid);
+  evaluation_data.qin_np->replace_global_values(1, &qnp, &gid);
+  evaluation_data.qout_np->replace_global_values(1, &qnp, &gid);
 
   // Calculate the new volume of the acinus due to the incoming flow; 0.5*(qnp+qn)*dt
   {
     double acinus_volume = e_acin_vn;
     acinus_volume += 0.5 * (qnp + qn) * dt;
-    evaluation_data.acinar_vnp->ReplaceGlobalValues(1, &acinus_volume, &gid);
+    evaluation_data.acinar_vnp->replace_global_values(1, &acinus_volume, &gid);
 
     // Calculate corresponding acinar strain
     const double vo = acinus_params.volume_relaxed;
     double avs_np = (acinus_volume - vo) / vo;
-    evaluation_data.acinar_vnp_strain->ReplaceGlobalValues(1, &avs_np, &gid);
+    evaluation_data.acinar_vnp_strain->replace_global_values(1, &avs_np, &gid);
   }
 }
 
@@ -800,11 +780,11 @@ void Discret::Elements::AcinusImpl<distype>::calc_elem_volume(RedAcinus* ele,
   int gid = ele->id();
 
   // Update elem
-  evaluation_data.elemVolumenp->ReplaceGlobalValues(1, &evolnp, &gid);
+  evaluation_data.elemVolumenp->replace_global_values(1, &evolnp, &gid);
 
   // calculate and update element radius
   double eRadiusnp = std::pow(evolnp * 0.75 * M_1_PI, 1.0 / 3.0);
-  evaluation_data.elemRadiusnp->ReplaceGlobalValues(1, &eRadiusnp, &gid);
+  evaluation_data.elemRadiusnp->replace_global_values(1, &eRadiusnp, &gid);
 }
 
 /*----------------------------------------------------------------------*
@@ -826,8 +806,7 @@ void Discret::Elements::AcinusImpl<distype>::get_coupled_values(RedAcinus* ele,
   if (pnp == nullptr) FOUR_C_THROW("Cannot get state vectors 'pnp'");
 
   // extract local values from the global vectors
-  std::vector<double> mypnp(lm.size());
-  Core::FE::extract_my_values(*pnp, mypnp, lm);
+  std::vector<double> mypnp = Core::FE::extract_values(*pnp, lm);
 
   // create objects for element arrays
   Core::LinAlg::SerialDenseVector epnp(numnode);
@@ -860,7 +839,6 @@ void Discret::Elements::AcinusImpl<distype>::get_coupled_values(RedAcinus* ele,
           FOUR_C_THROW(
               "Cannot prescribe a boundary condition from 3D to reduced D, if the parameters "
               "passed don't exist");
-          exit(1);
         }
 
 
@@ -904,8 +882,7 @@ void Discret::Elements::AcinusImpl<distype>::get_coupled_values(RedAcinus* ele,
         else
         {
           std::string str = (condition->parameters().get<std::string>("ReturnedVariable"));
-          FOUR_C_THROW("%s, is an unimplemented type of coupling", str.c_str());
-          exit(1);
+          FOUR_C_THROW("{}, is an unimplemented type of coupling", str);
         }
         std::stringstream returnedBCwithId;
         returnedBCwithId << returnedBC << "_" << ID;
@@ -924,9 +901,8 @@ void Discret::Elements::AcinusImpl<distype>::get_coupled_values(RedAcinus* ele,
         itrMap1D = map1D->find(returnedBCwithId.str());
         if (itrMap1D == map1D->end())
         {
-          FOUR_C_THROW("The 3D map for (1D - 3D coupling) has no variable (%s) for ID [%d]",
-              returnedBC.c_str(), ID);
-          exit(1);
+          FOUR_C_THROW(
+              "The 3D map for (1D - 3D coupling) has no variable ({}) for ID [{}]", returnedBC, ID);
         }
 
         // update the 1D map

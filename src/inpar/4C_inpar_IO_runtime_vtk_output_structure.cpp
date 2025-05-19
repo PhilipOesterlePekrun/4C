@@ -8,9 +8,8 @@
 #include "4C_inpar_IO_runtime_vtk_output_structure.hpp"
 
 #include "4C_inpar_structure.hpp"
-#include "4C_utils_parameter_list.hpp"
+#include "4C_io_input_spec_builders.hpp"
 
-#include <Teuchos_ParameterList.hpp>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -22,68 +21,73 @@ namespace Inpar
     {
       /*----------------------------------------------------------------------*
        *----------------------------------------------------------------------*/
-      void set_valid_parameters(Teuchos::ParameterList& list)
+      void set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
       {
-        using Teuchos::setStringToIntegralParameter;
-        using Teuchos::tuple;
+        using namespace Core::IO::InputSpecBuilders;
 
         // related sublist
-        Teuchos::ParameterList& sublist_IO = list.sublist("IO", false, "");
-        Teuchos::ParameterList& sublist_IO_VTK =
-            sublist_IO.sublist("RUNTIME VTK OUTPUT", false, "");
-        Teuchos::ParameterList& sublist_IO_VTK_structure =
-            sublist_IO_VTK.sublist("STRUCTURE", false, "");
+        list["IO/RUNTIME VTK OUTPUT/STRUCTURE"] = group("IO/RUNTIME VTK OUTPUT/STRUCTURE",
+            {
 
-        // whether to write output for structure
-        Core::Utils::bool_parameter(
-            "OUTPUT_STRUCTURE", "No", "write structure output", &sublist_IO_VTK_structure);
+                // whether to write output for structure
+                parameter<bool>("OUTPUT_STRUCTURE",
+                    {.description = "write structure output", .default_value = false}),
 
-        // whether to write displacement state
-        Core::Utils::bool_parameter(
-            "DISPLACEMENT", "No", "write displacement output", &sublist_IO_VTK_structure);
+                // whether to write displacement state
+                parameter<bool>("DISPLACEMENT",
+                    {.description = "write displacement output", .default_value = false}),
 
-        // whether to write velocity state
-        Core::Utils::bool_parameter(
-            "VELOCITY", "No", "write velocity output", &sublist_IO_VTK_structure);
+                // whether to write velocity state
+                parameter<bool>(
+                    "VELOCITY", {.description = "write velocity output", .default_value = false}),
 
-        // whether to write element owner
-        Core::Utils::bool_parameter(
-            "ELEMENT_OWNER", "No", "write element owner", &sublist_IO_VTK_structure);
+                parameter<bool>("ACCELERATION",
+                    {.description = "write acceleration output", .default_value = false}),
 
-        // whether to write element GIDs
-        Core::Utils::bool_parameter(
-            "ELEMENT_GID", "No", "write 4C internal element GIDs", &sublist_IO_VTK_structure);
+                // whether to write element owner
+                parameter<bool>("ELEMENT_OWNER",
+                    {.description = "write element owner", .default_value = false}),
 
-        // write element ghosting information
-        Core::Utils::bool_parameter("ELEMENT_GHOSTING", "No",
-            "write which processors ghost the elements", &sublist_IO_VTK_structure);
+                // whether to write element GIDs
+                parameter<bool>("ELEMENT_GID",
+                    {.description = "write 4C internal element GIDs", .default_value = false}),
 
-        // whether to write node GIDs
-        Core::Utils::bool_parameter(
-            "NODE_GID", "No", "write 4C internal node GIDs", &sublist_IO_VTK_structure);
+                // write element ghosting information
+                parameter<bool>(
+                    "ELEMENT_GHOSTING", {.description = "write which processors ghost the elements",
+                                            .default_value = false}),
 
-        // write element material IDs
-        Core::Utils::bool_parameter("ELEMENT_MAT_ID", "No",
-            "Output of the material id of each element", &sublist_IO_VTK_structure);
+                // whether to write node GIDs
+                parameter<bool>("NODE_GID",
+                    {.description = "write 4C internal node GIDs", .default_value = false}),
 
-        // whether to write stress and / or strain data
-        Core::Utils::bool_parameter("STRESS_STRAIN", "No",
-            "Write element stress and / or strain  data. The type of stress / strain has to be "
-            "selected in the --IO input section",
-            &sublist_IO_VTK_structure);
+                // write element material IDs
+                parameter<bool>(
+                    "ELEMENT_MAT_ID", {.description = "Output of the material id of each element",
+                                          .default_value = false}),
 
-        // mode to write gauss point data
-        setStringToIntegralParameter<Inpar::Solid::GaussPointDataOutputType>(
-            "GAUSS_POINT_DATA_OUTPUT_TYPE", "none",
-            "Where to write gauss point data. (none, projected to nodes, projected to element "
-            "center, raw at gauss points)",
-            tuple<std::string>("none", "nodes", "element_center", "gauss_points"),
-            tuple<Inpar::Solid::GaussPointDataOutputType>(
-                Inpar::Solid::GaussPointDataOutputType::none,
-                Inpar::Solid::GaussPointDataOutputType::nodes,
-                Inpar::Solid::GaussPointDataOutputType::element_center,
-                Inpar::Solid::GaussPointDataOutputType::gauss_points),
-            &sublist_IO_VTK_structure);
+                // whether to write stress and / or strain data
+                parameter<bool>("STRESS_STRAIN",
+                    {.description =
+                            "Write element stress and / or strain  data. The type of stress / "
+                            "strain has to be selected in the --IO input section",
+                        .default_value = false}),
+
+                // mode to write gauss point data
+                parameter<Inpar::Solid::GaussPointDataOutputType>("GAUSS_POINT_DATA_OUTPUT_TYPE",
+                    {.description = "Where to write gauss point data. (none, projected to nodes, "
+                                    "projected to element center, raw at gauss points)",
+                        .default_value = Inpar::Solid::GaussPointDataOutputType::none}),
+
+
+                deprecated_selection<Inpar::Solid::OptQuantityType>("OPTIONAL_QUANTITY",
+                    {
+                        {"No", Inpar::Solid::optquantity_none},
+                        {"membranethickness", Inpar::Solid::optquantity_membranethickness},
+                    },
+                    {.description = "Output of an optional quantity",
+                        .default_value = Inpar::Solid::optquantity_none})},
+            {.defaultable = true});
       }
 
 

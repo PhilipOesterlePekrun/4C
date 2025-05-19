@@ -88,13 +88,13 @@ namespace Discret::Elements
 
     double get_normal_cauchy_stress_at_xi(const Core::Elements::Element& ele,
         Mat::So3Material& solid_material, const std::vector<double>& disp,
-        const std::optional<std::vector<double>>& scalars, const Core::LinAlg::Matrix<3, 1>& xi,
+        const std::vector<double>& scalars, const Core::LinAlg::Matrix<3, 1>& xi,
         const Core::LinAlg::Matrix<3, 1>& n, const Core::LinAlg::Matrix<3, 1>& dir,
         SolidScatraCauchyNDirLinearizations<3>& linearizations);
 
    private:
     /// static values for matrix sizes
-    static constexpr int num_nodes_ = Core::FE::num_nodes<celltype>;
+    static constexpr int num_nodes_ = Core::FE::num_nodes(celltype);
     static constexpr int num_dim_ = Core::FE::dim<celltype>;
     static constexpr int num_dof_per_ele_ = num_nodes_ * num_dim_;
     static constexpr int num_str_ = num_dim_ * (num_dim_ + 1) / 2;

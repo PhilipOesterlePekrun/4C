@@ -441,7 +441,7 @@ void FPSI::InterfaceUtils::setup_local_interface_facing_element_map(
   else if (abs(globalslavegeomsize - globalmatchedelements) > 1e-3 and
            Core::Communication::my_mpi_rank(mastercomm) == 0)
   {
-    FOUR_C_THROW("ERROR: globalslavegeomsize != globalmatchedelements (%d,%d)", globalslavegeomsize,
+    FOUR_C_THROW("ERROR: globalslavegeomsize != globalmatchedelements ({},{})", globalslavegeomsize,
         globalmatchedelements);
   }
 
@@ -528,7 +528,7 @@ void FPSI::InterfaceUtils::redistribute_interface(Core::FE::Discretization& mast
 
       // ghost parent master element on master discretization of proc owning the matching slave
       // interface element
-      const Epetra_Map colcopy = *(masterdis.element_col_map());
+      const Core::LinAlg::Map colcopy = *(masterdis.element_col_map());
       int myglobalelementsize = colcopy.NumMyElements();
       std::vector<int> myglobalelements(myglobalelementsize);
       colcopy.MyGlobalElements(myglobalelements.data());
@@ -546,7 +546,7 @@ void FPSI::InterfaceUtils::redistribute_interface(Core::FE::Discretization& mast
 
       int globalsize;
       Core::Communication::sum_all(&myglobalelementsize, &globalsize, 1, comm);
-      Epetra_Map newelecolmap(globalsize, myglobalelementsize, myglobalelements.data(), 0,
+      Core::LinAlg::Map newelecolmap(globalsize, myglobalelementsize, myglobalelements.data(), 0,
           Core::Communication::as_epetra_comm(comm));
 
       if (mastereleid == printid)
@@ -575,7 +575,7 @@ void FPSI::InterfaceUtils::redistribute_interface(Core::FE::Discretization& mast
           // "<<masterdis->HaveGlobalElement(mastereleid)<<" on proc "<<slaveeleowner<<endl;
           after = masterdis.have_global_element(mastereleid);
           if (after == 0 and before == 0)
-            FOUR_C_THROW("Element with gid=%d has not been redistributed ! ", mastereleid);
+            FOUR_C_THROW("Element with gid={} has not been redistributed ! ", mastereleid);
         }
       }
 
@@ -626,42 +626,42 @@ void FPSI::Utils::MapExtractor::setup(
     const Core::FE::Discretization& dis, bool withpressure, bool overlapping)
 {
   const int ndim = Global::Problem::instance()->n_dim();
-  Core::Conditions::MultiConditionSelector mcs;
-  mcs.set_overlapping(overlapping);  // defines if maps can overlap
-  mcs.add_selector(std::make_shared<Core::Conditions::NDimConditionSelector>(
-      dis, "FSICoupling", 0, ndim + withpressure));
-  mcs.add_selector(std::make_shared<Core::Conditions::NDimConditionSelector>(
-      dis, "fpsi_coupling", 0, ndim + withpressure));
-  mcs.setup_extractor(dis, *dis.dof_row_map(), *this);
+  Core::Conditions::setup_extractor(dis, *this,
+      {
+          Core::Conditions::Selector("FSICoupling", 0, ndim + withpressure),
+          Core::Conditions::Selector("fpsi_coupling", 0, ndim + withpressure),
+      },
+      overlapping);
 }
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void FPSI::Utils::MapExtractor::setup(std::shared_ptr<const Epetra_Map>& additionalothermap,
+void FPSI::Utils::MapExtractor::setup(std::shared_ptr<const Core::LinAlg::Map>& additionalothermap,
     const FPSI::Utils::MapExtractor& extractor)
 {
   // build the new othermap
-  std::vector<std::shared_ptr<const Epetra_Map>> othermaps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> othermaps;
   othermaps.push_back(additionalothermap);
   othermaps.push_back(extractor.other_map());
 
   if (Core::LinAlg::MultiMapExtractor::intersect_maps(othermaps)->NumGlobalElements() > 0)
     FOUR_C_THROW("Failed to add dofmap of foreign discretization to other_map. Detected overlap.");
 
-  std::shared_ptr<const Epetra_Map> mergedothermap =
+  std::shared_ptr<const Core::LinAlg::Map> mergedothermap =
       Core::LinAlg::MultiMapExtractor::merge_maps(othermaps);
 
   // the vector of maps for the new map extractor consists of othermap at position 0
   // followed by the maps of conditioned DOF
-  std::vector<std::shared_ptr<const Epetra_Map>> maps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> maps;
   // append the merged other map at first position
   maps.push_back(mergedothermap);
 
   // append the condition maps subsequently
-  for (int i = 1; i < extractor.num_maps(); ++i) maps.push_back(extractor.Map(i));
+  for (int i = 1; i < extractor.num_maps(); ++i) maps.push_back(extractor.map(i));
 
   // merge
-  std::shared_ptr<const Epetra_Map> fullmap = Core::LinAlg::MultiMapExtractor::merge_maps(maps);
+  std::shared_ptr<const Core::LinAlg::Map> fullmap =
+      Core::LinAlg::MultiMapExtractor::merge_maps(maps);
 
   Core::LinAlg::MultiMapExtractor::setup(*fullmap, maps);
 }

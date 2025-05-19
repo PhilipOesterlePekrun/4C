@@ -12,7 +12,7 @@
 #include "4C_fem_discretization.hpp"
 #include "4C_io_input_spec_builders.hpp"
 #include "4C_mat_material_factory.hpp"
-#include "4C_so3_nullspace.hpp"
+#include "4C_solid_3D_ele_nullspace.hpp"
 #include "4C_utils_exceptions.hpp"
 
 #include <sstream>
@@ -85,7 +85,7 @@ void Discret::Elements::Bele3Type::nodal_block_information(
 Core::LinAlg::SerialDenseMatrix Discret::Elements::Bele3Type::compute_null_space(
     Core::Nodes::Node& node, const double* x0, const int numdof, const int dimnsp)
 {
-  return compute_solid_3d_null_space(node, x0);
+  return compute_solid_null_space<3>(node.x(), x0);
 }
 
 void Discret::Elements::Bele3Type::setup_element_definition(
@@ -96,28 +96,28 @@ void Discret::Elements::Bele3Type::setup_element_definition(
   using namespace Core::IO::InputSpecBuilders;
 
   defs3["TRI3"] = all_of({
-      entry<std::vector<int>>("TRI3", {.size = 3}),
-      entry<int>("MAT", {.required = false}),
+      parameter<std::vector<int>>("TRI3", {.size = 3}),
+      parameter<std::optional<int>>("MAT"),
   });
 
   defs3["TRI6"] = all_of({
-      entry<std::vector<int>>("TRI6", {.size = 6}),
-      entry<int>("MAT", {.required = false}),
+      parameter<std::vector<int>>("TRI6", {.size = 6}),
+      parameter<std::optional<int>>("MAT"),
   });
 
   defs3["QUAD4"] = all_of({
-      entry<std::vector<int>>("QUAD4", {.size = 4}),
-      entry<int>("MAT", {.required = false}),
+      parameter<std::vector<int>>("QUAD4", {.size = 4}),
+      parameter<std::optional<int>>("MAT"),
   });
 
   defs3["QUAD8"] = all_of({
-      entry<std::vector<int>>("QUAD8", {.size = 8}),
-      entry<int>("MAT", {.required = false}),
+      parameter<std::vector<int>>("QUAD8", {.size = 8}),
+      parameter<std::optional<int>>("MAT"),
   });
 
   defs3["QUAD9"] = all_of({
-      entry<std::vector<int>>("QUAD9", {.size = 9}),
-      entry<int>("MAT", {.required = false}),
+      parameter<std::vector<int>>("QUAD9", {.size = 9}),
+      parameter<std::optional<int>>("MAT"),
   });
 }
 
@@ -171,7 +171,7 @@ Core::FE::CellType Discret::Elements::Bele3::shape() const
     case 9:
       return Core::FE::CellType::quad9;
     default:
-      FOUR_C_THROW("unexpected number of nodes %d", num_node());
+      FOUR_C_THROW("unexpected number of nodes {}", num_node());
       break;
   }
 }
@@ -265,10 +265,10 @@ bool Discret::Elements::Bele3::read_element(const std::string& eletype, const st
     const Core::IO::InputParameterContainer& container)
 {
   // check if material is defined
-  int material = container.get_or("MAT", -1);
-  if (material != -1)
+  auto material_id = container.get<std::optional<int>>("MAT");
+  if (material_id)
   {
-    set_material(0, Mat::factory(material));
+    set_material(0, Mat::factory(*material_id));
   }
   return true;
 }

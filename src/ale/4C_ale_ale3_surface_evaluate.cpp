@@ -12,6 +12,7 @@
 #include "4C_fem_general_utils_boundary_integration.hpp"
 #include "4C_fem_general_utils_fem_shapefunctions.hpp"
 #include "4C_fem_geometry_position_array.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_parameter_list.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -29,7 +30,7 @@ Discret::Elements::Ale3SurfaceImplInterface* Discret::Elements::Ale3SurfaceImplI
           Core::Utils::SingletonAction::create);
     }
     default:
-      FOUR_C_THROW("shape %d (%d nodes) not supported", ele->shape(), ele->num_node());
+      FOUR_C_THROW("shape {} ({} nodes) not supported", ele->shape(), ele->num_node());
       break;
   }
   return nullptr;
@@ -71,7 +72,7 @@ int Discret::Elements::Ale3Surface::evaluate(Teuchos::ParameterList& params,
       if (dispnp != nullptr)
       {
         mydispnp.resize(lm.size());
-        Core::FE::extract_my_values(*dispnp, mydispnp, lm);
+        mydispnp = Core::FE::extract_values(*dispnp, lm);
       }
 
       Ale3SurfaceImplInterface::impl(this)->element_node_normal(
@@ -80,7 +81,7 @@ int Discret::Elements::Ale3Surface::evaluate(Teuchos::ParameterList& params,
       break;
     }
     default:
-      FOUR_C_THROW("Unknown type of action '%i' for Ale3Surface", act);
+      FOUR_C_THROW("Unknown type of action '{}' for Ale3Surface", act);
       break;
   }  // end of switch(act)
 

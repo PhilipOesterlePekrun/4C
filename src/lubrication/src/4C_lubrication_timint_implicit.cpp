@@ -10,8 +10,6 @@
 #include "4C_fem_general_element.hpp"
 #include "4C_fem_general_node.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_lubrication.hpp"
-#include "4C_inpar_validparameters.hpp"
 #include "4C_io.hpp"
 #include "4C_io_control.hpp"
 #include "4C_io_gmsh.hpp"
@@ -20,8 +18,11 @@
 #include "4C_linalg_utils_sparse_algebra_print.hpp"
 #include "4C_linear_solver_method_linalg.hpp"
 #include "4C_lubrication_ele_action.hpp"
+#include "4C_lubrication_ele_parameter.hpp"
+#include "4C_lubrication_input.hpp"
 #include "4C_utils_function.hpp"
 
+#include <Teuchos_StandardParameterEntryValidators.hpp>
 #include <Teuchos_TimeMonitor.hpp>
 
 FOUR_C_NAMESPACE_OPEN
@@ -104,7 +105,7 @@ void Lubrication::TimIntImpl::init()
   // get a vector layout from the discretization to construct matching
   // vectors and matrices: local <-> global dof numbering
   // -------------------------------------------------------------------
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   // -------------------------------------------------------------------
   // create empty system matrix (27 adjacent nodes as 'good' guess)
@@ -133,7 +134,7 @@ void Lubrication::TimIntImpl::init()
     eleparams.set<const Core::Utils::FunctionManager*>(
         "function_manager", &Global::Problem::instance()->function_manager());
     discret_->evaluate_dirichlet(eleparams, zeros_, nullptr, nullptr, nullptr, dbcmaps_);
-    zeros_->PutScalar(0.0);  // just in case of change
+    zeros_->put_scalar(0.0);  // just in case of change
   }
 
   // -------------------------------------------------------------------
@@ -171,8 +172,6 @@ void Lubrication::TimIntImpl::set_element_general_parameters() const
 {
   Teuchos::ParameterList eleparams;
 
-  eleparams.set<Lubrication::Action>("action", Lubrication::set_general_lubrication_parameter);
-
   eleparams.set<bool>("isale", isale_);
 
   eleparams.set<bool>("ismodifiedrey", modified_reynolds_);
@@ -183,10 +182,8 @@ void Lubrication::TimIntImpl::set_element_general_parameters() const
 
   eleparams.set("roughnessdeviation", roughness_deviation_);
 
-  // call standard loop over elements
-  discret_->evaluate(eleparams, nullptr, nullptr, nullptr, nullptr, nullptr);
-
-  return;
+  Discret::Elements::LubricationEleParameter::instance(discret_->name())
+      ->set_general_parameters(eleparams);
 }
 
 
@@ -295,15 +292,15 @@ void Lubrication::TimIntImpl::set_height_field_pure_lub(const int nds)
 
       // get global and local dof IDs
       const int gid = nodedofs[index];
-      const int lid = height->Map().LID(gid);
+      const int lid = height->get_block_map().LID(gid);
 
       if (lid < 0) FOUR_C_THROW("Local ID not found in map for given global ID!");
-      err = height->ReplaceMyValue(lid, 0, heightfuncvalue);
+      err = height->replace_local_value(lid, 0, heightfuncvalue);
       if (err != 0) FOUR_C_THROW("error while inserting a value into height");
     }
   }
   // provide lubrication discretization with height
-  discret_->set_state(nds, "height", height);
+  discret_->set_state(nds, "height", *height);
 
 }  // Lubrication::TimIntImpl::set_height_field_pure_lub
 
@@ -339,15 +336,15 @@ void Lubrication::TimIntImpl::set_average_velocity_field_pure_lub(const int nds)
 
       // get global and local dof IDs
       const int gid = nodedofs[index];
-      const int lid = vel->Map().LID(gid);
+      const int lid = vel->get_block_map().LID(gid);
 
       if (lid < 0) FOUR_C_THROW("Local ID not found in map for given global ID!");
-      err = vel->ReplaceMyValue(lid, 0, velfuncvalue);
+      err = vel->replace_local_value(lid, 0, velfuncvalue);
       if (err != 0) FOUR_C_THROW("error while inserting a value into vel");
     }
   }
   // provide lubrication discretization with velocity
-  discret_->set_state(nds, "av_tang_vel", vel);
+  discret_->set_state(nds, "av_tang_vel", *vel);
 
 }  // Lubrication::TimIntImpl::set_average_velocity_field_pure_lub
 /*----------------------------------------------------------------------*
@@ -442,7 +439,7 @@ void Lubrication::TimIntImpl::apply_mesh_movement(
     nds_disp_ = nds;
 
     // provide lubrication discretization with displacement field
-    discret_->set_state(nds_disp_, "dispnp", dispnp);
+    discret_->set_state(nds_disp_, "dispnp", *dispnp);
   }  // if (isale_)
 
   return;
@@ -546,7 +543,7 @@ void Lubrication::TimIntImpl::scaling_and_neumann()
 {
   // scaling to get true residual vector for all time integration schemes
   // in incremental case: boundary flux values can be computed from trueresidual
-  if (incremental_) trueresidual_->Update(residual_scaling(), *residual_, 0.0);
+  if (incremental_) trueresidual_->update(residual_scaling(), *residual_, 0.0);
 
   // add Neumann b.c. scaled with a factor due to time discretization
   add_neumann_to_residual();
@@ -563,7 +560,7 @@ void Lubrication::TimIntImpl::apply_neumann_bc(
 )
 {
   // prepare load vector
-  neumann_loads.PutScalar(0.0);
+  neumann_loads.put_scalar(0.0);
 
   // create parameter list
   Teuchos::ParameterList condparams;
@@ -620,7 +617,7 @@ void Lubrication::TimIntImpl::assemble_mat_and_rhs()
   sysmat_->zero();
 
   // reset the residual vector
-  residual_->PutScalar(0.0);
+  residual_->put_scalar(0.0);
 
   // create parameter list for elements
   Teuchos::ParameterList eleparams;
@@ -719,7 +716,7 @@ void Lubrication::TimIntImpl::nonlinear_solve()
     if (abort_nonlin_iter(iternum_, itemax, ittol, abstolres, actresidual)) break;
 
     // initialize increment vector
-    increment_->PutScalar(0.0);
+    increment_->put_scalar(0.0);
 
     {
       // get cpu time
@@ -749,7 +746,7 @@ void Lubrication::TimIntImpl::nonlinear_solve()
     }
 
     //------------------------------------------------ update solution vector
-    prenp_->Update(1.0, *increment_, 1.0);
+    prenp_->update(1.0, *increment_, 1.0);
 
   }  // nonlinear iteration
 
@@ -851,7 +848,7 @@ void Lubrication::TimIntImpl::set_height_field(
     const int nds, std::shared_ptr<const Core::LinAlg::Vector<double>> gap)
 {
   if (gap == nullptr) FOUR_C_THROW("Gap vector is empty.");
-  discret_->set_state(nds, "height", gap);
+  discret_->set_state(nds, "height", *gap);
 
   return;
 }
@@ -864,7 +861,7 @@ void Lubrication::TimIntImpl::set_height_dot_field(
     const int nds, std::shared_ptr<const Core::LinAlg::Vector<double>> heightdot)
 {
   if (heightdot == nullptr) FOUR_C_THROW("hdot vector is empty.");
-  discret_->set_state(nds, "heightdot", heightdot);
+  discret_->set_state(nds, "heightdot", *heightdot);
 
   return;
 }
@@ -878,7 +875,7 @@ void Lubrication::TimIntImpl::set_relative_velocity_field(
   if (nds >= discret_->num_dof_sets())
     FOUR_C_THROW("Too few dofsets on lubrication discretization!");
   if (rel_vel == nullptr) FOUR_C_THROW("no velocity provided.");
-  discret_->set_state(nds, "rel_tang_vel", rel_vel);
+  discret_->set_state(nds, "rel_tang_vel", *rel_vel);
 }
 
 /*----------------------------------------------------------------------*
@@ -891,7 +888,7 @@ void Lubrication::TimIntImpl::set_average_velocity_field(
     FOUR_C_THROW("Too few dofsets on lubrication discretization!");
   if (av_vel == nullptr) FOUR_C_THROW("no velocity provided");
 
-  discret_->set_state(nds, "av_tang_vel", av_vel);
+  discret_->set_state(nds, "av_tang_vel", *av_vel);
 }
 
 /*----------------------------------------------------------------------*
@@ -900,10 +897,10 @@ void Lubrication::TimIntImpl::set_average_velocity_field(
 void Lubrication::TimIntImpl::calc_problem_specific_norm(
     double& preresnorm, double& incprenorm_L2, double& prenorm_L2, double& preresnorminf)
 {
-  residual_->Norm2(&preresnorm);
-  increment_->Norm2(&incprenorm_L2);
-  prenp_->Norm2(&prenorm_L2);
-  residual_->NormInf(&preresnorminf);
+  residual_->norm_2(&preresnorm);
+  increment_->norm_2(&incprenorm_L2);
+  prenp_->norm_2(&prenorm_L2);
+  residual_->norm_inf(&preresnorminf);
 
   return;
 }
@@ -1004,14 +1001,14 @@ void Lubrication::TimIntImpl::output_state()
         discret_->get_state(nds_disp_, "dispnp");
     if (dispnp == nullptr) FOUR_C_THROW("Cannot extract displacement field from discretization");
 
-    // convert dof-based Epetra vector into node-based Epetra multi-vector for postprocessing
+    // convert dof-based vector into node-based multi-vector for postprocessing
     Core::LinAlg::MultiVector<double> dispnp_multi(*discret_->node_row_map(), nsd_, true);
     for (int inode = 0; inode < discret_->num_my_row_nodes(); ++inode)
     {
       Core::Nodes::Node* node = discret_->l_row_node(inode);
       for (int idim = 0; idim < nsd_; ++idim)
         (dispnp_multi)(idim)[discret_->node_row_map()->LID(node->id())] =
-            (*dispnp)[dispnp->Map().LID(discret_->dof(nds_disp_, node, idim))];
+            (*dispnp)[dispnp->get_block_map().LID(discret_->dof(nds_disp_, node, idim))];
     }
 
     output_->write_multi_vector("dispnp", dispnp_multi, Core::IO::nodevector);
@@ -1036,21 +1033,20 @@ inline void Lubrication::TimIntImpl::increment_time_and_step()
  *----------------------------------------------------------------------*/
 void Lubrication::TimIntImpl::evaluate_error_compared_to_analytical_sol()
 {
-  const auto calcerr =
-      Teuchos::getIntegralValue<Inpar::Lubrication::CalcError>(*params_, "CALCERROR");
+  const auto calcerr = Teuchos::getIntegralValue<Lubrication::CalcError>(*params_, "CALCERROR");
 
-  if (calcerr == Inpar::Lubrication::calcerror_no)  // do nothing (the usual case))
+  if (calcerr == Lubrication::calcerror_no)  // do nothing (the usual case))
     return;
 
   // create the parameters for the error calculation
   Teuchos::ParameterList eleparams;
   eleparams.set<Lubrication::Action>("action", Lubrication::calc_error);
   eleparams.set("total time", time_);
-  eleparams.set<Inpar::Lubrication::CalcError>("calcerrorflag", calcerr);
+  eleparams.set<Lubrication::CalcError>("calcerrorflag", calcerr);
 
   switch (calcerr)
   {
-    case Inpar::Lubrication::calcerror_byfunction:
+    case Lubrication::calcerror_byfunction:
     {
       const int errorfunctnumber = params_->get<int>("CALCERRORNO");
       if (errorfunctnumber < 1)
@@ -1069,7 +1065,7 @@ void Lubrication::TimIntImpl::evaluate_error_compared_to_analytical_sol()
 
   // set vector values needed by elements
   discret_->clear_state();
-  discret_->set_state("prenp", prenp_);
+  discret_->set_state("prenp", *prenp_);
 
   // get (squared) error values
   std::shared_ptr<Core::LinAlg::SerialDenseVector> errors =
@@ -1161,7 +1157,7 @@ void Lubrication::TimIntImpl::output_mean_pressures(const int num)
   {
     // set pressure values needed by elements
     discret_->clear_state();
-    discret_->set_state("prenp", prenp_);
+    discret_->set_state("prenp", *prenp_);
     // set action for elements
     Teuchos::ParameterList eleparams;
     eleparams.set<Lubrication::Action>("action", Lubrication::calc_mean_pressures);
@@ -1264,9 +1260,9 @@ void Lubrication::TimIntImpl::update_iter_incrementally(
   // select residual pressures
   if (prei != nullptr)
     // tempi_ = \f$\Delta{T}^{<k>}_{n+1}\f$
-    prei_->Update(1.0, *prei, 0.0);  // set the new solution we just got
+    prei_->update(1.0, *prei, 0.0);  // set the new solution we just got
   else
-    prei_->PutScalar(0.0);
+    prei_->put_scalar(0.0);
 
   // Update using #prei_
   update_iter_incrementally();

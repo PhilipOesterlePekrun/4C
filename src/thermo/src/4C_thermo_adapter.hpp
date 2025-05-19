@@ -8,31 +8,20 @@
 #ifndef FOUR_C_THERMO_ADAPTER_HPP
 #define FOUR_C_THERMO_ADAPTER_HPP
 
-
-/*----------------------------------------------------------------------*
- | headers                                                  bborn 08/09 |
- *----------------------------------------------------------------------*/
 #include "4C_config.hpp"
 
-#include "4C_inpar_thermo.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_vector.hpp"
+#include "4C_thermo_input.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
 #include "4C_utils_result_test.hpp"
 
-#include <Epetra_Map.h>
-#include <Epetra_Operator.h>
-
-#include <memory>
-
 FOUR_C_NAMESPACE_OPEN
 
-/*----------------------------------------------------------------------*
- | forward declarations                                      dano 02/11 |
- *----------------------------------------------------------------------*/
 namespace Core::FE
 {
   class Discretization;
-}  // namespace Core::FE
+}
 
 namespace Core::IO
 {
@@ -47,18 +36,6 @@ namespace Core::LinAlg
   class MapExtractor;
   class MultiMapExtractor;
 }  // namespace Core::LinAlg
-
-namespace Core::Conditions
-{
-  class LocsysManager;
-}
-
-
-namespace CONTACT
-{
-  class NitscheStrategyTsi;
-  class ParamsInterface;
-}  // namespace CONTACT
 
 namespace Thermo
 {
@@ -110,10 +87,10 @@ namespace Thermo
     virtual std::shared_ptr<const Core::LinAlg::Vector<double>> rhs() = 0;
 
     /// unknown temperatures at t(n+1)
-    virtual std::shared_ptr<const Core::LinAlg::Vector<double>> tempnp() = 0;
+    virtual std::shared_ptr<Core::LinAlg::Vector<double>> tempnp() = 0;
 
     /// unknown temperatures at t(n)
-    virtual std::shared_ptr<const Core::LinAlg::Vector<double>> tempn() = 0;
+    virtual std::shared_ptr<Core::LinAlg::Vector<double>> tempn() = 0;
 
     //@}
 
@@ -121,13 +98,10 @@ namespace Thermo
     //@{
 
     /// DOF map of vector of unknowns
-    virtual std::shared_ptr<const Epetra_Map> dof_row_map() = 0;
+    virtual std::shared_ptr<const Core::LinAlg::Map> dof_row_map() = 0;
 
     /// DOF map of vector of unknowns for multiple dofsets
-    virtual std::shared_ptr<const Epetra_Map> dof_row_map(unsigned nds) = 0;
-
-    /// domain map of system matrix (do we really need this?)
-    virtual const Epetra_Map& domain_map() = 0;
+    virtual std::shared_ptr<const Core::LinAlg::Map> dof_row_map(unsigned nds) = 0;
 
     /// direct access to system matrix
     virtual std::shared_ptr<Core::LinAlg::SparseMatrix> system_matrix() = 0;
@@ -179,9 +153,6 @@ namespace Thermo
     virtual void prepare_time_step() = 0;
 
     /// evaluate residual at given temperature increment
-    virtual void evaluate(std::shared_ptr<const Core::LinAlg::Vector<double>> tempi) = 0;
-
-    /// evaluate residual at given temperature increment
     virtual void evaluate() = 0;
 
     /// update temperature increment after Newton step
@@ -196,9 +167,6 @@ namespace Thermo
     //! Access to output object
     virtual std::shared_ptr<Core::IO::DiscretizationWriter> disc_writer() = 0;
 
-    /// prepare output
-    virtual void prepare_output() = 0;
-
     /// output results
     virtual void output(bool forced_writerestart = false) = 0;
 
@@ -207,14 +175,6 @@ namespace Thermo
 
     /// reset everything to beginning of time step, for adaptivity
     virtual void reset_step() = 0;
-
-    //! store an RCP to the contact interface parameters in the structural time integration
-    virtual void set_nitsche_contact_parameters(
-        std::shared_ptr<CONTACT::ParamsInterface> params) = 0;
-
-    /// apply interface loads on the thermal field
-    virtual void set_force_interface(std::shared_ptr<Core::LinAlg::Vector<double>> ithermoload) = 0;
-
 
     //@}
 
@@ -229,20 +189,8 @@ namespace Thermo
      *
      * @return status of the solve, which can be used for adaptivity
      */
-    virtual Inpar::Thermo::ConvergenceStatus solve() = 0;
+    virtual Thermo::ConvergenceStatus solve() = 0;
 
-    /// get the linear solver object used for this field
-    virtual std::shared_ptr<Core::LinAlg::Solver> linear_solver() = 0;
-
-    //@}
-
-    //! @name Extract temperature values needed for TSI
-    //@{
-    /// extract temperatures for inserting in structure field
-    virtual std::shared_ptr<Core::LinAlg::Vector<double>> write_access_tempn() = 0;
-
-    /// extract current temperatures for inserting in structure field
-    virtual std::shared_ptr<Core::LinAlg::Vector<double>> write_access_tempnp() = 0;
     //@}
 
     /// Identify residual
@@ -251,7 +199,7 @@ namespace Thermo
     /// In partitioned solution schemes, it is better to keep the current
     /// solution instead of evaluating the initial guess (as the predictor)
     /// does.
-    virtual void prepare_partition_step() = 0;
+    virtual void prepare_step() = 0;
 
     /// create result test for encapulated thermo algorithm
     virtual std::shared_ptr<Core::Utils::ResultTest> create_field_test() = 0;
@@ -262,38 +210,20 @@ namespace Thermo
   class BaseAlgorithm
   {
    public:
-    /// constructor
     explicit BaseAlgorithm(
         const Teuchos::ParameterList& prbdyn, std::shared_ptr<Core::FE::Discretization> actdis);
 
-    /// virtual destructor to support polymorph destruction
     virtual ~BaseAlgorithm() = default;
 
-    /// thermal field solver
-    Adapter& thermo_field() { return *thermo_; }
-    /// const version of thermal field solver
-    const Adapter& thermo_field() const { return *thermo_; }
-    /// Teuchos::rcp version of thermal field solver
-    std::shared_ptr<Adapter> thermo_fieldrcp() { return thermo_; }
+    /// return thermal field solver
+    std::shared_ptr<Adapter> thermo_field() { return thermo_; }
 
    private:
-    /// setup thermo algorithm
-    void setup_thermo(
-        const Teuchos::ParameterList& prbdyn, std::shared_ptr<Core::FE::Discretization> actdis);
-
-    /// setup thermo algorithm of Thermo::TimIntImpl type
-    void setup_tim_int(const Teuchos::ParameterList& prbdyn, Inpar::Thermo::DynamicType timinttype,
-        std::shared_ptr<Core::FE::Discretization> actdis);
-
     /// thermal field solver
     std::shared_ptr<Adapter> thermo_;
-
-  };  // class BaseAlgorithm
-
+  };
 }  // namespace Thermo
 
-
-/*----------------------------------------------------------------------*/
 FOUR_C_NAMESPACE_CLOSE
 
 #endif

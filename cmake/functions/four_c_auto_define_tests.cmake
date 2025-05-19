@@ -5,7 +5,7 @@
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
-function(_set_up_unit_test_target _target)
+function(_set_up_unit_test_target _module_under_test _target)
   set(options "")
   set(oneValueArgs NP THREADS)
   set(multiValueArgs "")
@@ -40,7 +40,7 @@ function(_set_up_unit_test_target _target)
     ${PROJECT_SOURCE_DIR}/unittests/4C_gtest_main_mpi_test.cpp ${assert_mpi_file} ${_parsed_SOURCE}
     )
   # Store unit test executables directly inside the tests/ directory
-  set_target_properties(${_target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests)
+  set_target_properties(${_target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/tests)
 
   # Do not try to build tests as unity files.
   set_target_properties(${_target} PROPERTIES UNITY_BUILD OFF)
@@ -52,18 +52,15 @@ function(_set_up_unit_test_target _target)
   target_link_libraries(${_target} PRIVATE gtest gmock)
   target_link_libraries(${_target} PRIVATE unittests_common)
 
-  # Link the main library
-  # NOTE: We can think about linking a subset of classes under test here. The module object targets would be a good
-  # candidate for this. However, as long as the interdependencies between modules are high, this is not feasible.
-  target_link_libraries(${_target} PRIVATE ${FOUR_C_LIBRARY_NAME})
+  target_link_libraries(${_target} PRIVATE ${_module_under_test}_unit_test_deps)
 
   # the first process will write a unit test report
   separate_arguments(
-    MPIEXEC_EXTRA_OPTS_FOR_TESTING_LIST UNIX_COMMAND ${MPIEXEC_EXTRA_OPTS_FOR_TESTING}
+    _mpiexec_all_args_for_testing_list UNIX_COMMAND ${_mpiexec_all_args_for_testing}
     )
 
   set(mpi_arguments
-      ${MPIEXEC_EXTRA_OPTS_FOR_TESTING_LIST}
+      ${_mpiexec_all_args_for_testing_list}
       -np
       1
       $<TARGET_FILE:${_target}>
@@ -76,7 +73,7 @@ function(_set_up_unit_test_target _target)
       APPEND
       mpi_arguments
       :
-      ${MPIEXEC_EXTRA_OPTS_FOR_TESTING_LIST}
+      ${_mpiexec_all_args_for_testing_list}
       -np
       ${remaining_procs}
       $<TARGET_FILE:${_target}>
@@ -96,8 +93,8 @@ endfunction()
 
 ##
 # Pickup all the source files in the current directory and add them to a unit test target.
-# Recursively add all subdirectories that contain CMakeLists.txt files. A base name for the test
-# may be supplied. If no base name is supplied, the name of the parent module is used.
+# Recursively add all subdirectories that contain CMakeLists.txt files. A module under test
+# may be supplied via MODULE. If no module name is supplied, the name of the parent module is used.
 #
 # A source file is analyzed for certain suffixes, to determine how the test should be run. The supported
 # suffixes are:
@@ -110,18 +107,41 @@ function(four_c_auto_define_tests)
     return()
   endif()
 
-  if(NOT "${ARGV0}" STREQUAL "")
-    set(_test_name_base "unittests_${ARGV0}")
+  set(options "")
+  set(oneValueArgs MODULE)
+  set(multiValueArgs "")
+  cmake_parse_arguments(
+    _parsed
+    "${options}"
+    "${oneValueArgs}"
+    "${multiValueArgs}"
+    ${ARGN}
+    )
+  if(DEFINED _parsed_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "There are unparsed arguments: ${_parsed_UNPARSED_ARGUMENTS}")
+  endif()
+
+  if(_parsed_MODULE)
+    set(_module_under_test ${_parsed_MODULE})
   else()
     if("${FOUR_C_CURRENTLY_DEFINED_PARENT_MODULE}" STREQUAL "")
       message(
         FATAL_ERROR
-          "No parent module is set. Either give a base name for the tests or call the functions inside a module."
+          "No parent module is set. Either give the module this test belongs to or call this functions inside a module."
         )
     endif()
 
-    set(_test_name_base "unittests_${FOUR_C_CURRENTLY_DEFINED_PARENT_MODULE}")
+    set(_module_under_test "${FOUR_C_CURRENTLY_DEFINED_PARENT_MODULE}")
   endif()
+
+  if(NOT TARGET "${_module_under_test}_objs")
+    message(
+      FATAL_ERROR
+        "Tried to add tests for a module named '${_module_under_test}' which is not a known module name."
+      )
+  endif()
+
+  set(_test_name_base "unittests_${_module_under_test}")
 
   file(GLOB_RECURSE _sources CONFIGURE_DEPENDS *.cpp)
 
@@ -149,6 +169,7 @@ function(four_c_auto_define_tests)
 
     if(NOT TARGET ${_current_test_name})
       _set_up_unit_test_target(
+        ${_module_under_test}
         ${_current_test_name}
         NP
         ${_np}
@@ -158,7 +179,7 @@ function(four_c_auto_define_tests)
 
       # Use the same support file directory for all flavors
       set(FOUR_C_TEST_SUPPORT_FILE_DIR
-          "${CMAKE_BINARY_DIR}/tests/support_files/${_test_name_base}/"
+          "${PROJECT_BINARY_DIR}/tests/support_files/${_test_name_base}/"
           )
       target_compile_definitions(
         ${_current_test_name}
@@ -192,6 +213,12 @@ endfunction()
 ##
 # Copy support files to the test directory. The support files are copied to a directory that is shared by all tests
 # that use the given test base name.
+#
+# Usage: four_c_add_support_files_to_test(TEST_NAME_BASE [SUPPORT_FILES <file1> <file2> ...])
+#
+# TEST_NAME_BASE: The base name of the test. Returned by four_c_auto_define_tests().
+# SUPPORT_FILES: A list of files to be copied. The files are copied to the test directory. If any of the files
+#                have an .in suffix, they are configured (replacing all @VAR@ expressions) before copying.
 ##
 function(four_c_add_support_files_to_test _test_name_base)
   if(NOT FOUR_C_WITH_GOOGLETEST)
@@ -214,7 +241,7 @@ function(four_c_add_support_files_to_test _test_name_base)
 
   endif()
 
-  set(FOUR_C_TEST_SUPPORT_FILE_DIR "${CMAKE_BINARY_DIR}/tests/support_files/${_test_name_base}/")
+  set(FOUR_C_TEST_SUPPORT_FILE_DIR "${PROJECT_BINARY_DIR}/tests/support_files/${_test_name_base}/")
 
   foreach(_support_file ${_parsed_SUPPORT_FILES})
     # Get file name relative to current list file
@@ -224,7 +251,15 @@ function(four_c_add_support_files_to_test _test_name_base)
       "Copying support file ${_support_file} to ${FOUR_C_TEST_SUPPORT_FILE_DIR}/${_support_file}"
       )
 
-    configure_file(${_support_file} ${FOUR_C_TEST_SUPPORT_FILE_DIR}/${_support_file})
+    # If the file is an .in file that requires configuration, do so.
+    if(_support_file MATCHES ".in$")
+      # Strip the .in suffix
+      string(REGEX REPLACE ".in$" "" _support_file_wo_in ${_support_file})
+      configure_file(${_support_file} ${FOUR_C_TEST_SUPPORT_FILE_DIR}/${_support_file_wo_in} @ONLY)
+      # Otherwise, just copy the file
+    else()
+      configure_file(${_support_file} ${FOUR_C_TEST_SUPPORT_FILE_DIR}/${_support_file} COPYONLY)
+    endif()
   endforeach()
 
 endfunction()

@@ -18,7 +18,6 @@ set(_dependencies
     constraint
     contact
     core
-    elemag
     fluid
     fluid_ele
     fluid_xfluid
@@ -28,14 +27,13 @@ set(_dependencies
     module_registry
     mortar
     particle_engine
-    porofluidmultiphase_ele
-    poromultiphase_scatra
+    porofluid_pressure_based_elast_scatra
+    porofluid_pressure_based_ele
     red_airways
     rigidsphere
     scatra_ele
     shell7p
     shell_kl_nurbs
-    so3
     solid_3D_ele
     solid_poro_3D_ele
     solid_scatra_3D_ele

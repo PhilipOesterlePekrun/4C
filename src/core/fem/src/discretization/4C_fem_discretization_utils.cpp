@@ -10,10 +10,9 @@
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_element.hpp"
 #include "4C_fem_general_node.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_utils_function.hpp"
 #include "4C_utils_function_manager.hpp"
-
-#include <Epetra_Map.h>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -112,8 +111,8 @@ void Core::FE::Utils::do_initial_field(const Core::Utils::FunctionManager& funct
 
           // assign value
           const int gid = node_dofs[j];
-          const int lid = fieldvector.Map().LID(gid);
-          if (lid < 0) FOUR_C_THROW("Global id %d not on this proc in system vector", gid);
+          const int lid = fieldvector.get_block_map().LID(gid);
+          if (lid < 0) FOUR_C_THROW("Global id {} not on this proc in system vector", gid);
           fieldvector[lid] = functfac;
         }
       }

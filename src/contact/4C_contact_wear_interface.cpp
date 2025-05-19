@@ -12,6 +12,7 @@
 #include "4C_contact_friction_node.hpp"
 #include "4C_contact_interface.hpp"
 #include "4C_contact_node.hpp"
+#include "4C_fem_discretization.hpp"
 #include "4C_inpar_mortar.hpp"
 #include "4C_linalg_sparsematrix.hpp"
 #include "4C_linalg_utils_densematrix_communication.hpp"
@@ -72,7 +73,7 @@ void Wear::WearInterface::assemble_te(
    ************************************************/
 
   // nodes for loop
-  std::shared_ptr<Epetra_Map> considerednodes;
+  std::shared_ptr<Core::LinAlg::Map> considerednodes;
 
   // nothing to do if no active nodes
   if (sswear_)
@@ -123,7 +124,7 @@ void Wear::WearInterface::assemble_te(
         ++k;
       }
 
-      if (k != colsize) FOUR_C_THROW("AssembleTE: k = %i but colsize = %i", k, colsize);
+      if (k != colsize) FOUR_C_THROW("AssembleTE: k = {} but colsize = {}", k, colsize);
     }
 
     /**************************************************** E-matrix ******/
@@ -163,7 +164,7 @@ void Wear::WearInterface::assemble_te(
           FOUR_C_THROW("Chosen wear shape function not supported!");
       }
 
-      if (k != colsize) FOUR_C_THROW("AssembleTE: k = %i but colsize = %i", k, colsize);
+      if (k != colsize) FOUR_C_THROW("AssembleTE: k = {} but colsize = {}", k, colsize);
     }
   }
 
@@ -195,7 +196,7 @@ void Wear::WearInterface::assemble_te_master(
   // nothing to do if no active nodes
   if (slipmasternodes_ == nullptr) return;
 
-  const std::shared_ptr<Epetra_Map> slmasternodes =
+  const std::shared_ptr<Core::LinAlg::Map> slmasternodes =
       Core::LinAlg::allreduce_e_map(*(slipmasternodes_));
 
   // loop over proc's slave nodes of the interface for assembly
@@ -232,7 +233,7 @@ void Wear::WearInterface::assemble_te_master(
         ++k;
       }
 
-      if (k != colsize) FOUR_C_THROW("AssembleTE: k = %i but colsize = %i", k, colsize);
+      if (k != colsize) FOUR_C_THROW("AssembleTE: k = {} but colsize = {}", k, colsize);
     }
 
     /**************************************************** E-matrix ******/
@@ -272,7 +273,7 @@ void Wear::WearInterface::assemble_te_master(
           FOUR_C_THROW("Chosen wear shape function not supported!");
       }
 
-      if (k != colsize) FOUR_C_THROW("AssembleTE: k = %i but colsize = %i", k, colsize);
+      if (k != colsize) FOUR_C_THROW("AssembleTE: k = {} but colsize = {}", k, colsize);
     }
   }
 
@@ -290,7 +291,7 @@ void Wear::WearInterface::assemble_lin_t_d(Core::LinAlg::SparseMatrix& lintgloba
    ************************************************/
 
   // nodes for loop
-  std::shared_ptr<Epetra_Map> considerednodes;
+  std::shared_ptr<Core::LinAlg::Map> considerednodes;
 
   // nothing to do if no active nodes
   if (sswear_)
@@ -394,8 +395,8 @@ void Wear::WearInterface::assemble_lin_t_d(Core::LinAlg::SparseMatrix& lintgloba
     if (fnode->wear_data().get_t().size() > 0)
     {
       // map iterator
-      typedef std::map<int, double>::const_iterator CI;
-      typedef Core::Gen::Pairedvector<int, double>::const_iterator _CI;
+      using CI = std::map<int, double>::const_iterator;
+      using _CI = Core::Gen::Pairedvector<int, double>::const_iterator;
 
       std::map<int, double>& nmap = fnode->wear_data().get_t()[0];
 
@@ -451,7 +452,7 @@ void Wear::WearInterface::assemble_lin_t_d_master(Core::LinAlg::SparseMatrix& li
   //                 with c = Displacement slave or master dof
   // we compute (LinT)_kc = T_wj,c * z_j
   /**********************************************************************/
-  const std::shared_ptr<Epetra_Map> slmasternodes =
+  const std::shared_ptr<Core::LinAlg::Map> slmasternodes =
       Core::LinAlg::allreduce_e_map(*(slipmasternodes_));
 
   for (int j = 0; j < slmasternodes->NumMyElements(); ++j)
@@ -537,8 +538,8 @@ void Wear::WearInterface::assemble_lin_t_d_master(Core::LinAlg::SparseMatrix& li
     if (fnode->wear_data().get_t().size() > 0)
     {
       // map iterator
-      typedef std::map<int, double>::const_iterator CI;
-      typedef Core::Gen::Pairedvector<int, double>::const_iterator _CI;
+      using CI = std::map<int, double>::const_iterator;
+      using _CI = Core::Gen::Pairedvector<int, double>::const_iterator;
 
       std::map<int, double>& nmap = fnode->wear_data().get_t()[0];
 
@@ -586,7 +587,7 @@ void Wear::WearInterface::assemble_lin_e_d(Core::LinAlg::SparseMatrix& linegloba
    ************************************************/
 
   // nodes for loop
-  std::shared_ptr<Epetra_Map> considerednodes;
+  std::shared_ptr<Core::LinAlg::Map> considerednodes;
 
   // nothing to do if no active nodes
   if (sswear_)
@@ -692,7 +693,7 @@ void Wear::WearInterface::assemble_lin_e_d_master(Core::LinAlg::SparseMatrix& li
   //                 with c = Displacement slave or master dof
   // we compute (LinE)_kc = T_wj,c * z_j
   /**********************************************************************/
-  const std::shared_ptr<Epetra_Map> slmasternodes =
+  const std::shared_ptr<Core::LinAlg::Map> slmasternodes =
       Core::LinAlg::allreduce_e_map(*(slipmasternodes_));
 
   // loop over all LM slave nodes (row map)
@@ -772,7 +773,7 @@ void Wear::WearInterface::assemble_lin_t_lm(Core::LinAlg::SparseMatrix& lintglob
    ************************************************/
 
   // nodes for loop
-  std::shared_ptr<Epetra_Map> considerednodes;
+  std::shared_ptr<Core::LinAlg::Map> considerednodes;
 
   // nothing to do if no active nodes
   if (sswear_)
@@ -786,8 +787,6 @@ void Wear::WearInterface::assemble_lin_t_lm(Core::LinAlg::SparseMatrix& lintglob
     considerednodes = slipnodes_;
   }
 
-  // typedef std::map<int,double>::const_iterator CI;
-
   // loop over all LM slave nodes (row map)
   for (int j = 0; j < considerednodes->NumMyElements(); ++j)
   {
@@ -796,7 +795,7 @@ void Wear::WearInterface::assemble_lin_t_lm(Core::LinAlg::SparseMatrix& lintglob
     if (!node) FOUR_C_THROW("Cannot find node with gid %", gid);
     CONTACT::FriNode* fnode = dynamic_cast<CONTACT::FriNode*>(node);
 
-    typedef std::map<int, double>::const_iterator CI;
+    using CI = std::map<int, double>::const_iterator;
 
     if (fnode->wear_data().get_t().size() > 0)
     {
@@ -840,11 +839,9 @@ void Wear::WearInterface::assemble_lin_t_lm_master(Core::LinAlg::SparseMatrix& l
   // nothing to do if no active nodes
   if (slipmasternodes_ == nullptr) return;
 
-  const std::shared_ptr<Epetra_Map> slmasternodes =
+  const std::shared_ptr<Core::LinAlg::Map> slmasternodes =
       Core::LinAlg::allreduce_e_map(*(slipmasternodes_));
 
-
-  // typedef std::map<int,double>::const_iterator CI;
 
   // loop over all LM slave nodes (row map)
   for (int j = 0; j < slmasternodes->NumMyElements(); ++j)
@@ -854,7 +851,7 @@ void Wear::WearInterface::assemble_lin_t_lm_master(Core::LinAlg::SparseMatrix& l
     if (!node) FOUR_C_THROW("Cannot find node with gid %", gid);
     CONTACT::FriNode* fnode = dynamic_cast<CONTACT::FriNode*>(node);
 
-    typedef std::map<int, double>::const_iterator CI;
+    using CI = std::map<int, double>::const_iterator;
 
     if (fnode->wear_data().get_t().size() > 0)
     {
@@ -951,7 +948,8 @@ void Wear::WearInterface::export_nodal_normals() const
   // --------------------------------------------------------------------------------------
   if (wearboth_ and wearpv_)
   {
-    const std::shared_ptr<Epetra_Map> masternodes = Core::LinAlg::allreduce_e_map(*(mnoderowmap_));
+    const std::shared_ptr<Core::LinAlg::Map> masternodes =
+        Core::LinAlg::allreduce_e_map(*(mnoderowmap_));
 
     // build info on row map
     for (int i = 0; i < mnoderowmap_->NumMyElements(); ++i)
@@ -1249,8 +1247,9 @@ void Wear::WearInterface::assemble_lin_stick(Core::LinAlg::SparseMatrix& linstic
     Core::LinAlg::SparseMatrix& linstickDISglobal, Core::LinAlg::Vector<double>& linstickRHSglobal)
 {
   // create map of stick nodes
-  std::shared_ptr<Epetra_Map> sticknodes = Core::LinAlg::split_map(*activenodes_, *slipnodes_);
-  std::shared_ptr<Epetra_Map> stickt = Core::LinAlg::split_map(*activet_, *slipt_);
+  std::shared_ptr<Core::LinAlg::Map> sticknodes =
+      Core::LinAlg::split_map(*activenodes_, *slipnodes_);
+  std::shared_ptr<Core::LinAlg::Map> stickt = Core::LinAlg::split_map(*activet_, *slipt_);
 
   // nothing to do if no stick nodes
   if (sticknodes->NumMyElements() == 0) return;
@@ -1260,8 +1259,7 @@ void Wear::WearInterface::assemble_lin_stick(Core::LinAlg::SparseMatrix& linstic
   double ct = interface_params().get<double>("SEMI_SMOOTH_CT");
   double cn = interface_params().get<double>("SEMI_SMOOTH_CN");
 
-  auto ftype =
-      Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(interface_params(), "FRICTION");
+  auto ftype = Teuchos::getIntegralValue<CONTACT::FrictionType>(interface_params(), "FRICTION");
 
   bool consistent = false;
 
@@ -1274,7 +1272,7 @@ void Wear::WearInterface::assemble_lin_stick(Core::LinAlg::SparseMatrix& linstic
   consistent = true;
 #endif
 
-  if (consistent && ftype == Inpar::CONTACT::friction_coulomb)
+  if (consistent && ftype == CONTACT::FrictionType::coulomb)
   {
     // loop over all stick nodes of the interface
     for (int i = 0; i < sticknodes->NumMyElements(); ++i)
@@ -1287,8 +1285,8 @@ void Wear::WearInterface::assemble_lin_stick(Core::LinAlg::SparseMatrix& linstic
       if (cnode->owner() != Core::Communication::my_mpi_rank(get_comm()))
         FOUR_C_THROW("AssembleLinStick: Node ownership inconsistency!");
 
-      cn = cn_ref()[cn_ref().Map().LID(cnode->id())];
-      ct = ct_ref()[ct_ref().Map().LID(cnode->id())];
+      cn = cn_ref()[cn_ref().get_block_map().LID(cnode->id())];
+      ct = ct_ref()[ct_ref().get_block_map().LID(cnode->id())];
 
       // prepare assembly, get information from node
       std::vector<Core::Gen::Pairedvector<int, double>> dnmap = cnode->data().get_deriv_n();
@@ -1772,8 +1770,7 @@ void Wear::WearInterface::assemble_lin_slip_w(Core::LinAlg::SparseMatrix& linsli
   if (slipnodes_->NumMyElements() == 0) return;
 
   // information from interface contact parameter list
-  auto ftype =
-      Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(interface_params(), "FRICTION");
+  auto ftype = Teuchos::getIntegralValue<CONTACT::FrictionType>(interface_params(), "FRICTION");
   double frcoeff = interface_params().get<double>("FRCOEFF");
   double ct = interface_params().get<double>("SEMI_SMOOTH_CT");
   double cn = interface_params().get<double>("SEMI_SMOOTH_CN");
@@ -1785,7 +1782,7 @@ void Wear::WearInterface::assemble_lin_slip_w(Core::LinAlg::SparseMatrix& linsli
   //**********************************************************************
   //**********************************************************************
   //**********************************************************************
-  if (ftype == Inpar::CONTACT::friction_coulomb)
+  if (ftype == CONTACT::FrictionType::coulomb)
   {
     // loop over all slip nodes of the interface
     for (int i = 0; i < slipnodes_->NumMyElements(); ++i)
@@ -1798,8 +1795,8 @@ void Wear::WearInterface::assemble_lin_slip_w(Core::LinAlg::SparseMatrix& linsli
       if (cnode->owner() != Core::Communication::my_mpi_rank(get_comm()))
         FOUR_C_THROW("AssembleLinSlip: Node ownership inconsistency!");
 
-      cn = cn_ref()[cn_ref().Map().LID(cnode->id())];
-      ct = ct_ref()[ct_ref().Map().LID(cnode->id())];
+      cn = cn_ref()[cn_ref().get_block_map().LID(cnode->id())];
+      ct = ct_ref()[ct_ref().get_block_map().LID(cnode->id())];
 
       // prepare assembly, get information from node
       std::vector<Core::Gen::Pairedvector<int, double>> dnmap = cnode->data().get_deriv_n();
@@ -1958,8 +1955,7 @@ void Wear::WearInterface::assemble_lin_slip(Core::LinAlg::SparseMatrix& linslipL
   if (slipnodes_->NumMyElements() == 0) return;
 
   // information from interface contact parameter list
-  auto ftype =
-      Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(interface_params(), "FRICTION");
+  auto ftype = Teuchos::getIntegralValue<CONTACT::FrictionType>(interface_params(), "FRICTION");
   double frcoeff = interface_params().get<double>("FRCOEFF");
   double ct = interface_params().get<double>("SEMI_SMOOTH_CT");
   double cn = interface_params().get<double>("SEMI_SMOOTH_CN");
@@ -1971,7 +1967,7 @@ void Wear::WearInterface::assemble_lin_slip(Core::LinAlg::SparseMatrix& linslipL
   //**********************************************************************
   //**********************************************************************
   //**********************************************************************
-  if (ftype == Inpar::CONTACT::friction_coulomb)
+  if (ftype == CONTACT::FrictionType::coulomb)
   {
     // loop over all slip nodes of the interface
     for (int i = 0; i < slipnodes_->NumMyElements(); ++i)
@@ -1984,8 +1980,8 @@ void Wear::WearInterface::assemble_lin_slip(Core::LinAlg::SparseMatrix& linslipL
       if (cnode->owner() != Core::Communication::my_mpi_rank(get_comm()))
         FOUR_C_THROW("AssembleLinSlip: Node ownership inconsistency!");
 
-      cn = cn_ref()[cn_ref().Map().LID(cnode->id())];
-      ct = ct_ref()[ct_ref().Map().LID(cnode->id())];
+      cn = cn_ref()[cn_ref().get_block_map().LID(cnode->id())];
+      ct = ct_ref()[ct_ref().get_block_map().LID(cnode->id())];
 
       // prepare assembly, get information from node
       std::vector<Core::Gen::Pairedvector<int, double>> dnmap = cnode->data().get_deriv_n();
@@ -2728,7 +2724,7 @@ void Wear::WearInterface::assemble_lin_slip(Core::LinAlg::SparseMatrix& linslipL
   //**********************************************************************
   //**********************************************************************
   //**********************************************************************
-  if (ftype == Inpar::CONTACT::friction_tresca)
+  if (ftype == CONTACT::FrictionType::tresca)
   {
     FOUR_C_THROW("Tresca friction not implemented for wear !!!");
   }
@@ -2793,8 +2789,9 @@ void Wear::WearInterface::assemble_lin_w_lm_st(Core::LinAlg::SparseMatrix& sglob
   if (!wearimpl_) FOUR_C_THROW("This matrix deriv. is only required for implicit wear algorithm!");
 
   // create map of stick nodes
-  std::shared_ptr<Epetra_Map> sticknodes = Core::LinAlg::split_map(*activenodes_, *slipnodes_);
-  std::shared_ptr<Epetra_Map> stickt = Core::LinAlg::split_map(*activet_, *slipt_);
+  std::shared_ptr<Core::LinAlg::Map> sticknodes =
+      Core::LinAlg::split_map(*activenodes_, *slipnodes_);
+  std::shared_ptr<Core::LinAlg::Map> stickt = Core::LinAlg::split_map(*activet_, *slipt_);
 
   // nothing to do if no stick nodes
   if (sticknodes->NumMyElements() == 0) return;
@@ -2816,8 +2813,8 @@ void Wear::WearInterface::assemble_lin_w_lm_st(Core::LinAlg::SparseMatrix& sglob
     if (cnode->owner() != Core::Communication::my_mpi_rank(get_comm()))
       FOUR_C_THROW("Node ownership inconsistency!");
 
-    cn = cn_ref()[cn_ref().Map().LID(cnode->id())];
-    ct = ct_ref()[ct_ref().Map().LID(cnode->id())];
+    cn = cn_ref()[cn_ref().get_block_map().LID(cnode->id())];
+    ct = ct_ref()[ct_ref().get_block_map().LID(cnode->id())];
 
     // prepare assembly, get information from node
     std::map<int, double>& dwmap = cnode->data().get_deriv_wlm();
@@ -2901,8 +2898,8 @@ void Wear::WearInterface::assemble_lin_w_lm_sl(Core::LinAlg::SparseMatrix& sglob
     if (cnode->owner() != Core::Communication::my_mpi_rank(get_comm()))
       FOUR_C_THROW("AssembleLinSlip: Node ownership inconsistency!");
 
-    cn = cn_ref()[cn_ref().Map().LID(cnode->id())];
-    ct = ct_ref()[ct_ref().Map().LID(cnode->id())];
+    cn = cn_ref()[cn_ref().get_block_map().LID(cnode->id())];
+    ct = ct_ref()[ct_ref().get_block_map().LID(cnode->id())];
 
     // prepare assembly, get information from node
     std::map<int, double>& dwmap = cnode->data().get_deriv_wlm();
@@ -3042,7 +3039,8 @@ void Wear::WearInterface::assemble_d2(Core::LinAlg::SparseMatrix& dglobal)
   // are filled with entries. Therefore, the integrated
   // entries are unique on nodes!
   //*******************************************************
-  const std::shared_ptr<Epetra_Map> masternodes = Core::LinAlg::allreduce_e_map(*(mnoderowmap_));
+  const std::shared_ptr<Core::LinAlg::Map> masternodes =
+      Core::LinAlg::allreduce_e_map(*(mnoderowmap_));
 
   for (int i = 0; i < masternodes->NumMyElements(); ++i)  // mnoderowmap_
   {
@@ -3085,7 +3083,7 @@ void Wear::WearInterface::assemble_d2(Core::LinAlg::SparseMatrix& dglobal)
           ++k;
         }
 
-        if (k != colsize) FOUR_C_THROW("AssembleDM: k = %i but colsize = %i", k, colsize);
+        if (k != colsize) FOUR_C_THROW("AssembleDM: k = {} but colsize = {}", k, colsize);
       }
     }
   }
@@ -3118,12 +3116,13 @@ bool Wear::WearInterface::build_active_set_master()
 
     if (frinode->fri_data().slip()) sl.push_back(frinode->id());
   }
-  Epetra_Map auxa(-1, (int)a.size(), a.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
-  Epetra_Map auxsl(
+  Core::LinAlg::Map auxa(
+      -1, (int)a.size(), a.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
+  Core::LinAlg::Map auxsl(
       -1, (int)sl.size(), sl.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
 
-  const std::shared_ptr<Epetra_Map> ara = Core::LinAlg::allreduce_e_map((auxa));
-  const std::shared_ptr<Epetra_Map> arsl = Core::LinAlg::allreduce_e_map((auxsl));
+  const std::shared_ptr<Core::LinAlg::Map> ara = Core::LinAlg::allreduce_e_map((auxa));
+  const std::shared_ptr<Core::LinAlg::Map> arsl = Core::LinAlg::allreduce_e_map((auxsl));
 
   for (int j = 0; j < slave_col_nodes()->NumMyElements(); ++j)
   {
@@ -3155,7 +3154,7 @@ bool Wear::WearInterface::build_active_set_master()
   }
 
   // spread info for attached status...
-  const std::shared_ptr<Epetra_Map> meleall =
+  const std::shared_ptr<Core::LinAlg::Map> meleall =
       Core::LinAlg::allreduce_e_map(*(master_row_elements()));
   std::vector<int> eleatt;
 
@@ -3171,9 +3170,9 @@ bool Wear::WearInterface::build_active_set_master()
       eleatt.push_back(moele->id());
   }
 
-  Epetra_Map auxe(
+  Core::LinAlg::Map auxe(
       -1, (int)eleatt.size(), eleatt.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
-  const std::shared_ptr<Epetra_Map> att = Core::LinAlg::allreduce_e_map((auxe));
+  const std::shared_ptr<Core::LinAlg::Map> att = Core::LinAlg::allreduce_e_map((auxe));
 
   for (int j = 0; j < att->NumMyElements(); ++j)
   {
@@ -3249,8 +3248,10 @@ bool Wear::WearInterface::build_active_set_master()
 
   // reset nodes
   // loop over all master nodes on the current interface
-  const std::shared_ptr<Epetra_Map> masternodes = Core::LinAlg::allreduce_e_map(*(mnoderowmap_));
-  const std::shared_ptr<Epetra_Map> mastereles = Core::LinAlg::allreduce_e_map(*(melerowmap_));
+  const std::shared_ptr<Core::LinAlg::Map> masternodes =
+      Core::LinAlg::allreduce_e_map(*(mnoderowmap_));
+  const std::shared_ptr<Core::LinAlg::Map> mastereles =
+      Core::LinAlg::allreduce_e_map(*(melerowmap_));
 
   for (int j = 0; j < masternodes->NumMyElements(); ++j)
   {
@@ -3271,15 +3272,17 @@ bool Wear::WearInterface::build_active_set_master()
     mele->set_attached() = false;
   }
 
-  Epetra_Map actmn(
+  Core::LinAlg::Map actmn(
       -1, (int)wa.size(), wa.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
-  Epetra_Map slimn(
+  Core::LinAlg::Map slimn(
       -1, (int)wsl.size(), wsl.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
-  Epetra_Map slimd(
+  Core::LinAlg::Map slimd(
       -1, (int)wsln.size(), wsln.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
 
-  const std::shared_ptr<Epetra_Map> ARactmn = Core::LinAlg::allreduce_overlapping_e_map((actmn));
-  const std::shared_ptr<Epetra_Map> ARslimn = Core::LinAlg::allreduce_overlapping_e_map((slimn));
+  const std::shared_ptr<Core::LinAlg::Map> ARactmn =
+      Core::LinAlg::allreduce_overlapping_e_map((actmn));
+  const std::shared_ptr<Core::LinAlg::Map> ARslimn =
+      Core::LinAlg::allreduce_overlapping_e_map((slimn));
 
   std::vector<int> ga;
   std::vector<int> gs;
@@ -3326,11 +3329,11 @@ bool Wear::WearInterface::build_active_set_master()
     }
   }
 
-  activmasternodes_ = std::make_shared<Epetra_Map>(
+  activmasternodes_ = std::make_shared<Core::LinAlg::Map>(
       -1, (int)ga.size(), ga.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
-  slipmasternodes_ = std::make_shared<Epetra_Map>(
+  slipmasternodes_ = std::make_shared<Core::LinAlg::Map>(
       -1, (int)gs.size(), gs.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
-  slipmn_ = std::make_shared<Epetra_Map>(
+  slipmn_ = std::make_shared<Core::LinAlg::Map>(
       -1, (int)gsd.size(), gsd.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
 
   for (int j = 0; j < slave_col_nodes()->NumMyElements(); ++j)
@@ -3390,7 +3393,8 @@ bool Wear::WearInterface::build_active_set(bool init)
     // Note, this node could be ghosted! At the end, the owning proc will take the
     // information to build the map.
 
-    const std::shared_ptr<Epetra_Map> masternodes = Core::LinAlg::allreduce_e_map(*(mnoderowmap_));
+    const std::shared_ptr<Core::LinAlg::Map> masternodes =
+        Core::LinAlg::allreduce_e_map(*(mnoderowmap_));
 
     for (int k = 0; k < masternodes->NumMyElements(); ++k)  // mnoderowmap_
     {
@@ -3422,10 +3426,10 @@ bool Wear::WearInterface::build_active_set(bool init)
     }
 
     // create map for all involved master nodes -- both-sided wear specific
-    involvednodes_ = std::make_shared<Epetra_Map>(-1, (int)mymnodegids.size(), mymnodegids.data(),
-        0, Core::Communication::as_epetra_comm(get_comm()));
-    involveddofs_ = std::make_shared<Epetra_Map>(-1, (int)mymdofgids.size(), mymdofgids.data(), 0,
-        Core::Communication::as_epetra_comm(get_comm()));
+    involvednodes_ = std::make_shared<Core::LinAlg::Map>(-1, (int)mymnodegids.size(),
+        mymnodegids.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
+    involveddofs_ = std::make_shared<Core::LinAlg::Map>(-1, (int)mymdofgids.size(),
+        mymdofgids.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
   }
 
   return true;
@@ -3447,14 +3451,14 @@ void Wear::WearInterface::initialize_data_container()
   //***********************************************************
   if (wearboth_)
   {
-    const std::shared_ptr<Epetra_Map> masternodes =
+    const std::shared_ptr<Core::LinAlg::Map> masternodes =
         Core::LinAlg::allreduce_e_map(*(master_row_nodes()));
 
     for (int i = 0; i < masternodes->NumMyElements(); ++i)  // MasterRowNodes()
     {
       int gid = masternodes->GID(i);
       Core::Nodes::Node* node = discret().g_node(gid);
-      if (!node) FOUR_C_THROW("Cannot find node with gid %i", gid);
+      if (!node) FOUR_C_THROW("Cannot find node with gid {}", gid);
       Mortar::Node* mnode = dynamic_cast<Mortar::Node*>(node);
 
       //********************************************************
@@ -3486,7 +3490,7 @@ void Wear::WearInterface::assemble_inactive_wear_rhs(Core::LinAlg::Vector<double
   // node set, i.e. nodes, which were active in the last iteration, are considered. Since you know,
   // that the lagrange multipliers of former inactive nodes are still equal zero.
 
-  std::shared_ptr<Epetra_Map> inactivenodes;
+  std::shared_ptr<Core::LinAlg::Map> inactivenodes;
 
   if (sswear_)
     inactivenodes = Core::LinAlg::split_map(*snoderowmap_, *activenodes_);
@@ -3546,13 +3550,13 @@ void Wear::WearInterface::assemble_inactive_wear_rhs_master(Epetra_FEVector& ina
    *  This function is only for discrete Wear !!! *
    ************************************************/
 
-  std::shared_ptr<Epetra_Map> inactivenodes =
+  std::shared_ptr<Core::LinAlg::Map> inactivenodes =
       Core::LinAlg::split_map(*mnoderowmap_, *slipmasternodes_);
-  std::shared_ptr<Epetra_Map> inactivedofs = Core::LinAlg::split_map(*(mn_dofs()), *slipmn_);
+  std::shared_ptr<Core::LinAlg::Map> inactivedofs = Core::LinAlg::split_map(*(mn_dofs()), *slipmn_);
 
 
 
-  const std::shared_ptr<Epetra_Map> allredi = Core::LinAlg::allreduce_e_map(*(inactivedofs));
+  const std::shared_ptr<Core::LinAlg::Map> allredi = Core::LinAlg::allreduce_e_map(*(inactivedofs));
 
   std::shared_ptr<Core::LinAlg::Vector<double>> rhs = Core::LinAlg::create_vector(*allredi, true);
 
@@ -3598,7 +3602,7 @@ void Wear::WearInterface::assemble_inactive_wear_rhs_master(Epetra_FEVector& ina
     }
   }
 
-  Epetra_Export exp(*allredi, *inactivedofs);
+  Epetra_Export exp(allredi->get_epetra_map(), inactivedofs->get_epetra_map());
   inactiverhs.Export(*rhs, exp, Add);
 
 
@@ -3616,7 +3620,7 @@ void Wear::WearInterface::assemble_wear_cond_rhs(Core::LinAlg::Vector<double>& r
    ************************************************/
 
   // nodes for loop
-  std::shared_ptr<Epetra_Map> considerednodes;
+  std::shared_ptr<Core::LinAlg::Map> considerednodes;
 
   // nothing to do if no active nodes
   if (sswear_)
@@ -3630,12 +3634,11 @@ void Wear::WearInterface::assemble_wear_cond_rhs(Core::LinAlg::Vector<double>& r
     considerednodes = slipnodes_;
   }
 
-  auto systype =
-      Teuchos::getIntegralValue<Inpar::CONTACT::SystemType>(interface_params(), "SYSTEM");
+  auto systype = Teuchos::getIntegralValue<CONTACT::SystemType>(interface_params(), "SYSTEM");
 
   double wcoeff = interface_params().get<double>("WEARCOEFF");
 
-  typedef std::map<int, double>::const_iterator CI;
+  using CI = std::map<int, double>::const_iterator;
 
   for (int i = 0; i < considerednodes->NumMyElements(); ++i)
   {
@@ -3676,7 +3679,7 @@ void Wear::WearInterface::assemble_wear_cond_rhs(Core::LinAlg::Vector<double>& r
     /**************************************************** T-matrix ******/
     // for condensation of lm and wear we condense the system with absol. lm
     // --> therefore we do not need the lm^i term...
-    if (((fnode->wear_data().get_t()).size() > 0) && systype != Inpar::CONTACT::system_condensed)
+    if (((fnode->wear_data().get_t()).size() > 0) && systype != CONTACT::SystemType::condensed)
     {
       std::map<int, double> tmap = fnode->wear_data().get_t()[0];
 
@@ -3721,16 +3724,15 @@ void Wear::WearInterface::assemble_wear_cond_rhs_master(Epetra_FEVector& RHS)
   // nothing to do if no active nodes
   if (slipmasternodes_ == nullptr) return;
 
-  auto systype =
-      Teuchos::getIntegralValue<Inpar::CONTACT::SystemType>(interface_params(), "SYSTEM");
+  auto systype = Teuchos::getIntegralValue<CONTACT::SystemType>(interface_params(), "SYSTEM");
 
   double wcoeff = interface_params().get<double>("WEARCOEFF_MASTER");
 
-  typedef std::map<int, double>::const_iterator CI;
+  using CI = std::map<int, double>::const_iterator;
 
-  const std::shared_ptr<Epetra_Map> slmasternodes =
+  const std::shared_ptr<Core::LinAlg::Map> slmasternodes =
       Core::LinAlg::allreduce_e_map(*(slipmasternodes_));
-  const std::shared_ptr<Epetra_Map> slmastern = Core::LinAlg::allreduce_e_map(*(slipmn_));
+  const std::shared_ptr<Core::LinAlg::Map> slmastern = Core::LinAlg::allreduce_e_map(*(slipmn_));
 
   std::shared_ptr<Core::LinAlg::Vector<double>> rhs = Core::LinAlg::create_vector(*slmastern, true);
 
@@ -3770,7 +3772,7 @@ void Wear::WearInterface::assemble_wear_cond_rhs_master(Epetra_FEVector& RHS)
     /**************************************************** T-matrix ******/
     // for condensation of lm and wear we condense the system with absol. lm
     // --> therefore we do not need the lm^i term...
-    if (((fnode->wear_data().get_t()).size() > 0) && systype != Inpar::CONTACT::system_condensed)
+    if (((fnode->wear_data().get_t()).size() > 0) && systype != CONTACT::SystemType::condensed)
     {
       std::map<int, double> tmap = fnode->wear_data().get_t()[0];
 
@@ -3799,7 +3801,7 @@ void Wear::WearInterface::assemble_wear_cond_rhs_master(Epetra_FEVector& RHS)
     }
   }
 
-  Epetra_Export exp(*slmastern, *slipmn_);
+  Epetra_Export exp(slmastern->get_epetra_map(), slipmn_->get_epetra_map());
   RHS.Export(*rhs, exp, Add);
 
   return;
@@ -3828,7 +3830,7 @@ void Wear::WearInterface::initialize()
   //**************************************************
   if (wearboth_ and !wearpv_)
   {
-    const std::shared_ptr<Epetra_Map> masternodes =
+    const std::shared_ptr<Core::LinAlg::Map> masternodes =
         Core::LinAlg::allreduce_e_map(*(master_row_nodes()));
 
     for (int i = 0; i < masternodes->NumMyElements();
@@ -3958,7 +3960,7 @@ void Wear::WearInterface::initialize()
   // for both-sided wear with discrete wear
   if (wearboth_ and wearpv_)
   {
-    const std::shared_ptr<Epetra_Map> masternodes =
+    const std::shared_ptr<Core::LinAlg::Map> masternodes =
         Core::LinAlg::allreduce_e_map(*(master_row_nodes()));
 
     for (int i = 0; i < masternodes->NumMyElements();
@@ -4014,7 +4016,7 @@ void Wear::WearInterface::initialize()
     {
       int gid = slave_col_elements()->GID(i);
       Core::Elements::Element* ele = discret().g_element(gid);
-      if (!ele) FOUR_C_THROW("Cannot find ele with gid %i", gid);
+      if (!ele) FOUR_C_THROW("Cannot find ele with gid {}", gid);
       Mortar::Element* mele = dynamic_cast<Mortar::Element*>(ele);
 
       mele->mo_data().search_elements().resize(0);
@@ -4042,13 +4044,15 @@ void Wear::WearInterface::split_slave_dofs()
   // get out of here if active set is empty
   if (snoderowmap_ == nullptr)
   {
-    sndofmap_ = std::make_shared<Epetra_Map>(0, 0, Core::Communication::as_epetra_comm(get_comm()));
+    sndofmap_ =
+        std::make_shared<Core::LinAlg::Map>(0, 0, Core::Communication::as_epetra_comm(get_comm()));
     return;
   }
 
   else if (snoderowmap_->NumGlobalElements() == 0)
   {
-    sndofmap_ = std::make_shared<Epetra_Map>(0, 0, Core::Communication::as_epetra_comm(get_comm()));
+    sndofmap_ =
+        std::make_shared<Core::LinAlg::Map>(0, 0, Core::Communication::as_epetra_comm(get_comm()));
     return;
   }
 
@@ -4085,7 +4089,7 @@ void Wear::WearInterface::split_slave_dofs()
     FOUR_C_THROW("SplitSlaveDofs: Splitting went wrong!");
 
   // create Nmap and Tmap objects
-  sndofmap_ = std::make_shared<Epetra_Map>(
+  sndofmap_ = std::make_shared<Core::LinAlg::Map>(
       gcountN, countN, myNgids.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
 
   return;
@@ -4100,13 +4104,15 @@ void Wear::WearInterface::split_master_dofs()
   // get out of here if active set is empty
   if (mnoderowmap_ == nullptr)
   {
-    mndofmap_ = std::make_shared<Epetra_Map>(0, 0, Core::Communication::as_epetra_comm(get_comm()));
+    mndofmap_ =
+        std::make_shared<Core::LinAlg::Map>(0, 0, Core::Communication::as_epetra_comm(get_comm()));
     return;
   }
 
   else if (mnoderowmap_->NumGlobalElements() == 0)
   {
-    mndofmap_ = std::make_shared<Epetra_Map>(0, 0, Core::Communication::as_epetra_comm(get_comm()));
+    mndofmap_ =
+        std::make_shared<Core::LinAlg::Map>(0, 0, Core::Communication::as_epetra_comm(get_comm()));
     return;
   }
 
@@ -4143,7 +4149,7 @@ void Wear::WearInterface::split_master_dofs()
     FOUR_C_THROW("SplitSlaveDofs: Splitting went wrong!");
 
   // create Nmap and Tmap objects
-  mndofmap_ = std::make_shared<Epetra_Map>(
+  mndofmap_ = std::make_shared<Core::LinAlg::Map>(
       gcountN, countN, myNgids.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
 
   return;
@@ -4217,7 +4223,7 @@ void Wear::WearInterface::update_w_sets(int offset_if, int maxdofwear, bool both
   // create interface w map
   // (if maxdofglobal_ == 0, we do not want / need this)
   if (maxdofwear > 0)
-    wdofmap_ = std::make_shared<Epetra_Map>(
+    wdofmap_ = std::make_shared<Core::LinAlg::Map>(
         -1, (int)wdof.size(), wdof.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
 
   //********************************************************************
@@ -4250,7 +4256,7 @@ void Wear::WearInterface::update_w_sets(int offset_if, int maxdofwear, bool both
     // create interface w map
     // (if maxdofglobal_ == 0, we do not want / need this)
     if (maxdofwear > 0)
-      wmdofmap_ = std::make_shared<Epetra_Map>(
+      wmdofmap_ = std::make_shared<Core::LinAlg::Map>(
           -1, (int)wmdof.size(), wmdof.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
   }
 

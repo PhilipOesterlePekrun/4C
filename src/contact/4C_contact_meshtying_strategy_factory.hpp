@@ -10,7 +10,7 @@
 
 #include "4C_config.hpp"
 
-#include "4C_inpar_contact.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_mortar_element.hpp"
 #include "4C_mortar_strategy_factory.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
@@ -54,7 +54,6 @@ namespace Mortar
        *
        * \param[in/out] params ParameterList with meshtying/contact parameters from input file
        *
-       * \author Popp
        */
       void read_and_check_input(Teuchos::ParameterList& params) const;
 
@@ -67,7 +66,6 @@ namespace Mortar
        *
        * \todo ToDo Get rid of poroslave and poromaster parameters.
        *
-       * \author Popp
        */
       void build_interfaces(const Teuchos::ParameterList& params,
           std::vector<std::shared_ptr<Mortar::Interface>>& interfaces, bool& poroslave,
@@ -83,7 +81,7 @@ namespace Mortar
        *
        * \todo ToDo Get rid of poroslave and poromaster parameters.
        *
-       * \author Popp */
+       * */
       std::shared_ptr<CONTACT::MtAbstractStrategy> build_strategy(
           const Teuchos::ParameterList& params, const bool& poroslave, const bool& poromaster,
           const int& dof_offset, std::vector<std::shared_ptr<Mortar::Interface>>& interfaces) const;
@@ -106,13 +104,13 @@ namespace Mortar
        * \note This routine can be used like a non-member function. If you need
        * access to the class members, use the alternative call.
        *
-       * \author hiermeier \date 03/17 */
+       * */
       static std::shared_ptr<CONTACT::MtAbstractStrategy> build_strategy(
-          const Inpar::CONTACT::SolvingStrategy stype, const Teuchos::ParameterList& params,
+          const CONTACT::SolvingStrategy stype, const Teuchos::ParameterList& params,
           const bool& poroslave, const bool& poromaster, const int& dof_offset,
           std::vector<std::shared_ptr<Mortar::Interface>>& interfaces,
-          const Epetra_Map* dof_row_map, const Epetra_Map* node_row_map, const int dim,
-          const MPI_Comm& comm_ptr, Mortar::StrategyDataContainer& data_ptr);
+          const Core::LinAlg::Map* dof_row_map, const Core::LinAlg::Map* node_row_map,
+          const int dim, const MPI_Comm& comm_ptr, Mortar::StrategyDataContainer& data_ptr);
 
      protected:
      private:

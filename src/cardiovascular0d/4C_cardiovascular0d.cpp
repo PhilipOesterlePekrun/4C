@@ -16,7 +16,6 @@
 #include "4C_linalg_serialdensevector.hpp"
 #include "4C_linalg_utils_densematrix_multiply.hpp"
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
-#include "4C_so3_surface.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 
@@ -306,7 +305,7 @@ void Utils::Cardiovascular0D::evaluate_d_struct_dp(
 
     std::shared_ptr<const Core::LinAlg::Vector<double>> disp =
         params.get<std::shared_ptr<const Core::LinAlg::Vector<double>>>("new disp");
-    actdisc_->set_state("displacement", disp);
+    actdisc_->set_state("displacement", *disp);
 
     // global and local ID of this bc in the redundant vectors
     std::vector<int> gindex(numdof_per_cond);
@@ -347,8 +346,7 @@ void Utils::Cardiovascular0D::evaluate_d_struct_dp(
       if (disp == nullptr) FOUR_C_THROW("Cannot get state vector 'displacement new'");
       std::shared_ptr<const Core::LinAlg::Vector<double>> curdispl =
           actdisc_->get_state("displacement");
-      std::vector<double> mydisp(lm.size());
-      Core::FE::extract_my_values(*curdispl, mydisp, lm);
+      std::vector<double> mydisp = Core::FE::extract_values(*curdispl, lm);
 
       for (int j = 0; j < numnode; ++j)
       {
@@ -495,11 +493,10 @@ void Utils::Cardiovascular0D::evaluate_d_struct_dp(
 
 /*-----------------------------------------------------------------------*
  *-----------------------------------------------------------------------*/
-void Utils::Cardiovascular0D::set_state(const std::string& state,  ///< name of state to set
-    std::shared_ptr<Core::LinAlg::Vector<double>> V                ///< values to set
-)
+void Utils::Cardiovascular0D::set_state(
+    const std::string& state, std::shared_ptr<Core::LinAlg::Vector<double>> V)
 {
-  actdisc_->set_state(state, V);
+  actdisc_->set_state(state, *V);
 }
 
 FOUR_C_NAMESPACE_CLOSE

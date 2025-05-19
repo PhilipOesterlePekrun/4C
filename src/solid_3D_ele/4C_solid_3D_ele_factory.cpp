@@ -18,6 +18,7 @@
 #include "4C_solid_3D_ele_calc_mulf_fbar.hpp"
 #include "4C_solid_3D_ele_calc_shell_ans.hpp"
 #include "4C_solid_3D_ele_properties.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_exceptions.hpp"
 
 #include <type_traits>
@@ -203,13 +204,13 @@ Discret::Elements::SolidCalcVariant Discret::Elements::create_solid_calculation_
   return Core::FE::cell_type_switch<Internal::ImplementedSolidCellTypes>(celltype,
       [&](auto celltype_t)
       {
-        return switch_kinematic_type(element_properties.kintype,
+        return EnumTools::enum_switch(
             [&](auto kinemtype_t)
             {
-              return element_technology_switch(element_properties.element_technology,
+              return EnumTools::enum_switch(
                   [&](auto eletech_t)
                   {
-                    return prestress_technology_switch(element_properties.prestress_technology,
+                    return EnumTools::enum_switch(
                         [&](auto prestress_tech_t) -> SolidCalcVariant
                         {
                           constexpr Core::FE::CellType celltype_c = celltype_t();
@@ -224,17 +225,19 @@ Discret::Elements::SolidCalcVariant Discret::Elements::create_solid_calculation_
                           }
 
                           FOUR_C_THROW(
-                              "Your element formulation with cell type %s, kinematic type %s,"
-                              " element technology %s and prestress type %s does not exist ",
+                              "Your element formulation with cell type {}, kinematic type {},"
+                              " element technology {} and prestress type {} does not exist ",
                               Core::FE::celltype_string<celltype_t()>,
                               Inpar::Solid::kinem_type_string(element_properties.kintype).c_str(),
                               element_technology_string(element_properties.element_technology)
                                   .c_str(),
-                              prestress_technology_string(element_properties.prestress_technology)
-                                  .c_str());
-                        });
-                  });
-            });
+                              element_properties.prestress_technology);
+                        },
+                        element_properties.prestress_technology);
+                  },
+                  element_properties.element_technology);
+            },
+            element_properties.kintype);
       });
 }
 

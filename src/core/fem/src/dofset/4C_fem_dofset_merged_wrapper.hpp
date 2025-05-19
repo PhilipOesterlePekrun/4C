@@ -67,10 +67,10 @@ namespace Core::DOFSets
     //@}
 
     /// Get degree of freedom row map
-    const Epetra_Map* dof_row_map() const override;
+    const Core::LinAlg::Map* dof_row_map() const override;
 
     /// Get degree of freedom column map
-    const Epetra_Map* dof_col_map() const override;
+    const Core::LinAlg::Map* dof_col_map() const override;
 
     //! @name Access methods
 
@@ -217,9 +217,9 @@ namespace Core::DOFSets
 
     /// Get Max of all GID assigned in the DofSets in front of current one in the list
     /// #static_dofsets_
-    int max_gi_din_list(MPI_Comm comm) const override
+    int max_gid_in_list(MPI_Comm comm) const override
     {
-      return sourcedofset_->max_gi_din_list(comm);
+      return sourcedofset_->max_gid_in_list(comm);
     };
 
     /// are the dof maps already initialized?
@@ -233,7 +233,7 @@ namespace Core::DOFSets
     const Core::Nodes::Node* get_master_node(int slaveLid) const
     {
       FOUR_C_ASSERT(
-          slaveLid < master_nodegids_col_layout_->MyLength(), "Slave node Lid out of range!");
+          slaveLid < master_nodegids_col_layout_->local_length(), "Slave node Lid out of range!");
       int mastergid = (*master_nodegids_col_layout_)[slaveLid];
       // std::cout<<"master gid = "<<mastergid<<" <-> slave lid ="<<slaveLid<<"  size of map =
       // "<<master_nodegids_col_layout_->MyLength()<<std::endl;
@@ -244,7 +244,7 @@ namespace Core::DOFSets
     const Core::Nodes::Node* get_slave_node(int masterLid) const
     {
       FOUR_C_ASSERT(
-          masterLid < slave_nodegids_col_layout_->MyLength(), "Master node Lid out of range!");
+          masterLid < slave_nodegids_col_layout_->local_length(), "Master node Lid out of range!");
       int slavegid = (*slave_nodegids_col_layout_)[masterLid];
       return sourcedis_->g_node(slavegid);
     }

@@ -48,6 +48,16 @@ void CONTACT::NitscheStrategyPoro::apply_force_stiff_cmt(
   //    }
 }
 
+void CONTACT::NitscheStrategyPoro::integrate(const CONTACT::ParamsInterface& cparams)
+{
+  CONTACT::NitscheStrategy::integrate(cparams);
+
+  fp_ = create_rhs_block_ptr(CONTACT::VecBlockType::porofluid);
+  kpp_ = create_matrix_block_ptr(CONTACT::MatBlockType::porofluid_porofluid);
+  kpd_ = create_matrix_block_ptr(CONTACT::MatBlockType::porofluid_displ);
+  kdp_ = create_matrix_block_ptr(CONTACT::MatBlockType::displ_porofluid);
+}
+
 void CONTACT::NitscheStrategyPoro::set_state(
     const enum Mortar::StateType& statename, const Core::LinAlg::Vector<double>& vec)
 {
@@ -91,8 +101,7 @@ void CONTACT::NitscheStrategyPoro::set_parent_state(const enum Mortar::StateType
           // this gets values in local order
           ele->parent_slave_element()->location_vector(dis, lm, lmowner, lmstride);
 
-          std::vector<double> myval;
-          Core::FE::extract_my_values(global, myval, lm);
+          std::vector<double> myval = Core::FE::extract_values(global, lm);
 
           std::vector<double> vel;
           std::vector<double> pres;
@@ -124,7 +133,7 @@ std::shared_ptr<Epetra_FEVector> CONTACT::NitscheStrategyPoro::setup_rhs_block_v
   {
     case CONTACT::VecBlockType::porofluid:
       return std::make_shared<Epetra_FEVector>(
-          *Global::Problem::instance()->get_dis("porofluid")->dof_row_map());
+          Global::Problem::instance()->get_dis("porofluid")->dof_row_map()->get_epetra_map());
     default:
       return CONTACT::NitscheStrategy::setup_rhs_block_vec(bt);
   }
@@ -171,17 +180,27 @@ void CONTACT::NitscheStrategyPoro::complete_matrix_block_ptr(
   {
     case CONTACT::MatBlockType::displ_porofluid:
       if (dynamic_cast<Epetra_FECrsMatrix&>(*kc->epetra_matrix())
-              .GlobalAssemble(
-                  *Global::Problem::instance()->get_dis("porofluid")->dof_row_map(),  // col map
-                  *Global::Problem::instance()->get_dis("structure")->dof_row_map(),  // row map
+              .GlobalAssemble(Global::Problem::instance()
+                                  ->get_dis("porofluid")
+                                  ->dof_row_map()
+                                  ->get_epetra_map(),  // col map
+                  Global::Problem::instance()
+                      ->get_dis("structure")
+                      ->dof_row_map()
+                      ->get_epetra_map(),  // row map
                   true, Add))
         FOUR_C_THROW("GlobalAssemble(...) failed");
       break;
     case CONTACT::MatBlockType::porofluid_displ:
       if (dynamic_cast<Epetra_FECrsMatrix&>(*kc->epetra_matrix())
-              .GlobalAssemble(
-                  *Global::Problem::instance()->get_dis("structure")->dof_row_map(),  // col map
-                  *Global::Problem::instance()->get_dis("porofluid")->dof_row_map(),  // row map
+              .GlobalAssemble(Global::Problem::instance()
+                                  ->get_dis("structure")
+                                  ->dof_row_map()
+                                  ->get_epetra_map(),  // col map
+                  Global::Problem::instance()
+                      ->get_dis("porofluid")
+                      ->dof_row_map()
+                      ->get_epetra_map(),  // row map
                   true, Add))
         FOUR_C_THROW("GlobalAssemble(...) failed");
       break;

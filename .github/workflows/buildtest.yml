@@ -3,10 +3,10 @@ name: buildtest
 on:
   pull_request:
     branches:
-      - 'main'
+      - main
   push:
     branches:
-      - 'main'
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -16,7 +16,7 @@ jobs:
   gcc13_assertions_build:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/4c-multiphysics/4c-dependencies-ubuntu24.04:28cfb9d0
+      image: ghcr.io/4c-multiphysics/4c-dependencies-ubuntu24.04:49ffc8b8
       options: --user root --env OMPI_ALLOW_RUN_AS_ROOT=1 --env OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
     defaults:
       run:
@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref != 'refs/heads/main'
     container:
-      image: ghcr.io/4c-multiphysics/4c-dependencies-ubuntu24.04:28cfb9d0
+      image: ghcr.io/4c-multiphysics/4c-dependencies-ubuntu24.04:49ffc8b8
       options: --user root --env OMPI_ALLOW_RUN_AS_ROOT=1 --env OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
     strategy:
       fail-fast: false
@@ -70,6 +70,7 @@ jobs:
       - uses: ./.github/actions/download_4C_build
         with:
           build-job: gcc13_assertions_build
+          destination: ${{ github.workspace }}/build
       - name: Test
         run: |
           cd $GITHUB_WORKSPACE/build
@@ -101,7 +102,7 @@ jobs:
   clang18_build:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/4c-multiphysics/4c-dependencies-ubuntu24.04:28cfb9d0
+      image: ghcr.io/4c-multiphysics/4c-dependencies-ubuntu24.04:49ffc8b8
       options: --user root --env OMPI_ALLOW_RUN_AS_ROOT=1 --env OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
     defaults:
       run:
@@ -133,12 +134,19 @@ jobs:
           path: |
             ${{ github.workspace }}/build/4C_schema.json
           retention-days: 1
+      - name: Upload 4C metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.job }}-metadata
+          path: |
+            ${{ github.workspace }}/build/4C_metadata.yaml
+          retention-days: 1
 
   clang18_test_minimal:
     needs: clang18_build
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/4c-multiphysics/4c-dependencies-ubuntu24.04:28cfb9d0
+      image: ghcr.io/4c-multiphysics/4c-dependencies-ubuntu24.04:49ffc8b8
       options: --user root --env OMPI_ALLOW_RUN_AS_ROOT=1 --env OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
     defaults:
       run:
@@ -154,6 +162,7 @@ jobs:
       - uses: ./.github/actions/download_4C_build
         with:
           build-job: clang18_build
+          destination: ${{ github.workspace }}/build
       - name: Test
         run: |
           cd $GITHUB_WORKSPACE/build
@@ -163,7 +172,7 @@ jobs:
     needs: clang18_build
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/4c-multiphysics/4c-dependencies-ubuntu24.04:28cfb9d0
+      image: ghcr.io/4c-multiphysics/4c-dependencies-ubuntu24.04:49ffc8b8
       options: --user root --env OMPI_ALLOW_RUN_AS_ROOT=1 --env OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
     defaults:
       run:
@@ -212,9 +221,66 @@ jobs:
           yaml_extension_short: .4C.yml
           json_extension: .4C.json
 
+  gcc13_no_optional_dependencies_build:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/4c-multiphysics/4c-dependencies-ubuntu24.04:49ffc8b8
+      options: --user root --env OMPI_ALLOW_RUN_AS_ROOT=1 --env OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check docker hash
+        uses: ./.github/actions/compute-and-check-dependencies-hash
+      - uses: ./.github/actions/build_4C
+        with:
+          cmake-preset: docker_no_optional_dependencies
+          build-targets: full
+          build-directory: ${{ github.workspace }}/build
+          use-ccache: "true"
+      - uses: ./.github/actions/upload_4C_build
+        with:
+          build-directory: ${{ github.workspace }}/build
+          retention-days: 1
+
+  gcc13_no_optional_dependencies_test:
+    needs: gcc13_no_optional_dependencies_build
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/4c-multiphysics/4c-dependencies-ubuntu24.04:49ffc8b8
+      options: --user root --env OMPI_ALLOW_RUN_AS_ROOT=1 --env OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check docker hash
+        uses: ./.github/actions/compute-and-check-dependencies-hash
+      - name: Setup developer environment for testing
+        run: |
+          cd $GITHUB_WORKSPACE
+          git config --global --add safe.directory $GITHUB_WORKSPACE
+      - uses: ./.github/actions/download_4C_build
+        with:
+          build-job: gcc13_no_optional_dependencies_build
+          destination: ${{ github.workspace }}/build
+      - name: Test
+        run: |
+          cd $GITHUB_WORKSPACE/build
+          ctest -L minimal -j `nproc` --output-on-failure
+
   ensure_all_tests_pass:
-    needs: [gcc13_assertions_test, gcc13_assertions_test_report, gcc13_assertions_build, clang18_build,
-      clang18_test_minimal, clang18_test_install, clang18_verify_schema]
+    needs:
+      - gcc13_assertions_test
+      - gcc13_assertions_test_report
+      - gcc13_assertions_build
+      - clang18_build
+      - clang18_test_minimal
+      - clang18_test_install
+      - clang18_verify_schema
+      - gcc13_no_optional_dependencies_build
+      - gcc13_no_optional_dependencies_test
     runs-on: ubuntu-latest
     if: always() && github.ref != 'refs/heads/main'
     steps:

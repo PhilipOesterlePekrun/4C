@@ -15,8 +15,6 @@
 #include "4C_linalg_vector.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
 
-#include <Epetra_Operator.h>
-#include <Epetra_RowMatrix.h>
 #include <Teuchos_ParameterList.hpp>
 
 #include <memory>
@@ -83,22 +81,22 @@ namespace Utils
         Teuchos::ParameterList scalelist);
 
     /*!
-     \brief Return cardiovascular0d rhs norm at generalized midpoint $t_{n+\theta}$
+     \brief Return cardiovascular0d rhs norm at generalized midpoint \f$t_{n+\theta}\f$
     */
     double get_cardiovascular0_drhs_norm() const
     {
       double foo;
-      cardvasc0d_res_m_->Norm2(&foo);
+      cardvasc0d_res_m_->norm_2(&foo);
       return foo;
     };
 
     /*!
-     \brief Return cardiovascular0d rhs norm at generalized midpoint $t_{n+\theta}$
+     \brief Return cardiovascular0d rhs norm at generalized midpoint \f$t_{n+\theta}\f$
     */
     double get_cardiovascular0_drhs_inf_norm() const
     {
       double foo;
-      cardvasc0d_res_m_->NormInf(&foo);
+      cardvasc0d_res_m_->norm_inf(&foo);
       return foo;
     };
 
@@ -108,12 +106,12 @@ namespace Utils
     double get_cardiovascular0_d_dof_incr_norm() const
     {
       double foo;
-      cv0ddofincrement_->Norm2(&foo);
+      cv0ddofincrement_->norm_2(&foo);
       return foo;
     };
 
     /*!
-     \brief Return cardiovascular0d rhs norm at generalized midpoint $t_{n+\theta}$
+     \brief Return cardiovascular0d rhs norm at generalized midpoint \f$t_{n+\theta}\f$
     */
     int get_cardiovascular0_d_lin_solve_error() const { return linsolveerror_; };
 
@@ -149,7 +147,7 @@ namespace Utils
     );
 
     /*!
-         \brief Return cardiovascular0d rhs at generalized midpoint $t_{n+\theta}$
+         \brief Return cardiovascular0d rhs at generalized midpoint \f$t_{n+\theta}\f$
     */
     std::shared_ptr<Core::LinAlg::Vector<double>> get_cardiovascular0_drhs() const
     {
@@ -157,10 +155,10 @@ namespace Utils
     }
 
     /*!
-     \brief Return EpetraMap that determined distribution of Cardiovascular0D functions and
+     \brief Return map that determined distribution of Cardiovascular0D functions and
      pressures over processors
     */
-    std::shared_ptr<Epetra_Map> get_cardiovascular0_d_map() const
+    std::shared_ptr<Core::LinAlg::Map> get_cardiovascular0_d_map() const
     {
       return cardiovascular0dmap_full_;
     };
@@ -247,20 +245,20 @@ namespace Utils
     void set0_d_v_n(Core::LinAlg::Vector<double>& newval  ///< new reference base values
     )
     {
-      v_n_->Update(1.0, newval, 0.0);
+      v_n_->update(1.0, newval, 0.0);
     }
 
     /// set df_n, f_n
     void set0_d_df_n(Core::LinAlg::Vector<double>& newval  ///< new Cardiovascular0D dofs
     )
     {
-      cardvasc0d_df_n_->Update(1.0, newval, 0.0);
+      cardvasc0d_df_n_->update(1.0, newval, 0.0);
       return;
     }
     void set0_d_f_n(Core::LinAlg::Vector<double>& newval  ///< new Cardiovascular0D dofs
     )
     {
-      cardvasc0d_f_n_->Update(1.0, newval, 0.0);
+      cardvasc0d_f_n_->update(1.0, newval, 0.0);
       return;
     }
 
@@ -268,8 +266,8 @@ namespace Utils
     void set0_d_dof_n(Core::LinAlg::Vector<double>& newdof  ///< new Cardiovascular0D dofs
     )
     {
-      cv0ddof_np_->Update(1.0, newdof, 0.0);
-      cv0ddof_n_->Update(1.0, newdof, 0.0);
+      cv0ddof_np_->update(1.0, newdof, 0.0);
+      cv0ddof_n_->update(1.0, newdof, 0.0);
       return;
     }
 
@@ -345,11 +343,11 @@ namespace Utils
         cardiovascular0ddofset_full_;  ///< degrees of freedom of pressures
     std::shared_ptr<Cardiovascular0DDofSet>
         cardiovascular0ddofset_;  ///< (reduced) degrees of freedom of pressures
-    std::shared_ptr<Epetra_Map>
+    std::shared_ptr<Core::LinAlg::Map>
         cardiovascular0dmap_full_;  ///< unique map of Cardiovascular0D values
-    std::shared_ptr<Epetra_Map>
+    std::shared_ptr<Core::LinAlg::Map>
         cardiovascular0dmap_;  ///< unique map of (reduced) Cardiovascular0D values
-    std::shared_ptr<Epetra_Map>
+    std::shared_ptr<Core::LinAlg::Map>
         redcardiovascular0dmap_;  ///< fully redundant map of Cardiovascular0D values
     std::shared_ptr<Epetra_Export>
         cardvasc0dimpo_;  ///< importer for fully redundant Cardiovascular0D

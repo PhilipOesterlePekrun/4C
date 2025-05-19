@@ -21,6 +21,7 @@
 #include "4C_structure_new_timint_basedataglobalstate.hpp"
 #include "4C_structure_new_timint_basedataio.hpp"
 #include "4C_structure_new_timint_basedataio_monitor_dbc.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 
@@ -98,8 +99,7 @@ int Solid::MonitorDbc::get_unique_id(int tagged_id, Core::Conditions::GeometryTy
     case Core::Conditions::geometry_type_surface:
       return tagged_id + 10000;
     default:
-      FOUR_C_THROW("Unsupported geometry type! (enum=%d)", gtype);
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("Unsupported geometry type! (enum={})", gtype);
   }
 }
 
@@ -111,8 +111,8 @@ void Solid::MonitorDbc::create_reaction_force_condition(
   const int new_id = get_unique_id(tagged_cond.id(), tagged_cond.g_type());
 
   std::shared_ptr<Core::Conditions::Condition> rcond_ptr =
-      std::make_shared<Core::Conditions::Condition>(
-          new_id, Core::Conditions::ElementTag, true, tagged_cond.g_type());
+      std::make_shared<Core::Conditions::Condition>(new_id, Core::Conditions::ElementTag, true,
+          tagged_cond.g_type(), Core::Conditions::EntityType::legacy_id);
 
   rcond_ptr->parameters().add("ONOFF", (tagged_cond.parameters().get<std::vector<int>>("ONOFF")));
   rcond_ptr->set_nodes(*tagged_cond.get_nodes());
@@ -129,7 +129,7 @@ void Solid::MonitorDbc::setup()
   const Teuchos::ParameterList& sublist_IO_monitor_structure_dbc =
       Global::Problem::instance()->io_params().sublist("MONITOR STRUCTURE DBC");
 
-  std::string filetype = Teuchos::getStringValue<Inpar::IOMonitorStructureDBC::FileType>(
+  auto filetype = Teuchos::getIntegralValue<Inpar::IOMonitorStructureDBC::FileType>(
       sublist_IO_monitor_structure_dbc, "FILE_TYPE");
   if (isempty_)
   {
@@ -143,10 +143,10 @@ void Solid::MonitorDbc::setup()
   {
     Core::Conditions::Condition& rcond = *rcond_ptr;
     auto ipair = react_maps_.insert(
-        std::make_pair(rcond.id(), std::vector<std::shared_ptr<Epetra_Map>>(3, nullptr)));
+        std::make_pair(rcond.id(), std::vector<std::shared_ptr<Core::LinAlg::Map>>(3, nullptr)));
 
     if (not ipair.second)
-      FOUR_C_THROW("The reaction condition id #%d seems to be non-unique!", rcond.id());
+      FOUR_C_THROW("The reaction condition id #{} seems to be non-unique!", rcond.id());
 
     create_reaction_maps(*discret_ptr_, rcond, ipair.first->second.data());
   }
@@ -158,7 +158,8 @@ void Solid::MonitorDbc::setup()
       Global::Problem::instance()->output_control_file()->file_name_only_prefix());
   Core::IO::create_directory(full_dirpath, Core::Communication::my_mpi_rank(get_comm()));
   // ... create files paths ...
-  full_filepaths_ = create_file_paths(rconds, full_dirpath, filename_only_prefix, filetype);
+  full_filepaths_ =
+      create_file_paths(rconds, full_dirpath, filename_only_prefix, to_string(filetype));
   // ... clear them and write header
   clear_files_and_write_header(
       rconds, full_filepaths_, sublist_IO_monitor_structure_dbc.get<bool>("WRITE_HEADER"));
@@ -171,8 +172,8 @@ void Solid::MonitorDbc::setup()
     const std::string filename_restart_only_prefix(Core::IO::extract_file_name(
         Global::Problem::instance()->output_control_file()->restart_name()));
 
-    std::vector<std::string> full_restart_filepaths =
-        create_file_paths(rconds, full_restart_dirpath, filename_restart_only_prefix, filetype);
+    std::vector<std::string> full_restart_filepaths = create_file_paths(
+        rconds, full_restart_dirpath, filename_restart_only_prefix, to_string(filetype));
 
     read_results_prior_restart_step_and_write_to_file(
         full_restart_filepaths, gstate_ptr_->get_step_n());
@@ -184,7 +185,7 @@ void Solid::MonitorDbc::setup()
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
 void Solid::MonitorDbc::create_reaction_maps(const Core::FE::Discretization& discret,
-    const Core::Conditions::Condition& rcond, std::shared_ptr<Epetra_Map>* react_maps) const
+    const Core::Conditions::Condition& rcond, std::shared_ptr<Core::LinAlg::Map>* react_maps) const
 {
   const auto onoff = rcond.parameters().get<std::vector<int>>("ONOFF");
   const auto* nids = rcond.get_nodes();
@@ -207,7 +208,7 @@ void Solid::MonitorDbc::create_reaction_maps(const Core::FE::Discretization& dis
   }
 
   for (unsigned i = 0; i < DIM; ++i)
-    react_maps[i] = std::make_shared<Epetra_Map>(
+    react_maps[i] = std::make_shared<Core::LinAlg::Map>(
         -1, my_dofs[i].size(), my_dofs[i].data(), 0, Core::Communication::as_epetra_comm(comm));
 }
 
@@ -280,8 +281,8 @@ void Solid::MonitorDbc::execute(Core::IO::DiscretizationWriter& writer)
   std::array<double, 2> area = {0.0, 0.0};
   double& area_ref = area[0];
   double& area_curr = area[1];
-  Core::LinAlg::Matrix<DIM, 1> rforce_xyz(false);
-  Core::LinAlg::Matrix<DIM, 1> rmoment_xyz(false);
+  Core::LinAlg::Matrix<DIM, 1> rforce_xyz(Core::LinAlg::Initialization::uninitialized);
+  Core::LinAlg::Matrix<DIM, 1> rmoment_xyz(Core::LinAlg::Initialization::uninitialized);
 
   auto filepath = full_filepaths_.cbegin();
   for (const std::shared_ptr<Core::Conditions::Condition>& rcond_ptr : rconds)
@@ -462,8 +463,7 @@ void Solid::MonitorDbc::get_area(double area[], const Core::Conditions::Conditio
 
     for (unsigned i = 0; i < num_fnodes; ++i) discret.dof(fele, fnodes[i], fele_dofs);
 
-    std::vector<double> mydispn;
-    Core::FE::extract_my_values(dispn_col, mydispn, fele_dofs);
+    std::vector<double> mydispn = Core::FE::extract_values(dispn_col, fele_dofs);
 
     xyze_ref.reshape(DIM, num_fnodes);
     xyze_curr.reshape(DIM, num_fnodes);
@@ -505,20 +505,20 @@ void Solid::MonitorDbc::get_area(double area[], const Core::Conditions::Conditio
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-double Solid::MonitorDbc::get_reaction_force(
-    Core::LinAlg::Matrix<DIM, 1>& rforce_xyz, const std::shared_ptr<Epetra_Map>* react_maps) const
+double Solid::MonitorDbc::get_reaction_force(Core::LinAlg::Matrix<DIM, 1>& rforce_xyz,
+    const std::shared_ptr<Core::LinAlg::Map>* react_maps) const
 {
   Core::LinAlg::Vector<double> complete_freact(*gstate_ptr_->get_freact_np());
   dbc_ptr_->rotate_global_to_local(complete_freact);
 
-  Core::LinAlg::Matrix<DIM, 1> lrforce_xyz(true);
+  Core::LinAlg::Matrix<DIM, 1> lrforce_xyz(Core::LinAlg::Initialization::zero);
   for (unsigned d = 0; d < DIM; ++d)
   {
     std::shared_ptr<Core::LinAlg::Vector<double>> partial_freact_ptr =
         Core::LinAlg::extract_my_vector(complete_freact, *(react_maps[d]));
 
     double& lrforce_comp = lrforce_xyz(d, 0);
-    const double* vals = partial_freact_ptr->Values();
+    const double* vals = partial_freact_ptr->get_values();
     for (int i = 0; i < react_maps[d]->NumMyElements(); ++i) lrforce_comp += vals[i];
   }
 
@@ -530,17 +530,18 @@ double Solid::MonitorDbc::get_reaction_force(
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
 double Solid::MonitorDbc::get_reaction_moment(Core::LinAlg::Matrix<DIM, 1>& rmoment_xyz,
-    const std::shared_ptr<Epetra_Map>* react_maps, const Core::Conditions::Condition* rcond) const
+    const std::shared_ptr<Core::LinAlg::Map>* react_maps,
+    const Core::Conditions::Condition* rcond) const
 {
   std::shared_ptr<const Core::LinAlg::Vector<double>> dispn = gstate_ptr_->get_dis_np();
 
   Core::LinAlg::Vector<double> complete_freact(*gstate_ptr_->get_freact_np());
   dbc_ptr_->rotate_global_to_local(complete_freact);
 
-  Core::LinAlg::Matrix<DIM, 1> lrmoment_xyz(true);
-  Core::LinAlg::Matrix<DIM, 1> node_reaction_force(true);
-  Core::LinAlg::Matrix<DIM, 1> node_position(true);
-  Core::LinAlg::Matrix<DIM, 1> node_reaction_moment(true);
+  Core::LinAlg::Matrix<DIM, 1> lrmoment_xyz(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<DIM, 1> node_reaction_force(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<DIM, 1> node_position(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<DIM, 1> node_reaction_moment(Core::LinAlg::Initialization::zero);
   std::vector<int> node_gid(3);
 
   const auto onoff = rcond->parameters().get<std::vector<int>>("ONOFF");
@@ -561,8 +562,7 @@ double Solid::MonitorDbc::get_reaction_moment(Core::LinAlg::Matrix<DIM, 1>& rmom
 
     for (unsigned i = 0; i < DIM; ++i) node_gid[i] = discret_ptr_->dof(node, i);
 
-    std::vector<double> mydisp;
-    Core::FE::extract_my_values(*dispn, mydisp, node_gid);
+    std::vector<double> mydisp = Core::FE::extract_values(*dispn, node_gid);
     for (unsigned i = 0; i < DIM; ++i) node_position(i) = node->x()[i] + mydisp[i];
 
     // Get the reaction force at this node. This force will only contain non-zero values at the DOFs
@@ -572,10 +572,10 @@ double Solid::MonitorDbc::get_reaction_moment(Core::LinAlg::Matrix<DIM, 1>& rmom
     {
       if (onoff[i] == 1)
       {
-        const int lid = complete_freact.Map().LID(node_gid[i]);
+        const int lid = complete_freact.get_block_map().LID(node_gid[i]);
         if (lid < 0)
-          FOUR_C_THROW("Proc %d: Cannot find gid=%d in Core::LinAlg::Vector<double>",
-              Core::Communication::my_mpi_rank(complete_freact.Comm()), node_gid[i]);
+          FOUR_C_THROW("Proc {}: Cannot find gid={} in Core::LinAlg::Vector<double>",
+              Core::Communication::my_mpi_rank(complete_freact.get_comm()), node_gid[i]);
         node_reaction_force(i) = complete_freact[lid];
       }
     }

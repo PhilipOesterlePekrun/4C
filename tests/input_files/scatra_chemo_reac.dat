@@ -19,7 +19,6 @@ RANDSEED                        -1
 -----------------------------------------------------------------IO
 OUTPUT_BIN                      yes
 STRUCT_DISP                     Yes
-STRUCT_VEL_ACC                  No
 STRUCT_STRESS                   No
 STRUCT_COUPLING_STRESS          No
 STRUCT_STRAIN                   No
@@ -82,6 +81,7 @@ CONSISTENCY                     no
 -----------------------------------------------------------SOLVER 1
 NAME                            ScaTraSolver
 SOLVER                          Belos
+IFPACK_XML_FILE                 xml/preconditioner/ifpack.xml
 AZSOLVE                         GMRES
 AZPREC                          ILU
 AZTOL                           1e-12

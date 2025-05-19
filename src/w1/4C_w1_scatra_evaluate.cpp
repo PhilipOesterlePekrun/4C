@@ -40,8 +40,7 @@ void Discret::Elements::Wall1Scatra::pre_evaluate(Teuchos::ParameterList& params
       if (phinp == nullptr) FOUR_C_THROW("pre_evaluate: Cannot get state vector 'phinp' ");
 
       // extract local values of the global vectors
-      std::vector<double> myphi(la[1].lm_.size());
-      Core::FE::extract_my_values(*phinp, myphi, la[1].lm_);
+      std::vector<double> myphi = Core::FE::extract_values(*phinp, la[1].lm_);
 
       double meanphi = 0.0;
       for (int i = 0; i < numnode; ++i)
@@ -58,7 +57,7 @@ void Discret::Elements::Wall1Scatra::pre_evaluate(Teuchos::ParameterList& params
         std::dynamic_pointer_cast<Core::Mat::Material>(scatraele->material());
     params.set<std::shared_ptr<Core::Mat::Material>>("scatramat", scatramat);
   }
-  Core::LinAlg::Matrix<2, 1> xrefe(true);
+  Core::LinAlg::Matrix<2, 1> xrefe(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < numnode; ++i)
   {
     const auto& x = nodes()[i]->x();
@@ -72,11 +71,9 @@ void Discret::Elements::Wall1Scatra::pre_evaluate(Teuchos::ParameterList& params
  *----------------------------------------------------------------------*/
 int Discret::Elements::Wall1Scatra::my_evaluate(Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, Core::Elements::LocationArray& la,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3)
 {
   return 0;
 }
@@ -86,11 +83,9 @@ int Discret::Elements::Wall1Scatra::my_evaluate(Teuchos::ParameterList& params,
  *----------------------------------------------------------------------*/
 int Discret::Elements::Wall1Scatra::evaluate(Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, Core::Elements::LocationArray& la,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3)
 {
   set_params_interface_ptr(params);
 
@@ -119,11 +114,11 @@ int Discret::Elements::Wall1Scatra::evaluate(Teuchos::ParameterList& params,
       //    MyEvaluate(params,
       //                      discretization,
       //                      la,
-      //                      elemat1_epetra,
-      //                      elemat2_epetra,
-      //                      elevec1_epetra,
-      //                      elevec2_epetra,
-      //                      elevec3_epetra);
+      //                      elemat1,
+      //                      elemat2,
+      //                      elevec1,
+      //                      elevec2,
+      //                      elevec3);
       //  }
       //  break;
       //  case Wall1_Scatra::postprocess_stress:
@@ -131,11 +126,11 @@ int Discret::Elements::Wall1Scatra::evaluate(Teuchos::ParameterList& params,
       //    Wall1::evaluate(params,
       //                          discretization,
       //                          la[0].lm_,
-      //                          elemat1_epetra,
-      //                          elemat2_epetra,
-      //                          elevec1_epetra,
-      //                          elevec2_epetra,
-      //                          elevec3_epetra);
+      //                          elemat1,
+      //                          elemat2,
+      //                          elevec1,
+      //                          elevec2,
+      //                          elevec3);
       //  }
       //  break;
     /*case Wall1_Scatra::calc_struct_update_istep:
@@ -143,11 +138,11 @@ int Discret::Elements::Wall1Scatra::evaluate(Teuchos::ParameterList& params,
       So3Ele::evaluate(params,
                         discretization,
                         la[0].lm_,
-                        elemat1_epetra,
-                        elemat2_epetra,
-                        elevec1_epetra,
-                        elevec2_epetra,
-                        elevec3_epetra);
+                        elemat1,
+                        elemat2,
+                        elevec1,
+                        elevec2,
+                        elevec3);
     }
     break;*/
     //==================================================================================
@@ -157,11 +152,10 @@ int Discret::Elements::Wall1Scatra::evaluate(Teuchos::ParameterList& params,
 
       pre_evaluate(params, discretization, la);
 
-      Wall1::evaluate(params, discretization, la[0].lm_, elemat1_epetra, elemat2_epetra,
-          elevec1_epetra, elevec2_epetra, elevec3_epetra);
+      Wall1::evaluate(
+          params, discretization, la[0].lm_, elemat1, elemat2, elevec1, elevec2, elevec3);
 
-      my_evaluate(params, discretization, la, elemat1_epetra, elemat2_epetra, elevec1_epetra,
-          elevec2_epetra, elevec3_epetra);
+      my_evaluate(params, discretization, la, elemat1, elemat2, elevec1, elevec2, elevec3);
 
       break;
     }

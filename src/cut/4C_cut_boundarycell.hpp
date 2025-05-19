@@ -95,16 +95,15 @@ namespace Cut
     template <Core::FE::CellType celldistype>
     void assign_offset(int idx, double offset)
     {
-      Core::LinAlg::Matrix<3, Core::FE::num_nodes<celldistype>> xyz_mat(xyz_, true);
-      for (unsigned int n = 0; n < Core::FE::num_nodes<celldistype>; ++n) xyz_mat(idx, n) += offset;
+      Core::LinAlg::Matrix<3, Core::FE::num_nodes(celldistype)> xyz_mat(xyz_, true);
+      for (unsigned int n = 0; n < Core::FE::num_nodes(celldistype); ++n) xyz_mat(idx, n) += offset;
     }
 
     /*! \brief Get the coordinates of the corner points of boundarycell
      *
      *  To make it easier with DD data structures (should be removed at some point)
      *
-     *  \author winter
-     *  \date 07/15 */
+     */
     std::vector<std::vector<double>> coordinates_v();
 
     /*!
@@ -143,8 +142,7 @@ namespace Cut
      *
      *  just for debugging
      *
-     *  \author sudhakar
-     *  \date 10/14
+
      */
     void print(std::ostream& stream);
     void print() { print(std::cout); }
@@ -168,13 +166,13 @@ namespace Cut
     void transform(const Core::LinAlg::Matrix<2, 1>& eta, Core::LinAlg::Matrix<3, 1>& x_gp_lin,
         Core::LinAlg::Matrix<3, 1>& normal, double& drs, bool referencepos = false)
     {
-      const int numnodes = Core::FE::num_nodes<celldistype>;
+      const int numnodes = Core::FE::num_nodes(celldistype);
       Core::LinAlg::Matrix<3, numnodes> xyze(xyz_, true);
       if (referencepos) xyze = Core::LinAlg::Matrix<3, numnodes>(xyz_ref_, true);
 
-      Core::LinAlg::Matrix<numnodes, 1> funct(false);
-      Core::LinAlg::Matrix<2, numnodes> deriv(false);
-      Core::LinAlg::Matrix<2, 2> metrictensor(false);
+      Core::LinAlg::Matrix<numnodes, 1> funct(Core::LinAlg::Initialization::uninitialized);
+      Core::LinAlg::Matrix<2, numnodes> deriv(Core::LinAlg::Initialization::uninitialized);
+      Core::LinAlg::Matrix<2, 2> metrictensor(Core::LinAlg::Initialization::uninitialized);
 
       Core::FE::shape_function_2d(funct, eta(0), eta(1), celldistype);
 
@@ -189,9 +187,9 @@ namespace Cut
         // For Tri's this method of determining the area and thus the gp-weights is more robust.
         //  It is needed for TRI's which are small/ill-conditioned but large enough to affect the
         //  simulation.
-        static Core::LinAlg::Matrix<3, 1> p0(true);
-        static Core::LinAlg::Matrix<3, 1> p1(true);
-        static Core::LinAlg::Matrix<3, 1> p2(true);
+        static Core::LinAlg::Matrix<3, 1> p0(Core::LinAlg::Initialization::zero);
+        static Core::LinAlg::Matrix<3, 1> p1(Core::LinAlg::Initialization::zero);
+        static Core::LinAlg::Matrix<3, 1> p2(Core::LinAlg::Initialization::zero);
         for (unsigned dim = 0; dim < 3; ++dim)
         {
           p0(dim) = xyze(dim, 0);
@@ -209,7 +207,7 @@ namespace Cut
     /// Reset the point with local index lid
     void reset_pos(int lid, Core::LinAlg::Matrix<3, 1> newpos)
     {
-      if (lid > xyz_.numCols()) FOUR_C_THROW("Index out of range! %d > %d", lid, xyz_.numCols());
+      if (lid > xyz_.numCols()) FOUR_C_THROW("Index out of range! {} > {}", lid, xyz_.numCols());
 
       xyz_(0, lid) = newpos(0, 0);
       xyz_(1, lid) = newpos(1, 0);
@@ -245,7 +243,7 @@ namespace Cut
     template <Core::FE::CellType distype>
     double my_area()
     {
-      const int numnodes = Core::FE::num_nodes<distype>;
+      const int numnodes = Core::FE::num_nodes(distype);
       Core::LinAlg::Matrix<3, numnodes> xyze(this->xyz_, true);
       Core::LinAlg::Matrix<numnodes, 1> funct;
       Core::LinAlg::Matrix<2, numnodes> deriv;
@@ -270,12 +268,11 @@ namespace Cut
 
     /** \brief To calculate the element center of a boundary cell
      *
-     *  \author shahmiri
-     *  \date 07/12 */
+     */
     template <Core::FE::CellType distype>
     void my_element_center(Core::LinAlg::Matrix<3, 1>& center, Core::LinAlg::Matrix<3, 1>& midpoint)
     {
-      const int numnodes = Core::FE::num_nodes<distype>;
+      const int numnodes = Core::FE::num_nodes(distype);
       Core::LinAlg::Matrix<3, numnodes> xyze(this->xyz_, true);
       Core::LinAlg::Matrix<numnodes, 1> funct;
       Core::FE::shape_function<distype>(center, funct);
@@ -404,8 +401,7 @@ namespace Cut
 
     /** \brief  A first step to validate if a boundary cell is valid.
      *
-     *  \author winter
-     *  \date 11/15 */
+     */
     bool is_valid_boundary_cell() override;
 
    protected:

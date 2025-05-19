@@ -9,409 +9,496 @@
 
 #include "4C_fem_condition_definition.hpp"
 #include "4C_io_input_spec_builders.hpp"
-#include "4C_utils_parameter_list.hpp"
-
 FOUR_C_NAMESPACE_OPEN
 
 /*----------------------------------------------------------------------------*/
-void Inpar::FSI::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::FSI::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
-  using Teuchos::tuple;
+  using namespace Core::IO::InputSpecBuilders;
 
-  Teuchos::ParameterList& fsidyn = list.sublist("FSI DYNAMIC", false,
-      "Fluid Structure Interaction\n"
-      "FSI solver with various coupling methods");
+  list["FSI DYNAMIC"] = group("FSI DYNAMIC",
+      {
 
-  Teuchos::Tuple<std::string, 21> name;
-  Teuchos::Tuple<FsiCoupling, 21> label;
+          deprecated_selection<FsiCoupling>("COUPALGO",
+              {
+                  {"basic_sequ_stagg", fsi_basic_sequ_stagg},
+                  {"iter_stagg_fixed_rel_param", fsi_iter_stagg_fixed_rel_param},
+                  {"iter_stagg_AITKEN_rel_param", fsi_iter_stagg_AITKEN_rel_param},
+                  {"iter_stagg_steep_desc", fsi_iter_stagg_steep_desc},
+                  {"iter_stagg_NLCG", fsi_iter_stagg_NLCG},
+                  {"iter_stagg_MFNK_FD", fsi_iter_stagg_MFNK_FD},
+                  {"iter_stagg_MFNK_FSI", fsi_iter_stagg_MFNK_FSI},
+                  {"iter_stagg_MPE", fsi_iter_stagg_MPE},
+                  {"iter_stagg_RRE", fsi_iter_stagg_RRE},
+                  {"iter_monolithicfluidsplit", fsi_iter_monolithicfluidsplit},
+                  {"iter_monolithicstructuresplit", fsi_iter_monolithicstructuresplit},
+                  {"iter_xfem_monolithic", fsi_iter_xfem_monolithic},
+                  {"iter_mortar_monolithicstructuresplit",
+                      fsi_iter_mortar_monolithicstructuresplit},
+                  {"iter_mortar_monolithicfluidsplit", fsi_iter_mortar_monolithicfluidsplit},
+                  {"iter_fluidfluid_monolithicstructuresplit",
+                      fsi_iter_fluidfluid_monolithicstructuresplit},
+                  {"iter_fluidfluid_monolithicfluidsplit",
+                      fsi_iter_fluidfluid_monolithicfluidsplit},
+                  {"iter_fluidfluid_monolithicstructuresplit_nonox",
+                      fsi_iter_fluidfluid_monolithicstructuresplit_nonox},
+                  {"iter_fluidfluid_monolithicfluidsplit_nonox",
+                      fsi_iter_fluidfluid_monolithicfluidsplit_nonox},
+                  {"iter_sliding_monolithicfluidsplit", fsi_iter_sliding_monolithicfluidsplit},
+                  {"iter_sliding_monolithicstructuresplit",
+                      fsi_iter_sliding_monolithicstructuresplit},
+                  {"iter_mortar_monolithicfluidsplit_saddlepoint",
+                      fsi_iter_mortar_monolithicfluidsplit_saddlepoint},
+              },
+              {.description = "Iteration Scheme over the fields",
+                  .default_value = fsi_iter_stagg_AITKEN_rel_param}),
 
-  name[0] = "basic_sequ_stagg";
-  label[0] = fsi_basic_sequ_stagg;
-  name[1] = "iter_stagg_fixed_rel_param";
-  label[1] = fsi_iter_stagg_fixed_rel_param;
-  name[2] = "iter_stagg_AITKEN_rel_param";
-  label[2] = fsi_iter_stagg_AITKEN_rel_param;
-  name[3] = "iter_stagg_steep_desc";
-  label[3] = fsi_iter_stagg_steep_desc;
-  name[4] = "iter_stagg_NLCG";
-  label[4] = fsi_iter_stagg_NLCG;
-  name[5] = "iter_stagg_MFNK_FD";
-  label[5] = fsi_iter_stagg_MFNK_FD;
-  name[6] = "iter_stagg_MFNK_FSI";
-  label[6] = fsi_iter_stagg_MFNK_FSI;
-  name[7] = "iter_stagg_MPE";
-  label[7] = fsi_iter_stagg_MPE;
-  name[8] = "iter_stagg_RRE";
-  label[8] = fsi_iter_stagg_RRE;
-  name[9] = "iter_monolithicfluidsplit";
-  label[9] = fsi_iter_monolithicfluidsplit;
-  name[10] = "iter_monolithicstructuresplit";
-  label[10] = fsi_iter_monolithicstructuresplit;
-  name[11] = "iter_xfem_monolithic";
-  label[11] = fsi_iter_xfem_monolithic;
-  name[12] = "iter_mortar_monolithicstructuresplit";
-  label[12] = fsi_iter_mortar_monolithicstructuresplit;
-  name[13] = "iter_mortar_monolithicfluidsplit";
-  label[13] = fsi_iter_mortar_monolithicfluidsplit;
-  name[14] = "iter_fluidfluid_monolithicstructuresplit";
-  label[14] = fsi_iter_fluidfluid_monolithicstructuresplit;
-  name[15] = "iter_fluidfluid_monolithicfluidsplit";
-  label[15] = fsi_iter_fluidfluid_monolithicfluidsplit;
-  name[16] = "iter_fluidfluid_monolithicstructuresplit_nonox";
-  label[16] = fsi_iter_fluidfluid_monolithicstructuresplit_nonox;
-  name[17] = "iter_fluidfluid_monolithicfluidsplit_nonox";
-  label[17] = fsi_iter_fluidfluid_monolithicfluidsplit_nonox;
-  name[18] = "iter_sliding_monolithicfluidsplit";
-  label[18] = fsi_iter_sliding_monolithicfluidsplit;
-  name[19] = "iter_sliding_monolithicstructuresplit";
-  label[19] = fsi_iter_sliding_monolithicstructuresplit;
-  name[20] = "iter_mortar_monolithicfluidsplit_saddlepoint";
-  label[20] = fsi_iter_mortar_monolithicfluidsplit_saddlepoint;
+          parameter<bool>("DEBUGOUTPUT",
+              {.description = "Output of unconverged interface values during FSI iteration. "
+                              "There will be a new control "
+                              "file for each time step. This might be helpful to understand "
+                              "the coupling iteration.",
+                  .default_value = false}),
+          parameter<bool>("MATCHGRID_FLUIDALE",
+              {.description = "is matching grid (fluid-ale)", .default_value = true}),
+
+          parameter<bool>("MATCHGRID_STRUCTALE",
+              {.description = "is matching grid (structure-ale)", .default_value = true}),
+
+          parameter<bool>("MATCHALL",
+              {.description =
+                      "is matching grid (fluid-ale) and is full fluid-ale (without euler part)",
+                  .default_value = true}),
+
+          parameter<double>(
+              "MAXTIME", {.description = "Total simulation time", .default_value = 1000.0}),
+          parameter<int>(
+              "NUMSTEP", {.description = "Total number of Timesteps", .default_value = 200}),
+
+          parameter<int>(
+              "RESTARTEVERY", {.description = "Increment for writing restart", .default_value = 1}),
+
+          parameter<bool>("RESTART_FROM_PART_FSI",
+              {.description = "restart from partitioned fsi (e.g. from prestress "
+                              "calculations) instead of monolithic fsi",
+                  .default_value = false}),
+
+          parameter<bool>("SECONDORDER",
+              {.description = "Second order displacement-velocity conversion at the interface.",
+                  .default_value = false}),
+
+          deprecated_selection<Inpar::FSI::SlideALEProj>("SLIDEALEPROJ",
+              {
+                  {"None", Inpar::FSI::ALEprojection_none},
+                  {"Curr", Inpar::FSI::ALEprojection_curr},
+                  {"Ref", Inpar::FSI::ALEprojection_ref},
+                  {"RotZ", Inpar::FSI::ALEprojection_rot_z},
+                  {"RotZSphere", Inpar::FSI::ALEprojection_rot_zsphere},
+              },
+              {.description = "Projection method to use for sliding FSI.",
+                  .default_value = Inpar::FSI::ALEprojection_none}),
 
 
-  setStringToIntegralParameter<FsiCoupling>("COUPALGO", "iter_stagg_AITKEN_rel_param",
-      "Iteration Scheme over the fields", name, label, &fsidyn);
+          parameter<double>("TIMESTEP", {.description = "Time increment dt", .default_value = 0.1}),
 
-  std::string debugoutput_doc =
-      "Output of unconverged interface values during FSI iteration. There will be a new control "
-      "file for each time step. This might be helpful to understand the coupling iteration.";
-  Core::Utils::bool_parameter("DEBUGOUTPUT", "No", debugoutput_doc, &fsidyn);
+          parameter<int>("RESULTSEVERY",
+              {.description = "Increment for writing solution", .default_value = 1}),
 
-  Core::Utils::bool_parameter("MATCHGRID_FLUIDALE", "Yes", "is matching grid (fluid-ale)", &fsidyn);
-
-  Core::Utils::bool_parameter(
-      "MATCHGRID_STRUCTALE", "Yes", "is matching grid (structure-ale)", &fsidyn);
-
-  Core::Utils::bool_parameter("MATCHALL", "Yes",
-      "is matching grid (fluid-ale) and is full fluid-ale (without euler part)", &fsidyn);
-
-  Core::Utils::double_parameter("MAXTIME", 1000.0, "Total simulation time", &fsidyn);
-  Core::Utils::int_parameter("NUMSTEP", 200, "Total number of Timesteps", &fsidyn);
-
-  Core::Utils::int_parameter("RESTARTEVERY", 1, "Increment for writing restart", &fsidyn);
-
-  Core::Utils::bool_parameter("RESTART_FROM_PART_FSI", "No",
-      "restart from partitioned fsi (e.g. from prestress calculations) instead of monolithic fsi",
-      &fsidyn);
-
-  Core::Utils::bool_parameter("SECONDORDER", "No",
-      "Second order displacement-velocity conversion at the interface.", &fsidyn);
-
-  setStringToIntegralParameter<Inpar::FSI::SlideALEProj>("SLIDEALEPROJ", "None",
-      "Projection method to use for sliding FSI.",
-      tuple<std::string>("None", "Curr", "Ref", "RotZ", "RotZSphere"),
-      tuple<Inpar::FSI::SlideALEProj>(Inpar::FSI::ALEprojection_none,
-          Inpar::FSI::ALEprojection_curr, Inpar::FSI::ALEprojection_ref,
-          Inpar::FSI::ALEprojection_rot_z, Inpar::FSI::ALEprojection_rot_zsphere),
-      &fsidyn);
-
-  Core::Utils::double_parameter("TIMESTEP", 0.1, "Time increment dt", &fsidyn);
-
-  Core::Utils::int_parameter("RESULTSEVERY", 1, "Increment for writing solution", &fsidyn);
-
-  setStringToIntegralParameter<Inpar::FSI::Verbosity>("VERBOSITY", "full",
-      "Verbosity of the FSI problem.", tuple<std::string>("full", "medium", "low", "subproblem"),
-      tuple<Inpar::FSI::Verbosity>(Inpar::FSI::verbosity_full, Inpar::FSI::verbosity_medium,
-          Inpar::FSI::verbosity_low, Inpar::FSI::verbosity_subproblem),
-      &fsidyn);
-
-  /*----------------------------------------------------------------------*/
+          deprecated_selection<Inpar::FSI::Verbosity>("VERBOSITY",
+              {
+                  {"full", Inpar::FSI::verbosity_full},
+                  {"medium", Inpar::FSI::verbosity_medium},
+                  {"low", Inpar::FSI::verbosity_low},
+                  {"subproblem", Inpar::FSI::verbosity_subproblem},
+              },
+              {.description = "Verbosity of the FSI problem.",
+                  .default_value = Inpar::FSI::verbosity_full})},
+      {.defaultable =
+              true}); /*----------------------------------------------------------------------*/
   /* parameters for time step size adaptivity in fsi dynamics */
-  Teuchos::ParameterList& fsiadapt = fsidyn.sublist("TIMEADAPTIVITY", false, "");
+  list["FSI DYNAMIC/TIMEADAPTIVITY"] = group("FSI DYNAMIC/TIMEADAPTIVITY",
+      {
 
-  Core::Utils::int_parameter("ADAPTSTEPMAX", 5,
-      "Maximum number of repetitions of one time step for adapting/reducing the time step size "
-      "(>0)",
-      &fsiadapt);
+          parameter<int>("ADAPTSTEPMAX",
+              {.description =
+                      "Maximum number of repetitions of one time step for adapting/reducing the "
+                      "time step size (>0)",
+                  .default_value = 5}),
 
-  setStringToIntegralParameter<Inpar::FSI::FluidMethod>("AUXINTEGRATORFLUID", "AB2",
-      "Method for error estimation in the fluid field",
-      tuple<std::string>("None", "ExplicitEuler", "AB2"),
-      tuple<Inpar::FSI::FluidMethod>(Inpar::FSI::timada_fld_none, Inpar::FSI::timada_fld_expleuler,
-          Inpar::FSI::timada_fld_adamsbashforth2),
-      &fsiadapt);
+          deprecated_selection<Inpar::FSI::FluidMethod>("AUXINTEGRATORFLUID",
+              {
+                  {"None", Inpar::FSI::timada_fld_none},
+                  {"ExplicitEuler", Inpar::FSI::timada_fld_expleuler},
+                  {"AB2", Inpar::FSI::timada_fld_adamsbashforth2},
+              },
+              {.description = "Method for error estimation in the fluid field",
+                  .default_value = Inpar::FSI::timada_fld_adamsbashforth2}),
 
-  Core::Utils::string_parameter("AVERAGINGDT", "0.3 0.7",
-      "Averaging of time step sizes in case of increasing time step size.\n"
-      "Parameters are ordered from most recent weight to the most historic one.\n"
-      "Number of parameters determines the number of previous time steps that are involved\n"
-      "in the averaging procedure.",
-      &fsiadapt);
-
-
-  setStringToIntegralParameter<Inpar::FSI::DivContAct>("DIVERCONT", "stop",
-      "What to do if nonlinear solver does not converge?",
-      tuple<std::string>("stop", "continue", "halve_step", "revert_dt"),
-      tuple<Inpar::FSI::DivContAct>(Inpar::FSI::divcont_stop, Inpar::FSI::divcont_continue,
-          Inpar::FSI::divcont_halve_step, Inpar::FSI::divcont_revert_dt),
-      &fsiadapt);
-
-  Core::Utils::double_parameter(
-      "DTMAX", 0.1, "Limit maximally permitted time step size (>0)", &fsiadapt);
-  Core::Utils::double_parameter(
-      "DTMIN", 1.0e-4, "Limit minimally allowed time step size (>0)", &fsiadapt);
-
-  Core::Utils::double_parameter(
-      "LOCERRTOLFLUID", 1.0e-3, "Tolerance for the norm of local velocity error", &fsiadapt);
+          parameter<std::string>("AVERAGINGDT",
+              {.description =
+                      "Averaging of time step sizes in case of increasing time step "
+                      "size.\nParameters are ordered from most recent weight to the most historic "
+                      "one.\nNumber of parameters determines the number of previous time steps "
+                      "that are involved\nin the averaging procedure.",
+                  .default_value = "0.3 0.7"}),
 
 
-  Core::Utils::int_parameter("NUMINCREASESTEPS", 0,
-      "Number of consecutive steps that want to increase time step size before\n"
-      "actually increasing it. Set 0 to deactivate this feature.",
-      &fsiadapt);
+          deprecated_selection<Inpar::FSI::DivContAct>("DIVERCONT",
+              {
+                  {"stop", Inpar::FSI::divcont_stop},
+                  {"continue", Inpar::FSI::divcont_continue},
+                  {"halve_step", Inpar::FSI::divcont_halve_step},
+                  {"revert_dt", Inpar::FSI::divcont_revert_dt},
+              },
+              {.description = "What to do if nonlinear solver does not converge?",
+                  .default_value = Inpar::FSI::divcont_stop}),
 
-  Core::Utils::double_parameter("SAFETYFACTOR", 0.9,
-      "This is a safety factor to scale theoretical optimal step size, \n"
-      "should be lower than 1 and must be larger than 0",
-      &fsiadapt);
+          parameter<double>(
+              "DTMAX", {.description = "Limit maximally permitted time step size (>0)",
+                           .default_value = 0.1}),
+          parameter<double>("DTMIN", {.description = "Limit minimally allowed time step size (>0)",
+                                         .default_value = 1.0e-4}),
 
-  Core::Utils::double_parameter("SIZERATIOMAX", 2.0,
-      "Limit maximally permitted change of\n"
-      "time step size compared to previous size (>0).",
-      &fsiadapt);
-  Core::Utils::double_parameter("SIZERATIOMIN", 0.5,
-      "Limit minimally permitted change of\n"
-      "time step size compared to previous size (>0).",
-      &fsiadapt);
+          parameter<double>(
+              "LOCERRTOLFLUID", {.description = "Tolerance for the norm of local velocity error",
+                                    .default_value = 1.0e-3}),
 
-  Core::Utils::bool_parameter(
-      "TIMEADAPTON", "No", "Activate or deactivate time step size adaptivity", &fsiadapt);
+
+          parameter<int>("NUMINCREASESTEPS",
+              {.description =
+                      "Number of consecutive steps that want to increase time step size before\n"
+                      "actually increasing it. Set 0 to deactivate this feature.",
+                  .default_value = 0}),
+
+          parameter<double>("SAFETYFACTOR",
+              {.description = "This is a safety factor to scale theoretical optimal step "
+                              "size, \nshould be lower than 1 and must be larger than 0",
+                  .default_value = 0.9}),
+
+          parameter<double>(
+              "SIZERATIOMAX", {.description = "Limit maximally permitted change of\ntime "
+                                              "step size compared to previous size (>0).",
+                                  .default_value = 2.0}),
+          parameter<double>(
+              "SIZERATIOMIN", {.description = "Limit minimally permitted change of\ntime "
+                                              "step size compared to previous size (>0).",
+                                  .default_value = 0.5}),
+
+          parameter<bool>(
+              "TIMEADAPTON", {.description = "Activate or deactivate time step size adaptivity",
+                                 .default_value = false})},
+      {.defaultable = true});
 
   /*--------------------------------------------------------------------------*/
 
   /*--------------------------------------------------------------------------*/
   /* parameters for monolithic FSI solvers */
-  Teuchos::ParameterList& fsimono = fsidyn.sublist("MONOLITHIC SOLVER", false, "");
+  list["FSI DYNAMIC/MONOLITHIC SOLVER"] = group("FSI DYNAMIC/MONOLITHIC SOLVER",
+      {
 
-  Core::Utils::double_parameter("ADAPTIVEDIST", 0.0,
-      "Required distance for adaptive convergence check in Newton-type FSI.\n"
-      "This is the improvement we want to achieve in the linear extrapolation of the\n"
-      "adaptive convergence check. Set to zero to avoid the adaptive check altogether.",
-      &fsimono);
+          parameter<double>("ADAPTIVEDIST",
+              {.description =
+                      "Required distance for adaptive convergence check in Newton-type FSI.\n"
+                      "This is the improvement we want to achieve in the linear extrapolation of "
+                      "the\n"
+                      "adaptive convergence check. Set to zero to avoid the adaptive check "
+                      "altogether.",
+                  .default_value = 0.0}),
 
-  Core::Utils::double_parameter("BASETOL", 1e-3,
-      "Basic tolerance for adaptive convergence check in monolithic FSI.\n"
-      "This tolerance will be used for the linear solve of the FSI block system.\n"
-      "The linear convergence test will always use the relative residual norm (AZ_r0).\n"
-      "Not to be confused with the Newton tolerance (CONVTOL) that applies\n"
-      "to the nonlinear convergence test using a absolute residual norm.",
-      &fsimono);
+          parameter<double>("BASETOL",
+              {.description =
+                      "Basic tolerance for adaptive convergence check in monolithic FSI.\n"
+                      "This tolerance will be used for the linear solve of the FSI block system.\n"
+                      "The linear convergence test will always use the relative residual norm "
+                      "(AZ_r0).\n"
+                      "Not to be confused with the Newton tolerance (CONVTOL) that applies\n"
+                      "to the nonlinear convergence test using a absolute residual norm.",
+                  .default_value = 1e-3}),
+          parameter<double>(
+              "CONVTOL", {.description = "Nonlinear tolerance for lung/constraint/fluid-fluid FSI",
+                             .default_value = 1e-6}),  // ToDo remove
 
-  Core::Utils::double_parameter("CONVTOL", 1e-6,
-      "Nonlinear tolerance for lung/constraint/fluid-fluid FSI",
-      &fsimono);  // ToDo remove
+          parameter<bool>("ENERGYFILE",
+              {.description =
+                      "Write artificial interface energy due to temporal discretization to file",
+                  .default_value = false}),
 
-  Core::Utils::bool_parameter("ENERGYFILE", "No",
-      "Write artificial interface energy due to temporal discretization to file", &fsimono);
+          parameter<bool>("FSIAMGANALYZE",
+              {.description = "run analysis on fsiamg multigrid scheme", .default_value = false}),
 
-  Core::Utils::bool_parameter(
-      "FSIAMGANALYZE", "No", "run analysis on fsiamg multigrid scheme", &fsimono);
+          parameter<bool>("INFNORMSCALING",
+              {.description = "Scale Blocks with row infnorm?", .default_value = true}),
 
-  Core::Utils::bool_parameter("INFNORMSCALING", "Yes", "Scale Blocks with row infnorm?", &fsimono);
+          parameter<int>("ITEMAX", {.description = "Maximum allowed number of nonlinear iterations",
+                                       .default_value = 100}),
+          parameter<int>("KRYLOV_ITEMAX",
+              {.description = "Max Iterations for linear solver.", .default_value = 1000}),
+          parameter<int>(
+              "KRYLOV_SIZE", {.description = "Size of Krylov Subspace.", .default_value = 50}),
 
-  Core::Utils::int_parameter(
-      "ITEMAX", 100, "Maximum allowed number of nonlinear iterations", &fsimono);
 
-  Core::Utils::int_parameter("KRYLOV_ITEMAX", 1000, "Max Iterations for linear solver.", &fsimono);
+          deprecated_selection<Inpar::FSI::LinearBlockSolver>("LINEARBLOCKSOLVER",
+              {
+                  {"PreconditionedKrylov", Inpar::FSI::PreconditionedKrylov},
+                  {"LinalgSolver", Inpar::FSI::LinalgSolver},
+              },
+              {.description = "Linear block preconditioner for block system in monolithic FSI.",
+                  .default_value = Inpar::FSI::PreconditionedKrylov}),
 
-  Core::Utils::int_parameter("KRYLOV_SIZE", 50, "Size of Krylov Subspace.", &fsimono);
+          parameter<int>("LINEAR_SOLVER",
+              {.description =
+                      "Number of SOLVER block describing the linear solver and preconditioner",
+                  .default_value = -1}),
 
-  setStringToIntegralParameter<Inpar::FSI::LinearBlockSolver>("LINEARBLOCKSOLVER",
-      "PreconditionedKrylov", "Linear block preconditioner for block system in monolithic FSI.",
-      tuple<std::string>("PreconditionedKrylov", "LinalgSolver"),
-      tuple<Inpar::FSI::LinearBlockSolver>(
-          Inpar::FSI::PreconditionedKrylov, Inpar::FSI::LinalgSolver),
-      &fsimono);
+          // Iteration parameters for convergence check of newton loop
+          // for implementations without NOX
+          deprecated_selection<Inpar::FSI::ConvNorm>("NORM_INC",
+              {
+                  {"Abs", Inpar::FSI::convnorm_abs},
+                  {"Rel", Inpar::FSI::convnorm_rel},
+                  {"Mix", Inpar::FSI::convnorm_mix},
+              },
+              {.description = "type of norm for primary variables convergence check",
+                  .default_value = Inpar::FSI::convnorm_rel}),
 
-  Core::Utils::int_parameter("LINEAR_SOLVER", -1,
-      "Number of SOLVER block describing the linear solver and preconditioner", &fsimono);
+          // for implementations without NOX
+          deprecated_selection<Inpar::FSI::ConvNorm>("NORM_RESF",
+              {
+                  {"Abs", Inpar::FSI::convnorm_abs},
+                  {"Rel", Inpar::FSI::convnorm_rel},
+                  {"Mix", Inpar::FSI::convnorm_mix},
+              },
+              {.description = "type of norm for residual convergence check",
+                  .default_value = Inpar::FSI::convnorm_rel}),
 
-  // Iteration parameters for convergence check of newton loop
-  // for implementations without NOX
-  setStringToIntegralParameter<Inpar::FSI::ConvNorm>("NORM_INC", "Rel",
-      "type of norm for primary variables convergence check",
-      tuple<std::string>("Abs", "Rel", "Mix"),
-      tuple<Inpar::FSI::ConvNorm>(
-          Inpar::FSI::convnorm_abs, Inpar::FSI::convnorm_rel, Inpar::FSI::convnorm_mix),
-      &fsimono);
+          // for implementations without NOX
+          deprecated_selection<Inpar::FSI::BinaryOp>("NORMCOMBI_RESFINC",
+              {
+                  {"And", Inpar::FSI::bop_and},
+              },
+              {.description =
+                      "binary operator to combine primary variables and residual force values",
+                  .default_value = Inpar::FSI::bop_and}),
 
-  // for implementations without NOX
-  setStringToIntegralParameter<Inpar::FSI::ConvNorm>("NORM_RESF", "Rel",
-      "type of norm for residual convergence check", tuple<std::string>("Abs", "Rel", "Mix"),
-      tuple<Inpar::FSI::ConvNorm>(
-          Inpar::FSI::convnorm_abs, Inpar::FSI::convnorm_rel, Inpar::FSI::convnorm_mix),
-      &fsimono);
+          parameter<int>(
+              "PRECONDREUSE", {.description = "Number of iterations in one time step reusing the "
+                                              "preconditioner before rebuilding it",
+                                  .default_value = 0}),
 
-  // for implementations without NOX
-  setStringToIntegralParameter<Inpar::FSI::BinaryOp>("NORMCOMBI_RESFINC", "And",
-      "binary operator to combine primary variables and residual force values",
-      tuple<std::string>("And"), tuple<Inpar::FSI::BinaryOp>(Inpar::FSI::bop_and), &fsimono);
+          parameter<bool>("REBUILDPRECEVERYSTEP",
+              {.description =
+                      "Enforce rebuilding the preconditioner at the beginning of every time step",
+                  .default_value = true}),
 
-  Core::Utils::int_parameter("PRECONDREUSE", 0,
-      "Number of iterations in one time step reusing the preconditioner before rebuilding it",
-      &fsimono);
+          parameter<bool>(
+              "SHAPEDERIVATIVES", {.description = "Include linearization with respect to mesh "
+                                                  "movement in Navier Stokes equation.",
+                                      .default_value = false}),
 
-  Core::Utils::bool_parameter("REBUILDPRECEVERYSTEP", "Yes",
-      "Enforce rebuilding the preconditioner at the beginning of every time step", &fsimono);
+          parameter<bool>("SYMMETRICPRECOND",
+              {.description = "Symmetric block GS preconditioner or ordinary GS",
+                  .default_value = false}),
 
-  Core::Utils::bool_parameter("SHAPEDERIVATIVES", "No",
-      "Include linearization with respect to mesh movement in Navier Stokes equation.", &fsimono);
+          // monolithic preconditioner parameter
+          parameter<std::string>("ALEPCOMEGA",
+              {.description =
+                      "Relaxation factor for Richardson iteration on ale block in MFSI block "
+                      "preconditioner\nFSIAMG: each number belongs to a "
+                      "level\nPreconditiondKrylov: only first number is used for finest level",
+                  .default_value = "1.0 1.0 1.0 1.0"}),
+          parameter<std::string>("ALEPCITER",
+              {.description =
+                      "Number of Richardson iterations on ale block in MFSI block "
+                      "preconditioner\nFSIAMG: each number belongs to a "
+                      "level\nPreconditiondKrylov: only first number is used for finest level",
+                  .default_value = "1 1 1 1"}),
+          parameter<std::string>("FLUIDPCOMEGA",
+              {.description =
+                      "Relaxation factor for Richardson iteration on fluid block in MFSI block "
+                      "preconditioner\nFSIAMG: each number belongs to a "
+                      "level\nPreconditiondKrylov: only first number is used for finest level",
+                  .default_value = "1.0 1.0 1.0 1.0"}),
+          parameter<std::string>("FLUIDPCITER",
+              {.description =
+                      "Number of Richardson iterations on fluid block in MFSI block "
+                      "preconditioner\nFSIAMG: each number belongs to a "
+                      "level\nPreconditiondKrylov: only first number is used for finest level",
+                  .default_value = "1 1 1 1"}),
+          parameter<std::string>("STRUCTPCOMEGA",
+              {.description =
+                      "Relaxation factor for Richardson iteration on structural block in MFSI "
+                      "block \npreconditioner\nFSIAMG: each number belongs to a "
+                      "level\nPreconditiondKrylov: only first number is used for finest level",
+                  .default_value = "1.0 1.0 1.0 1.0"}),
+          parameter<std::string>("STRUCTPCITER",
+              {.description =
+                      "Number of Richardson iterations on structural block in MFSI block "
+                      "preconditioner\nFSIAMG: each number belongs to a "
+                      "level\nPreconditiondKrylov: only first number is used for finest level",
+                  .default_value = "1 1 1 1"}),
 
-  Core::Utils::bool_parameter(
-      "SYMMETRICPRECOND", "No", "Symmetric block GS preconditioner or ordinary GS", &fsimono);
+          parameter<std::string>("PCOMEGA",
+              {.description =
+                      "Relaxation factor for Richardson iteration on whole MFSI block "
+                      "preconditioner\nFSIAMG: each number belongs to a "
+                      "level\nPreconditiondKrylov: only first number is used for finest level",
+                  .default_value = "1.0 1.0 1.0"}),
+          parameter<std::string>("PCITER",
+              {.description =
+                      "Number of Richardson iterations on whole MFSI block preconditioner\nFSIAMG: "
+                      "each number belongs to a level\nPreconditiondKrylov: only first number is "
+                      "used for finest level",
+                  .default_value = "1 1 1"}),
 
-  // monolithic preconditioner parameter
+          parameter<std::string>(
+              "BLOCKSMOOTHER", {.description = "Type of block smoother, can be BGS or Schur",
+                                   .default_value = "BGS BGS BGS"}),
 
-  Core::Utils::string_parameter("ALEPCOMEGA", "1.0 1.0 1.0 1.0",
-      "Relaxation factor for Richardson iteration on ale block in MFSI block preconditioner\n"
-      "FSIAMG: each number belongs to a level\n"
-      "PreconditiondKrylov: only first number is used for finest level",
-      &fsimono);
-  Core::Utils::string_parameter("ALEPCITER", "1 1 1 1",
-      "Number of Richardson iterations on ale block in MFSI block preconditioner\n"
-      "FSIAMG: each number belongs to a level\n"
-      "PreconditiondKrylov: only first number is used for finest level",
-      &fsimono);
-  Core::Utils::string_parameter("FLUIDPCOMEGA", "1.0 1.0 1.0 1.0",
-      "Relaxation factor for Richardson iteration on fluid block in MFSI block preconditioner\n"
-      "FSIAMG: each number belongs to a level\n"
-      "PreconditiondKrylov: only first number is used for finest level",
-      &fsimono);
-  Core::Utils::string_parameter("FLUIDPCITER", "1 1 1 1",
-      "Number of Richardson iterations on fluid block in MFSI block preconditioner\n"
-      "FSIAMG: each number belongs to a level\n"
-      "PreconditiondKrylov: only first number is used for finest level",
-      &fsimono);
-  Core::Utils::string_parameter("STRUCTPCOMEGA", "1.0 1.0 1.0 1.0",
-      "Relaxation factor for Richardson iteration on structural block in MFSI block "
-      "preconditioner\n"
-      "FSIAMG: each number belongs to a level\n"
-      "PreconditiondKrylov: only first number is used for finest level",
-      &fsimono);
-  Core::Utils::string_parameter("STRUCTPCITER", "1 1 1 1",
-      "Number of Richardson iterations on structural block in MFSI block preconditioner\n"
-      "FSIAMG: each number belongs to a level\n"
-      "PreconditiondKrylov: only first number is used for finest level",
-      &fsimono);
+          parameter<std::string>(
+              "SCHUROMEGA", {.description = "Damping factor for Schur complement construction",
+                                .default_value = "0.001 0.01 0.1"}),
 
-  Core::Utils::string_parameter("PCOMEGA", "1.0 1.0 1.0",
-      "Relaxation factor for Richardson iteration on whole MFSI block preconditioner\n"
-      "FSIAMG: each number belongs to a level\n"
-      "PreconditiondKrylov: only first number is used for finest level",
-      &fsimono);
-  Core::Utils::string_parameter("PCITER", "1 1 1",
-      "Number of Richardson iterations on whole MFSI block preconditioner\n"
-      "FSIAMG: each number belongs to a level\n"
-      "PreconditiondKrylov: only first number is used for finest level",
-      &fsimono);
-
-  Core::Utils::string_parameter(
-      "BLOCKSMOOTHER", "BGS BGS BGS", "Type of block smoother, can be BGS or Schur", &fsimono);
-
-  Core::Utils::string_parameter(
-      "SCHUROMEGA", "0.001 0.01 0.1", "Damping factor for Schur complement construction", &fsimono);
-
-  // tolerances for convergence check of nonlinear solver in monolithic FSI
-  // structure displacements
-  Core::Utils::double_parameter("TOL_DIS_RES_L2", 1e-6,
-      "Absolute tolerance for structure displacement residual in L2-norm", &fsimono);
-  Core::Utils::double_parameter("TOL_DIS_RES_INF", 1e-6,
-      "Absolute tolerance for structure displacement residual in Inf-norm", &fsimono);
-  Core::Utils::double_parameter("TOL_DIS_INC_L2", 1e-6,
-      "Absolute tolerance for structure displacement increment in L2-norm", &fsimono);
-  Core::Utils::double_parameter("TOL_DIS_INC_INF", 1e-6,
-      "Absolute tolerance for structure displacement increment in Inf-norm", &fsimono);
-  // interface tolerances
-  Core::Utils::double_parameter(
-      "TOL_FSI_RES_L2", 1e-6, "Absolute tolerance for interface residual in L2-norm", &fsimono);
-  Core::Utils::double_parameter(
-      "TOL_FSI_RES_INF", 1e-6, "Absolute tolerance for interface residual in Inf-norm", &fsimono);
-  Core::Utils::double_parameter(
-      "TOL_FSI_INC_L2", 1e-6, "Absolute tolerance for interface increment in L2-norm", &fsimono);
-  Core::Utils::double_parameter(
-      "TOL_FSI_INC_INF", 1e-6, "Absolute tolerance for interface increment in Inf-norm", &fsimono);
-  // fluid pressure
-  Core::Utils::double_parameter("TOL_PRE_RES_L2", 1e-6,
-      "Absolute tolerance for fluid pressure residual in L2-norm", &fsimono);
-  Core::Utils::double_parameter("TOL_PRE_RES_INF", 1e-6,
-      "Absolute tolerance for fluid pressure residual in Inf-norm", &fsimono);
-  Core::Utils::double_parameter("TOL_PRE_INC_L2", 1e-6,
-      "Absolute tolerance for fluid pressure increment in L2-norm", &fsimono);
-  Core::Utils::double_parameter("TOL_PRE_INC_INF", 1e-6,
-      "Absolute tolerance for fluid pressure increment in Inf-norm", &fsimono);
-  // fluid velocities
-  Core::Utils::double_parameter("TOL_VEL_RES_L2", 1e-6,
-      "Absolute tolerance for fluid velocity residual in L2-norm", &fsimono);
-  Core::Utils::double_parameter("TOL_VEL_RES_INF", 1e-6,
-      "Absolute tolerance for fluid velocity residual in Inf-norm", &fsimono);
-  Core::Utils::double_parameter("TOL_VEL_INC_L2", 1e-6,
-      "Absolute tolerance for fluid velocity increment in L2-norm", &fsimono);
-  Core::Utils::double_parameter("TOL_VEL_INC_INF", 1e-6,
-      "Absolute tolerance for fluid velocity increment in Inf-norm", &fsimono);
+          // tolerances for convergence check of nonlinear solver in monolithic FSI
+          // structure displacements
+          parameter<double>("TOL_DIS_RES_L2",
+              {.description = "Absolute tolerance for structure displacement residual in L2-norm",
+                  .default_value = 1e-6}),
+          parameter<double>("TOL_DIS_RES_INF",
+              {.description = "Absolute tolerance for structure displacement residual in Inf-norm",
+                  .default_value = 1e-6}),
+          parameter<double>("TOL_DIS_INC_L2",
+              {.description = "Absolute tolerance for structure displacement increment in L2-norm",
+                  .default_value = 1e-6}),
+          parameter<double>("TOL_DIS_INC_INF",
+              {.description = "Absolute tolerance for structure displacement increment in Inf-norm",
+                  .default_value = 1e-6}),
+          // interface tolerances
+          parameter<double>("TOL_FSI_RES_L2",
+              {.description = "Absolute tolerance for interface residual in L2-norm",
+                  .default_value = 1e-6}),
+          parameter<double>("TOL_FSI_RES_INF",
+              {.description = "Absolute tolerance for interface residual in Inf-norm",
+                  .default_value = 1e-6}),
+          parameter<double>("TOL_FSI_INC_L2",
+              {.description = "Absolute tolerance for interface increment in L2-norm",
+                  .default_value = 1e-6}),
+          parameter<double>("TOL_FSI_INC_INF",
+              {.description = "Absolute tolerance for interface increment in Inf-norm",
+                  .default_value = 1e-6}),
+          // fluid pressure
+          parameter<double>("TOL_PRE_RES_L2",
+              {.description = "Absolute tolerance for fluid pressure residual in L2-norm",
+                  .default_value = 1e-6}),
+          parameter<double>("TOL_PRE_RES_INF",
+              {.description = "Absolute tolerance for fluid pressure residual in Inf-norm",
+                  .default_value = 1e-6}),
+          parameter<double>("TOL_PRE_INC_L2",
+              {.description = "Absolute tolerance for fluid pressure increment in L2-norm",
+                  .default_value = 1e-6}),
+          parameter<double>("TOL_PRE_INC_INF",
+              {.description = "Absolute tolerance for fluid pressure increment in Inf-norm",
+                  .default_value = 1e-6}),
+          // fluid velocities
+          parameter<double>("TOL_VEL_RES_L2",
+              {.description = "Absolute tolerance for fluid velocity residual in L2-norm",
+                  .default_value = 1e-6}),
+          parameter<double>("TOL_VEL_RES_INF",
+              {.description = "Absolute tolerance for fluid velocity residual in Inf-norm",
+                  .default_value = 1e-6}),
+          parameter<double>("TOL_VEL_INC_L2",
+              {.description = "Absolute tolerance for fluid velocity increment in L2-norm",
+                  .default_value = 1e-6}),
+          parameter<double>("TOL_VEL_INC_INF",
+              {.description = "Absolute tolerance for fluid velocity increment in Inf-norm",
+                  .default_value = 1e-6})},
+      {.defaultable = true});
 
   /*----------------------------------------------------------------------*/
   /* parameters for partitioned FSI solvers */
-  Teuchos::ParameterList& fsipart = fsidyn.sublist("PARTITIONED SOLVER", false, "");
+  list["FSI DYNAMIC/PARTITIONED SOLVER"] = group("FSI DYNAMIC/PARTITIONED SOLVER",
+      {
 
-  Core::Utils::double_parameter("BASETOL", 1e-3,
-      "Basic tolerance for adaptive convergence check in monolithic FSI.\n"
-      "This tolerance will be used for the linear solve of the FSI block system.\n"
-      "The linear convergence test will always use the relative residual norm (AZ_r0).\n"
-      "Not to be confused with the Newton tolerance (CONVTOL) that applies\n"
-      "to the nonlinear convergence test using a absolute residual norm.",
-      &fsipart);
+          parameter<double>("BASETOL",
+              {.description =
+                      "Basic tolerance for adaptive convergence check in monolithic FSI.\n"
+                      "This tolerance will be used for the linear solve of the FSI block system.\n"
+                      "The linear convergence test will always use the relative residual norm "
+                      "(AZ_r0).\n"
+                      "Not to be confused with the Newton tolerance (CONVTOL) that applies\n"
+                      "to the nonlinear convergence test using a absolute residual norm.",
+                  .default_value = 1e-3}),
 
-  Core::Utils::double_parameter("CONVTOL", 1e-6,
-      "Tolerance for iteration over fields in case of partitioned scheme", &fsipart);
-
-  std::vector<std::string> coupmethod_valid_input = {"mortar", "conforming", "immersed"};
-  Core::Utils::string_parameter("COUPMETHOD", "conforming",
-      "Coupling Method mortar or conforming nodes at interface", &fsipart, coupmethod_valid_input);
-
-  setStringToIntegralParameter<Inpar::FSI::CoupVarPart>("COUPVARIABLE", "Displacement",
-      "Coupling variable at the interface", tuple<std::string>("Displacement", "Force", "Velocity"),
-      tuple<Inpar::FSI::CoupVarPart>(Inpar::FSI::CoupVarPart::disp, Inpar::FSI::CoupVarPart::force,
-          Inpar::FSI::CoupVarPart::vel),
-      &fsipart);
-
-  Core::Utils::bool_parameter("DIVPROJECTION", "no",
-      "Project velocity into divergence-free subspace for partitioned fsi", &fsipart);
-
-  Core::Utils::int_parameter("ITEMAX", 100, "Maximum number of iterations over fields", &fsipart);
-
-  Core::Utils::double_parameter("MAXOMEGA", 0.0,
-      "largest omega allowed for Aitken relaxation (0.0 means no constraint)", &fsipart);
-
-  Core::Utils::double_parameter(
-      "MINOMEGA", -1.0, "smallest omega allowed for Aitken relaxation (default is -1.0)", &fsipart);
+          parameter<double>("CONVTOL",
+              {.description = "Tolerance for iteration over fields in case of partitioned scheme",
+                  .default_value = 1e-6}),
 
 
-  setStringToIntegralParameter<Inpar::FSI::PartitionedCouplingMethod>("PARTITIONED",
-      "DirichletNeumann", "Coupling strategies for partitioned FSI solvers.",
-      tuple<std::string>(
-          "DirichletNeumann", "DirichletNeumannSlideALE", "DirichletNeumannVolCoupl"),
-      tuple<Inpar::FSI::PartitionedCouplingMethod>(Inpar::FSI::DirichletNeumann,
-          Inpar::FSI::DirichletNeumannSlideale, Inpar::FSI::DirichletNeumannVolCoupl),
-      &fsipart);
+          deprecated_selection<std::string>("COUPMETHOD", {"mortar", "conforming", "immersed"},
+              {.description = "Coupling Method mortar or conforming nodes at interface",
+                  .default_value = "conforming"}),
 
-  std::vector<std::string> predictor_valid_input = {
-      "d(n)", "d(n)+dt*(1.5*v(n)-0.5*v(n-1))", "d(n)+dt*v(n)", "d(n)+dt*v(n)+0.5*dt^2*a(n)"};
-  Core::Utils::string_parameter("PREDICTOR", "d(n)", "Predictor for interface displacements",
-      &fsipart, predictor_valid_input);
+          deprecated_selection<Inpar::FSI::CoupVarPart>("COUPVARIABLE",
+              {
+                  {"Displacement", Inpar::FSI::CoupVarPart::disp},
+                  {"Force", Inpar::FSI::CoupVarPart::force},
+                  {"Velocity", Inpar::FSI::CoupVarPart::vel},
+              },
+              {.description = "Coupling variable at the interface",
+                  .default_value = Inpar::FSI::CoupVarPart::disp}),
+
+          parameter<bool>("DIVPROJECTION",
+              {.description = "Project velocity into divergence-free subspace for partitioned fsi",
+                  .default_value = false}),
+
+          parameter<int>("ITEMAX",
+              {.description = "Maximum number of iterations over fields", .default_value = 100}),
+
+          parameter<double>("MAXOMEGA",
+              {.description =
+                      "largest omega allowed for Aitken relaxation (0.0 means no constraint)",
+                  .default_value = 0.0}),
+
+          parameter<double>("MINOMEGA",
+              {.description = "smallest omega allowed for Aitken relaxation (default is -1.0)",
+                  .default_value = -1.0}),
 
 
-  Core::Utils::double_parameter(
-      "RELAX", 1.0, "fixed relaxation parameter for partitioned FSI solvers", &fsipart);
+
+          deprecated_selection<Inpar::FSI::PartitionedCouplingMethod>("PARTITIONED",
+              {
+                  {"DirichletNeumann", Inpar::FSI::DirichletNeumann},
+                  {"DirichletNeumannSlideALE", Inpar::FSI::DirichletNeumannSlideale},
+                  {"DirichletNeumannVolCoupl", Inpar::FSI::DirichletNeumannVolCoupl},
+              },
+              {.description = "Coupling strategies for partitioned FSI solvers.",
+                  .default_value = Inpar::FSI::DirichletNeumann}),
+
+          deprecated_selection<std::string>("PREDICTOR",
+              {"d(n)", "d(n)+dt*(1.5*v(n)-0.5*v(n-1))", "d(n)+dt*v(n)",
+                  "d(n)+dt*v(n)+0.5*dt^2*a(n)"},
+              {.description = "Predictor for interface displacements", .default_value = "d(n)"}),
+
+
+          parameter<double>(
+              "RELAX", {.description = "fixed relaxation parameter for partitioned FSI solvers",
+                           .default_value = 1.0})},
+      {.defaultable = true});
 
   /* ----------------------------------------------------------------------- */
-  Teuchos::ParameterList& constrfsi = fsidyn.sublist("CONSTRAINT", false, "");
+  list["FSI DYNAMIC/CONSTRAINT"] = group("FSI DYNAMIC/CONSTRAINT",
+      {
 
-  setStringToIntegralParameter<Inpar::FSI::PrecConstr>("PRECONDITIONER", "Simple",
-      "preconditioner to use", tuple<std::string>("Simple", "Simplec"),
-      tuple<Inpar::FSI::PrecConstr>(Inpar::FSI::Simple, Inpar::FSI::Simplec), &constrfsi);
-  Core::Utils::int_parameter("SIMPLEITER", 2, "Number of iterations for simple pc", &constrfsi);
-  Core::Utils::double_parameter("ALPHA", 0.8, "alpha parameter for simple pc", &constrfsi);
+          deprecated_selection<Inpar::FSI::PrecConstr>("PRECONDITIONER",
+              {
+                  {"Simple", Inpar::FSI::Simple},
+                  {"Simplec", Inpar::FSI::Simplec},
+              },
+              {.description = "preconditioner to use", .default_value = Inpar::FSI::Simple}),
+          parameter<int>("SIMPLEITER",
+              {.description = "Number of iterations for simple pc", .default_value = 2}),
+          parameter<double>(
+              "ALPHA", {.description = "alpha parameter for simple pc", .default_value = 0.8})},
+      {.defaultable = true});
 }
 
 /*----------------------------------------------------------------------------*/
@@ -426,8 +513,8 @@ void Inpar::FSI::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
       "FSICoupling", "FSI Coupling", Core::Conditions::FSICoupling, true,
       Core::Conditions::geometry_type_surface);
 
-  linefsi.add_component(entry<int>("coupling_id"));
-  surffsi.add_component(entry<int>("coupling_id"));
+  linefsi.add_component(parameter<int>("coupling_id"));
+  surffsi.add_component(parameter<int>("coupling_id"));
 
   condlist.push_back(linefsi);
   condlist.push_back(surffsi);
@@ -452,8 +539,8 @@ void Inpar::FSI::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
       "StructAleCoupling", "StructAleCoupling", Core::Conditions::StructAleCoupling, true,
       Core::Conditions::geometry_type_surface);
 
-  surfsac.add_component(entry<int>("coupling_id"));
-  surfsac.add_component(selection<std::string>(
+  surfsac.add_component(parameter<int>("coupling_id"));
+  surfsac.add_component(deprecated_selection<std::string>(
       "field", {"structure", "ale"}, {.description = "field", .default_value = "structure"}));
 
   condlist.push_back(surfsac);
@@ -466,8 +553,8 @@ void Inpar::FSI::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
       "StructFluidVolCoupling", Core::Conditions::StructFluidVolCoupling, false,
       Core::Conditions::geometry_type_volume);
 
-  volsfv.add_component(entry<int>("coupling_id"));
-  volsfv.add_component(selection<std::string>(
+  volsfv.add_component(parameter<int>("coupling_id"));
+  volsfv.add_component(deprecated_selection<std::string>(
       "field", {"structure", "ale"}, {.description = "field", .default_value = "structure"}));
 
   condlist.push_back(volsfv);

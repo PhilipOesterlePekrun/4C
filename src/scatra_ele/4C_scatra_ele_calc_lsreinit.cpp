@@ -80,11 +80,9 @@ template <Core::FE::CellType distype, unsigned prob_dim>
 int Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::evaluate(
     Core::Elements::Element* ele, Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, Core::Elements::LocationArray& la,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3)
 {
   // setup
   if (setup_calc(ele, discretization) == -1) return 0;
@@ -96,7 +94,7 @@ int Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::evaluate(
   if (phinp == nullptr) FOUR_C_THROW("Cannot get state vector 'phinp'");
   Core::FE::extract_my_values<Core::LinAlg::Matrix<nen_, 1>>(*phinp, my::ephinp_, lm);
 
-  eval_reinitialization(*phinp, lm, ele, params, discretization, elemat1_epetra, elevec1_epetra);
+  eval_reinitialization(*phinp, lm, ele, params, discretization, elemat1, elevec1);
 
   return 0;
 }
@@ -108,19 +106,18 @@ template <Core::FE::CellType distype, unsigned prob_dim>
 void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::eval_reinitialization(
     const Core::LinAlg::Vector<double>& phinp, const std::vector<int>& lm,
     Core::Elements::Element* ele, Teuchos::ParameterList& params,
-    Core::FE::Discretization& discretization, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra)
+    Core::FE::Discretization& discretization, Core::LinAlg::SerialDenseMatrix& elemat1,
+    Core::LinAlg::SerialDenseVector& elevec1)
 {
   // --- standard case --------------------------------------------------------
   if (prob_dim == this->nsd_ele_)
   {
-    eval_reinitialization_std(
-        phinp, lm, ele, params, discretization, elemat1_epetra, elevec1_epetra);
+    eval_reinitialization_std(phinp, lm, ele, params, discretization, elemat1, elevec1);
   }
   // --- embedded case --------------------------------------------------------
   else
   {
-    eval_reinitialization_embedded(lm, ele, params, discretization, elemat1_epetra, elevec1_epetra);
+    eval_reinitialization_embedded(lm, ele, params, discretization, elemat1, elevec1);
   }
 }
 
@@ -130,8 +127,8 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::eval_reinitial
 template <Core::FE::CellType distype, unsigned prob_dim>
 void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::eval_reinitialization_embedded(
     const std::vector<int>& lm, Core::Elements::Element* ele, Teuchos::ParameterList& params,
-    Core::FE::Discretization& discretization, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra)
+    Core::FE::Discretization& discretization, Core::LinAlg::SerialDenseMatrix& elemat1,
+    Core::LinAlg::SerialDenseVector& elevec1)
 {
   // distinguish reinitialization
   switch (lsreinitparams_->reinit_type())
@@ -145,9 +142,8 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::eval_reinitial
       Core::Geo::BoundaryIntCellPtrs boundaryIntCells = Core::Geo::BoundaryIntCellPtrs(0);
 
       // check the type: ToDo change to FOUR_C_ASSERT
-      if (not params.INVALID_TEMPLATE_QUALIFIER
-              isType<std::shared_ptr<const std::map<int, Core::Geo::BoundaryIntCellPtrs>>>(
-                  "boundary cells"))
+      if (not params.isType<std::shared_ptr<const std::map<int, Core::Geo::BoundaryIntCellPtrs>>>(
+              "boundary cells"))
         FOUR_C_THROW("The given boundary cells have the wrong type!");
 
       const std::shared_ptr<const std::map<int, Core::Geo::BoundaryIntCellPtrs>>& allcells =
@@ -160,7 +156,7 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::eval_reinitial
       std::map<int, Core::Geo::BoundaryIntCellPtrs>::const_iterator cit = allcells->find(my::eid_);
       if (cit != allcells->end()) boundaryIntCells = cit->second;
 
-      Core::LinAlg::Matrix<nen_, 1> el2sysmat_diag_inv(false);
+      Core::LinAlg::Matrix<nen_, 1> el2sysmat_diag_inv(Core::LinAlg::Initialization::uninitialized);
       if (lsreinitparams_->project())
       {
         FOUR_C_THROW(
@@ -190,29 +186,26 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::eval_reinitial
       {
         case ScaTra::Action::calc_mat_and_rhs:
         {
-          elliptic_newton_system(
-              &elemat1_epetra, &elevec1_epetra, el2sysmat_diag_inv, boundaryIntCells);
+          elliptic_newton_system(&elemat1, &elevec1, el2sysmat_diag_inv, boundaryIntCells);
           break;
         }
         case ScaTra::Action::calc_rhs:
         {
-          elliptic_newton_system(nullptr, &elevec1_epetra, el2sysmat_diag_inv, boundaryIntCells);
+          elliptic_newton_system(nullptr, &elevec1, el2sysmat_diag_inv, boundaryIntCells);
           break;
         }
         case ScaTra::Action::calc_mat:
         {
-          elliptic_newton_system(&elemat1_epetra, nullptr, el2sysmat_diag_inv, boundaryIntCells);
+          elliptic_newton_system(&elemat1, nullptr, el2sysmat_diag_inv, boundaryIntCells);
           break;
         }
         default:
           FOUR_C_THROW("Unsupported action!");
-          exit(EXIT_FAILURE);
       }
       break;
     }
     default:
       FOUR_C_THROW("Unsupported reinitialization equation for the embedded case!");
-      exit(EXIT_FAILURE);
   }
 }
 
@@ -239,7 +232,7 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::elliptic_newto
     //--------------------------------------------------------------------
 
     // gradient of current scalar value at integration point
-    Core::LinAlg::Matrix<nsd_, 1> gradphinp(true);
+    Core::LinAlg::Matrix<nsd_, 1> gradphinp(Core::LinAlg::Initialization::zero);
     if (lsreinitparams_->project())
       gradphinp.multiply(my::econvelnp_, my::funct_);
     else
@@ -263,7 +256,7 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::elliptic_newto
         if (normgradphi < 1.0e-8)
           FOUR_C_THROW(
               " The gradient l2-norm is smaller than 1.0e-8! "
-              "( value = %e )",
+              "( value = {} )",
               normgradphi);
 
         double inv_normgradphi = 1.0 / normgradphi;
@@ -346,8 +339,8 @@ template <Core::FE::CellType distype, unsigned prob_dim>
 void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::eval_reinitialization_std(
     const Core::LinAlg::Vector<double>& phinp, const std::vector<int>& lm,
     Core::Elements::Element* ele, Teuchos::ParameterList& params,
-    Core::FE::Discretization& discretization, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra)
+    Core::FE::Discretization& discretization, Core::LinAlg::SerialDenseMatrix& elemat1,
+    Core::LinAlg::SerialDenseVector& elevec1)
 {
   // distinguish reinitialization
   switch (lsreinitparams_->reinit_type())
@@ -375,7 +368,7 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::eval_reinitial
       }
 
       // calculate element coefficient matrix and rhs
-      sysmat_hyperbolic(elemat1_epetra, elevec1_epetra);
+      sysmat_hyperbolic(elemat1, elevec1);
       break;
     }
     case Inpar::ScaTra::reinitaction_ellipticeq:
@@ -407,7 +400,7 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::eval_reinitial
       }
 
       // calculate element coefficient matrix and rhs
-      sysmat_elliptic(elemat1_epetra, elevec1_epetra, boundaryIntCells);
+      sysmat_elliptic(elemat1, elevec1, boundaryIntCells);
       break;
     }
     default:
@@ -439,7 +432,7 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::sysmat_hyperbo
   //----------------------------------------------------------------------
 
   // get gradient of initial phi at element center
-  Core::LinAlg::Matrix<nsd_, 1> gradphizero(true);
+  Core::LinAlg::Matrix<nsd_, 1> gradphizero(Core::LinAlg::Initialization::zero);
   gradphizero.multiply(my::derxy_, ephizero_[0]);
 
   // get characteristic element length
@@ -464,14 +457,14 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::sysmat_hyperbo
     if (not my::scatrapara_->tau_gp())
     {
       // get velocity at element center
-      Core::LinAlg::Matrix<nsd_, 1> convelint(true);
+      Core::LinAlg::Matrix<nsd_, 1> convelint(Core::LinAlg::Initialization::zero);
 
       // switch type for velocity field
       if (not lsreinitparams_->use_projected_vel())
       {
 #ifndef USE_PHIN_FOR_VEL
         // gradient of current scalar value at element center
-        Core::LinAlg::Matrix<nsd_, 1> gradphinp(true);
+        Core::LinAlg::Matrix<nsd_, 1> gradphinp(Core::LinAlg::Initialization::zero);
         gradphinp.multiply(my::derxy_, my::ephinp_[0]);
         // get norm
         const double gradphinp_norm = gradphinp.norm2();
@@ -489,7 +482,7 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::sysmat_hyperbo
         // otherwise gradphi is almost zero and we keep a zero velocity
 #else
         // gradient of scalar value at t_n at element center
-        Core::LinAlg::Matrix<nsd_, 1> gradphin(true);
+        Core::LinAlg::Matrix<nsd_, 1> gradphin(Core::LinAlg::Initialization::zero);
         gradphin.multiply(my::derxy_, my::ephin_[0]);
         // get norm
         const double gradphin_norm = gradphin.norm2();
@@ -540,7 +533,7 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::sysmat_hyperbo
     //--------------------------------------------------------------------
 
     // gradient of current scalar value at integration point
-    Core::LinAlg::Matrix<nsd_, 1> gradphinp(true);
+    Core::LinAlg::Matrix<nsd_, 1> gradphinp(Core::LinAlg::Initialization::zero);
     gradphinp.multiply(my::derxy_, my::ephinp_[0]);
     // scalar at integration point at time step n+1
     const double phinp = my::funct_.dot(my::ephinp_[0]);
@@ -561,7 +554,7 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::sysmat_hyperbo
     var_manager()->set_grad_phi(0, gradphinp);
 
     // get velocity at element center
-    Core::LinAlg::Matrix<nsd_, 1> convelint(true);
+    Core::LinAlg::Matrix<nsd_, 1> convelint(Core::LinAlg::Initialization::zero);
 
     // get sign function
     double signphi = 0.0;
@@ -569,7 +562,7 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::sysmat_hyperbo
     sign_function(signphi, charelelength, phizero, gradphizero, phinp, gradphinp);
 #else
     // gradient of scalar value at t_n at integration point
-    Core::LinAlg::Matrix<nsd_, 1> gradphin(true);
+    Core::LinAlg::Matrix<nsd_, 1> gradphin(Core::LinAlg::Initialization::zero);
     gradphin.multiply(my::derxy_, my::ephin_[0]);
 
     sign_function(signphi, charelelength, phizero, gradphizero, phin, gradphin);
@@ -598,7 +591,7 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::sysmat_hyperbo
     }
 
     // convective part in convective form: u_x*N,x+ u_y*N,y
-    Core::LinAlg::Matrix<nen_, 1> conv(true);
+    Core::LinAlg::Matrix<nen_, 1> conv(Core::LinAlg::Initialization::zero);
     conv.multiply_tn(my::derxy_, convelint);
 
     // convective term using current scalar value
@@ -610,7 +603,7 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::sysmat_hyperbo
     var_manager()->set_con_vel(0, convelint);
     var_manager()->set_conv_phi(0, conv_phi);
 
-    Core::LinAlg::Matrix<nen_, 1> diff(true);
+    Core::LinAlg::Matrix<nen_, 1> diff(Core::LinAlg::Initialization::zero);
     // diffusive term using current scalar value for higher-order elements
     if (my::use2ndderiv_)
     {
@@ -704,7 +697,7 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::sysmat_hyperbo
     my::calc_mat_mass(emat, 0, fac, 1.0);
 
     // subgrid-scale velocity (dummy)
-    Core::LinAlg::Matrix<nen_, 1> sgconv(true);
+    Core::LinAlg::Matrix<nen_, 1> sgconv(Core::LinAlg::Initialization::zero);
     if (lsreinitparams_->lin_form() == Inpar::ScaTra::newton)
     {
       if (my::scatrapara_->stab_type() != Inpar::ScaTra::stabtype_no_stabilization)
@@ -803,7 +796,7 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::sysmat_ellipti
     //--------------------------------------------------------------------
 
     // gradient of current scalar value at integration point
-    Core::LinAlg::Matrix<nsd_, 1> gradphinp(true);
+    Core::LinAlg::Matrix<nsd_, 1> gradphinp(Core::LinAlg::Initialization::zero);
     if (lsreinitparams_->project())
       gradphinp.multiply(my::econvelnp_, my::funct_);
     else
@@ -998,7 +991,7 @@ double Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::calc_char_el
     {
       // get norm of gradient of phi
       double gradphi_norm = gradphizero.norm2();
-      Core::LinAlg::Matrix<nsd_, 1> gradphi_scaled(true);
+      Core::LinAlg::Matrix<nsd_, 1> gradphi_scaled(Core::LinAlg::Initialization::zero);
       if (gradphi_norm >= 1e-8)
         gradphi_scaled.update(1.0 / gradphi_norm, gradphizero);
       else
@@ -1104,7 +1097,7 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::calc_rhs_diff(
   // crosswind diffusion
   double vrhs = rhsfac * diff_manager()->get_isotropic_diff(k);
 
-  Core::LinAlg::Matrix<nsd_, 1> gradphirhs(true);
+  Core::LinAlg::Matrix<nsd_, 1> gradphirhs(Core::LinAlg::Initialization::zero);
   if (crosswind)
   {
     // in case of anisotropic or crosswind diffusion, multiply 'gradphi' with diffusion tensor
@@ -1170,8 +1163,8 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::evaluate_inter
         break;
       }
       default:
-        FOUR_C_THROW("cell distype not implemented yet ( cellType = %s )",
-            Core::FE::cell_type_to_string(celldistype).c_str());
+        FOUR_C_THROW("cell distype not implemented yet ( cellType = {} )",
+            Core::FE::cell_type_to_string(celldistype));
         break;
     }
   }
@@ -1228,7 +1221,7 @@ void Discret::Elements::ScaTraEleCalcLsReinit<distype, prob_dim>::calc_penalty_t
 )
 {
   // get number of vertices of cell
-  const unsigned numvertices = Core::FE::num_nodes<celldistype>;
+  const unsigned numvertices = Core::FE::num_nodes(celldistype);
   const unsigned nsd = 3;
   if (nsd_ != 3) FOUR_C_THROW("Extend for other dimensions");
   const size_t nsd_cell = 2;  // nsd_-1;

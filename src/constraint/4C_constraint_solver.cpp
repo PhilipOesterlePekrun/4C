@@ -26,7 +26,7 @@ FOUR_C_NAMESPACE_OPEN
 /*----------------------------------------------------------------------*
  |  ctor (public)                                               tk 11/07|
  *----------------------------------------------------------------------*/
-CONSTRAINTS::ConstraintSolver::ConstraintSolver(std::shared_ptr<Core::FE::Discretization> discr,
+Constraints::ConstraintSolver::ConstraintSolver(std::shared_ptr<Core::FE::Discretization> discr,
     Core::LinAlg::Solver& solver, std::shared_ptr<Core::LinAlg::MapExtractor> dbcmaps,
     Teuchos::ParameterList params)
     : actdisc_(discr),
@@ -40,7 +40,7 @@ CONSTRAINTS::ConstraintSolver::ConstraintSolver(std::shared_ptr<Core::FE::Discre
 /*----------------------------------------------------------------------*
  |  set-up (public)                                             tk 11/07|
  *----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstraintSolver::setup(Core::FE::Discretization& discr,
+void Constraints::ConstraintSolver::setup(Core::FE::Discretization& discr,
     Core::LinAlg::Solver& solver, Core::LinAlg::MapExtractor& dbcmaps,
     Teuchos::ParameterList params)
 {
@@ -69,7 +69,7 @@ void CONSTRAINTS::ConstraintSolver::setup(Core::FE::Discretization& discr,
 |(public)                                                               |
 |Solve linear constrained system                                        |
 *-----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstraintSolver::solve(Core::LinAlg::SparseMatrix& stiff,
+void Constraints::ConstraintSolver::solve(Core::LinAlg::SparseMatrix& stiff,
     Core::LinAlg::SparseMatrix& constr, Core::LinAlg::SparseMatrix& constrT,
     std::shared_ptr<Core::LinAlg::Vector<double>> dispinc, Core::LinAlg::Vector<double>& lagrinc,
     Core::LinAlg::Vector<double>& rhsstand, Core::LinAlg::Vector<double>& rhsconstr)
@@ -95,7 +95,7 @@ void CONSTRAINTS::ConstraintSolver::solve(Core::LinAlg::SparseMatrix& stiff,
 |(public)                                                               |
 |Solve linear constrained system by iterative Uzawa algorithm           |
 *-----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstraintSolver::solve_uzawa(Core::LinAlg::SparseMatrix& stiff,
+void Constraints::ConstraintSolver::solve_uzawa(Core::LinAlg::SparseMatrix& stiff,
     Core::LinAlg::SparseMatrix& constr, Core::LinAlg::SparseMatrix& constrT,
     std::shared_ptr<Core::LinAlg::Vector<double>> dispinc, Core::LinAlg::Vector<double>& lagrinc,
     Core::LinAlg::Vector<double>& rhsstand, Core::LinAlg::Vector<double>& rhsconstr)
@@ -115,8 +115,8 @@ void CONSTRAINTS::ConstraintSolver::solve_uzawa(Core::LinAlg::SparseMatrix& stif
 
   const double computol = 1E-8;
 
-  Core::LinAlg::Vector<double> constrTLagrInc(rhsstand.Map());
-  Core::LinAlg::Vector<double> constrTDispInc(rhsconstr.Map());
+  Core::LinAlg::Vector<double> constrTLagrInc(rhsstand.get_block_map());
+  Core::LinAlg::Vector<double> constrTDispInc(rhsconstr.get_block_map());
   // Core::LinAlg::SparseMatrix constrT =
   // *(std::dynamic_pointer_cast<Core::LinAlg::SparseMatrix>(constr));
 
@@ -125,7 +125,7 @@ void CONSTRAINTS::ConstraintSolver::solve_uzawa(Core::LinAlg::SparseMatrix& stif
   if (dirichtoggle_ != nullptr)
     dbcmaps_ = Core::LinAlg::convert_dirichlet_toggle_vector_to_maps(*dirichtoggle_);
 
-  Core::LinAlg::Vector<double> zeros(rhsstand.Map(), true);
+  Core::LinAlg::Vector<double> zeros(rhsstand.get_block_map(), true);
   std::shared_ptr<Core::LinAlg::Vector<double>> dirichzeros = dbcmaps_->extract_cond_vector(zeros);
 
   // Compute residual of the uzawa algorithm
@@ -133,16 +133,16 @@ void CONSTRAINTS::ConstraintSolver::solve_uzawa(Core::LinAlg::SparseMatrix& stif
       std::make_shared<Core::LinAlg::Vector<double>>(rhsstand);
   Core::LinAlg::Vector<double> uzawa_res(*fresmcopy);
   (stiff).multiply(false, *dispinc, uzawa_res);
-  uzawa_res.Update(1.0, *fresmcopy, -1.0);
+  uzawa_res.update(1.0, *fresmcopy, -1.0);
 
   // blank residual DOFs which are on Dirichlet BC
   dbcmaps_->insert_cond_vector(*dirichzeros, uzawa_res);
 
-  uzawa_res.Norm2(&norm_uzawa);
-  Core::LinAlg::Vector<double> constr_res(lagrinc.Map());
+  uzawa_res.norm_2(&norm_uzawa);
+  Core::LinAlg::Vector<double> constr_res(lagrinc.get_block_map());
 
-  constr_res.Update(1.0, (rhsconstr), 0.0);
-  constr_res.Norm2(&norm_constr_uzawa);
+  constr_res.update(1.0, (rhsconstr), 0.0);
+  constr_res.norm_2(&norm_constr_uzawa);
   quotient = 1;
   // Solve one iteration step with augmented lagrange
   // Since we calculate displacement norm as well, at least one step has to be taken
@@ -166,26 +166,26 @@ void CONSTRAINTS::ConstraintSolver::solve_uzawa(Core::LinAlg::SparseMatrix& stif
     solver_->reset_tolerance();
 
     // compute Lagrange multiplier increment
-    constrTDispInc.PutScalar(0.0);
+    constrTDispInc.put_scalar(0.0);
     constrT.multiply(true, *dispinc, constrTDispInc);
-    lagrinc.Update(iterationparam_, constrTDispInc, iterationparam_, rhsconstr, 1.0);
+    lagrinc.update(iterationparam_, constrTDispInc, iterationparam_, rhsconstr, 1.0);
 
     // Compute residual of the uzawa algorithm
     constr.multiply(false, lagrinc, constrTLagrInc);
 
-    fresmcopy->Update(-1.0, constrTLagrInc, 1.0, rhsstand, 0.0);
+    fresmcopy->update(-1.0, constrTLagrInc, 1.0, rhsstand, 0.0);
     Core::LinAlg::Vector<double> uzawa_res(*fresmcopy);
     (stiff).multiply(false, *dispinc, uzawa_res);
-    uzawa_res.Update(1.0, *fresmcopy, -1.0);
+    uzawa_res.update(1.0, *fresmcopy, -1.0);
 
     // blank residual DOFs which are on Dirichlet BC
     dbcmaps_->insert_cond_vector(*dirichzeros, uzawa_res);
     norm_uzawa_old = norm_uzawa;
-    uzawa_res.Norm2(&norm_uzawa);
-    Core::LinAlg::Vector<double> constr_res(lagrinc.Map());
+    uzawa_res.norm_2(&norm_uzawa);
+    Core::LinAlg::Vector<double> constr_res(lagrinc.get_block_map());
 
-    constr_res.Update(1.0, constrTDispInc, 1.0, rhsconstr, 0.0);
-    constr_res.Norm2(&norm_constr_uzawa);
+    constr_res.update(1.0, constrTDispInc, 1.0, rhsconstr, 0.0);
+    constr_res.norm_2(&norm_constr_uzawa);
     //-------------Adapt Uzawa parameter--------------
     // For a constant parameter the quotient of two successive residual norms
     // stays nearly constant during the computation. So this quotient seems to be a good
@@ -246,16 +246,19 @@ void CONSTRAINTS::ConstraintSolver::solve_uzawa(Core::LinAlg::SparseMatrix& stif
 |(public)                                                               |
 |Solve linear constrained system by iterative Uzawa algorithm           |
 *-----------------------------------------------------------------------*/
-void CONSTRAINTS::ConstraintSolver::solve_direct(Core::LinAlg::SparseMatrix& stiff,
+void Constraints::ConstraintSolver::solve_direct(Core::LinAlg::SparseMatrix& stiff,
     Core::LinAlg::SparseMatrix& constr, Core::LinAlg::SparseMatrix& constrT,
     Core::LinAlg::Vector<double>& dispinc, Core::LinAlg::Vector<double>& lagrinc,
     Core::LinAlg::Vector<double>& rhsstand, Core::LinAlg::Vector<double>& rhsconstr)
 {
   // define maps of standard dofs and additional lagrange multipliers
-  std::shared_ptr<Epetra_Map> standrowmap = std::make_shared<Epetra_Map>(stiff.row_map());
-  std::shared_ptr<Epetra_Map> conrowmap = std::make_shared<Epetra_Map>(constr.domain_map());
+  std::shared_ptr<Core::LinAlg::Map> standrowmap =
+      std::make_shared<Core::LinAlg::Map>(stiff.row_map());
+  std::shared_ptr<Core::LinAlg::Map> conrowmap =
+      std::make_shared<Core::LinAlg::Map>(constr.domain_map());
   // merge maps to one large map
-  std::shared_ptr<Epetra_Map> mergedmap = Core::LinAlg::merge_map(standrowmap, conrowmap, false);
+  std::shared_ptr<Core::LinAlg::Map> mergedmap =
+      Core::LinAlg::merge_map(standrowmap, conrowmap, false);
   // define MapExtractor
   Core::LinAlg::MapExtractor mapext(*mergedmap, standrowmap, conrowmap);
 
@@ -277,7 +280,7 @@ void CONSTRAINTS::ConstraintSolver::solve_direct(Core::LinAlg::SparseMatrix& sti
   mergedmatrix->complete(*mergedmap, *mergedmap);
   // fill merged vectors using Export
   Core::LinAlg::export_to(rhsconstr, *mergedrhs);
-  mergedrhs->Scale(-1.0);
+  mergedrhs->scale(-1.0);
   Core::LinAlg::export_to(rhsstand, *mergedrhs);
 
   // solve
@@ -294,21 +297,27 @@ void CONSTRAINTS::ConstraintSolver::solve_direct(Core::LinAlg::SparseMatrix& sti
   return;
 }
 
-void CONSTRAINTS::ConstraintSolver::solve_simple(Core::LinAlg::SparseMatrix& stiff,
+void Constraints::ConstraintSolver::solve_simple(Core::LinAlg::SparseMatrix& stiff,
     Core::LinAlg::SparseMatrix& constr, Core::LinAlg::SparseMatrix& constrT,
     Core::LinAlg::Vector<double>& dispinc, Core::LinAlg::Vector<double>& lagrinc,
     Core::LinAlg::Vector<double>& rhsstand, Core::LinAlg::Vector<double>& rhsconstr)
 {
   // row maps (assumed to equal to range map) and extractor
-  std::shared_ptr<Epetra_Map> standrowmap = std::make_shared<Epetra_Map>(stiff.row_map());
-  std::shared_ptr<Epetra_Map> conrowmap = std::make_shared<Epetra_Map>(constr.domain_map());
-  std::shared_ptr<Epetra_Map> mergedrowmap = Core::LinAlg::merge_map(standrowmap, conrowmap, false);
+  std::shared_ptr<Core::LinAlg::Map> standrowmap =
+      std::make_shared<Core::LinAlg::Map>(stiff.row_map());
+  std::shared_ptr<Core::LinAlg::Map> conrowmap =
+      std::make_shared<Core::LinAlg::Map>(constr.domain_map());
+  std::shared_ptr<Core::LinAlg::Map> mergedrowmap =
+      Core::LinAlg::merge_map(standrowmap, conrowmap, false);
   Core::LinAlg::MapExtractor rowmapext(*mergedrowmap, conrowmap, standrowmap);
 
   // domain maps and extractor
-  std::shared_ptr<Epetra_Map> standdommap = std::make_shared<Epetra_Map>(stiff.domain_map());
-  std::shared_ptr<Epetra_Map> condommap = std::make_shared<Epetra_Map>(constr.domain_map());
-  std::shared_ptr<Epetra_Map> mergeddommap = Core::LinAlg::merge_map(standdommap, condommap, false);
+  std::shared_ptr<Core::LinAlg::Map> standdommap =
+      std::make_shared<Core::LinAlg::Map>(stiff.domain_map());
+  std::shared_ptr<Core::LinAlg::Map> condommap =
+      std::make_shared<Core::LinAlg::Map>(constr.domain_map());
+  std::shared_ptr<Core::LinAlg::Map> mergeddommap =
+      Core::LinAlg::merge_map(standdommap, condommap, false);
   Core::LinAlg::MapExtractor dommapext(*mergeddommap, condommap, standdommap);
 
   // cast constraint operators to matrices and save transpose of constraint matrix
@@ -322,7 +331,7 @@ void CONSTRAINTS::ConstraintSolver::solve_simple(Core::LinAlg::SparseMatrix& sti
     dbcmaps_ = Core::LinAlg::convert_dirichlet_toggle_vector_to_maps(*dirichtoggle_);
 
   // stuff needed for Dirichlet BCs
-  Core::LinAlg::Vector<double> zeros(rhsstand.Map(), true);
+  Core::LinAlg::Vector<double> zeros(rhsstand.get_block_map(), true);
   std::shared_ptr<Core::LinAlg::Vector<double>> dirichzeros = dbcmaps_->extract_cond_vector(zeros);
   Core::LinAlg::Vector<double> rhscopy(rhsstand);
 
@@ -357,16 +366,16 @@ void CONSTRAINTS::ConstraintSolver::solve_simple(Core::LinAlg::SparseMatrix& sti
   std::shared_ptr<Core::LinAlg::BlockSparseMatrix<Core::LinAlg::DefaultBlockMatrixStrategy>> mat =
       std::make_shared<Core::LinAlg::BlockSparseMatrix<Core::LinAlg::DefaultBlockMatrixStrategy>>(
           dommapext, rowmapext, 81, false, false);
-  mat->assign(0, 0, Core::LinAlg::View, stiff);
-  mat->assign(0, 1, Core::LinAlg::View, constr);
-  mat->assign(1, 0, Core::LinAlg::View, constrTrans);
+  mat->assign(0, 0, Core::LinAlg::DataAccess::View, stiff);
+  mat->assign(0, 1, Core::LinAlg::DataAccess::View, constr);
+  mat->assign(1, 0, Core::LinAlg::DataAccess::View, constrTrans);
   mat->complete();
 
   // merged rhs using Export
   std::shared_ptr<Core::LinAlg::Vector<double>> mergedrhs =
       std::make_shared<Core::LinAlg::Vector<double>>(*mergedrowmap);
   Core::LinAlg::export_to(rhsconstr, *mergedrhs);
-  mergedrhs->Scale(-1.0);
+  mergedrhs->scale(-1.0);
   Core::LinAlg::export_to(rhscopy, *mergedrhs);
 
   // solution vector

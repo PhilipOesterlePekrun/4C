@@ -30,7 +30,7 @@ NLNSOL                          fullnewton                    // fullnewton modn
 TIMESTEP                        0.5
 NUMSTEP                         3
 MAXTIME                         5000.0
-DAMPING                         No
+DAMPING                         None
 M_DAMP                          0.5
 K_DAMP                          0.5
 NORM_DISP                       Abs
@@ -47,13 +47,12 @@ NAME                            Micro_Struct_Solver
 SOLVER                          UMFPACK
 -------------------------------------------------------MICROSCALE CONDITIONS
 // DOBJECT FLAG FLAG FLAG FLAG FLAG FLAG VAL VAL VAL VAL VAL VAL CURVE CURVE CURVE CURVE CURVE CURVE
-DSURF                           6
-E 1 -
-E 2 -
-E 3 -
-E 4 -
-E 5 -
-E 6 -
+E 1
+E 2
+E 3
+E 4
+E 5
+E 6
 ---------------------------------------------------------DNODE-NODE TOPOLOGY
 NODE 1 DNODE 1
 NODE 24 DNODE 2

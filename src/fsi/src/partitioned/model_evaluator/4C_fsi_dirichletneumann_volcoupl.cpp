@@ -217,7 +217,7 @@ void FSI::InterfaceCorrector::correct_interface_displacements(
   std::shared_ptr<Core::LinAlg::Vector<double>> idisp_fluid_corrected =
       icoupfs_->master_to_slave(*idisp_);
 
-  deltadisp_->Update(1.0, *idisp_fluid_corrected, -1.0);
+  deltadisp_->update(1.0, *idisp_fluid_corrected, -1.0);
 
   Core::LinAlg::export_to(*idisp_fluid_corrected, *disp_fluid);
   // finterface->insert_fsi_cond_vector(idisp_fluid_corrected,disp_fluid);
@@ -267,7 +267,7 @@ void FSI::VolCorrector::correct_vol_displacements_para_space(
     std::shared_ptr<Core::LinAlg::Vector<double>> disp_fluid,
     std::shared_ptr<FLD::Utils::MapExtractor> const& finterface)
 {
-  Core::LinAlg::Vector<double> correction(disp_fluid->Map(), true);
+  Core::LinAlg::Vector<double> correction(disp_fluid->get_block_map(), true);
   Core::LinAlg::Vector<double> DofColMapDummy(
       *fluidale->fluid_field()->discretization()->dof_col_map(), true);
   Core::LinAlg::export_to(*deltadisp, DofColMapDummy);
@@ -357,8 +357,7 @@ void FSI::VolCorrector::correct_vol_displacements_para_space(
       for (int idof = 0; idof < dim_; idof++) dofsFSI.push_back(temp[idof]);
 
       // extract local values of the global vectors
-      std::vector<double> FSIdisp(dofsFSI.size());
-      Core::FE::extract_my_values(DofColMapDummy, FSIdisp, dofsFSI);
+      std::vector<double> FSIdisp = Core::FE::extract_values(DofColMapDummy, dofsFSI);
 
       std::vector<int> temp2 = fluidale->fluid_field()->discretization()->dof(fluidnode);
       std::vector<int> dofs;
@@ -377,11 +376,11 @@ void FSI::VolCorrector::correct_vol_displacements_para_space(
   }  // end ale fsi element loop
 
   // do correction
-  disp_fluid->Update(1.0, correction, 1.0);
+  disp_fluid->update(1.0, correction, 1.0);
 
   // calc norm
   double norm = 0.0;
-  correction.Norm2(&norm);
+  correction.norm_2(&norm);
 
   // output
   if (Core::Communication::my_mpi_rank(fluidale->ale_field()->discretization()->get_comm()) == 0)
@@ -398,7 +397,7 @@ void FSI::VolCorrector::correct_vol_displacements_phys_space(
     std::shared_ptr<Core::LinAlg::Vector<double>> disp_fluid,
     std::shared_ptr<FLD::Utils::MapExtractor> const& finterface)
 {
-  Core::LinAlg::Vector<double> correction(disp_fluid->Map(), true);
+  Core::LinAlg::Vector<double> correction(disp_fluid->get_block_map(), true);
   Core::LinAlg::Vector<double> DofColMapDummy(
       *fluidale->fluid_field()->discretization()->dof_col_map(), true);
   Core::LinAlg::export_to(*deltadisp, DofColMapDummy);
@@ -420,11 +419,11 @@ void FSI::VolCorrector::correct_vol_displacements_phys_space(
   }
 
   // do correction
-  disp_fluid->Update(1.0, correction, 1.0);
+  disp_fluid->update(1.0, correction, 1.0);
 
   // calc norm
   double norm = 0.0;
-  correction.Norm2(&norm);
+  correction.norm_2(&norm);
 
   // output
   if (Core::Communication::my_mpi_rank(fluidale->ale_field()->discretization()->get_comm()) == 0)
@@ -495,7 +494,7 @@ void FSI::VolCorrector::setup(const int dim, std::shared_ptr<Adapter::FluidAle> 
     fluidaleelemap_[gid] = search(*aleele, CurrentDOPs);
   }  // end node loop
 
-  std::shared_ptr<Epetra_Map> FSIfluidnodes = Core::Conditions::condition_node_col_map(
+  std::shared_ptr<Core::LinAlg::Map> FSIfluidnodes = Core::Conditions::condition_node_col_map(
       *fluidale->fluid_field()->discretization(), "FSICoupling");
 
   std::set<int> globalnodeids;

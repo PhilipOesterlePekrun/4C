@@ -11,9 +11,9 @@
 #include "4C_config.hpp"
 
 #include "4C_contact_abstract_data_container.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_contact_paramsinterface.hpp"
 #include "4C_contact_utils.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_inpar_mortar.hpp"
 #include "4C_mortar_strategy_base.hpp"
 
@@ -91,7 +91,7 @@ namespace CONTACT
     \param[in] maxdof Highest DOF number in global problem
     */
     AbstractStrategy(const std::shared_ptr<CONTACT::AbstractStrategyDataContainer>& data_ptr,
-        const Epetra_Map* dof_row_map, const Epetra_Map* NodeRowMap,
+        const Core::LinAlg::Map* dof_row_map, const Core::LinAlg::Map* NodeRowMap,
         const Teuchos::ParameterList& params_in, const int spatialDim, const MPI_Comm& comm,
         const double alphaf, int const maxdof);
 
@@ -109,7 +109,7 @@ namespace CONTACT
 
 
     //! return the current solution type
-    virtual Inpar::CONTACT::SolvingStrategy type() const { return stype_; }
+    virtual CONTACT::SolvingStrategy type() const { return stype_; }
 
     //! @name Access methods
     //!@{
@@ -122,16 +122,16 @@ namespace CONTACT
      *  \param redist (in): If TRUE, the redistributed map is returned, otherwise the
      *                      original map before any redistribution took place.
      *
-     *  \date 04/2016
-     *  \author hiermeier */
-    virtual std::shared_ptr<const Epetra_Map> lm_dof_row_map_ptr(const bool& redist) const
+
+     *  */
+    virtual std::shared_ptr<const Core::LinAlg::Map> lm_dof_row_map_ptr(const bool& redist) const
     {
       if ((not redist) and parallel_redistribution_status())
         return data().non_redist_global_lm_dof_row_map_ptr();
 
       return data().global_lm_dof_row_map_ptr();
     };
-    virtual const Epetra_Map& lm_dof_row_map(const bool& redist) const
+    virtual const Core::LinAlg::Map& lm_dof_row_map(const bool& redist) const
     {
       return *lm_dof_row_map_ptr(redist);
     }
@@ -142,11 +142,11 @@ namespace CONTACT
      *  \note This map is NOT used internally. Its only purpose is to provide a
      *  map as meaningful upper bound for potentially acquired LM dofs.
      *
-     *  \date 04/2018
-     *  \author hiermeier */
-    virtual std::shared_ptr<const Epetra_Map> lin_system_lm_dof_row_map_ptr() const
+
+     *  */
+    virtual std::shared_ptr<const Core::LinAlg::Map> lin_system_lm_dof_row_map_ptr() const
     {
-      if (system_type() != Inpar::CONTACT::system_saddlepoint) return nullptr;
+      if (system_type() != CONTACT::SystemType::saddlepoint) return nullptr;
 
       if (is_self_contact())
       {
@@ -158,7 +158,7 @@ namespace CONTACT
         return lm_dof_row_map_ptr(false);
     };
 
-    virtual const Epetra_Map& lin_system_lm_dof_row_map() const
+    virtual const Core::LinAlg::Map& lin_system_lm_dof_row_map() const
     {
       return *lin_system_lm_dof_row_map_ptr();
     }
@@ -168,16 +168,16 @@ namespace CONTACT
      *  \param redist (in): If TRUE, the redistributed map is returned, otherwise the
      *                      original map before any redistribution took place.
      *
-     *  \date 04/2016
-     *  \author hiermeier */
-    virtual std::shared_ptr<const Epetra_Map> slave_dof_row_map_ptr(const bool& redist) const
+
+     *  */
+    virtual std::shared_ptr<const Core::LinAlg::Map> slave_dof_row_map_ptr(const bool& redist) const
     {
       if ((not redist) and parallel_redistribution_status())
         return data().non_redist_global_slave_dof_row_map_ptr();
 
       return data().global_slave_dof_row_map_ptr();
     };
-    virtual const Epetra_Map& slave_dof_row_map(const bool& redist) const
+    virtual const Core::LinAlg::Map& slave_dof_row_map(const bool& redist) const
     {
       return *slave_dof_row_map_ptr(redist);
     }
@@ -187,9 +187,10 @@ namespace CONTACT
      *  \param redist (in): If TRUE, the redistributed map is returned, otherwise the
      *                      original map before any redistribution took place.
      *
-     *  \date 04/2016
-     *  \author hiermeier */
-    virtual std::shared_ptr<const Epetra_Map> slave_n_dof_row_map_ptr(const bool& redist) const
+
+     *  */
+    virtual std::shared_ptr<const Core::LinAlg::Map> slave_n_dof_row_map_ptr(
+        const bool& redist) const
     {
       FOUR_C_THROW("Map not available in abstract strategy!");
       if ((not redist) and parallel_redistribution_status())
@@ -197,11 +198,10 @@ namespace CONTACT
 
       return nullptr;
     };
-    virtual const Epetra_Map& slave_n_dof_row_map(const bool& redist) const
+    virtual const Core::LinAlg::Map& slave_n_dof_row_map(const bool& redist) const
     {
       // currently not supported for the abstract strategy
       FOUR_C_THROW("slave_n_dof_row_map() seems currently unsupported!");
-      exit(EXIT_FAILURE);
     }
 
     /*! \brief Return the slave dof row map in the tangential directions
@@ -209,32 +209,37 @@ namespace CONTACT
      *  \param redist (in): If TRUE, the redistributed map is returned, otherwise the
      *                      original map before any redistribution took place.
      *
-     *  \date 04/2016
-     *  \author hiermeier */
-    virtual std::shared_ptr<const Epetra_Map> slave_t_dof_row_map_ptr(const bool& redist) const
+
+     *  */
+    virtual std::shared_ptr<const Core::LinAlg::Map> slave_t_dof_row_map_ptr(
+        const bool& redist) const
     {
       if ((not redist) and parallel_redistribution_status())
         FOUR_C_THROW("The original / not redistributed slave tangential row map is not available!");
 
       return nullptr;
     };
-    virtual const Epetra_Map& slave_t_dof_row_map(const bool& redist) const { return *gslipdofs_; }
+    virtual const Core::LinAlg::Map& slave_t_dof_row_map(const bool& redist) const
+    {
+      return *gslipdofs_;
+    }
 
     /*! \brief Return the master dof row map
      *
      *  \param redist (in): If TRUE, the redistributed map is returned, otherwise the
      *                      original map before any redistribution took place.
      *
-     *  \date 04/2016
-     *  \author hiermeier */
-    virtual std::shared_ptr<const Epetra_Map> master_dof_row_map_ptr(const bool& redist) const
+
+     *  */
+    virtual std::shared_ptr<const Core::LinAlg::Map> master_dof_row_map_ptr(
+        const bool& redist) const
     {
       if ((not redist) and parallel_redistribution_status())
         return data().non_redist_global_master_dof_row_map_ptr();
 
       return data().global_master_dof_row_map_ptr();
     };
-    virtual const Epetra_Map& master_dof_row_map(const bool& redist) const
+    virtual const Core::LinAlg::Map& master_dof_row_map(const bool& redist) const
     {
       return *master_dof_row_map_ptr(redist);
     }
@@ -244,16 +249,17 @@ namespace CONTACT
      *  \param redist (in): If TRUE, the redistributed map is returned, otherwise the
      *                      original map before any redistribution took place.
      *
-     *  \date 04/2016
-     *  \author hiermeier */
-    virtual std::shared_ptr<const Epetra_Map> slave_master_dof_row_map_ptr(const bool& redist) const
+
+     *  */
+    virtual std::shared_ptr<const Core::LinAlg::Map> slave_master_dof_row_map_ptr(
+        const bool& redist) const
     {
       if ((not redist) and parallel_redistribution_status())
         return data().non_redist_global_slave_master_dof_row_map_ptr();
 
       return data().global_slave_master_dof_row_map_ptr();
     };
-    virtual const Epetra_Map& slave_master_dof_row_map(const bool& redist) const
+    virtual const Core::LinAlg::Map& slave_master_dof_row_map(const bool& redist) const
     {
       return *slave_master_dof_row_map_ptr(redist);
     }
@@ -265,13 +271,12 @@ namespace CONTACT
      *
      *  \param bt (in): Desired vector block type, e.g. displ, constraint, ...
      *
-     *  \date 05/2016
-     *  \author hiermeier */
+
+     *  */
     virtual std::shared_ptr<const Core::LinAlg::Vector<double>> get_rhs_block_ptr(
         const enum CONTACT::VecBlockType& bt) const
     {
       FOUR_C_THROW("Not yet implemented!");
-      exit(EXIT_FAILURE);
 
       return nullptr;
     };
@@ -289,7 +294,7 @@ namespace CONTACT
      *
      *  \param bt (in): Desired vector block type, e.g. displ, constraint, ...
      *
-     *  \author hiermeier \date 08/17  */
+     *  */
     virtual std::shared_ptr<const Core::LinAlg::Vector<double>> get_rhs_block_ptr_for_norm_check(
         const enum CONTACT::VecBlockType& bt) const
     {
@@ -301,13 +306,12 @@ namespace CONTACT
      *  \remark Please note, that a nullptr pointer is returned, if no active contact
      *  contributions are present.
      *
-     *  \date 05/2016
-     *  \author hiermeier */
+
+     *  */
     virtual std::shared_ptr<const Core::LinAlg::Vector<double>> get_condensed_rhs_ptr(
         Core::LinAlg::Vector<double>& f, const double& timefac_np) const
     {
       FOUR_C_THROW("Not yet implemented!");
-      exit(EXIT_FAILURE);
 
       return nullptr;
     };
@@ -319,14 +323,13 @@ namespace CONTACT
      *
      *  \param bt (in): Desired matrix block type, e.g. displ_displ, displ_lm, ...
      *
-     *  \date 05/2016
-     *  \author hiermeier */
+
+     *  */
     virtual std::shared_ptr<Core::LinAlg::SparseMatrix> get_matrix_block_ptr(
         const enum CONTACT::MatBlockType& bt,
         const CONTACT::ParamsInterface* cparams = nullptr) const
     {
       FOUR_C_THROW("Not yet implemented!");
-      exit(EXIT_FAILURE);
 
       return nullptr;
     };
@@ -346,69 +349,74 @@ namespace CONTACT
         std::shared_ptr<Core::LinAlg::SparseMatrix>& kteff, const double& timefac_np) const
     {
       FOUR_C_THROW("Not yet implemented!");
-      exit(EXIT_FAILURE);
 
       return nullptr;
     };
 
     //! Return global slave node row map
-    std::shared_ptr<const Epetra_Map> slave_row_nodes_ptr() const override
+    std::shared_ptr<const Core::LinAlg::Map> slave_row_nodes_ptr() const override
     {
       return data().global_slave_node_row_map_ptr();
     }
-    const Epetra_Map& slave_row_nodes() const { return *data().global_slave_node_row_map_ptr(); }
+    const Core::LinAlg::Map& slave_row_nodes() const
+    {
+      return *data().global_slave_node_row_map_ptr();
+    }
 
     //! Return global slave node row map
-    std::shared_ptr<const Epetra_Map> master_row_nodes_ptr() const
+    std::shared_ptr<const Core::LinAlg::Map> master_row_nodes_ptr() const
     {
       return data().global_master_node_row_map_ptr();
     }
-    const Epetra_Map& master_row_nodes() const { return *data().global_master_node_row_map_ptr(); }
+    const Core::LinAlg::Map& master_row_nodes() const
+    {
+      return *data().global_master_node_row_map_ptr();
+    }
 
     //! Return global active node row map
-    std::shared_ptr<const Epetra_Map> active_row_nodes() const override
+    std::shared_ptr<const Core::LinAlg::Map> active_row_nodes() const override
     {
       return data().global_active_node_row_map_ptr();
     };
 
     //! Return global slip node row map
-    std::shared_ptr<const Epetra_Map> slip_row_nodes() const override
+    std::shared_ptr<const Core::LinAlg::Map> slip_row_nodes() const override
     {
       return data().global_slip_node_row_map_ptr();
     };
 
     //! Return global slave dof row map
-    std::shared_ptr<const Epetra_Map> slave_row_dofs() const
+    std::shared_ptr<const Core::LinAlg::Map> slave_row_dofs() const
     {
       return data().global_slave_dof_row_map_ptr();
     }
 
     //! Return global active dof row map
-    std::shared_ptr<const Epetra_Map> active_row_dofs() const override
+    std::shared_ptr<const Core::LinAlg::Map> active_row_dofs() const override
     {
       return data().global_active_dof_row_map_ptr();
     }
 
     //! Return global master dof row map
-    std::shared_ptr<const Epetra_Map> master_row_dofs() const
+    std::shared_ptr<const Core::LinAlg::Map> master_row_dofs() const
     {
       return data().global_master_dof_row_map_ptr();
     }
 
     //! Return global slave dof row map
-    std::shared_ptr<const Epetra_Map> slave_master_row_dofs() const
+    std::shared_ptr<const Core::LinAlg::Map> slave_master_row_dofs() const
     {
       return data().global_slave_master_dof_row_map_ptr();
     }
 
     //! Return non-redistributed global slave dof row map
-    std::shared_ptr<const Epetra_Map> non_redist_slave_row_dofs() const override
+    std::shared_ptr<const Core::LinAlg::Map> non_redist_slave_row_dofs() const override
     {
       return data().non_redist_global_slave_dof_row_map_ptr();
     }
 
     //! Return non-redistributed global master dof row map
-    std::shared_ptr<const Epetra_Map> non_redist_master_row_dofs() const override
+    std::shared_ptr<const Core::LinAlg::Map> non_redist_master_row_dofs() const override
     {
       return data().non_redist_global_master_dof_row_map_ptr();
     }
@@ -421,9 +429,10 @@ namespace CONTACT
     @param InnerDofMap Dof row map of interior volume
     @param ActiveDofMap Dof row map of active slave contact interface
     */
-    void collect_maps_for_preconditioner(std::shared_ptr<Epetra_Map>& MasterDofMap,
-        std::shared_ptr<Epetra_Map>& SlaveDofMap, std::shared_ptr<Epetra_Map>& InnerDofMap,
-        std::shared_ptr<Epetra_Map>& ActiveDofMap) const override;
+    void collect_maps_for_preconditioner(std::shared_ptr<Core::LinAlg::Map>& MasterDofMap,
+        std::shared_ptr<Core::LinAlg::Map>& SlaveDofMap,
+        std::shared_ptr<Core::LinAlg::Map>& InnerDofMap,
+        std::shared_ptr<Core::LinAlg::Map>& ActiveDofMap) const override;
 
     //! Return Lagrange multiplier vector (\f$t_{n+1}\f$)
     std::shared_ptr<const Core::LinAlg::Vector<double>> lagrange_multiplier() const override
@@ -439,8 +448,7 @@ namespace CONTACT
      *
      *  \warning The vector is returned with the slave dof row map, i.e. actually the wrong map!
      *
-     *  \author hiermeier
-     *  \date 05/16 */
+     */
     virtual std::shared_ptr<const Core::LinAlg::Vector<double>> lagrange_multiplier_np(
         const bool& redist) const;
 
@@ -458,8 +466,7 @@ namespace CONTACT
      *
      *  \warning The vector is returned with the slave dof row map, i.e. actually the wrong map!
      *
-     *  \author hiermeier
-     *  \date 05/16 */
+     */
     virtual std::shared_ptr<const Core::LinAlg::Vector<double>> lagrange_multiplier_n(
         const bool& redist) const;
 
@@ -676,21 +683,21 @@ namespace CONTACT
 
     /*! \brief Reset the internal state variables
      *
-     *  \date 02/2016
-     *  \author hiermeier */
+
+     *  */
     virtual void reset(const CONTACT::ParamsInterface& cparams,
         const Core::LinAlg::Vector<double>& dispnp, const Core::LinAlg::Vector<double>& xnew);
 
     /*! \brief Global evaluation method called from Solid::MODELEVALUATOR::Contact class
      *
-     *  \date 03/2016
-     *  \author hiermeier */
+
+     *  */
     void evaluate(CONTACT::ParamsInterface& cparams) { evaluate(cparams, nullptr); }
 
     /*! \brief Global evaluation method called from Solid::MODELEVALUATOR::Contact class
      *
-     *  \date 03/2016
-     *  \author hiermeier */
+
+     *  */
 
     void evaluate(CONTACT::ParamsInterface& cparams,
         const std::vector<std::shared_ptr<const Core::LinAlg::Vector<double>>>* eval_vec)
@@ -707,8 +714,8 @@ namespace CONTACT
      *
      * \note This routine is \em not virtual as it is not supposed to be overloaded.
      *
-     * \date 03/2016
-     * \author hiermeier */
+
+     * */
     void evaluate(CONTACT::ParamsInterface& cparams,
         const std::vector<std::shared_ptr<const Core::LinAlg::Vector<double>>>* eval_vec,
         const std::vector<std::shared_ptr<Core::LinAlg::Vector<double>>>* eval_vec_mutable);
@@ -775,10 +782,9 @@ namespace CONTACT
     (1) slaveDofMap
     (2) innerDofMap
     (3) activeDofMap
-
-    \author hiermeier
     */
-    void fill_maps_for_preconditioner(std::vector<Teuchos::RCP<Epetra_Map>>& maps) const override;
+    void fill_maps_for_preconditioner(
+        std::vector<Teuchos::RCP<Core::LinAlg::Map>>& maps) const override;
 
     //! compute the preconditioner operator
     bool computePreconditioner(const Epetra_Vector& x, Epetra_Operator& M,
@@ -876,17 +882,6 @@ namespace CONTACT
      *  \param(in) writer: output writer */
     virtual void write_output(Core::IO::DiscretizationWriter& writer) const { return; }
 
-    /*! \brief Compute interface forces and moments
-     *
-     * Compute current interface forces and moments at n+1-alphaf using current
-     * Lagrange multiplier values and current Mortar matrices D and M at n+1. When
-     * doing dynamics with alpha_f > 0, this also uses the old LM and Mortar
-     * matrices of the last converged time / load step n (TR-like interpolation).
-     *
-     *\param output (in): flag indicating whether force output shall be written
-     */
-    void interface_forces(bool output = false) override;
-
     //! Print interfaces
     void print(std::ostream& os) const override;
 
@@ -905,18 +900,6 @@ namespace CONTACT
 
     //!@}
 
-    //! @name Debugging methods
-    //!@{
-
-    /*! \brief Visualize contact stuff with gmsh
-
-     \param step (in): current time step index
-     \param iter (in): current iteration index
-     */
-    void visualize_gmsh(const int step, const int iter) const override;
-
-    //!@}
-
     /*! @name Purely virtual functions
      *
      * All these functions are defined in one or more specific derived classes,
@@ -928,8 +911,8 @@ namespace CONTACT
 
     bool active_set_converged() const override = 0;
     virtual int active_set_steps() const = 0;
-    virtual std::shared_ptr<const Epetra_Map> get_old_active_row_nodes() const = 0;
-    virtual std::shared_ptr<const Epetra_Map> get_old_slip_row_nodes() const = 0;
+    virtual std::shared_ptr<const Core::LinAlg::Map> get_old_active_row_nodes() const = 0;
+    virtual std::shared_ptr<const Core::LinAlg::Map> get_old_slip_row_nodes() const = 0;
     double constraint_norm() const override = 0;
     virtual void evaluate_contact(std::shared_ptr<Core::LinAlg::SparseOperator>& kteff,
         std::shared_ptr<Core::LinAlg::Vector<double>>& feff) = 0;
@@ -996,22 +979,22 @@ namespace CONTACT
 
     /*! \brief Run at the beginning of the evaluate() routine
      *
-     *  \date 03/2016
-     *  \author hiermeier */
+
+     *  */
     virtual void pre_evaluate(CONTACT::ParamsInterface& cparams) {};
 
     /*! \brief Run in the end of the evaluate() routine
      *
-     *  \date 03/2016
-     *  \author hiermeier */
+
+     *  */
     virtual void post_evaluate(CONTACT::ParamsInterface& cparams) {};
 
     /*! \brief Run in the end of the setup() routine
      *
      *  Can be used to redistribute member variables of derived classes, if necessary.
      *
-     *  \date 03/2016
-     *  \author hiermeier */
+
+     *  */
     virtual void post_setup(bool redistributed, bool init) {};
 
     //!@}
@@ -1024,8 +1007,8 @@ namespace CONTACT
      * \param cparams (in): parameter interface between the contact objects and the structural time
      * integration
      *
-     *  \date 03/2016
-     *  \author hiermeier */
+
+     *  */
     virtual void evaluate_force_stiff(CONTACT::ParamsInterface& cparams);
 
     /*! \brief Compute force terms
@@ -1033,7 +1016,7 @@ namespace CONTACT
      *  \param cparams (in): parameter interface between the contact objects and the structural time
      * integration
      *
-     *  \author hiermeier \date 03/2016 */
+     *  */
     virtual void evaluate_force(CONTACT::ParamsInterface& cparams);
 
     /*! \brief Compute the constraint rhs
@@ -1041,7 +1024,7 @@ namespace CONTACT
      *  \param(in) cparams: parameter interface between the contact objects and
      *                      the structural time integrator
      *
-     *  \author hiermeier \date 12/17 */
+     *  */
     virtual void evaluate_static_constraint_rhs(CONTACT::ParamsInterface& cparams);
 
     /** \brief Run at the very beginning of a call to Solid::ModelEvaluatorManager::Evaluate*
@@ -1049,8 +1032,8 @@ namespace CONTACT
      *  \param cparams (in): parameter interface between the contact objects and
      *                       the structural time integration
      *
-     *  \date 03/2016
-     *  \author hiermeier */
+
+     *  */
     virtual void run_pre_evaluate(CONTACT::ParamsInterface& cparams);
 
     /** \brief Run in the end of a call to
@@ -1059,8 +1042,8 @@ namespace CONTACT
      *  \param cparams (in): parameter interface between the contact objects and the structural time
      *                       integration
      *
-     *  \date 03/2016
-     *  \author hiermeier */
+
+     *  */
     virtual void run_post_evaluate(CONTACT::ParamsInterface& cparams);
 
     /*! \brief recover the current state
@@ -1079,8 +1062,8 @@ namespace CONTACT
      *                       that the step length can differ from 1.0)
      *  \param xnew    (in): new solution vector of the NOX solver
      *
-     *  \date 05/2016
-     *  \author hiermeier */
+
+     *  */
     virtual void run_post_compute_x(const CONTACT::ParamsInterface& cparams,
         const Core::LinAlg::Vector<double>& xold, const Core::LinAlg::Vector<double>& dir,
         const Core::LinAlg::Vector<double>& xnew);
@@ -1097,8 +1080,8 @@ namespace CONTACT
      *  \param dir     (in/out): current search direction (in general NOT the actual
      *                           step, keep in mind that the step length can differ from 1.0)
      *
-     *  \date 03/2017
-     *  \author hiermeier */
+
+     *  */
     virtual void run_pre_compute_x(const CONTACT::ParamsInterface& cparams,
         const Core::LinAlg::Vector<double>& xold, Core::LinAlg::Vector<double>& dir_mutable);
 
@@ -1112,7 +1095,7 @@ namespace CONTACT
      *  \param xold   : read-only access to the jacobian
      *  \param grp    : read only access to the group object
      *
-     *  \author hiermeier \date 12/2017 */
+     *  */
     virtual void run_post_apply_jacobian_inverse(const CONTACT::ParamsInterface& cparams,
         const Core::LinAlg::Vector<double>& rhs, Core::LinAlg::Vector<double>& result,
         const Core::LinAlg::Vector<double>& xold, const NOX::Nln::Group& grp);
@@ -1124,7 +1107,7 @@ namespace CONTACT
      *  \param cparams (in)    : parameter interface between the contact objects
      *                           and the structural time integration
      *
-     *  \author hiermeier \date 03/2017  */
+     *  */
     virtual void run_post_iterate(const CONTACT::ParamsInterface& cparams);
 
     /// run before before the nonlinear solver starts
@@ -1137,8 +1120,8 @@ namespace CONTACT
      *                       integration
      *  \param xnew    (in): new solution vector of the NOX solver
      *
-     *  \date 07/2016
-     *  \author hiermeier */
+
+     *  */
     virtual void reset_lagrange_multipliers(
         const CONTACT::ParamsInterface& cparams, const Core::LinAlg::Vector<double>& xnew);
 
@@ -1149,7 +1132,7 @@ namespace CONTACT
     /*! \brief Remove condensed contact contributions from the structural right-hand side
      *
      *  \param(in) str_rhs: reference to the structural right-hand side
-     *  \author hiermeier \date 03/18 */
+     *  */
     virtual void remove_condensed_contributions_from_rhs(
         Core::LinAlg::Vector<double>& str_rhs) const;
 
@@ -1261,13 +1244,13 @@ namespace CONTACT
     void update_global_self_contact_state();
 
     /// access global self contact lagrange multiplier map (read only)
-    inline const Epetra_Map& global_self_contact_lm_map() const
+    inline const Core::LinAlg::Map& global_self_contact_lm_map() const
     {
       return *data().global_self_contact_lm_dof_row_map_ptr();
     }
 
     /// access global self contact reference map for Lagr. multipliers (read only)
-    inline const Epetra_Map& global_self_contact_ref_map() const
+    inline const Core::LinAlg::Map& global_self_contact_ref_map() const
     {
       return *data().global_self_contact_ref_dof_row_map_ptr();
     }
@@ -1435,17 +1418,16 @@ namespace CONTACT
      *  \return New Lagrange multiplier DoF row map in correlation to the given
      *          global slave DoF row map.
      *
-     *  \author hiermeier \date 10/17 */
-    std::shared_ptr<Epetra_Map> create_deterministic_lm_dof_row_map(
-        const Epetra_Map& gsdofrowmap) const;
+     *  */
+    std::shared_ptr<Core::LinAlg::Map> create_deterministic_lm_dof_row_map(
+        const Core::LinAlg::Map& gsdofrowmap) const;
 
    protected:
     /*! return the mutable contact abstract data container
      *
      * \remark This has to stay PRIVATE, otherwise the function becomes ambiguous.
      *
-     * \author hiermeier
-     * \date 05/16 */
+     */
     CONTACT::AbstractStrategyDataContainer& data()
     {
       if (!data_ptr_) FOUR_C_THROW("The AbstractStrategyDataContainer is not initialized!");
@@ -1457,8 +1439,7 @@ namespace CONTACT
      *
      * \remark This has to stay PRIVATE, otherwise this function becomes ambiguous.
      *
-     * \author hiermeier
-     * \date 05/16 */
+     */
     const CONTACT::AbstractStrategyDataContainer& data() const
     {
       if (!data_ptr_) FOUR_C_THROW("The AbstractStrategyDataContainer is not initialized!");
@@ -1467,78 +1448,78 @@ namespace CONTACT
 
    protected:
     //! Global Lagrange multiplier dof row map (of all interfaces)
-    std::shared_ptr<Epetra_Map>& glmdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map>& glmdofrowmap_;
 
     //! Global slave node row map (of all interfaces)
-    std::shared_ptr<Epetra_Map>& gsnoderowmap_;
+    std::shared_ptr<Core::LinAlg::Map>& gsnoderowmap_;
 
     //! Global master node row map (of all interfaces)
-    std::shared_ptr<Epetra_Map>& gmnoderowmap_;
+    std::shared_ptr<Core::LinAlg::Map>& gmnoderowmap_;
 
     //! Global slave dof row map (of all interfaces)
-    std::shared_ptr<Epetra_Map>& gsdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map>& gsdofrowmap_;
 
     //! Global master dof row map (of all interfaces)
-    std::shared_ptr<Epetra_Map>& gmdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map>& gmdofrowmap_;
 
     //! Global internal dof row map
-    std::shared_ptr<Epetra_Map>& gndofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map>& gndofrowmap_;
 
     //! Global slave and master dof row map (salve+master map)
-    std::shared_ptr<Epetra_Map>& gsmdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map>& gsmdofrowmap_;
 
     //! Global displacement dof row map (s+m+n map)
-    std::shared_ptr<Epetra_Map>& gdisprowmap_;
+    std::shared_ptr<Core::LinAlg::Map>& gdisprowmap_;
 
     //! @name Active set and slip set
     //!@{
 
     //! Global active slave node row map (of all interfaces)
-    std::shared_ptr<Epetra_Map>& gactivenodes_;
+    std::shared_ptr<Core::LinAlg::Map>& gactivenodes_;
 
     //! Global active slave dof row map (of all interfaces)
-    std::shared_ptr<Epetra_Map>& gactivedofs_;
+    std::shared_ptr<Core::LinAlg::Map>& gactivedofs_;
 
     //! Global active slave node row map (of all interfaces)
-    std::shared_ptr<Epetra_Map>& ginactivenodes_;
+    std::shared_ptr<Core::LinAlg::Map>& ginactivenodes_;
 
     //! Global active slave dof row map (of all interfaces)
-    std::shared_ptr<Epetra_Map>& ginactivedofs_;
+    std::shared_ptr<Core::LinAlg::Map>& ginactivedofs_;
 
     /*! \brief Global dof row map of matrix \f$N\f$ (of all interfaces)
      *
      * \todo What is the matrix N?
      */
-    std::shared_ptr<Epetra_Map>& gactiven_;
+    std::shared_ptr<Core::LinAlg::Map>& gactiven_;
 
     /*! \brief Global dof row map of matrix \f$T\f$ (of all interfaces)
      *
      * \todo What is the matrix T?
      */
-    std::shared_ptr<Epetra_Map>& gactivet_;
+    std::shared_ptr<Core::LinAlg::Map>& gactivet_;
 
     //! Global slip slave node row map (of all interfaces)
-    std::shared_ptr<Epetra_Map>& gslipnodes_;
+    std::shared_ptr<Core::LinAlg::Map>& gslipnodes_;
 
     //! Global slip slave dof row map (of all interfaces)
-    std::shared_ptr<Epetra_Map>& gslipdofs_;
+    std::shared_ptr<Core::LinAlg::Map>& gslipdofs_;
 
     /*! \brief Global row map of matrix \f$T\f$ for slip dofs (of all interfaces)
      *
      * \todo What is the matrix T?
      */
-    std::shared_ptr<Epetra_Map>& gslipt_;
+    std::shared_ptr<Core::LinAlg::Map>& gslipt_;
 
     //!@}
 
     //! Global slave row map of vertex nodes
-    std::shared_ptr<Epetra_Map>& gsdofVertex_;
+    std::shared_ptr<Core::LinAlg::Map>& gsdofVertex_;
 
     //! Global slave row map of edge nodes
-    std::shared_ptr<Epetra_Map>& gsdofEdge_;
+    std::shared_ptr<Core::LinAlg::Map>& gsdofEdge_;
 
     //! Global slave row map of surface nodes
-    std::shared_ptr<Epetra_Map>& gsdofSurf_;
+    std::shared_ptr<Core::LinAlg::Map>& gsdofSurf_;
 
     //! @name Parallel redistribution and ghosting
     //!@{
@@ -1550,16 +1531,16 @@ namespace CONTACT
     std::vector<int>& unbalanceNumSlaveElements_;
 
     //! Global Lagrange multiplier dof row map before parallel redistribution
-    std::shared_ptr<Epetra_Map>& non_redist_glmdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map>& non_redist_glmdofrowmap_;
 
     //! Global slave dof row map before parallel redistribution
-    std::shared_ptr<Epetra_Map>& non_redist_gsdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map>& non_redist_gsdofrowmap_;
 
     //! Global master dof row map before parallel redistribution
-    std::shared_ptr<Epetra_Map>& non_redist_gmdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map>& non_redist_gmdofrowmap_;
 
     //! Global slave and master dof row map before parallel redistribution
-    std::shared_ptr<Epetra_Map>& non_redist_gsmdofrowmap_;
+    std::shared_ptr<Core::LinAlg::Map>& non_redist_gsmdofrowmap_;
 
     //!< Global dirichlet toggle of all slave dofs before parallel redistribution
     std::shared_ptr<Core::LinAlg::Vector<double>>& non_redist_gsdirichtoggle_;
@@ -1570,7 +1551,7 @@ namespace CONTACT
     //!@{
 
     //!< Initial element columns map for binning strategy (slave and master)
-    std::vector<std::shared_ptr<Epetra_Map>>& initial_elecolmap_;
+    std::vector<std::shared_ptr<Core::LinAlg::Map>>& initial_elecolmap_;
 
     //!@}
 
@@ -1689,9 +1670,6 @@ namespace CONTACT
     //! Flag for non-smooth contact algorithm
     bool& nonSmoothContact_;
 
-    //! Flag for regularized contact
-    bool& regularized_;
-
     /*! \brief Flag indicating whether transformation should be applied
      *
      * \todo Which transformation?
@@ -1746,10 +1724,10 @@ namespace CONTACT
     std::vector<double>& ivel_;
 
     //! Current used solving strategy
-    Inpar::CONTACT::SolvingStrategy& stype_;
+    CONTACT::SolvingStrategy& stype_;
 
     //! Direction in which the contact constraints are formulated
-    Inpar::CONTACT::ConstraintDirection& constr_direction_;
+    CONTACT::ConstraintDirection& constr_direction_;
 
    private:
     /*!

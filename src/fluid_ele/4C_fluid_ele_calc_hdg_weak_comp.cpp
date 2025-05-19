@@ -74,15 +74,12 @@ template <Core::FE::CellType distype>
 int Discret::Elements::FluidEleCalcHDGWeakComp<distype>::evaluate(Discret::Elements::Fluid* ele,
     Core::FE::Discretization& discretization, const std::vector<int>& lm,
     Teuchos::ParameterList& params, std::shared_ptr<Core::Mat::Material>& mat,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra, const Core::FE::GaussIntegration&,
-    bool offdiag)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3, const Core::FE::GaussIntegration&, bool offdiag)
 {
-  return this->evaluate(ele, discretization, lm, params, mat, elemat1_epetra, elemat2_epetra,
-      elevec1_epetra, elevec2_epetra, elevec3_epetra, offdiag);
+  return this->evaluate(
+      ele, discretization, lm, params, mat, elemat1, elemat2, elevec1, elevec2, elevec3, offdiag);
 }
 
 
@@ -153,18 +150,18 @@ void Discret::Elements::FluidEleCalcHDGWeakComp<distype>::read_global_vectors(
   // read the trace values
   std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state =
       discretization.get_state(0, "velaf");
-  Core::FE::extract_my_values(*matrix_state, trace_val_, lm);
+  trace_val_ = Core::FE::extract_values(*matrix_state, lm);
 
   // get local dofs
   std::vector<int> localDofs = discretization.dof(1, &ele);
 
   // read the interior values
   matrix_state = discretization.get_state(1, "intvelaf");
-  Core::FE::extract_my_values(*matrix_state, interior_val_, localDofs);
+  interior_val_ = Core::FE::extract_values(*matrix_state, localDofs);
 
   // read the interior time derivatives
   matrix_state = discretization.get_state(1, "intaccam");
-  Core::FE::extract_my_values(*matrix_state, interior_acc_, localDofs);
+  interior_acc_ = Core::FE::extract_values(*matrix_state, localDofs);
 
   // read ale vectors
   read_ale_vectors(ele, discretization);
@@ -201,11 +198,11 @@ void Discret::Elements::FluidEleCalcHDGWeakComp<distype>::read_ale_vectors(
 
       // read the ale displacement
       matrix_state = discretization.get_state(2, "dispnp");
-      Core::FE::extract_my_values(*matrix_state, ale_dis_, aleDofs);
+      ale_dis_ = Core::FE::extract_values(*matrix_state, aleDofs);
 
       // read the ale velocity
       matrix_state = discretization.get_state(2, "gridv");
-      Core::FE::extract_my_values(*matrix_state, ale_vel_, aleDofs);
+      ale_vel_ = Core::FE::extract_values(*matrix_state, aleDofs);
     }
   }
 }
@@ -294,11 +291,9 @@ int Discret::Elements::FluidEleCalcHDGWeakComp<distype>::update_local_solution(
   local_solver_->invert_local_local_matrix();
 
   // extract local trace increments
-  std::vector<double> localtraceinc_vec;
-  localtraceinc_vec.resize(nfaces_ * (1 + nsd_) * shapesface_->nfdofs_);
   std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state =
       discretization.get_state(0, "globaltraceinc");
-  Core::FE::extract_my_values(*matrix_state, localtraceinc_vec, lm);
+  std::vector<double> localtraceinc_vec = Core::FE::extract_values(*matrix_state, lm);
 
   // convert local trace increments to Core::LinAlg::SerialDenseVector
   Core::LinAlg::SerialDenseVector localtraceinc(nfaces_ * (1 + nsd_) * shapesface_->nfdofs_);
@@ -348,17 +343,17 @@ int Discret::Elements::FluidEleCalcHDGWeakComp<distype>::compute_error(
   std::vector<double> vecValues(localDofs.size());
   for (unsigned int i = 0; i < localDofs.size(); ++i)
   {
-    const int lid = matrix_state->Map().LID(localDofs[i]);
+    const int lid = matrix_state->get_block_map().LID(localDofs[i]);
     vecValues[i] = (*matrix_state)[lid];
   }
 
   // initialize exact solution
-  Core::LinAlg::Matrix<msd_, 1> L_ex(true);
+  Core::LinAlg::Matrix<msd_, 1> L_ex(Core::LinAlg::Initialization::zero);
   double r_ex = 0.0;
-  Core::LinAlg::Matrix<nsd_, 1> w_ex(true);
+  Core::LinAlg::Matrix<nsd_, 1> w_ex(Core::LinAlg::Initialization::zero);
 
   // initialize spatial coordinates
-  Core::LinAlg::Matrix<nsd_, 1> xyz(true);
+  Core::LinAlg::Matrix<nsd_, 1> xyz(Core::LinAlg::Initialization::zero);
 
   // get function number
   const int calcerrfunctno = params.get<int>("error function number");
@@ -477,13 +472,13 @@ int Discret::Elements::FluidEleCalcHDGWeakComp<distype>::project_field(
       // jfac is a vector containing the jacobian times the weight of the quadrature points
       const double fac = shapes_->jfac(q);
       // xyz is a vector containing the coordinates of the quadrature points in real coordinates
-      Core::LinAlg::Matrix<nsd_, 1> xyz(false);
+      Core::LinAlg::Matrix<nsd_, 1> xyz(Core::LinAlg::Initialization::uninitialized);
       // Filling xyz with the values take from the element xyzreal matrix
       for (unsigned int d = 0; d < nsd_; ++d) xyz(d) = shapes_->xyzreal(d, q);
       // Declaring vectors for interior variables
-      Core::LinAlg::Matrix<msd_, 1> L(true);
+      Core::LinAlg::Matrix<msd_, 1> L(Core::LinAlg::Initialization::zero);
       double r = 0.0;
-      Core::LinAlg::Matrix<nsd_, 1> w(true);
+      Core::LinAlg::Matrix<nsd_, 1> w(Core::LinAlg::Initialization::zero);
 
       FOUR_C_ASSERT(initfield != nullptr && startfunc != nullptr,
           "initfield or startfuncno not set for initial value");
@@ -560,14 +555,14 @@ int Discret::Elements::FluidEleCalcHDGWeakComp<distype>::project_field(
       // shapesface_->jfac contains the jacobian evaluated in the quadrature points
       const double fac = shapesface_->jfac(q);
       // xyz is the vector containing the coordinates of the quadrature points
-      Core::LinAlg::Matrix<nsd_, 1> xyz(false);
+      Core::LinAlg::Matrix<nsd_, 1> xyz(Core::LinAlg::Initialization::uninitialized);
 
       // Taking the real coordinates of quadrature points of the current face
       for (unsigned int d = 0; d < nsd_; ++d) xyz(d) = shapesface_->xyzreal(d, q);
 
       // Creating the vector of traces variables
       double r;
-      Core::LinAlg::Matrix<nsd_, 1> w(false);
+      Core::LinAlg::Matrix<nsd_, 1> w(Core::LinAlg::Initialization::uninitialized);
 
       // Create dummy variables
       double dummy_r;
@@ -690,7 +685,7 @@ int Discret::Elements::FluidEleCalcHDGWeakComp<distype>::interpolate_solution_to
   for (unsigned int i = 0; i < solvalues.size(); ++i)
   {
     // Finding the local id of the current "localDofs"
-    const int lid = matrix_state->Map().LID(localDofs[i]);
+    const int lid = matrix_state->get_block_map().LID(localDofs[i]);
     // Saving the value of the "localDofs[i]" in the "solvalues" vector
     solvalues[i] = (*matrix_state)[lid];
   }
@@ -748,13 +743,13 @@ int Discret::Elements::FluidEleCalcHDGWeakComp<distype>::interpolate_solution_to
 
   // we have always two dofsets
   Core::Elements::LocationArray la(2);
-  ele->location_vector(discretization, la, false);
+  ele->location_vector(discretization, la);
   localDofs = la[0].lm_;
   solvalues.resize(localDofs.size());
 
   for (unsigned int i = 0; i < solvalues.size(); ++i)
   {
-    const int lid = matrix_state->Map().LID(localDofs[i]);
+    const int lid = matrix_state->get_block_map().LID(localDofs[i]);
     solvalues[i] = (*matrix_state)[lid];
   }
   for (int i = (msd_ + 1 + nsd_) * nen_; i < elevec1.numRows(); ++i) elevec1(i) = 0.0;
@@ -767,7 +762,7 @@ int Discret::Elements::FluidEleCalcHDGWeakComp<distype>::interpolate_solution_to
 
     // As already said, the dimension of the coordinate matrix is now nsd_-1
     // times the number of nodes in the face.
-    Core::LinAlg::Matrix<nsd_ - 1, nfn> xsishuffle(true);
+    Core::LinAlg::Matrix<nsd_ - 1, nfn> xsishuffle(Core::LinAlg::Initialization::zero);
 
     // Cycling through the nodes of the face to store the node positions in the
     // correct order using xsishuffle as a temporary vector
@@ -2040,7 +2035,7 @@ void Discret::Elements::FluidEleCalcHDGWeakComp<distype>::LocalSolver::invert_lo
   KlocallocalInv = Klocallocal;
   KlocallocalInvSolver.setMatrix(Teuchos::rcpFromRef(KlocallocalInv));
   int err = KlocallocalInvSolver.invert();
-  if (err != 0) FOUR_C_THROW("Inversion of local-local matrix failed with errorcode %d", err);
+  if (err != 0) FOUR_C_THROW("Inversion of local-local matrix failed with errorcode {}", err);
 }
 
 

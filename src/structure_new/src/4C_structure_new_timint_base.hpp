@@ -21,8 +21,9 @@ namespace Core::LinAlg
 {
   template <typename T>
   class Vector;
-}
-class Epetra_Map;
+  class Map;
+}  // namespace Core::LinAlg
+
 
 #include "4C_utils_parameter_list.fwd.hpp"
 
@@ -49,7 +50,7 @@ namespace Solid
   {
     /** \brief Abstract class for all time integration strategies
      *
-     *  \author Michael Hiermeier */
+     *  */
     class Base : public Adapter::StructureNew, Core::IO::EveryIterationWriterInterface
     {
       friend class Adapter::StructureTimeAda;
@@ -65,6 +66,10 @@ namespace Solid
 
       /// setup of the new class variables
       void setup() override;
+
+      /// run the post_setup tasks of the structural time integrator
+      /// (e.g. compute mass matrix, initial accelerations, ...)
+      void post_setup() override;
 
       /// tests if there are more time steps to do
       [[nodiscard]] bool not_finished() const override;
@@ -97,14 +102,14 @@ namespace Solid
       std::shared_ptr<Core::FE::Discretization> discretization() override;
 
       /// Access to pointer to DoF row map of the discretization (structure only)
-      const Epetra_Map* dof_row_map_view() override
+      const Core::LinAlg::Map* dof_row_map_view() override
       {
         check_init();
         return dataglobalstate_->dof_row_map_view();
       }
 
       /// DoF map of structural vector of unknowns
-      std::shared_ptr<const Epetra_Map> dof_row_map() override
+      std::shared_ptr<const Core::LinAlg::Map> dof_row_map() override
       {
         check_init();
         return dataglobalstate_->dof_row_map();
@@ -112,7 +117,7 @@ namespace Solid
 
       //! DoF map of vector of unknowns
       //! Alternative method capable of multiple DoF sets
-      std::shared_ptr<const Epetra_Map> dof_row_map(unsigned nds) override
+      std::shared_ptr<const Core::LinAlg::Map> dof_row_map(unsigned nds) override
       {
         check_init();
         return dataglobalstate_->dof_row_map(nds);
@@ -142,7 +147,7 @@ namespace Solid
       ///@}
 
       /// Return domain map of the mass matrix (implicit and explicit)
-      [[nodiscard]] const Epetra_Map& get_mass_domain_map() const override;
+      [[nodiscard]] const Core::LinAlg::Map& get_mass_domain_map() const override;
 
       /// @name Coupled problem routines
       /// @{
@@ -265,7 +270,7 @@ namespace Solid
       }
 
       /// FixMe get constraint manager defined in the structure
-      std::shared_ptr<CONSTRAINTS::ConstrManager> get_constraint_manager() override
+      std::shared_ptr<Constraints::ConstrManager> get_constraint_manager() override
       {
         FOUR_C_THROW("Not yet implemented!");
         return nullptr;
@@ -498,8 +503,8 @@ namespace Solid
       /** \brief Get data that is written during restart
        *
        *  This routine is only for simple structure problems!
-       *  \date 06/13
-       *  \author biehler */
+
+       *  */
       void get_restart_data(std::shared_ptr<int> step, std::shared_ptr<double> time,
           std::shared_ptr<Core::LinAlg::Vector<double>> disnp,
           std::shared_ptr<Core::LinAlg::Vector<double>> velnp,
@@ -668,7 +673,7 @@ namespace Solid
       virtual enum Inpar::Solid::DynamicType method_name() const = 0;
 
       //! Provide title
-      std::string method_title() const { return Inpar::Solid::dynamic_type_string(method_name()); }
+      std::string method_title() const;
 
       //! Return true, if time integrator is implicit
       virtual bool is_implicit() const = 0;
@@ -772,8 +777,8 @@ namespace Solid
        *  This routine always prints the last converged state, i.e.
        *  \f$D_{n}, V_{n}, A_{n}\f$.
        *
-       *  \date 03/07
-       *  \author mwgee (originally) */
+
+       *  */
       void output_step(bool forced_writerestart);
 
      private:
@@ -803,17 +808,11 @@ namespace Solid
       /// output reaction forces
       void output_reaction_forces();
 
-      /// output element volumes
-      void output_element_volume(Core::IO::DiscretizationWriter& iowriter) const;
-
       /// output stress and/or strain state
       void output_stress_strain();
 
       /// output energy
       void output_energy() const;
-
-      /// output optional quantity
-      void output_optional_quantity();
 
       /// write restart information
       void output_restart(bool& datawritten);
@@ -826,20 +825,20 @@ namespace Solid
        *  \pre update_step_time() must be called beforehand, otherwise the wrong
        *  step-id is considered.
        *
-       *  \author hiermeier \date 11/17 */
+       *  */
       void set_number_of_nonlinear_iterations();
 
       /** \brief decide which contributions to the total system energy shall be
        *         computed and written during simulation
        *
-       *  \author grill */
+       *  */
       void select_energy_types_to_be_written();
 
       /** \brief initialize file stream for energy values and write all the
        *         column headers for the previously selected energy contributions
        *         to be written separately
        *
-       *  \author grill */
+       *  */
       void initialize_energy_file_stream_and_write_headers();
 
      protected:

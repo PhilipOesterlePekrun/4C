@@ -13,224 +13,226 @@
 #include "4C_io_input_spec_builders.hpp"
 #include "4C_linalg_equilibrate.hpp"
 #include "4C_linalg_sparseoperator.hpp"
-#include "4C_utils_parameter_list.hpp"
-
 FOUR_C_NAMESPACE_OPEN
 
-void Inpar::SSI::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::SSI::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
-  using Teuchos::tuple;
+  using namespace Core::IO::InputSpecBuilders;
 
-  Teuchos::ParameterList& ssidyn =
-      list.sublist("SSI CONTROL", false, "Control parameters for scatra structure interaction");
+  list["SSI CONTROL"] = group("SSI CONTROL",
+      {
 
-  // Output type
-  Core::Utils::double_parameter(
-      "RESTARTEVERYTIME", 0, "write restart possibility every RESTARTEVERY steps", &ssidyn);
-  Core::Utils::int_parameter(
-      "RESTARTEVERY", 1, "write restart possibility every RESTARTEVERY steps", &ssidyn);
-  // Time loop control
-  Core::Utils::int_parameter("NUMSTEP", 200, "maximum number of Timesteps", &ssidyn);
-  Core::Utils::double_parameter("MAXTIME", 1000.0, "total simulation time", &ssidyn);
-  Core::Utils::double_parameter("TIMESTEP", -1, "time step size dt", &ssidyn);
-  Core::Utils::bool_parameter(
-      "DIFFTIMESTEPSIZE", "No", "use different step size for scatra and solid", &ssidyn);
-  Core::Utils::double_parameter("RESULTSEVERYTIME", 0, "increment for writing solution", &ssidyn);
-  Core::Utils::int_parameter("RESULTSEVERY", 1, "increment for writing solution", &ssidyn);
-  Core::Utils::int_parameter("ITEMAX", 10, "maximum number of iterations over fields", &ssidyn);
-  Core::Utils::bool_parameter("SCATRA_FROM_RESTART_FILE", "No",
-      "read scatra result from restart files (use option 'restartfromfile' during execution of "
-      "4C)",
-      &ssidyn);
-  Core::Utils::string_parameter(
-      "SCATRA_FILENAME", "nil", "Control-file name for reading scatra results in SSI", &ssidyn);
+          // Output type
+          parameter<double>("RESTARTEVERYTIME",
+              {.description = "write restart possibility every RESTARTEVERY steps",
+                  .default_value = 0.0}),
+          parameter<int>(
+              "RESTARTEVERY", {.description = "write restart possibility every RESTARTEVERY steps",
+                                  .default_value = 1}),
+          // Time loop control
+          parameter<int>(
+              "NUMSTEP", {.description = "maximum number of Timesteps", .default_value = 200}),
+          parameter<double>(
+              "MAXTIME", {.description = "total simulation time", .default_value = 1000.0}),
 
-  // Type of coupling strategy between the two fields
-  setStringToIntegralParameter<FieldCoupling>("FIELDCOUPLING", "volume_matching",
-      "Type of coupling strategy between fields",
-      tuple<std::string>("volume_matching", "volume_nonmatching", "boundary_nonmatching",
-          "volumeboundary_matching"),
-      tuple<FieldCoupling>(FieldCoupling::volume_match, FieldCoupling::volume_nonmatch,
-          FieldCoupling::boundary_nonmatch, FieldCoupling::volumeboundary_match),
-      &ssidyn);
+          parameter<double>(
+              "TIMESTEP", {.description = "time step size dt", .default_value = -1.0}),
+          parameter<bool>(
+              "DIFFTIMESTEPSIZE", {.description = "use different step size for scatra and solid",
+                                      .default_value = false}),
+          parameter<double>("RESULTSEVERYTIME",
+              {.description = "increment for writing solution", .default_value = 0.0}),
+          parameter<int>("RESULTSEVERY",
+              {.description = "increment for writing solution", .default_value = 1}),
+          parameter<int>("ITEMAX",
+              {.description = "maximum number of iterations over fields", .default_value = 10}),
+          parameter<bool>("SCATRA_FROM_RESTART_FILE",
+              {.description =
+                      "read scatra result from restart files (use option 'restartfromfile' during "
+                      "execution of 4C)",
+                  .default_value = false}),
+          parameter<std::string>("SCATRA_FILENAME",
+              {.description = "Control-file name for reading scatra results in SSI",
+                  .default_value = "nil"}),
 
-  // Coupling strategy for SSI solvers
-  setStringToIntegralParameter<SolutionSchemeOverFields>("COUPALGO", "ssi_IterStagg",
-      "Coupling strategies for SSI solvers",
-      tuple<std::string>("ssi_OneWay_ScatraToSolid", "ssi_OneWay_SolidToScatra",
-          //                                "ssi_SequStagg_ScatraToSolid",
-          //                                "ssi_SequStagg_SolidToScatra",
-          "ssi_IterStagg", "ssi_IterStaggFixedRel_ScatraToSolid",
-          "ssi_IterStaggFixedRel_SolidToScatra", "ssi_IterStaggAitken_ScatraToSolid",
-          "ssi_IterStaggAitken_SolidToScatra", "ssi_Monolithic"),
-      tuple<SolutionSchemeOverFields>(SolutionSchemeOverFields::ssi_OneWay_ScatraToSolid,
-          SolutionSchemeOverFields::ssi_OneWay_SolidToScatra,
-          //                                ssi_SequStagg_ScatraToSolid,
-          //                                ssi_SequStagg_SolidToScatra,
-          SolutionSchemeOverFields::ssi_IterStagg,
-          SolutionSchemeOverFields::ssi_IterStaggFixedRel_ScatraToSolid,
-          SolutionSchemeOverFields::ssi_IterStaggFixedRel_SolidToScatra,
-          SolutionSchemeOverFields::ssi_IterStaggAitken_ScatraToSolid,
-          SolutionSchemeOverFields::ssi_IterStaggAitken_SolidToScatra,
-          SolutionSchemeOverFields::ssi_Monolithic),
-      &ssidyn);
+          // Type of coupling strategy between the two fields
+          deprecated_selection<FieldCoupling>("FIELDCOUPLING",
+              {
+                  {"volume_matching", FieldCoupling::volume_match},
+                  {"volume_nonmatching", FieldCoupling::volume_nonmatch},
+                  {"boundary_nonmatching", FieldCoupling::boundary_nonmatch},
+                  {"volumeboundary_matching", FieldCoupling::volumeboundary_match},
+              },
+              {.description = "Type of coupling strategy between fields",
+                  .default_value = FieldCoupling::volume_match}),
 
-  // type of scalar transport time integration
-  setStringToIntegralParameter<ScaTraTimIntType>("SCATRATIMINTTYPE", "Standard",
-      "scalar transport time integration type is needed to instantiate correct scalar transport "
-      "time integration scheme for ssi problems",
-      tuple<std::string>("Standard", "Cardiac_Monodomain", "Elch"),
-      tuple<ScaTraTimIntType>(
-          ScaTraTimIntType::standard, ScaTraTimIntType::cardiac_monodomain, ScaTraTimIntType::elch),
-      &ssidyn);
+          // Coupling strategy for SSI solvers
+          parameter<SolutionSchemeOverFields>(
+              "COUPALGO", {.description = "Coupling strategies for SSI solvers",
+                              .default_value = SolutionSchemeOverFields::ssi_IterStagg}),
 
-  // Restart from Structure problem instead of SSI
-  Core::Utils::bool_parameter("RESTART_FROM_STRUCTURE", "no",
-      "restart from structure problem (e.g. from prestress calculations) instead of ssi", &ssidyn);
+          // type of scalar transport time integration
+          deprecated_selection<ScaTraTimIntType>("SCATRATIMINTTYPE",
+              {
+                  {"Standard", ScaTraTimIntType::standard},
+                  {"Cardiac_Monodomain", ScaTraTimIntType::cardiac_monodomain},
+                  {"Elch", ScaTraTimIntType::elch},
+              },
+              {.description =
+                      "scalar transport time integration type is needed to instantiate correct "
+                      "scalar transport time integration scheme for ssi problems",
+                  .default_value = ScaTraTimIntType::standard}),
 
-  // Adaptive time stepping
-  Core::Utils::bool_parameter(
-      "ADAPTIVE_TIMESTEPPING", "no", "flag for adaptive time stepping", &ssidyn);
+          // Restart from Structure problem instead of SSI
+          parameter<bool>(
+              "RESTART_FROM_STRUCTURE", {.description = "restart from structure problem (e.g. from "
+                                                        "prestress calculations) instead of ssi",
+                                            .default_value = false}),
 
-  // do redistribution by binning of solid mechanics discretization (scatra dis is cloned from solid
-  // dis for volume_matching and volumeboundary_matching)
-  Core::Utils::bool_parameter("REDISTRIBUTE_SOLID", "No",
-      "redistribution by binning of solid mechanics discretization", &ssidyn);
+          // Adaptive time stepping
+          parameter<bool>("ADAPTIVE_TIMESTEPPING",
+              {.description = "flag for adaptive time stepping", .default_value = false}),
 
-  /*----------------------------------------------------------------------*/
+          // do redistribution by binning of solid mechanics discretization (scatra dis is cloned
+          // from
+          // solid
+          // dis for volume_matching and volumeboundary_matching)
+          parameter<bool>("REDISTRIBUTE_SOLID",
+              {.description = "redistribution by binning of solid mechanics discretization",
+                  .default_value = false})},
+      {.defaultable =
+              true}); /*----------------------------------------------------------------------*/
   /* parameters for partitioned SSI */
   /*----------------------------------------------------------------------*/
-  Teuchos::ParameterList& ssidynpart = ssidyn.sublist("PARTITIONED", false,
-      "Partitioned Structure Scalar Interaction\n"
-      "Control section for partitioned SSI");
+  list["SSI CONTROL/PARTITIONED"] = group("SSI CONTROL/PARTITIONED",
+      {
 
-  // Solver parameter for relaxation of iterative staggered partitioned SSI
-  Core::Utils::double_parameter(
-      "MAXOMEGA", 10.0, "largest omega allowed for Aitken relaxation", &ssidynpart);
-  Core::Utils::double_parameter(
-      "MINOMEGA", 0.1, "smallest omega allowed for Aitken relaxation", &ssidynpart);
-  Core::Utils::double_parameter("STARTOMEGA", 1.0, "fixed relaxation parameter", &ssidynpart);
+          // Solver parameter for relaxation of iterative staggered partitioned SSI
+          parameter<double>(
+              "MAXOMEGA", {.description = "largest omega allowed for Aitken relaxation",
+                              .default_value = 10.0}),
+          parameter<double>(
+              "MINOMEGA", {.description = "smallest omega allowed for Aitken relaxation",
+                              .default_value = 0.1}),
+          parameter<double>(
+              "STARTOMEGA", {.description = "fixed relaxation parameter", .default_value = 1.0}),
 
-  // convergence tolerance of outer iteration loop
-  Core::Utils::double_parameter("CONVTOL", 1e-6,
-      "tolerance for convergence check of outer iteration within partitioned SSI", &ssidynpart);
+          // convergence tolerance of outer iteration loop
+          parameter<double>("CONVTOL",
+              {.description =
+                      "tolerance for convergence check of outer iteration within partitioned SSI",
+                  .default_value = 1e-6})},
+      {.defaultable = true});
 
   /*----------------------------------------------------------------------*/
   /* parameters for monolithic SSI */
   /*----------------------------------------------------------------------*/
-  Teuchos::ParameterList& ssidynmono = ssidyn.sublist("MONOLITHIC", false,
-      "Monolithic Structure Scalar Interaction\n"
-      "Control section for monolithic SSI");
+  list["SSI CONTROL/MONOLITHIC"] = group("SSI CONTROL/MONOLITHIC",
+      {
 
-  // convergence tolerances of Newton-Raphson iteration loop
-  Core::Utils::double_parameter("ABSTOLRES", 1.e-14,
-      "absolute tolerance for deciding if global residual of nonlinear problem is already zero",
-      &ssidynmono);
-  Core::Utils::double_parameter("CONVTOL", 1.e-6,
-      "tolerance for convergence check of Newton-Raphson iteration within monolithic SSI",
-      &ssidynmono);
+          // convergence tolerances of Newton-Raphson iteration loop
+          parameter<double>(
+              "ABSTOLRES", {.description = "absolute tolerance for deciding if global residual of "
+                                           "nonlinear problem is already zero",
+                               .default_value = 1.e-14}),
+          parameter<double>(
+              "CONVTOL", {.description = "tolerance for convergence check of "
+                                         "Newton-Raphson iteration within monolithic SSI",
+                             .default_value = 1.e-6}),
 
-  // ID of linear solver for global system of equations
-  Core::Utils::int_parameter(
-      "LINEAR_SOLVER", -1, "ID of linear solver for global system of equations", &ssidynmono);
+          // ID of linear solver for global system of equations
+          parameter<int>(
+              "LINEAR_SOLVER", {.description = "ID of linear solver for global system of equations",
+                                   .default_value = -1}),
 
-  // type of global system matrix in global system of equations
-  setStringToIntegralParameter<Core::LinAlg::MatrixType>("MATRIXTYPE", "undefined",
-      "type of global system matrix in global system of equations",
-      tuple<std::string>("undefined", "block", "sparse"),
-      tuple<Core::LinAlg::MatrixType>(Core::LinAlg::MatrixType::undefined,
-          Core::LinAlg::MatrixType::block_field, Core::LinAlg::MatrixType::sparse),
-      &ssidynmono);
+          // type of global system matrix in global system of equations
+          deprecated_selection<Core::LinAlg::MatrixType>("MATRIXTYPE",
+              {
+                  {"undefined", Core::LinAlg::MatrixType::undefined},
+                  {"block", Core::LinAlg::MatrixType::block_field},
+                  {"sparse", Core::LinAlg::MatrixType::sparse},
+              },
+              {.description = "type of global system matrix in global system of equations",
+                  .default_value = Core::LinAlg::MatrixType::undefined}),
 
-  setStringToIntegralParameter<Core::LinAlg::EquilibrationMethod>("EQUILIBRATION", "none",
-      "flag for equilibration of global system of equations",
-      tuple<std::string>("none", "rows_full", "rows_maindiag", "columns_full", "columns_maindiag",
-          "rowsandcolumns_full", "rowsandcolumns_maindiag", "local"),
-      tuple<Core::LinAlg::EquilibrationMethod>(Core::LinAlg::EquilibrationMethod::none,
-          Core::LinAlg::EquilibrationMethod::rows_full,
-          Core::LinAlg::EquilibrationMethod::rows_maindiag,
-          Core::LinAlg::EquilibrationMethod::columns_full,
-          Core::LinAlg::EquilibrationMethod::columns_maindiag,
-          Core::LinAlg::EquilibrationMethod::rowsandcolumns_full,
-          Core::LinAlg::EquilibrationMethod::rowsandcolumns_maindiag,
-          Core::LinAlg::EquilibrationMethod::local),
-      &ssidynmono);
+          parameter<Core::LinAlg::EquilibrationMethod>("EQUILIBRATION",
+              {.description = "flag for equilibration of global system of equations",
+                  .default_value = Core::LinAlg::EquilibrationMethod::none}),
 
-  setStringToIntegralParameter<Core::LinAlg::EquilibrationMethod>("EQUILIBRATION_STRUCTURE", "none",
-      "flag for equilibration of structural equations",
-      tuple<std::string>(
-          "none", "rows_maindiag", "columns_maindiag", "rowsandcolumns_maindiag", "symmetry"),
-      tuple<Core::LinAlg::EquilibrationMethod>(Core::LinAlg::EquilibrationMethod::none,
-          Core::LinAlg::EquilibrationMethod::rows_maindiag,
-          Core::LinAlg::EquilibrationMethod::columns_maindiag,
-          Core::LinAlg::EquilibrationMethod::rowsandcolumns_maindiag,
-          Core::LinAlg::EquilibrationMethod::symmetry),
-      &ssidynmono);
+          parameter<Core::LinAlg::EquilibrationMethod>("EQUILIBRATION_STRUCTURE",
+              {.description = "flag for equilibration of structural equations",
+                  .default_value = Core::LinAlg::EquilibrationMethod::none}),
 
-  setStringToIntegralParameter<Core::LinAlg::EquilibrationMethod>("EQUILIBRATION_SCATRA", "none",
-      "flag for equilibration of scatra equations",
-      tuple<std::string>(
-          "none", "rows_maindiag", "columns_maindiag", "rowsandcolumns_maindiag", "symmetry"),
-      tuple<Core::LinAlg::EquilibrationMethod>(Core::LinAlg::EquilibrationMethod::none,
-          Core::LinAlg::EquilibrationMethod::rows_maindiag,
-          Core::LinAlg::EquilibrationMethod::columns_maindiag,
-          Core::LinAlg::EquilibrationMethod::rowsandcolumns_maindiag,
-          Core::LinAlg::EquilibrationMethod::symmetry),
-      &ssidynmono);
+          parameter<Core::LinAlg::EquilibrationMethod>("EQUILIBRATION_SCATRA",
+              {.description = "flag for equilibration of scatra equations",
+                  .default_value = Core::LinAlg::EquilibrationMethod::none}),
 
-  Core::Utils::bool_parameter("PRINT_MAT_RHS_MAP_MATLAB", "no",
-      "print system matrix, rhs vector, and full map to matlab readable file after solution of "
-      "time step",
-      &ssidynmono);
+          parameter<bool>("PRINT_MAT_RHS_MAP_MATLAB",
+              {.description =
+                      "print system matrix, rhs vector, and full map to matlab readable file after "
+                      "solution of time step",
+                  .default_value = false}),
 
-  Core::Utils::double_parameter("RELAX_LIN_SOLVER_TOLERANCE", 1.0,
-      "relax the tolerance of the linear solver in case it is an iterative solver by scaling the "
-      "convergence tolerance with factor RELAX_LIN_SOLVER_TOLERANCE",
-      &ssidynmono);
+          parameter<double>("RELAX_LIN_SOLVER_TOLERANCE",
+              {.description =
+                      "relax the tolerance of the linear solver in case it is an iterative solver "
+                      "by scaling the convergence tolerance with factor RELAX_LIN_SOLVER_TOLERANCE",
+                  .default_value = 1.0}),
 
-  Core::Utils::int_parameter("RELAX_LIN_SOLVER_STEP", -1,
-      "relax the tolerance of the linear solver within the first RELAX_LIN_SOLVER_STEP steps",
-      &ssidynmono);
+          parameter<int>("RELAX_LIN_SOLVER_STEP",
+              {.description = "relax the tolerance of the linear solver within "
+                              "the first RELAX_LIN_SOLVER_STEP steps",
+                  .default_value = -1})},
+      {.defaultable = true});
 
   /*----------------------------------------------------------------------*/
   /* parameters for SSI with manifold */
   /*----------------------------------------------------------------------*/
 
-  Teuchos::ParameterList& ssidynmanifold = ssidyn.sublist("MANIFOLD", false,
-      "Monolithic Structure Scalar Interaction with additional scalar transport on manifold");
+  list["SSI CONTROL/MANIFOLD"] = group("SSI CONTROL/MANIFOLD",
+      {
 
-  Core::Utils::bool_parameter(
-      "ADD_MANIFOLD", "no", "activate additional manifold?", &ssidynmanifold);
+          parameter<bool>("ADD_MANIFOLD",
+              {.description = "activate additional manifold?", .default_value = false}),
 
-  Core::Utils::bool_parameter("MESHTYING_MANIFOLD", "no",
-      "activate meshtying between all manifold fields in case they intersect?", &ssidynmanifold);
+          parameter<bool>("MESHTYING_MANIFOLD",
+              {.description =
+                      "activate meshtying between all manifold fields in case they intersect?",
+                  .default_value = false}),
 
-  setStringToIntegralParameter<Inpar::ScaTra::InitialField>("INITIALFIELD", "zero_field",
-      "Initial field for scalar transport on manifold",
-      tuple<std::string>("zero_field", "field_by_function", "field_by_condition"),
-      tuple<Inpar::ScaTra::InitialField>(Inpar::ScaTra::initfield_zero_field,
-          Inpar::ScaTra::initfield_field_by_function, Inpar::ScaTra::initfield_field_by_condition),
-      &ssidynmanifold);
 
-  Core::Utils::int_parameter("INITFUNCNO", -1,
-      "function number for scalar transport on manifold initial field", &ssidynmanifold);
+          deprecated_selection<Inpar::ScaTra::InitialField>("INITIALFIELD",
+              {
+                  {"zero_field", Inpar::ScaTra::initfield_zero_field},
+                  {"field_by_function", Inpar::ScaTra::initfield_field_by_function},
+                  {"field_by_condition", Inpar::ScaTra::initfield_field_by_condition},
+              },
+              {.description = "Initial field for scalar transport on manifold",
+                  .default_value = Inpar::ScaTra::initfield_zero_field}),
 
-  Core::Utils::int_parameter(
-      "LINEAR_SOLVER", -1, "linear solver for scalar transport on manifold", &ssidynmanifold);
+          parameter<int>("INITFUNCNO",
+              {.description = "function number for scalar transport on manifold initial field",
+                  .default_value = -1}),
+          parameter<int>(
+              "LINEAR_SOLVER", {.description = "linear solver for scalar transport on manifold",
+                                   .default_value = -1}),
 
-  Core::Utils::bool_parameter("OUTPUT_INFLOW", "no",
-      "write output of inflow of scatra manifold - scatra coupling into scatra manifold to csv "
-      "file",
-      &ssidynmanifold);
+          parameter<bool>(
+              "OUTPUT_INFLOW", {.description = "write output of inflow of scatra manifold - scatra "
+                                               "coupling into scatra manifold to csv file",
+                                   .default_value = false})},
+      {.defaultable = true});
 
   /*----------------------------------------------------------------------*/
   /* parameters for SSI with elch */
   /*----------------------------------------------------------------------*/
-  Teuchos::ParameterList& ssidynelch = ssidyn.sublist(
-      "ELCH", false, "Monolithic Structure Scalar Interaction with Elch as SCATRATIMINTTYPE");
-  Core::Utils::bool_parameter("INITPOTCALC", "No",
-      "Automatically calculate initial field for electric potential", &ssidynelch);
+  list["SSI CONTROL/ELCH"] = group("SSI CONTROL/ELCH",
+      {
+
+          parameter<bool>("INITPOTCALC",
+              {.description = "Automatically calculate initial field for electric potential",
+                  .default_value = false})},
+      {.defaultable = true});
 }
 
 /*--------------------------------------------------------------------
@@ -254,7 +256,7 @@ void Inpar::SSI::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
   // insert input file line components into condition definitions
   const auto make_ssiplain = [&condlist](Core::Conditions::ConditionDefinition& cond)
   {
-    cond.add_component(entry<int>("coupling_id"));
+    cond.add_component(parameter<int>("coupling_id"));
     condlist.push_back(cond);
   };
 
@@ -276,7 +278,7 @@ void Inpar::SSI::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
   // insert input file line components into condition definitions
   const auto make_ssi = [&condlist](Core::Conditions::ConditionDefinition& cond)
   {
-    cond.add_component(entry<int>("coupling_id"));
+    cond.add_component(parameter<int>("coupling_id"));
     condlist.push_back(cond);
   };
 
@@ -301,7 +303,7 @@ void Inpar::SSI::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
   // insert input file line components into condition definitions
   const auto make_ssi2 = [&condlist](Core::Conditions::ConditionDefinition& cond)
   {
-    cond.add_component(entry<int>("coupling_id"));
+    cond.add_component(parameter<int>("coupling_id"));
     condlist.push_back(cond);
   };
 
@@ -336,12 +338,12 @@ void Inpar::SSI::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
   // insert input file line components into condition definitions
   const auto make_ssiinterfacemeshtying = [&condlist](Core::Conditions::ConditionDefinition& cond)
   {
-    cond.add_component(entry<int>("ConditionID"));
-    cond.add_component(selection<int>("INTERFACE_SIDE",
+    cond.add_component(parameter<int>("ConditionID"));
+    cond.add_component(deprecated_selection<S2I::InterfaceSides>("INTERFACE_SIDE",
         {{"Undefined", Inpar::S2I::side_undefined}, {"Slave", Inpar::S2I::side_slave},
             {"Master", Inpar::S2I::side_master}},
         {.description = "interface_side"}));
-    cond.add_component(entry<int>("S2I_KINETICS_ID"));
+    cond.add_component(parameter<int>("S2I_KINETICS_ID"));
 
     condlist.push_back(cond);
   };
@@ -356,13 +358,13 @@ void Inpar::SSI::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
       "SSISurfaceManifold", "scalar transport on manifold", Core::Conditions::SSISurfaceManifold,
       true, Core::Conditions::geometry_type_surface);
 
-  ssisurfacemanifold.add_component(entry<int>("ConditionID"));
-  ssisurfacemanifold.add_component(selection<int>("ImplType",
+  ssisurfacemanifold.add_component(parameter<int>("ConditionID"));
+  ssisurfacemanifold.add_component(deprecated_selection<Inpar::ScaTra::ImplType>("ImplType",
       {{"Undefined", Inpar::ScaTra::impltype_undefined}, {"Standard", Inpar::ScaTra::impltype_std},
           {"ElchElectrode", Inpar::ScaTra::impltype_elch_electrode},
           {"ElchDiffCond", Inpar::ScaTra::impltype_elch_diffcond}},
       {.description = "implementation type"}));
-  ssisurfacemanifold.add_component(entry<double>("thickness"));
+  ssisurfacemanifold.add_component(parameter<double>("thickness"));
 
   condlist.emplace_back(ssisurfacemanifold);
 
@@ -374,8 +376,8 @@ void Inpar::SSI::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
       Core::Conditions::geometry_type_surface);
 
   surfmanifoldinitfields.add_component(
-      selection<std::string>("FIELD", {"ScaTra"}, {.description = "init field"}));
-  surfmanifoldinitfields.add_component(entry<int>("FUNCT"));
+      deprecated_selection<std::string>("FIELD", {"ScaTra"}, {.description = "init field"}));
+  surfmanifoldinitfields.add_component(parameter<int>("FUNCT"));
 
   condlist.emplace_back(surfmanifoldinitfields);
 
@@ -387,30 +389,32 @@ void Inpar::SSI::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
       Core::Conditions::SSISurfaceManifoldKinetics, true, Core::Conditions::geometry_type_surface);
 
   {
-    surfmanifoldkinetics.add_component(entry<int>("ConditionID"));
-    surfmanifoldkinetics.add_component(entry<int>("ManifoldConditionID"));
+    surfmanifoldkinetics.add_component(parameter<int>("ConditionID"));
+    surfmanifoldkinetics.add_component(parameter<int>("ManifoldConditionID"));
 
     using namespace Core::IO::InputSpecBuilders;
 
     surfmanifoldkinetics.add_component(one_of({
         all_of({
-            selection<int>("KINETIC_MODEL", {{"ConstantInterfaceResistance",
-                                                Inpar::S2I::kinetics_constantinterfaceresistance}}),
-            entry<std::vector<int>>("ONOFF", {.size = 2}),
-            entry<double>("RESISTANCE"),
-            entry<int>("E-"),
+            deprecated_selection<Inpar::S2I::KineticModels>(
+                "KINETIC_MODEL", {{"ConstantInterfaceResistance",
+                                     Inpar::S2I::kinetics_constantinterfaceresistance}}),
+            parameter<std::vector<int>>("ONOFF", {.size = 2}),
+            parameter<double>("RESISTANCE"),
+            parameter<int>("E-"),
         }),
         all_of({
-            selection<int>("KINETIC_MODEL",
+            deprecated_selection<Inpar::S2I::KineticModels>("KINETIC_MODEL",
                 {{"Butler-VolmerReduced", Inpar::S2I::kinetics_butlervolmerreduced}}),
-            entry<int>("NUMSCAL"),
-            entry<std::vector<int>>("STOICHIOMETRIES", {.size = from_parameter<int>("NUMSCAL")}),
-            entry<int>("E-"),
-            entry<double>("K_R"),
-            entry<double>("ALPHA_A"),
-            entry<double>("ALPHA_C"),
+            parameter<int>("NUMSCAL"),
+            parameter<std::vector<int>>(
+                "STOICHIOMETRIES", {.size = from_parameter<int>("NUMSCAL")}),
+            parameter<int>("E-"),
+            parameter<double>("K_R"),
+            parameter<double>("ALPHA_A"),
+            parameter<double>("ALPHA_C"),
         }),
-        selection<int>(
+        deprecated_selection<S2I::KineticModels>(
             "KINETIC_MODEL", {{"NoInterfaceFlux", Inpar::S2I::kinetics_nointerfaceflux}}),
     }));
   }
@@ -432,12 +436,12 @@ void Inpar::SSI::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
   const auto add_dirichlet_manifold_components =
       [](Core::Conditions::ConditionDefinition& definition)
   {
-    definition.add_component(entry<int>("NUMDOF"));
-    definition.add_component(entry<std::vector<int>>(
+    definition.add_component(parameter<int>("NUMDOF"));
+    definition.add_component(parameter<std::vector<int>>(
         "ONOFF", {.description = "", .size = from_parameter<int>("NUMDOF")}));
-    definition.add_component(entry<std::vector<double>>(
+    definition.add_component(parameter<std::vector<double>>(
         "VAL", {.description = "", .size = from_parameter<int>("NUMDOF")}));
-    definition.add_component(entry<std::vector<Noneable<int>>>(
+    definition.add_component(parameter<std::vector<std::optional<int>>>(
         "FUNCT", {.description = "", .size = from_parameter<int>("NUMDOF")}));
   };
 
@@ -465,13 +469,13 @@ void Inpar::SSI::set_valid_conditions(std::vector<Core::Conditions::ConditionDef
   // insert input file line components into condition definitions
   const auto make_ssiinterfacecontact = [&condlist](Core::Conditions::ConditionDefinition& cond)
   {
-    cond.add_component(entry<int>("ConditionID"));
-    cond.add_component(selection<int>("INTERFACE_SIDE",
+    cond.add_component(parameter<int>("ConditionID"));
+    cond.add_component(deprecated_selection<S2I::InterfaceSides>("INTERFACE_SIDE",
         {{"Undefined", Inpar::S2I::side_undefined}, {"Slave", Inpar::S2I::side_slave},
             {"Master", Inpar::S2I::side_master}},
         {.description = "interface_side"}));
-    cond.add_component(entry<int>("S2I_KINETICS_ID"));
-    cond.add_component(entry<int>("CONTACT_CONDITION_ID"));
+    cond.add_component(parameter<int>("S2I_KINETICS_ID"));
+    cond.add_component(parameter<int>("CONTACT_CONDITION_ID"));
 
     condlist.push_back(cond);
   };

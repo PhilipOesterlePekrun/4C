@@ -23,8 +23,8 @@
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 #include "4C_mortar_interface.hpp"
-#include "4C_so3_line.hpp"
-#include "4C_so3_surface.hpp"
+#include "4C_solid_3D_ele_line.hpp"
+#include "4C_solid_3D_ele_surface.hpp"
 
 #include <map>
 #include <set>
@@ -51,15 +51,16 @@ bool FSI::Utils::fluid_ale_nodes_disjoint(
   else  // do a more sophisticated check
   {
     // get node row maps
-    std::shared_ptr<const Epetra_Map> fluidmap =
-        std::make_shared<Epetra_Map>(*fluiddis.node_row_map());
-    std::shared_ptr<const Epetra_Map> alemap = std::make_shared<Epetra_Map>(*aledis.node_row_map());
+    std::shared_ptr<const Core::LinAlg::Map> fluidmap =
+        std::make_shared<Core::LinAlg::Map>(*fluiddis.node_row_map());
+    std::shared_ptr<const Core::LinAlg::Map> alemap =
+        std::make_shared<Core::LinAlg::Map>(*aledis.node_row_map());
 
     // Create intersection of fluid and ALE map
-    std::vector<std::shared_ptr<const Epetra_Map>> intersectionmaps;
+    std::vector<std::shared_ptr<const Core::LinAlg::Map>> intersectionmaps;
     intersectionmaps.push_back(fluidmap);
     intersectionmaps.push_back(alemap);
-    std::shared_ptr<Epetra_Map> intersectionmap =
+    std::shared_ptr<Core::LinAlg::Map> intersectionmap =
         Core::LinAlg::MultiMapExtractor::intersect_maps(intersectionmaps);
 
     if (intersectionmap->NumGlobalElements() == 0) isdisjoint = true;
@@ -167,8 +168,8 @@ FSI::Utils::SlideAleUtils::SlideAleUtils(std::shared_ptr<Core::FE::Discretizatio
     if (!err) FOUR_C_THROW("Non sliding interface has to be a subset of FSI-interface or empty");
   }
 
-  std::shared_ptr<Epetra_Map> structdofrowmap;
-  std::shared_ptr<Epetra_Map> fluiddofrowmap;
+  std::shared_ptr<Core::LinAlg::Map> structdofrowmap;
+  std::shared_ptr<Core::LinAlg::Map> fluiddofrowmap;
 
 
   // useful displacement vectors
@@ -183,7 +184,7 @@ FSI::Utils::SlideAleUtils::SlideAleUtils(std::shared_ptr<Core::FE::Discretizatio
     fluiddofrowmap_ = coupsf.master_dof_map();
   }
 
-  std::shared_ptr<Epetra_Map> dofrowmap =
+  std::shared_ptr<Core::LinAlg::Map> dofrowmap =
       Core::LinAlg::merge_map(*structdofrowmap_, *fluiddofrowmap_, true);
   idispms_ = Core::LinAlg::create_vector(*dofrowmap, true);
 
@@ -239,22 +240,22 @@ void FSI::Utils::SlideAleUtils::remeshing(Adapter::FSIStructureWrapper& structur
 
     for (int p = 0; p < dim; p++) finaldxyz[p] = (idispale)[(lids[p])];
 
-    int err = iprojdispale.ReplaceMyValues(dim, finaldxyz.data(), lids.data());
+    int err = iprojdispale.replace_local_values(dim, finaldxyz.data(), lids.data());
     if (err == 1) FOUR_C_THROW("error while replacing values");
   }
 
   // merge displacement values of interface nodes (struct+fluid) into idispms_ for mortar
-  idispms_->PutScalar(0.0);
+  idispms_->put_scalar(0.0);
 
-  std::shared_ptr<Epetra_Map> dofrowmap =
+  std::shared_ptr<Core::LinAlg::Map> dofrowmap =
       Core::LinAlg::merge_map(*structdofrowmap_, *fluiddofrowmap_, true);
-  Epetra_Import msimpo(*dofrowmap, *structdofrowmap_);
-  Epetra_Import slimpo(*dofrowmap, *fluiddofrowmap_);
+  Epetra_Import msimpo(dofrowmap->get_epetra_map(), structdofrowmap_->get_epetra_map());
+  Epetra_Import slimpo(dofrowmap->get_epetra_map(), fluiddofrowmap_->get_epetra_map());
 
-  idispms_->Import(*idisptotal, msimpo, Add);
-  idispms_->Import(iprojdispale, slimpo, Add);
+  idispms_->import(*idisptotal, msimpo, Add);
+  idispms_->import(iprojdispale, slimpo, Add);
 
-  iprojhist_->Update(1.0, iprojdispale, 0.0);
+  iprojhist_->update(1.0, iprojdispale, 0.0);
 
   return;
 }
@@ -265,15 +266,15 @@ void FSI::Utils::SlideAleUtils::evaluate_mortar(Core::LinAlg::Vector<double>& id
     Core::LinAlg::Vector<double>& idispfluid, Coupling::Adapter::CouplingMortar& coupsf)
 {
   // merge displacement values of interface nodes (struct+fluid) into idispms_ for mortar
-  idispms_->PutScalar(0.0);
+  idispms_->put_scalar(0.0);
 
-  std::shared_ptr<Epetra_Map> dofrowmap =
+  std::shared_ptr<Core::LinAlg::Map> dofrowmap =
       Core::LinAlg::merge_map(*structdofrowmap_, *fluiddofrowmap_, true);
-  Epetra_Import master_importer(*dofrowmap, *structdofrowmap_);
-  Epetra_Import slave_importer(*dofrowmap, *fluiddofrowmap_);
+  Epetra_Import master_importer(dofrowmap->get_epetra_map(), structdofrowmap_->get_epetra_map());
+  Epetra_Import slave_importer(dofrowmap->get_epetra_map(), fluiddofrowmap_->get_epetra_map());
 
-  if (idispms_->Import(idispstruct, master_importer, Add)) FOUR_C_THROW("Import operation failed.");
-  if (idispms_->Import(idispfluid, slave_importer, Add)) FOUR_C_THROW("Import operation failed.");
+  if (idispms_->import(idispstruct, master_importer, Add)) FOUR_C_THROW("Import operation failed.");
+  if (idispms_->import(idispfluid, slave_importer, Add)) FOUR_C_THROW("Import operation failed.");
 
   // new D,M,Dinv out of disp of struct and fluid side
   coupsf.evaluate(idispms_);
@@ -295,7 +296,7 @@ std::shared_ptr<Core::LinAlg::Vector<double>> FSI::Utils::SlideAleUtils::interpo
     const Core::LinAlg::Vector<double>& uold)
 {
   std::shared_ptr<Core::LinAlg::Vector<double>> unew = coupff_->master_to_slave(uold);
-  unew->ReplaceMap(uold.Map());
+  unew->replace_map(uold.get_block_map());
 
   return unew;
 }
@@ -312,17 +313,15 @@ std::vector<double> FSI::Utils::SlideAleUtils::centerdisp(
   std::shared_ptr<Core::LinAlg::Vector<double>> idisptotal = structure.extract_interface_dispnp();
   std::shared_ptr<Core::LinAlg::Vector<double>> idispstep = structure.extract_interface_dispnp();
 
-  int err = idispstep->Update(-1.0, *idispn, 1.0);
+  int err = idispstep->update(-1.0, *idispn, 1.0);
   if (err != 0) FOUR_C_THROW("ERROR");
 
   const int dim = Global::Problem::instance()->n_dim();
   // get structure and fluid discretizations  and set stated for element evaluation
-  const std::shared_ptr<Core::LinAlg::Vector<double>> idisptotalcol =
-      Core::LinAlg::create_vector(*structdis->dof_col_map(), true);
-  Core::LinAlg::export_to(*idisptotal, *idisptotalcol);
-  const std::shared_ptr<Core::LinAlg::Vector<double>> idispstepcol =
-      Core::LinAlg::create_vector(*structdis->dof_col_map(), true);
-  Core::LinAlg::export_to(*idispstep, *idispstepcol);
+  Core::LinAlg::Vector<double> idisptotalcol(*structdis->dof_col_map(), true);
+  export_to(*idisptotal, idisptotalcol);
+  Core::LinAlg::Vector<double> idispstepcol(*structdis->dof_col_map(), true);
+  export_to(*idispstep, idispstepcol);
 
   structdis->set_state("displacementtotal", idisptotalcol);
   structdis->set_state("displacementincr", idispstepcol);
@@ -412,10 +411,9 @@ std::map<int, Core::LinAlg::Matrix<3, 1>> FSI::Utils::SlideAleUtils::current_str
         lm.reserve(3);
         // extract global dof ids
         interfacedis.dof(node, lm);
-        std::vector<double> mydisp(3);
         Core::LinAlg::Matrix<3, 1> currpos;
 
-        Core::FE::extract_my_values(reddisp, mydisp, lm);
+        std::vector<double> mydisp = Core::FE::extract_values(reddisp, lm);
 
         for (int a = 0; a < 3; a++)
         {
@@ -446,10 +444,10 @@ void FSI::Utils::SlideAleUtils::slide_projection(
   std::shared_ptr<Core::LinAlg::Vector<double>> idispnp = structure.extract_interface_dispnp();
 
   // Redistribute displacement of structnodes on the interface to all processors.
-  Epetra_Import interimpo(*structfullnodemap_, *structdofrowmap_);
+  Epetra_Import interimpo(structfullnodemap_->get_epetra_map(), structdofrowmap_->get_epetra_map());
   std::shared_ptr<Core::LinAlg::Vector<double>> reddisp =
       Core::LinAlg::create_vector(*structfullnodemap_, true);
-  reddisp->Import(*idispnp, interimpo, Add);
+  reddisp->import(*idispnp, interimpo, Add);
 
   Core::FE::Discretization& interfacedis = coupsf.interface()->discret();
   std::map<int, double> rotrat;
@@ -567,7 +565,7 @@ void FSI::Utils::SlideAleUtils::slide_projection(
       }
 
       // store displacement into parallel vector
-      int err = iprojdispale.ReplaceMyValues(dim, finaldxyz.data(), lids.data());
+      int err = iprojdispale.replace_local_values(dim, finaldxyz.data(), lids.data());
       if (err == 1) FOUR_C_THROW("error while replacing values");
     }
   }
@@ -624,10 +622,10 @@ void FSI::Utils::SlideAleUtils::redundant_elements(
 
     Core::Communication::sum_all(&partsum, &globsum, 1, comm);
     // map with ele ids
-    Epetra_Map mstruslideleids(globsum, vstruslideleids.size(), vstruslideleids.data(), 0,
+    Core::LinAlg::Map mstruslideleids(globsum, vstruslideleids.size(), vstruslideleids.data(), 0,
         Core::Communication::as_epetra_comm(comm));
     // redundant version of it
-    Epetra_Map redmstruslideleids(*Core::LinAlg::allreduce_e_map(mstruslideleids));
+    Core::LinAlg::Map redmstruslideleids(*Core::LinAlg::allreduce_e_map(mstruslideleids));
 
     for (int eleind = 0; eleind < redmstruslideleids.NumMyElements(); eleind++)
     {
@@ -637,13 +635,13 @@ void FSI::Utils::SlideAleUtils::redundant_elements(
         if (dim == 3)
         {
           structreduelements_[i][tmpele->id()] =
-              std::make_shared<Discret::Elements::StructuralSurface>(tmpele->id(), tmpele->owner(),
+              std::make_shared<Discret::Elements::SolidSurface>(tmpele->id(), tmpele->owner(),
                   tmpele->num_node(), tmpele->node_ids(), tmpele->nodes(), &(*tmpele), 0);
         }
         else if (dim == 2)
         {
           structreduelements_[i][tmpele->id()] =
-              std::make_shared<Discret::Elements::StructuralLine>(tmpele->id(), tmpele->owner(),
+              std::make_shared<Discret::Elements::SolidLine<3>>(tmpele->id(), tmpele->owner(),
                   tmpele->num_node(), tmpele->node_ids(), tmpele->nodes(), &(*tmpele), 0);
         }
       }
@@ -657,13 +655,13 @@ void FSI::Utils::SlideAleUtils::redundant_elements(
         if (dim == 3)
         {
           ifluidslidstructeles_[i][tmpele->id()] =
-              std::make_shared<Discret::Elements::StructuralSurface>(tmpele->id(), tmpele->owner(),
+              std::make_shared<Discret::Elements::SolidSurface>(tmpele->id(), tmpele->owner(),
                   tmpele->num_node(), tmpele->node_ids(), tmpele->nodes(), &(*tmpele), 0);
         }
         else if (dim == 2)
         {
           ifluidslidstructeles_[i][tmpele->id()] =
-              std::make_shared<Discret::Elements::StructuralLine>(tmpele->id(), tmpele->owner(),
+              std::make_shared<Discret::Elements::SolidLine<3>>(tmpele->id(), tmpele->owner(),
                   tmpele->num_node(), tmpele->node_ids(), tmpele->nodes(), &(*tmpele), 0);
         }
       }
@@ -683,15 +681,13 @@ void FSI::Utils::SlideAleUtils::rotation(
 {
   std::shared_ptr<Core::LinAlg::Vector<double>> idispstep =
       Core::LinAlg::create_vector(*fluiddofrowmap_, false);
-  idispstep->Update(1.0, idispale, -1.0, *iprojhist_, 0.0);
+  idispstep->update(1.0, idispale, -1.0, *iprojhist_, 0.0);
 
   // get structure and fluid discretizations  and set state for element evaluation
-  const std::shared_ptr<Core::LinAlg::Vector<double>> idispstepcol =
-      Core::LinAlg::create_vector(*mtrdis.dof_col_map(), false);
-  Core::LinAlg::export_to(*idispstep, *idispstepcol);
-  const std::shared_ptr<Core::LinAlg::Vector<double>> idispnpcol =
-      Core::LinAlg::create_vector(*mtrdis.dof_col_map(), false);
-  Core::LinAlg::export_to(idispale, *idispnpcol);
+  Core::LinAlg::Vector<double> idispstepcol(*mtrdis.dof_col_map(), false);
+  export_to(*idispstep, idispstepcol);
+  Core::LinAlg::Vector<double> idispnpcol(*mtrdis.dof_col_map(), false);
+  Core::LinAlg::export_to(idispale, idispnpcol);
 
   mtrdis.set_state("displacementnp", idispnpcol);
   mtrdis.set_state("displacementincr", idispstepcol);

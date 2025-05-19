@@ -99,7 +99,7 @@ INITIALFIELD                    field_by_condition
 INITFUNCNO                      2
 --------------------------------------------------------------------SOLVER 1
 NAME                            solver
-SOLVER                          Superlu
+SOLVER                          UMFPACK
 -------------------------------------------------------------------MATERIALS
 MAT 2 MAT_FluidPoroMultiPhaseReactions LOCAL No PERMEABILITY 1.0e-9 NUMMAT 3 MATIDS 10 11 12 NUMFLUIDPHASES_IN_MULTIPHASEPORESPACE 3 NUMREAC 2 REACIDS 20 21
 
@@ -162,59 +162,53 @@ COMPONENT 2 SYMBOLIC_FUNCTION_OF_SPACE_TIME 0.0
 COMPONENT 0 SYMBOLIC_FUNCTION_OF_SPACE_TIME 2.0e-6
 COMPONENT 1 SYMBOLIC_FUNCTION_OF_SPACE_TIME 0.0
 ----------------------------------------------------------------------FUNCT5
-POROMULTIPHASESCATRA_FUNCTION TUMOR_GROWTH_LAW_HEAVISIDE NUMPARAMS 5 PARAMS gamma_T_growth 4.0e-8 w_nl_crit 1.0e-6 w_nl_env 4.2e-6 lambda 0.0 p_t_crit 1.0e9
+POROMULTIPHASESCATRA_FUNCTION TUMOR_GROWTH_LAW_HEAVISIDE PARAMS gamma_T_growth 4.0e-8 w_nl_crit 1.0e-6 w_nl_env 4.2e-6 lambda 0.0 p_t_crit 1.0e9
 ----------------------------------------------------------------------FUNCT6
-POROMULTIPHASESCATRA_FUNCTION NECROSIS_LAW_HEAVISIDE NUMPARAMS 5 PARAMS gamma_t_necr 1.0e-8 w_nl_crit 1.0e-6 w_nl_env 4.2e-6 delta_a_t 0.0 p_t_crit 1.0e9
+POROMULTIPHASESCATRA_FUNCTION NECROSIS_LAW_HEAVISIDE PARAMS gamma_t_necr 1.0e-8 w_nl_crit 1.0e-6 w_nl_env 4.2e-6 delta_a_t 0.0 p_t_crit 1.0e9
 ----------------------------------------------------------------------FUNCT7
-POROMULTIPHASESCATRA_FUNCTION OXYGEN_CONSUMPTION_LAW_HEAVISIDE NUMPARAMS 5 PARAMS gamma_nl_growth 9.6e-10 gamma_0_nl 24e-10 w_nl_crit 1.0e-6 w_nl_env 4.2e-6 p_t_crit 1.0e9
+POROMULTIPHASESCATRA_FUNCTION OXYGEN_CONSUMPTION_LAW_HEAVISIDE PARAMS gamma_nl_growth 9.6e-10 gamma_0_nl 24e-10 w_nl_crit 1.0e-6 w_nl_env 4.2e-6 p_t_crit 1.0e9
 ----------------------------------------------------------------------FUNCT8
-POROMULTIPHASESCATRA_FUNCTION TUMOR_GROWTH_LAW_HEAVISIDE_OXY NUMPARAMS 5 PARAMS gamma_T_growth 4.0e-8 w_nl_crit 1.0e-6 w_nl_env 4.2e-6 lambda 0.0 p_t_crit 1.0e9
+POROMULTIPHASESCATRA_FUNCTION TUMOR_GROWTH_LAW_HEAVISIDE_OXY PARAMS gamma_T_growth 4.0e-8 w_nl_crit 1.0e-6 w_nl_env 4.2e-6 lambda 0.0 p_t_crit 1.0e9
 ----------------------------------------------------------------------FUNCT9
-POROMULTIPHASESCATRA_FUNCTION TUMOR_GROWTH_LAW_HEAVISIDE_NECRO NUMPARAMS 5 PARAMS gamma_T_growth 4.0e-8 w_nl_crit 1.0e-6 w_nl_env 4.2e-6 lambda 0.0 p_t_crit 1.0e9
+POROMULTIPHASESCATRA_FUNCTION TUMOR_GROWTH_LAW_HEAVISIDE_NECRO PARAMS gamma_T_growth 4.0e-8 w_nl_crit 1.0e-6 w_nl_env 4.2e-6 lambda 0.0 p_t_crit 1.0e9
 ----------------------------------------------------------------------FUNCT10 // lymphatic drainage
 VARFUNCTION 1.04e-6*1.0e-3*heaviside(p3)*p3*(1.0-p2/500.0)*heaviside(1.0-p2/500.0)
 ----------------------------------------------------------------------FUNCT11 // fluid extravasion from arteries
 VARFUNCTION pi*D*2.7e-9*1.06e-3*(p_art-p3-1333.0)
 ----------------------------------------------------------------------FUNCT12 // diffusive exchange of oxygen from arteries
-POROMULTIPHASESCATRA_FUNCTION OXYGEN_TRANSVASCULAR_EXCHANGE_LAW_DISC NUMPARAMS 10 PARAMS n 2.7 Pb50 37.0 CaO2_max 0.225 alpha_bl_eff 3.1e-5 gamma*rho 2.31e-11 rho_oxy 1.429e-6 rho_IF 1.0e-3 rho_bl 1.06e-3 S2_max 1.5 alpha_IF 3.0e-5
+POROMULTIPHASESCATRA_FUNCTION OXYGEN_TRANSVASCULAR_EXCHANGE_LAW_DISC PARAMS n 2.7 Pb50 37.0 CaO2_max 0.225 alpha_bl_eff 3.1e-5 gamma_rho 2.31e-11 rho_oxy 1.429e-6 rho_IF 1.0e-3 rho_bl 1.06e-3 S2_max 1.5 alpha_IF 3.0e-5
 ----------------------------------------------------------------------FUNCT13 // consumption by healthy cells
 VARFUNCTION porosity*S1*10e-10*sin(0.5*pi*phi1/4.2e-6)
 ----------------------------------------------------------------------FUNCT14 // diameter
 VARFUNCTION D0*1.0/(1.0+exp(-2.0*100.0*(-(S2-0.4))))+Dprev*0.5*1.0/(1.0+exp(-2.0*100.0*(S2-0.4))) //regularized version of: D0*heaviside(-(S2-0.4))+Dprev*(0.5)*heaviside(S2-0.4)
 -------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF  1
 // all_nodes
-E 1 - NUMDOF 2 ONOFF 1 1 VAL 0.0 0.0 FUNCT 0 0
+E 1 NUMDOF 2 ONOFF 1 1 VAL 0.0 0.0 FUNCT 0 0
 --------------------------------DESIGN LINE PORO DIRICH CONDITIONS
-DLINE  2
 // curve_left
-E 1 - NUMDOF 3 ONOFF 1 1 1 VAL 191.7026207774473 0.0 0.0 FUNCT 0 0 0
+E 1 NUMDOF 3 ONOFF 1 1 1 VAL 191.7026207774473 0.0 0.0 FUNCT 0 0 0
 // curve_right
-E 2 - NUMDOF 3 ONOFF 1 1 1 VAL 191.7026207774473 0.0 0.0 FUNCT 0 0 0
+E 2 NUMDOF 3 ONOFF 1 1 1 VAL 191.7026207774473 0.0 0.0 FUNCT 0 0 0
 --------------------------------DESIGN POINT DIRICH CONDITIONS
-DPOINT  2
 // point 1
-E 1 - NUMDOF 1 ONOFF 1 VAL 3000.0 FUNCT 0
+E 1 NUMDOF 1 ONOFF 1 VAL 3000.0 FUNCT 0
 // point 2
-E 2 - NUMDOF 1 ONOFF 1 VAL 2000.0 FUNCT 0
+E 2 NUMDOF 1 ONOFF 1 VAL 2000.0 FUNCT 0
 --------------------------------DESIGN POINT TRANSPORT DIRICH CONDITIONS
-DPOINT  2
 // point 1
-E 1 - NUMDOF 1 ONOFF 1 VAL 2.88e-4 FUNCT 0
+E 1 NUMDOF 1 ONOFF 1 VAL 2.88e-4 FUNCT 0
 // point 2
-E 2 - NUMDOF 1 ONOFF 1 VAL 2.88e-4 FUNCT 0
+E 2 NUMDOF 1 ONOFF 1 VAL 2.88e-4 FUNCT 0
 ------------------------------DESIGN LINE INITIAL FIELD CONDITIONS
-DLINE  2
 // all 1D nodes
-E 3  - FIELD Artery FUNCT 1
+E 3 FIELD Artery FUNCT 1
 // all 1D nodes
-E 3 - FIELD ScaTra FUNCT 2
+E 3 FIELD ScaTra FUNCT 2
 ------------------------------DESIGN SURF INITIAL FIELD CONDITIONS
-DSURF  2
 // all_nodes
-E 1  - FIELD PoroMultiFluid FUNCT 3
+E 1 FIELD PoroMultiFluid FUNCT 3
 // all_nodes
-E 1 - FIELD ScaTra FUNCT 4
+E 1 FIELD ScaTra FUNCT 4
 -----------------------------------------------DNODE-NODE TOPOLOGY
 NODE    403 DNODE 1
 NODE    553 DNODE 2

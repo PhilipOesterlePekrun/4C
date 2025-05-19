@@ -25,11 +25,8 @@ class StructureFilter : public PostFilterBase
 {
  public:
   StructureFilter(PostField* field, std::string name, std::string stresstype = "none",
-      std::string straintype = "none", std::string optquantitytype = "none")
-      : PostFilterBase(field, name),
-        stresstype_(stresstype),
-        straintype_(straintype),
-        optquantitytype_(optquantitytype)
+      std::string straintype = "none")
+      : PostFilterBase(field, name), stresstype_(stresstype), straintype_(straintype)
   {
   }
 
@@ -40,8 +37,7 @@ class StructureFilter : public PostFilterBase
 
   /*!
   \brief postprocess gauss point stresses and write results
-  \author lw
-  \date 02/08
+
   */
   void post_stress(const std::string groupname, const std::string stresstype);
   void write_stress(const std::string groupname, PostResult& result, const ResultType stresskind);
@@ -50,7 +46,6 @@ class StructureFilter : public PostFilterBase
 
   std::string stresstype_;
   std::string straintype_;
-  std::string optquantitytype_;
 };
 
 /*!
@@ -58,8 +53,6 @@ class StructureFilter : public PostFilterBase
 
  Each mortar interface is written as its own discretization. The MortarFilter will process only one
  of these interfaces, i.e. there will be as many MortarFilers as there are mortar interfaces.
-
- \author mayr.mt \date 08/2018
  */
 class MortarFilter : public PostFilterBase
 {
@@ -139,8 +132,6 @@ class InterfaceFilter : public PostFilterBase
 /*!
  \brief Writer for lubrication problems
 
- \author wirtz
- \date 11/15
 */
 class LubricationFilter : public PostFilterBase
 {
@@ -156,8 +147,6 @@ class LubricationFilter : public PostFilterBase
 /*!
  \brief Writer for (in)stationary heat conduction
 
- \author bborn
- \date 09/09
 */
 class ThermoFilter : public PostFilterBase
 {
@@ -174,8 +163,7 @@ class ThermoFilter : public PostFilterBase
 
   /*!
   \brief postprocess gauss point heatfluxes and write results
-  \author originally by lw
-  \date 11/09
+
   */
   void post_heatflux(const std::string groupname, const std::string heatfluxtype);
   void write_heatflux(const std::string groupname, PostResult& result, const ResultType kind);
@@ -184,20 +172,6 @@ class ThermoFilter : public PostFilterBase
   std::string tempgradtype_;  ///< type of spatial temperature gradient output
 };
 
-/*!
- \brief Writer for electromagnetic problems
-
- \author gravemeier
- \date 06/17
- */
-class ElemagFilter : public PostFilterBase
-{
- public:
-  ElemagFilter(PostField* field, std::string name) : PostFilterBase(field, name) {}
-
- protected:
-  void write_all_results(PostField* field) override;
-};
 
 /// Writer for undefined problem types
 /*

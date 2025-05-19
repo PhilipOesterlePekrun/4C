@@ -10,11 +10,11 @@
 
 #include "4C_config.hpp"
 
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_serialdensematrix.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_utils_shared_ptr_from_ref.hpp"
 
-#include <Epetra_Map.h>
 #include <Epetra_Operator.h>
 
 #include <memory>
@@ -32,8 +32,8 @@ namespace Core::LinAlg
   /*! \enum Core::LinAlg::DataAccess
    *  \brief Handling of data access (Copy or View)
    *
-   *  If set to Core::LinAlg::Copy, user data will be copied at construction.
-   *  If set to Core::LinAlg::View, user data will be encapsulated and used throughout
+   *  If set to Core::LinAlg::DataAccess::Copy, user data will be copied at construction.
+   *  If set to Core::LinAlg::DataAccess::View, user data will be encapsulated and used throughout
    *  the life of the object.
    *
    *  \note A separate Core::LinAlg::DataAccess is necessary in order to resolve
@@ -42,9 +42,8 @@ namespace Core::LinAlg
    *  Use Core::LinAlg::DataAccess for construction of any Core::LINALG matrix object.
    *  Use plain 'Copy' or 'View' for construction of any Epetra matrix object.
    *
-   *  \author mayr.mt \date 10/2015
    */
-  enum DataAccess
+  enum class DataAccess
   {
     Copy,  ///< deep copy
     View   ///< reference to original data
@@ -80,8 +79,6 @@ namespace Core::LinAlg
     one is the SparseMatrix, a single Epetra_CrsMatrix in a box, another one
     is BlockSparseMatrix, a block matrix build from a list of SparseMatrix.
 
-    \author u.kue
-    \date 02/08
    */
   class SparseOperator : public Epetra_Operator
   {
@@ -195,8 +192,8 @@ namespace Core::LinAlg
     virtual void complete(bool enforce_complete = false) = 0;
 
     /// Call fill_complete on a matrix (for rectangular and square matrices)
-    virtual void complete(
-        const Epetra_Map& domainmap, const Epetra_Map& rangemap, bool enforce_complete = false) = 0;
+    virtual void complete(const Core::LinAlg::Map& domainmap, const Core::LinAlg::Map& rangemap,
+        bool enforce_complete = false) = 0;
 
     /// Undo a previous Complete() call
     virtual void un_complete() = 0;
@@ -214,7 +211,7 @@ namespace Core::LinAlg
     ///  matrix was symmetric. However, the blanking of columns is computationally
     ///  quite expensive, because the matrix is stored in a sparse and distributed
     ///  manner.
-    virtual void apply_dirichlet(const Epetra_Map& dbcmap, bool diagonalblock = true) = 0;
+    virtual void apply_dirichlet(const Core::LinAlg::Map& dbcmap, bool diagonalblock = true) = 0;
 
     /** \brief Return TRUE if all Dirichlet boundary conditions have been applied
      *  to this matrix
@@ -224,12 +221,12 @@ namespace Core::LinAlg
      *                             If it is only one block/matrix, this boolean should be TRUE.
      *  \param (in) trafo: pointer to an optional trafo matrix (see LocSys).
      *
-     *  \author hiermeier \date 01/18 */
-    virtual bool is_dbc_applied(const Epetra_Map& dbcmap, bool diagonalblock = true,
+     *  */
+    virtual bool is_dbc_applied(const Core::LinAlg::Map& dbcmap, bool diagonalblock = true,
         const Core::LinAlg::SparseMatrix* trafo = nullptr) const = 0;
 
     /// Returns the Epetra_Map object associated with the (full) domain of this operator.
-    virtual const Epetra_Map& domain_map() const = 0;
+    virtual const Map& domain_map() const = 0;
 
     /// Add one operator to another
     virtual void add(const Core::LinAlg::SparseOperator& A, const bool transposeA,

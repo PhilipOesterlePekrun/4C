@@ -18,30 +18,26 @@ FOUR_C_NAMESPACE_OPEN
 /*!
   \brief map node stack element
 
-  \author m.geppert (u.kue)
-  \date 08/06
  */
 /*----------------------------------------------------------------------*/
-typedef struct StackElement
+struct StackElement
 {
   struct StackElement* snext;
   MapNode* map_node;
-} STACK_ELEMENT;
+};
 
 
 /*----------------------------------------------------------------------*/
 /*!
   \brief stack of map nodes
 
-  \author m.geppert (u.kue)
-  \date 08/06
  */
 /*----------------------------------------------------------------------*/
-typedef struct Stack
+struct Stack
 {
   int count;
-  STACK_ELEMENT head;
-} STACK;
+  StackElement head;
+};
 
 
 /*----------------------------------------------------------------------*/
@@ -51,22 +47,20 @@ typedef struct Stack
   Visit all maps inside a map. This is a tree iterator. The map is
   implemented as a tree. Hence there is a stack inside this iterator.
 
-  \author m.geppert (u.kue)
-  \date 08/06
  */
 /*----------------------------------------------------------------------*/
-typedef struct MapIterator
+struct MapIterator
 {
   MAP* map;
-  STACK stack;
-} MAP_ITERATOR;
+  Stack stack;
+};
 
 
-void init_map_iterator(MAP_ITERATOR* iterator, MAP* map);
+void init_map_iterator(MapIterator* iterator, MAP* map);
 
-int next_map_node(MAP_ITERATOR* iterator);
+int next_map_node(MapIterator* iterator);
 
-MapNode* iterator_get_node(MAP_ITERATOR* iterator);
+MapNode* iterator_get_node(MapIterator* iterator);
 
 FOUR_C_NAMESPACE_CLOSE
 

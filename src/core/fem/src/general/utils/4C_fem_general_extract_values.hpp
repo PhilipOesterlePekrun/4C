@@ -13,34 +13,116 @@
 #include "4C_comm_mpi_utils.hpp"
 #include "4C_fem_general_element.hpp"
 #include "4C_fem_general_node.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_vector.hpp"
+#include "4C_utils_exceptions.hpp"
+
+#include <algorithm>
+#include <iterator>
+#include <ranges>
 
 
 FOUR_C_NAMESPACE_OPEN
 
 namespace Core::FE
 {
+  namespace Internal
+  {
+    template <typename T>
+    inline auto value_extractor(const Core::LinAlg::Vector<T>& global)
+    {
+      return [&](int global_id)
+      {
+        const int local_id = global.get_block_map().LID(global_id);
+        FOUR_C_ASSERT_ALWAYS(local_id >= 0,
+            "Proc {}: Cannot find gid={} in Core::LinAlg::Vector<double>",
+            Core::Communication::my_mpi_rank(global.get_comm()), global_id);
+        return global[local_id];
+      };
+    }
+  }  // namespace Internal
+
   /*!
-  \brief Locally extract a subset of values from an Core::LinAlg::Vector<double>
+   * @brief Extract a subset of local values from Core::LinAlg::Vector<T>
+   *
+   * @tparam num_entries Number of locally owned entries
+   * @tparam T datatype
+   * @param global (in) : Global values
+   * @param lm (in) : Global ids of the values to extract
+   * @return std::array<T, num_entries> Extracted values from the global vector
+   */
+  template <unsigned num_entries, typename T, std::ranges::range Range>
+  std::array<T, num_entries> extract_values_as_array(
+      const Core::LinAlg::Vector<T>& global, Range global_ids)
+  {
+    std::array<T, num_entries> local;
+    std::transform(
+        global_ids.begin(), global_ids.end(), local.begin(), Internal::value_extractor(global));
 
-  Extracts lm.size() values from a distributed epetra vector and stores them into local.
-  this is NOT a parallel method, meaning that all values to be extracted on a processor
-  must be present in global on that specific processor. This usually means that global
-  has to be in column map style.
+    return local;
+  }
 
-  \param global (in): global distributed vector with values to be extracted
-  \param local (out): vector or matrix holding values extracted from global
-  \param lm     (in): vector containing global ids to be extracted. Size of lm
-                      determines number of values to be extracted.
-  */
-  void extract_my_values(const Core::LinAlg::Vector<double>& global, std::vector<double>& local,
-      const std::vector<int>& lm);
+  /*!
+   * @brief Extract a subset of local values from Core::LinAlg::Vector<T>
+   *
+   * @tparam T datatype
+   * @param global (in) : Global values
+   * @param lm (in) : Global ids of the values to extract
+   * @param expected_size (in): (Expected) size of the local vector
+   * @return std::vector<T> Extracted values from the global vector
+   */
+  template <typename T, std::ranges::range Range>
+  std::vector<T> extract_values(
+      const Core::LinAlg::Vector<T>& global, Range global_ids, std::size_t expected_size)
+  {
+    std::vector<T> local;
+    local.reserve(expected_size);
+    std::ranges::copy(global_ids | std::views::transform(Internal::value_extractor(global)),
+        std::back_inserter(local));
+
+    return local;
+  }
+
+  /*!
+   * @brief Extract a subset of local values from Core::LinAlg::Vector<T>
+   *
+   * @tparam T datatype
+   * @param global (in) : Global values
+   * @param lm (in) : Global ids of the values to extract
+   * @return std::vector<T> Extracted values from the global vector
+   */
+  template <typename T, std::ranges::sized_range Range>
+  std::vector<T> extract_values(const Core::LinAlg::Vector<T>& global, const Range& global_ids)
+  {
+    return extract_values(global, global_ids, std::size(global_ids));
+  }
+
+  template <typename T, std::ranges::sized_range Range>
+  std::vector<T> extract_values(const Core::LinAlg::MultiVector<T>& global, const Range& global_ids)
+  {
+    const int numcol = global.NumVectors();
+    const size_t ldim = std::size(global_ids);
+
+    std::vector<T> local(ldim * numcol);
+    for (size_t i = 0; i < ldim; ++i)
+    {
+      const int lid = global.Map().LID(global_ids[i]);
+      FOUR_C_ASSERT_ALWAYS(lid >= 0,
+          "Proc {}: Cannot find gid={} in Core::LinAlg::MultiVector<double>",
+          Core::Communication::my_mpi_rank(global.Comm()), global_ids[i]);
+
+      // loop over multi vector columns (numcol=1 for Core::LinAlg::Vector<double>)
+      for (int col = 0; col < numcol; col++)
+      {
+        local[col + (numcol * i)] = global(col)[lid];
+      }
+    }
+
+    return local;
+  }
 
   void extract_my_values(const Core::LinAlg::Vector<double>& global,
       Core::LinAlg::SerialDenseVector& local, const std::vector<int>& lm);
-
-  void extract_my_values(const Core::LinAlg::MultiVector<double>& global,
-      std::vector<double>& local, const std::vector<int>& lm);
 
   template <class Matrix>
   void extract_my_values(const Core::LinAlg::Vector<double>& global, std::vector<Matrix>& local,
@@ -57,12 +139,12 @@ namespace Core::FE
       for (unsigned idof = 0; idof < local.size(); ++idof)
       {
         // extract local ID of current dof
-        const int lid = global.Map().LID(lm[inode * local.size() + idof]);
+        const int lid = global.get_block_map().LID(lm[inode * local.size() + idof]);
 
         // safety check
         if (lid < 0)
-          FOUR_C_THROW("Proc %d: Cannot find gid=%d in Core::LinAlg::Vector<double>",
-              Core::Communication::my_mpi_rank(global.Comm()), lm[inode * local.size() + idof]);
+          FOUR_C_THROW("Proc {}: Cannot find gid={} in Core::LinAlg::Vector<double>",
+              Core::Communication::my_mpi_rank(global.get_comm()), lm[inode * local.size() + idof]);
 
         // store current dof in local matrix vector consisting of ndof matrices of size nnode x 1,
         // where nnode denotes the number of element nodes and ndof denotes the number of degrees
@@ -88,12 +170,12 @@ namespace Core::FE
       {
         // extract local ID of current dof
         const unsigned index = icol * local.num_rows() + irow;
-        const int lid = global.Map().LID(lm[index]);
+        const int lid = global.get_block_map().LID(lm[index]);
 
         // safety check
         if (lid < 0)
-          FOUR_C_THROW("Proc %d: Cannot find gid=%d in Core::LinAlg::Vector<double>",
-              Core::Communication::my_mpi_rank(global.Comm()), lm[index]);
+          FOUR_C_THROW("Proc {}: Cannot find gid={} in Core::LinAlg::Vector<double>",
+              Core::Communication::my_mpi_rank(global.get_comm()), lm[index]);
 
         // store current dof in local matrix, which is filled column-wise with the dofs listed in
         // the lm vector
@@ -104,9 +186,6 @@ namespace Core::FE
 
   /// Locally extract a subset of values from a (column)-nodemap-based
   /// Core::LinAlg::MultiVector<double>
-  /*  \author henke
-   *  \date 06/09
-   */
   void extract_my_node_based_values(
       const Core::Elements::Element* ele,              ///< pointer to current element
       std::vector<double>& local,                      ///< local vector on element-level
@@ -116,9 +195,6 @@ namespace Core::FE
 
   /// Locally extract a subset of values from a (column)-nodemap-based
   /// Core::LinAlg::MultiVector<double>
-  /*  \author g.bau
-   *  \date 08/08
-   */
   void extract_my_node_based_values(
       const Core::Elements::Element* ele,         ///< pointer to current element
       Core::LinAlg::SerialDenseVector& local,     ///< local vector on element-level
@@ -126,24 +202,10 @@ namespace Core::FE
       const int nsd                               ///< number of space dimensions
   );
 
-  /// Locally extract a subset of values from a (column)-nodemap-based
-  /// Core::LinAlg::MultiVector<double>
-  /*  \author schott
-   *  \date 12/16
-   */
-  void extract_my_node_based_values(const Core::Nodes::Node* node,  ///< pointer to current element
-      Core::LinAlg::SerialDenseVector& local,                       ///< local vector on node-level
-      Core::LinAlg::MultiVector<double>& global,                    ///< global vector
-      const int nsd                                                 ///< number of space dimensions
-  );
-
 
   /// Locally extract a subset of values from a (column)-nodemap-based
   /// Core::LinAlg::MultiVector<double> and fill a local matrix that has implemented the (.,.)
   /// operator
-  /*  \author g.bau
-   *  \date 04/09
-   */
   template <class M>
   void extract_my_node_based_values(
       const Core::Elements::Element* ele,         ///< pointer to current element
@@ -153,7 +215,7 @@ namespace Core::FE
   )
   {
     if (nsd > global.NumVectors())
-      FOUR_C_THROW("Requested %d of %d available columns", nsd, global.NumVectors());
+      FOUR_C_THROW("Requested {} of {} available columns", nsd, global.NumVectors());
     const int iel = ele->num_node();  // number of nodes
     if (((int)localmatrix.num_cols()) != iel)
       FOUR_C_THROW("local matrix has wrong number of columns");
@@ -167,7 +229,7 @@ namespace Core::FE
         const int nodegid = (ele->nodes()[j])->id();
         const int lid = global.Map().LID(nodegid);
         if (lid < 0)
-          FOUR_C_THROW("Proc %d: Cannot find gid=%d in Core::LinAlg::Vector<double>",
+          FOUR_C_THROW("Proc {}: Cannot find gid={} in Core::LinAlg::Vector<double>",
               Core::Communication::my_mpi_rank((global).Comm()), nodegid);
         localmatrix(i, j) = global(i)[lid];
       }
@@ -179,7 +241,6 @@ namespace Core::FE
 
   This function returns a column vector!
 
-  \author henke
  */
   template <class M>
   void extract_my_node_based_values(
@@ -196,7 +257,7 @@ namespace Core::FE
       const int nodegid = (ele->nodes()[i])->id();
       const int lid = global.Map().LID(nodegid);
       if (lid < 0)
-        FOUR_C_THROW("Proc %d: Cannot find gid=%d in Core::LinAlg::Vector<double>",
+        FOUR_C_THROW("Proc {}: Cannot find gid={} in Core::LinAlg::Vector<double>",
             Core::Communication::my_mpi_rank(global.Comm()), nodegid);
 
       // loop over multi vector columns (numcol=1 for Core::LinAlg::Vector<double>)

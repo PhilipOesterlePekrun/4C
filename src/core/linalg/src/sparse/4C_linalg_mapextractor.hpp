@@ -10,10 +10,10 @@
 
 #include "4C_config.hpp"
 
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_vector.hpp"
 
 #include <Epetra_Import.h>
-#include <Epetra_Map.h>
 
 #include <algorithm>
 #include <map>
@@ -40,29 +40,33 @@ namespace Core::LinAlg
     assumption on the items covered by the maps is made. The actual splitting
     has to be performed by the user.
 
-    \author u.kue
-    \date 02/08
    */
   class MultiMapExtractor
   {
    public:
-    /// create an uninitialized (empty) extractor
-    MultiMapExtractor();
+    /**
+     * @brief Default constructor.
+     *
+     * You will need to call setup() before using this object.
+     */
+    MultiMapExtractor() = default;
 
-    /// destructor
+    /**
+     * Virtual destructor.
+     */
     virtual ~MultiMapExtractor() = default;
 
     /// create an extractor from fullmap to the given set of maps
-    MultiMapExtractor(
-        const Epetra_Map& fullmap, const std::vector<std::shared_ptr<const Epetra_Map>>& maps);
+    MultiMapExtractor(const Core::LinAlg::Map& fullmap,
+        const std::vector<std::shared_ptr<const Core::LinAlg::Map>>& maps);
 
     /// setup of an empty extractor
     /*!
       \warning The fullmap has to be nonoverlapping. The list of maps has to
       be nonoverlapping as well and its sum has to equal the fullmap.
      */
-    void setup(
-        const Epetra_Map& fullmap, const std::vector<std::shared_ptr<const Epetra_Map>>& maps);
+    void setup(const Core::LinAlg::Map& fullmap,
+        const std::vector<std::shared_ptr<const Core::LinAlg::Map>>& maps);
 
     /// debug helper
     /*!
@@ -80,22 +84,22 @@ namespace Core::LinAlg
       \warning There must be no overlap in these maps.
                The order of the GIDs is destroyed
      */
-    static std::shared_ptr<Epetra_Map> merge_maps(
-        const std::vector<std::shared_ptr<const Epetra_Map>>& maps);
+    static std::shared_ptr<Core::LinAlg::Map> merge_maps(
+        const std::vector<std::shared_ptr<const Core::LinAlg::Map>>& maps);
 
     /// merge set of unique maps
     /*!
       \warning There must be no overlap in these maps.
     */
-    static std::shared_ptr<Epetra_Map> merge_maps_keep_order(
-        const std::vector<std::shared_ptr<const Epetra_Map>>& maps);
+    static std::shared_ptr<Core::LinAlg::Map> merge_maps_keep_order(
+        const std::vector<std::shared_ptr<const Core::LinAlg::Map>>& maps);
 
     /// intersect set of unique maps
     /*!
       \warning There must be no overlap in these maps.
      */
-    static std::shared_ptr<Epetra_Map> intersect_maps(
-        const std::vector<std::shared_ptr<const Epetra_Map>>& maps);
+    static std::shared_ptr<Core::LinAlg::Map> intersect_maps(
+        const std::vector<std::shared_ptr<const Core::LinAlg::Map>>& maps);
 
     /** \name Maps */
     //@{
@@ -104,10 +108,10 @@ namespace Core::LinAlg
     int num_maps() const { return maps_.size(); }
 
     /// get the map
-    const std::shared_ptr<const Epetra_Map>& Map(int i) const { return maps_[i]; }
+    const std::shared_ptr<const Core::LinAlg::Map>& map(int i) const { return maps_[i]; }
 
     /// the full map
-    const std::shared_ptr<const Epetra_Map>& full_map() const { return fullmap_; }
+    const std::shared_ptr<const Core::LinAlg::Map>& full_map() const { return fullmap_; }
 
     //@}
 
@@ -117,13 +121,13 @@ namespace Core::LinAlg
     /// create vector to map i
     std::shared_ptr<Core::LinAlg::Vector<double>> vector(int i) const
     {
-      return std::make_shared<Core::LinAlg::Vector<double>>(*Map(i));
+      return std::make_shared<Core::LinAlg::Vector<double>>(*map(i));
     }
 
     /// create multi vector to map i
     std::shared_ptr<Core::LinAlg::MultiVector<double>> vector(int i, int numvec) const
     {
-      return std::make_shared<Core::LinAlg::MultiVector<double>>(*Map(i), numvec);
+      return std::make_shared<Core::LinAlg::MultiVector<double>>(*map(i), numvec);
     }
 
     //@
@@ -153,7 +157,7 @@ namespace Core::LinAlg
       \param block number of vector to extract
       \param partial vector to fill
      */
-    virtual void extract_vector(const Core::LinAlg::MultiVector<double>& full, int block,
+    void extract_vector(const Core::LinAlg::MultiVector<double>& full, int block,
         Core::LinAlg::MultiVector<double>& partial) const;
 
 
@@ -184,7 +188,7 @@ namespace Core::LinAlg
       \param block number of partial vector
       \param full vector to copy into
      */
-    virtual void insert_vector(const Core::LinAlg::MultiVector<double>& partial, int block,
+    void insert_vector(const Core::LinAlg::MultiVector<double>& partial, int block,
         Core::LinAlg::MultiVector<double>& full) const;
 
     //@}
@@ -199,7 +203,7 @@ namespace Core::LinAlg
       \param full vector to copy into
       \param scale scaling factor for partial vector
      */
-    virtual void add_vector(const Core::LinAlg::MultiVector<double>& partial, int block,
+    void add_vector(const Core::LinAlg::MultiVector<double>& partial, int block,
         Core::LinAlg::MultiVector<double>& full, double scale = 1.0) const;
 
     //@}
@@ -218,64 +222,14 @@ namespace Core::LinAlg
 
    protected:
     /// the full row map
-    std::shared_ptr<const Epetra_Map> fullmap_;
+    std::shared_ptr<const Core::LinAlg::Map> fullmap_;
 
     /// the list of nonoverlapping partial row maps that sums up to the full map
-    std::vector<std::shared_ptr<const Epetra_Map>> maps_;
+    std::vector<std::shared_ptr<const Core::LinAlg::Map>> maps_;
 
     /// communication between condition dof map and full row dof map
     std::vector<std::shared_ptr<Epetra_Import>> importer_;
   };
-
-
-/// Add all kinds of support methods to derived classes of MultiMapExtractor.
-#define MAP_EXTRACTOR_VECTOR_METHODS(name, pos)                                           \
-  std::shared_ptr<Core::LinAlg::Vector<double>> extract_##name##_vector(                  \
-      const Core::LinAlg::Vector<double>& full) const                                     \
-  {                                                                                       \
-    return MultiMapExtractor::extract_vector(full, pos);                                  \
-  }                                                                                       \
-                                                                                          \
-  void extract_##name##_vector(                                                           \
-      const Core::LinAlg::Vector<double>& full, Core::LinAlg::Vector<double>& cond) const \
-  {                                                                                       \
-    extract_vector(full, pos, cond);                                                      \
-  }                                                                                       \
-                                                                                          \
-  std::shared_ptr<Core::LinAlg::Vector<double>> insert_##name##_vector(                   \
-      const Core::LinAlg::Vector<double>& cond) const                                     \
-  {                                                                                       \
-    return insert_vector(cond, pos);                                                      \
-  }                                                                                       \
-                                                                                          \
-  void insert_##name##_vector(                                                            \
-      const Core::LinAlg::Vector<double>& cond, Core::LinAlg::Vector<double>& full) const \
-  {                                                                                       \
-    insert_vector(cond, pos, full);                                                       \
-  }                                                                                       \
-                                                                                          \
-  void add_##name##_vector(                                                               \
-      const Core::LinAlg::Vector<double>& cond, Core::LinAlg::Vector<double>& full) const \
-  {                                                                                       \
-    add_vector(cond, pos, full);                                                          \
-  }                                                                                       \
-                                                                                          \
-  void add_##name##_vector(double scale, const Core::LinAlg::Vector<double>& cond,        \
-      Core::LinAlg::Vector<double>& full) const                                           \
-  {                                                                                       \
-    add_vector(cond, pos, full, scale);                                                   \
-  }                                                                                       \
-                                                                                          \
-  const std::shared_ptr<const Epetra_Map>& name##_map() const { return Map(pos); }        \
-                                                                                          \
-  bool name##_relevant() const { return name##_map()->NumGlobalElements() != 0; }         \
-                                                                                          \
-  void name##_put_scalar(Core::LinAlg::Vector<double>& full, double scalar) const         \
-  {                                                                                       \
-    put_scalar(full, pos, scalar);                                                        \
-  }                                                                                       \
-                                                                                          \
-  double name##_norm2(const Core::LinAlg::Vector<double>& full) const { return norm2(full, pos); }
 
 
   /// Split a dof row map in two and establish the communication pattern between those maps
@@ -304,52 +258,132 @@ namespace Core::LinAlg
   \note The two partial maps (cond and other) are stored in the parent member variable maps_,
   where other has index 0 and cond has index 1.
 
-  \author u.kue
-  \date 01/08
   */
   class MapExtractor : public MultiMapExtractor
   {
    public:
-    /** \brief empty constructor
+    /**
+     * @brief Default constructor.
      *
-     *  You have to call a setup() routine of your choice. */
-    MapExtractor();
+     * You have to call a setup() routine of your choice before you can do anything with this
+     * object.
+     */
+    MapExtractor() = default;
 
-    /** \brief  constructor
+    /**
+     * @brief Constructor
      *
-     *  Calls setup() from known maps */
-    MapExtractor(const Epetra_Map& fullmap, std::shared_ptr<const Epetra_Map> condmap,
-        std::shared_ptr<const Epetra_Map> othermap);
+     *  Calls setup() from known maps.
+     */
+    MapExtractor(const Core::LinAlg::Map& fullmap, std::shared_ptr<const Core::LinAlg::Map> condmap,
+        std::shared_ptr<const Core::LinAlg::Map> othermap);
 
     /** \brief constructor
      *
      *  Calls setup() to create non-overlapping othermap/condmap which is complementary
      *  to condmap/othermap with respect to fullmap depending on boolean 'iscondmap'  */
-    MapExtractor(const Epetra_Map& fullmap,            //< full map
-        std::shared_ptr<const Epetra_Map> partialmap,  //< partial map, ie condition or other map
-        bool iscondmap = true                          //< true, if partialmap is condition map
+    MapExtractor(const Core::LinAlg::Map& fullmap,  //< full map
+        std::shared_ptr<const Core::LinAlg::Map>
+            partialmap,        //< partial map, ie condition or other map
+        bool iscondmap = true  //< true, if partialmap is condition map
     );
 
     /** \name Setup */
     //@{
 
-    /// setup from known maps
-    void setup(const Epetra_Map& fullmap, const std::shared_ptr<const Epetra_Map>& condmap,
-        const std::shared_ptr<const Epetra_Map>& othermap);
+    /**
+     * @brief Set up the MapExtractor from a full map, a "cond" map and an "other" map.
+     *
+     * The set union of the indices in @p cond_map and @p other_map must be equal to those in the
+     * @p full_map. The @p cond_map and @p other_map must be non-overlapping.
+     */
+    void setup(const Core::LinAlg::Map& full_map,
+        const std::shared_ptr<const Core::LinAlg::Map>& cond_map,
+        const std::shared_ptr<const Core::LinAlg::Map>& other_map);
 
-    /// setup creates non-overlapping othermap/condmap which is complementary to condmap/othermap
-    /// with respect to fullmap depending on boolean 'iscondmap'
-    /// \author bborn
-    /// \date 10/08
-    void setup(const Epetra_Map& fullmap, const std::shared_ptr<const Epetra_Map>& partialmap,
-        bool iscondmap = true);
+    /**
+     * @brief Set up the MapExtractor from a full map and a "cond" map.
+     *
+     * In contrast to the other setup() call, this call constructs the other map as the set
+     * difference between @p full_map and the @p cond_map.
+     */
+    void setup(const Core::LinAlg::Map& full_map,
+        const std::shared_ptr<const Core::LinAlg::Map>& cond_map);
 
     //@}
 
-    MAP_EXTRACTOR_VECTOR_METHODS(cond, 1)
-    MAP_EXTRACTOR_VECTOR_METHODS(other, 0)
-
-   private:
+    std::shared_ptr<Core::LinAlg::Vector<double>> extract_cond_vector(
+        const Core::LinAlg::Vector<double>& full) const
+    {
+      return MultiMapExtractor::extract_vector(full, 1);
+    }
+    void extract_cond_vector(
+        const Core::LinAlg::Vector<double>& full, Core::LinAlg::Vector<double>& cond) const
+    {
+      extract_vector(full, 1, cond);
+    }
+    std::shared_ptr<Core::LinAlg::Vector<double>> insert_cond_vector(
+        const Core::LinAlg::Vector<double>& cond) const
+    {
+      return insert_vector(cond, 1);
+    }
+    void insert_cond_vector(
+        const Core::LinAlg::Vector<double>& cond, Core::LinAlg::Vector<double>& full) const
+    {
+      insert_vector(cond, 1, full);
+    }
+    void add_cond_vector(
+        const Core::LinAlg::Vector<double>& cond, Core::LinAlg::Vector<double>& full) const
+    {
+      add_vector(cond, 1, full);
+    }
+    void add_cond_vector(double scale, const Core::LinAlg::Vector<double>& cond,
+        Core::LinAlg::Vector<double>& full) const
+    {
+      add_vector(cond, 1, full, scale);
+    }
+    const std::shared_ptr<const Core::LinAlg::Map>& cond_map() const { return map(1); }
+    bool cond_relevant() const { return cond_map()->NumGlobalElements() != 0; }
+    void cond_put_scalar(Core::LinAlg::Vector<double>& full, double scalar) const
+    {
+      put_scalar(full, 1, scalar);
+    }
+    std::shared_ptr<Core::LinAlg::Vector<double>> extract_other_vector(
+        const Core::LinAlg::Vector<double>& full) const
+    {
+      return MultiMapExtractor::extract_vector(full, 0);
+    }
+    void extract_other_vector(
+        const Core::LinAlg::Vector<double>& full, Core::LinAlg::Vector<double>& cond) const
+    {
+      extract_vector(full, 0, cond);
+    }
+    std::shared_ptr<Core::LinAlg::Vector<double>> insert_other_vector(
+        const Core::LinAlg::Vector<double>& cond) const
+    {
+      return insert_vector(cond, 0);
+    }
+    void insert_other_vector(
+        const Core::LinAlg::Vector<double>& cond, Core::LinAlg::Vector<double>& full) const
+    {
+      insert_vector(cond, 0, full);
+    }
+    void add_other_vector(
+        const Core::LinAlg::Vector<double>& cond, Core::LinAlg::Vector<double>& full) const
+    {
+      add_vector(cond, 0, full);
+    }
+    void add_other_vector(double scale, const Core::LinAlg::Vector<double>& cond,
+        Core::LinAlg::Vector<double>& full) const
+    {
+      add_vector(cond, 0, full, scale);
+    }
+    const std::shared_ptr<const Core::LinAlg::Map>& other_map() const { return map(0); }
+    bool other_relevant() const { return other_map()->NumGlobalElements() != 0; }
+    void other_put_scalar(Core::LinAlg::Vector<double>& full, double scalar) const
+    {
+      put_scalar(full, 0, scalar);
+    }
   };
 
 }  // namespace Core::LinAlg

@@ -7,8 +7,11 @@
 
 #include "4C_linear_solver_preconditioner_ifpack.hpp"
 
+#include "4C_comm_utils.hpp"
 #include "4C_linalg_blocksparsematrix.hpp"
 #include "4C_utils_exceptions.hpp"
+
+#include <Teuchos_XMLParameterListHelpers.hpp>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -23,46 +26,56 @@ Core::LinearSolver::IFPACKPreconditioner::IFPACKPreconditioner(
 
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
-void Core::LinearSolver::IFPACKPreconditioner::setup(bool create, Epetra_Operator* matrix,
+void Core::LinearSolver::IFPACKPreconditioner::setup(Epetra_Operator* matrix,
     Core::LinAlg::MultiVector<double>* x, Core::LinAlg::MultiVector<double>* b)
 {
-  if (create)
+  std::shared_ptr<Epetra_CrsMatrix> A_crs =
+      std::dynamic_pointer_cast<Epetra_CrsMatrix>(Core::Utils::shared_ptr_from_ref(*matrix));
+
+  if (!A_crs)
   {
-    std::shared_ptr<Epetra_CrsMatrix> A_crs =
-        std::dynamic_pointer_cast<Epetra_CrsMatrix>(Core::Utils::shared_ptr_from_ref(*matrix));
+    std::shared_ptr<Core::LinAlg::BlockSparseMatrixBase> A =
+        std::dynamic_pointer_cast<Core::LinAlg::BlockSparseMatrixBase>(
+            Core::Utils::shared_ptr_from_ref(*matrix));
 
-    if (!A_crs)
-    {
-      std::shared_ptr<Core::LinAlg::BlockSparseMatrixBase> A =
-          std::dynamic_pointer_cast<Core::LinAlg::BlockSparseMatrixBase>(
-              Core::Utils::shared_ptr_from_ref(*matrix));
-
-      std::cout
-          << "\n WARNING: IFPACK preconditioner is merging matrix, this is very expensive! \n";
-      A_crs = A->merge()->epetra_matrix();
-    }
-
-    pmatrix_ = std::make_shared<Epetra_CrsMatrix>(*A_crs);
-
-    // get the type of ifpack preconditioner from solver parameter list
-    std::string prectype = solverlist_.get("Preconditioner Type", "ILU");
-    const int overlap = ifpacklist_.get("IFPACKOVERLAP", 0);
-
-    // create the preconditioner
-    Ifpack Factory;
-    prec_ =
-        std::shared_ptr<Ifpack_Preconditioner>(Factory.Create(prectype, pmatrix_.get(), overlap));
-
-    if (!prec_)
-      FOUR_C_THROW("Creation of IFPACK preconditioner of type '%s' failed.", prectype.c_str());
-
-    // setup
-    prec_->SetParameters(ifpacklist_);
-    prec_->Initialize();
-    prec_->Compute();
-
-    return;
+    std::cout << "\n WARNING: IFPACK preconditioner is merging matrix, this is very expensive! \n";
+    A_crs = A->merge()->epetra_matrix();
   }
+
+  pmatrix_ = std::make_shared<Epetra_CrsMatrix>(*A_crs);
+
+  std::string prectype;
+  int overlap = 0;
+  Teuchos::ParameterList ifpack_params;
+
+  if (ifpacklist_.isParameter("IFPACK_XML_FILE"))
+  {
+    const std::string xmlFileName = ifpacklist_.get<std::string>("IFPACK_XML_FILE");
+
+    auto comm = Core::Communication::to_teuchos_comm<int>(
+        Core::Communication::unpack_epetra_comm(pmatrix_->Comm()));
+
+    Teuchos::updateParametersFromXmlFileAndBroadcast(
+        xmlFileName, Teuchos::Ptr(&ifpack_params), *comm);
+
+    prectype = ifpack_params.get<std::string>("Preconditioner type");
+    overlap = ifpack_params.get<int>("Overlap");
+  }
+  else
+  {
+    prectype = solverlist_.get("Preconditioner Type", "ILU");
+    ifpack_params = ifpacklist_;
+  }
+
+  Ifpack Factory;
+  prec_ = std::shared_ptr<Ifpack_Preconditioner>(Factory.Create(prectype, pmatrix_.get(), overlap));
+
+  if (!prec_) FOUR_C_THROW("Creation of IFPACK preconditioner of type '{}' failed.", prectype);
+
+  prec_->SetParameters(ifpack_params);
+  prec_->Initialize();
+  prec_->Compute();
 }
+
 
 FOUR_C_NAMESPACE_CLOSE

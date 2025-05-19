@@ -18,7 +18,6 @@
 #include "4C_fsi_utils.hpp"
 #include "4C_global_data.hpp"
 #include "4C_inpar_scatra.hpp"
-#include "4C_inpar_validparameters.hpp"
 #include "4C_io_control.hpp"
 #include "4C_linalg_utils_sparse_algebra_assemble.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
@@ -32,6 +31,8 @@
 #include "4C_scatra_ele.hpp"
 #include "4C_scatra_timint_implicit.hpp"
 #include "4C_scatra_utils_clonestrategy.hpp"
+
+#include <Teuchos_StandardParameterEntryValidators.hpp>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -252,7 +253,7 @@ void FS3I::PartFPS3I::init()
   if (fluidtimealgo == Inpar::FLUID::timeint_one_step_theta)
   {
     if (scatratimealgo != Inpar::ScaTra::timeint_one_step_theta or
-        structtimealgo != Inpar::Solid::dyna_onesteptheta)
+        structtimealgo != Inpar::Solid::DynamicType::OneStepTheta)
       FOUR_C_THROW(
           "Partitioned FS3I computations should feature consistent time-integration schemes for "
           "the subproblems; in this case, a one-step-theta scheme is intended to be used for the "
@@ -268,7 +269,7 @@ void FS3I::PartFPS3I::init()
   else if (fluidtimealgo == Inpar::FLUID::timeint_afgenalpha)
   {
     if (scatratimealgo != Inpar::ScaTra::timeint_gen_alpha or
-        structtimealgo != Inpar::Solid::dyna_genalpha)
+        structtimealgo != Inpar::Solid::DynamicType::GenAlpha)
       FOUR_C_THROW(
           "Partitioned FS3I computations should feature consistent time-integration schemes for "
           "the subproblems; in this case, a (alpha_f-based) generalized-alpha scheme is intended "
@@ -420,23 +421,21 @@ void FS3I::PartFPS3I::setup_system()
         currscatra->scatra_field()->discretization();
     std::shared_ptr<Core::LinAlg::MultiMapExtractor> mapex =
         std::make_shared<Core::LinAlg::MultiMapExtractor>();
-    Core::Conditions::MultiConditionSelector mcs;
-    mcs.add_selector(std::make_shared<Core::Conditions::NDimConditionSelector>(
-        *currdis, "ScaTraCoupling", 0, numscal));
-    mcs.setup_extractor(*currdis, *currdis->dof_row_map(), *mapex);
+    Core::Conditions::setup_extractor(
+        *currdis, *mapex, {Core::Conditions::Selector("ScaTraCoupling", 0, numscal)});
     scatrafieldexvec_.push_back(mapex);
   }
 
   scatracoup_->setup_condition_coupling(*(scatravec_[0]->scatra_field()->discretization()),
-      scatrafieldexvec_[0]->Map(1), *(scatravec_[1]->scatra_field()->discretization()),
-      scatrafieldexvec_[1]->Map(1), "ScaTraCoupling",
+      scatrafieldexvec_[0]->map(1), *(scatravec_[1]->scatra_field()->discretization()),
+      scatrafieldexvec_[1]->map(1), "ScaTraCoupling",
       scatravec_[0]
           ->scatra_field()
           ->num_scal());  // we assume here that both discretisation have the same number of scalars
 
   // create map extractor for coupled scatra fields
   // the second field is always split
-  std::vector<std::shared_ptr<const Epetra_Map>> maps;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> maps;
 
   // In the limiting case of an infinite permeability of the interface between
   // different scatra fields, the concentrations on both sides of the interface are
@@ -448,14 +447,14 @@ void FS3I::PartFPS3I::setup_system()
   if (infperm_)
   {
     maps.push_back(scatrafieldexvec_[0]->full_map());
-    maps.push_back(scatrafieldexvec_[1]->Map(0));
+    maps.push_back(scatrafieldexvec_[1]->map(0));
   }
   else
   {
     maps.push_back(scatrafieldexvec_[0]->full_map());
     maps.push_back(scatrafieldexvec_[1]->full_map());
   }
-  std::shared_ptr<Epetra_Map> fullmap = Core::LinAlg::MultiMapExtractor::merge_maps(maps);
+  std::shared_ptr<Core::LinAlg::Map> fullmap = Core::LinAlg::MultiMapExtractor::merge_maps(maps);
   scatraglobalex_->setup(*fullmap, maps);
 
   // create coupling vectors and matrices (only needed for finite surface permeabilities)
@@ -464,14 +463,15 @@ void FS3I::PartFPS3I::setup_system()
     for (unsigned i = 0; i < scatravec_.size(); ++i)
     {
       std::shared_ptr<Core::LinAlg::Vector<double>> scatracoupforce =
-          std::make_shared<Core::LinAlg::Vector<double>>(*(scatraglobalex_->Map(i)), true);
+          std::make_shared<Core::LinAlg::Vector<double>>(*(scatraglobalex_->map(i)), true);
       scatracoupforce_.push_back(scatracoupforce);
 
       std::shared_ptr<Core::LinAlg::SparseMatrix> scatracoupmat =
-          std::make_shared<Core::LinAlg::SparseMatrix>(*(scatraglobalex_->Map(i)), 27, false, true);
+          std::make_shared<Core::LinAlg::SparseMatrix>(*(scatraglobalex_->map(i)), 27, false, true);
       scatracoupmat_.push_back(scatracoupmat);
 
-      const Epetra_Map* dofrowmap = scatravec_[i]->scatra_field()->discretization()->dof_row_map();
+      const Core::LinAlg::Map* dofrowmap =
+          scatravec_[i]->scatra_field()->discretization()->dof_row_map();
       std::shared_ptr<Core::LinAlg::Vector<double>> zeros =
           Core::LinAlg::create_vector(*dofrowmap, true);
       scatrazeros_.push_back(zeros);
@@ -603,7 +603,7 @@ void FS3I::PartFPS3I::set_fpsi_solution()
 void FS3I::PartFPS3I::set_struct_scatra_solution()
 {
   fpsi_->poro_field()->structure_field()->discretization()->set_state(
-      1, "scalarfield", (scatravec_[1])->scatra_field()->phinp());
+      1, "scalarfield", *(scatravec_[1])->scatra_field()->phinp());
 }
 
 
@@ -613,11 +613,11 @@ void FS3I::PartFPS3I::set_struct_scatra_solution()
 void FS3I::PartFPS3I::set_mesh_disp()
 {
   // fluid field
-  scatravec_[0]->scatra_field()->apply_mesh_movement(fpsi_->fluid_field()->dispnp());
+  scatravec_[0]->scatra_field()->apply_mesh_movement(*fpsi_->fluid_field()->dispnp());
 
   // Poro field
   scatravec_[1]->scatra_field()->apply_mesh_movement(
-      fpsi_->poro_field()->structure_field()->dispnp());
+      *fpsi_->poro_field()->structure_field()->dispnp());
 }
 
 
@@ -635,10 +635,9 @@ void FS3I::PartFPS3I::set_velocity_fields()
     case Inpar::ScaTra::velocity_zero:
     case Inpar::ScaTra::velocity_function:
     {
-      for (unsigned i = 0; i < scatravec_.size(); ++i)
+      for (auto scatra : scatravec_)
       {
-        std::shared_ptr<Adapter::ScaTraBaseAlgorithm> scatra = scatravec_[i];
-        scatra->scatra_field()->set_velocity_field();
+        scatra->scatra_field()->set_velocity_field_from_function();
       }
       break;
     }
@@ -650,8 +649,8 @@ void FS3I::PartFPS3I::set_velocity_fields()
 
       for (unsigned i = 0; i < scatravec_.size(); ++i)
       {
-        std::shared_ptr<Adapter::ScaTraBaseAlgorithm> scatra = scatravec_[i];
-        scatra->scatra_field()->set_velocity_field(convel[i], nullptr, vel[i], nullptr);
+        scatravec_[i]->scatra_field()->set_convective_velocity(*convel[i]);
+        scatravec_[i]->scatra_field()->set_velocity_field(*vel[i]);
       }
       break;
     }
@@ -669,7 +668,7 @@ void FS3I::PartFPS3I::set_wall_shear_stresses()
   for (unsigned i = 0; i < scatravec_.size(); ++i)
   {
     std::shared_ptr<Adapter::ScaTraBaseAlgorithm> scatra = scatravec_[i];
-    scatra->scatra_field()->set_wall_shear_stresses(wss[i]);
+    scatra->scatra_field()->set_wall_shear_stresses(*wss[i]);
   }
 }
 
@@ -684,7 +683,7 @@ void FS3I::PartFPS3I::set_pressure_fields()
   for (unsigned i = 0; i < scatravec_.size(); ++i)
   {
     std::shared_ptr<Adapter::ScaTraBaseAlgorithm> scatra = scatravec_[i];
-    scatra->scatra_field()->set_pressure_field(pressure[i]);
+    scatra->scatra_field()->set_pressure_field(*pressure[i]);
   }
 }
 
@@ -711,14 +710,14 @@ void FS3I::PartFPS3I::evaluate_scatra_fields()
       std::shared_ptr<Core::LinAlg::Vector<double>> coupforce = scatracoupforce_[i];
       std::shared_ptr<Core::LinAlg::SparseMatrix> coupmat = scatracoupmat_[i];
 
-      coupforce->PutScalar(0.0);
+      coupforce->put_scalar(0.0);
       coupmat->zero();
 
       // evaluate interface; second Kedem-Katchalsky equation for coupling of solute flux
       scatra->kedem_katchalsky(coupmat, coupforce);
 
       // apply Dirichlet boundary conditions to coupling matrix and vector
-      const std::shared_ptr<const Epetra_Map> dbcmap = scatra->dirich_maps()->cond_map();
+      const std::shared_ptr<const Core::LinAlg::Map> dbcmap = scatra->dirich_maps()->cond_map();
       coupmat->apply_dirichlet(*dbcmap, false);
       Core::LinAlg::apply_dirichlet_to_system(*coupforce, *scatrazeros_[i], *dbcmap);
     }

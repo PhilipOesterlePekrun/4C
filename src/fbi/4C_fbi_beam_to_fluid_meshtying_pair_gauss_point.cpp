@@ -57,11 +57,16 @@ bool BeamInteraction::BeamToFluidMeshtyingPairGaussPoint<Beam, Fluid>::evaluate(
   Core::LinAlg::Matrix<3, 1, scalar_type> v_fluid;
   Core::LinAlg::Matrix<3, 1, scalar_type> force;
   Core::LinAlg::Matrix<3, 1, scalar_type> force2;
-  Core::LinAlg::Matrix<Beam::n_dof_, 1, scalar_type> force_element_1(true);
-  Core::LinAlg::Matrix<Fluid::n_dof_, 1, scalar_type> force_element_2(true);
-  Core::LinAlg::Matrix<Fluid::n_dof_, 1, scalar_type> force_element_f(true);
-  Core::LinAlg::Matrix<1, Beam::n_nodes_ * Beam::n_val_, double> N_beam(true);
-  Core::LinAlg::Matrix<1, Fluid::n_nodes_ * Fluid::n_val_, double> N_fluid(true);
+  Core::LinAlg::Matrix<Beam::n_dof_, 1, scalar_type> force_element_1(
+      Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<Fluid::n_dof_, 1, scalar_type> force_element_2(
+      Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<Fluid::n_dof_, 1, scalar_type> force_element_f(
+      Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<1, Beam::n_nodes_ * Beam::n_val_, double> N_beam(
+      Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<1, Fluid::n_nodes_ * Fluid::n_val_, double> N_fluid(
+      Core::LinAlg::Initialization::zero);
 
   // Resize and initialize the return variables.
   if (forcevec1 != nullptr) forcevec1->size(Beam::n_dof_);
@@ -86,29 +91,29 @@ bool BeamInteraction::BeamToFluidMeshtyingPairGaussPoint<Beam, Fluid>::evaluate(
         i_gp < this->line_to_3D_segments_[i_segment].get_projection_points().size(); i_gp++)
     {
       // Get the current Gauss point.
-      const GEOMETRYPAIR::ProjectionPoint1DTo3D<double>& projected_gauss_point =
+      const GeometryPair::ProjectionPoint1DTo3D<double>& projected_gauss_point =
           this->line_to_3D_segments_[i_segment].get_projection_points()[i_gp];
 
       // Get the jacobian in the reference configuration.
-      GEOMETRYPAIR::evaluate_position_derivative1<Beam>(
+      GeometryPair::evaluate_position_derivative1<Beam>(
           projected_gauss_point.get_eta(), this->ele1posref_, dr_beam_ref);
 
       // Jacobian including the segment length.
       segment_jacobian = dr_beam_ref.norm2() * beam_segmentation_factor;
 
       // Get the current positions on beam and fluid.
-      GEOMETRYPAIR::evaluate_position<Beam>(
+      GeometryPair::evaluate_position<Beam>(
           projected_gauss_point.get_eta(), this->ele1pos_, r_beam);
-      GEOMETRYPAIR::evaluate_position<Fluid>(
+      GeometryPair::evaluate_position<Fluid>(
           projected_gauss_point.get_xi(), this->ele2pos_, r_fluid);
 
       N_beam.clear();
       N_fluid.clear();
 
       // Evaluate the chapefunctions at the current gauss point
-      GEOMETRYPAIR::EvaluateShapeFunction<Beam>::evaluate(
+      GeometryPair::EvaluateShapeFunction<Beam>::evaluate(
           N_beam, projected_gauss_point.get_eta(), this->ele1pos_.shape_function_data_);
-      GEOMETRYPAIR::EvaluateShapeFunction<Fluid>::evaluate(N_fluid, projected_gauss_point.get_xi());
+      GeometryPair::EvaluateShapeFunction<Fluid>::evaluate(N_fluid, projected_gauss_point.get_xi());
 
       // assemble fluid mass matrix
       if (stiffmat22 != nullptr)
@@ -225,19 +230,19 @@ bool BeamInteraction::BeamToFluidMeshtyingPairGaussPoint<Beam, Fluid>::evaluate(
  * Explicit template initialization of template class.
  */
 // Hermite beam element, hex8 solid element.
-template class BeamInteraction::BeamToFluidMeshtyingPairGaussPoint<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_hex8>;
+template class BeamInteraction::BeamToFluidMeshtyingPairGaussPoint<GeometryPair::t_hermite,
+    GeometryPair::t_hex8>;
 // Hermite beam element, hex20 solid element.
-template class BeamInteraction::BeamToFluidMeshtyingPairGaussPoint<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_hex20>;
+template class BeamInteraction::BeamToFluidMeshtyingPairGaussPoint<GeometryPair::t_hermite,
+    GeometryPair::t_hex20>;
 // Hermite beam element, hex27 solid element.
-template class BeamInteraction::BeamToFluidMeshtyingPairGaussPoint<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_hex27>;
+template class BeamInteraction::BeamToFluidMeshtyingPairGaussPoint<GeometryPair::t_hermite,
+    GeometryPair::t_hex27>;
 // Hermite beam element, tet4 solid element.
-template class BeamInteraction::BeamToFluidMeshtyingPairGaussPoint<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_tet4>;
+template class BeamInteraction::BeamToFluidMeshtyingPairGaussPoint<GeometryPair::t_hermite,
+    GeometryPair::t_tet4>;
 // Hermite beam element, tet10 solid element.
-template class BeamInteraction::BeamToFluidMeshtyingPairGaussPoint<GEOMETRYPAIR::t_hermite,
-    GEOMETRYPAIR::t_tet10>;
+template class BeamInteraction::BeamToFluidMeshtyingPairGaussPoint<GeometryPair::t_hermite,
+    GeometryPair::t_tet10>;
 
 FOUR_C_NAMESPACE_CLOSE

@@ -13,6 +13,7 @@
 #include "4C_inpar_bio.hpp"
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
 #include "4C_mat_cnst_1d_art.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_exceptions.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
@@ -72,7 +73,7 @@ int Discret::Elements::Artery::evaluate(Teuchos::ParameterList& params,
     }
     break;
     default:
-      FOUR_C_THROW("Unknown type of action %d for Artery", action);
+      FOUR_C_THROW("Unknown type of action {} for Artery", action);
   }  // end of switch(act)
 
 

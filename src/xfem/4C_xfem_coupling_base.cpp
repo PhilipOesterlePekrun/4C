@@ -53,7 +53,6 @@ Inpar::XFEM::EleCouplingCondType XFEM::cond_type_string_to_enum(const std::strin
     return Inpar::XFEM::CouplingCond_EMBEDDEDMESH_SOLID_SURF;
   else if (condname == "EmbeddedMeshSolidVolBackground")
     return Inpar::XFEM::CouplingCond_EMBEDDEDMESH_BACKGROUND_SOLID_VOL;
-  // else FOUR_C_THROW("condition type not supported: %s", condname.c_str());
 
   return Inpar::XFEM::CouplingCond_NONE;
 }
@@ -301,7 +300,7 @@ void XFEM::CouplingBase::set_element_conditions()
       {
         // get the right condition
         FOUR_C_THROW(
-            "%i conditions of the same name with coupling id %i, for element %i! %s "
+            "{} conditions of the same name with coupling id {}, for element {}! {} "
             "coupling-condition not unique!",
             mynewcond.size(), coupling_id_, cutele->id(), conditions_to_copy_[cond].c_str());
       }
@@ -310,8 +309,8 @@ void XFEM::CouplingBase::set_element_conditions()
       if (cutterele_conds_[lid].first != Inpar::XFEM::CouplingCond_NONE)
       {
         FOUR_C_THROW(
-            "There are two different condition types for the same cutter dis element with id %i: "
-            "1st %i, 2nd %i. Make the XFEM coupling conditions unique!",
+            "There are two different condition types for the same cutter dis element with id {}: "
+            "1st {}, 2nd {}. Make the XFEM coupling conditions unique!",
             cutele->id(), cutterele_conds_[lid].first, cond_type);
       }
 
@@ -326,7 +325,7 @@ void XFEM::CouplingBase::set_element_conditions()
   for (int lid = 0; lid < nummycolele; lid++)
   {
     if (cutterele_conds_[lid].first == Inpar::XFEM::CouplingCond_NONE)
-      FOUR_C_THROW("cutter element with local id %i has no valid coupling-condition", lid);
+      FOUR_C_THROW("cutter element with local id {} has no valid coupling-condition", lid);
   }
 }
 
@@ -377,8 +376,9 @@ void XFEM::CouplingBase::set_averaging_strategy()
     {
       // ask the first cutter element
       const int lid = 0;
-      const int val = cutterele_conds_[lid].second->parameters().get<int>("COUPSTRATEGY");
-      averaging_strategy_ = static_cast<Inpar::XFEM::AveragingStrategy>(val);
+      averaging_strategy_ =
+          cutterele_conds_[lid].second->parameters().get<Inpar::XFEM::AveragingStrategy>(
+              "COUPSTRATEGY");
       // check unhandled cased
       if (averaging_strategy_ == Inpar::XFEM::Mean || averaging_strategy_ == Inpar::XFEM::Harmonic)
         FOUR_C_THROW(
@@ -396,8 +396,9 @@ void XFEM::CouplingBase::set_averaging_strategy()
     {
       // ask the first cutter element
       const int lid = 0;
-      const int val = cutterele_conds_[lid].second->parameters().get<int>("COUPSTRATEGY");
-      averaging_strategy_ = static_cast<Inpar::XFEM::AveragingStrategy>(val);
+      averaging_strategy_ =
+          cutterele_conds_[lid].second->parameters().get<Inpar::XFEM::AveragingStrategy>(
+              "COUPSTRATEGY");
       break;
     }
     case Inpar::XFEM::CouplingCond_LEVELSET_TWOPHASE:
@@ -425,7 +426,7 @@ void XFEM::CouplingBase::set_averaging_strategy()
       break;
     }
     default:
-      FOUR_C_THROW("which is the averaging strategy for this type of coupling %i?", cond_type);
+      FOUR_C_THROW("which is the averaging strategy for this type of coupling {}?", cond_type);
       break;
   }
 }
@@ -491,7 +492,7 @@ void XFEM::CouplingBase::set_coupling_discretization()
     }
 
     default:
-      FOUR_C_THROW("which is the coupling discretization for this type of coupling %i?", cond_type);
+      FOUR_C_THROW("which is the coupling discretization for this type of coupling {}?", cond_type);
       break;
   }
 }
@@ -552,20 +553,20 @@ void XFEM::CouplingBase::evaluate_function(std::vector<double>& final_values, co
   const int numdof = cond->parameters().get<int>("NUMDOF");
 
   if (numdof != (int)final_values.size())
-    FOUR_C_THROW("you specified NUMDOF %i in the input file, however, only %i dofs allowed!",
+    FOUR_C_THROW("you specified NUMDOF {} in the input file, however, only {} dofs allowed!",
         numdof, (int)final_values.size());
 
   //---------------------------------------
   // get values and switches from the condition
   const auto onoff = cond->parameters().get<std::vector<int>>("ONOFF");
   const auto val = cond->parameters().get<std::vector<double>>("VAL");
-  const auto functions = cond->parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+  const auto functions = cond->parameters().get<std::vector<std::optional<int>>>("FUNCT");
 
   // uniformly distributed random noise
   auto& secondary = const_cast<Core::Conditions::Condition&>(*cond);
   const auto percentage = secondary.parameters().get_or<double>("RANDNOISE", 0.0);
 
-  if (time < -1e-14) FOUR_C_THROW("Negative time in curve/function evaluation: time = %f", time);
+  if (time < -1e-14) FOUR_C_THROW("Negative time in curve/function evaluation: time = {}", time);
 
   //---------------------------------------
   // set this condition
@@ -613,7 +614,7 @@ void XFEM::CouplingBase::evaluate_scalar_function(double& final_values, const do
   auto& secondary = const_cast<Core::Conditions::Condition&>(*cond);
   const auto percentage = secondary.parameters().get_or<double>("RANDNOISE", 0.0);
 
-  if (time < -1e-14) FOUR_C_THROW("Negative time in curve/function evaluation: time = %f", time);
+  if (time < -1e-14) FOUR_C_THROW("Negative time in curve/function evaluation: time = {}", time);
 
   //---------------------------------------
   // set this condition

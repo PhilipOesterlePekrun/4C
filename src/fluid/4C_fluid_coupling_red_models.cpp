@@ -109,7 +109,7 @@ FLD::Utils::FluidCouplingWrapperBase::FluidCouplingWrapperBase(
       if (!CondIsFine)
       {
         FOUR_C_THROW(
-            "[3D/Reduced-D COUPLING] condition [%d] is defined only on the 3D side", condid);
+            "[3D/Reduced-D COUPLING] condition [{}] is defined only on the 3D side", condid);
       }
     }
 
@@ -316,8 +316,8 @@ void FLD::Utils::FluidCouplingWrapperBase::apply_boundary_conditions(
           auto itr = map3_dnp_->find(CouplingVariable.str());
           if (itr == map3_dnp_->end())
           {
-            FOUR_C_THROW("[3D/Reduced-D COUPLING] 3D map has no variable %s for condition [%d]",
-                variable_str.c_str(), condID);
+            FOUR_C_THROW("[3D/Reduced-D COUPLING] 3D map has no variable {} for condition [{}]",
+                variable_str, condID);
           }
           (*map3_dnp_)[CouplingVariable.str()] =
               mapiter->second->FluidCouplingBc::flow_rate_calculation(time, dta, condID);
@@ -327,8 +327,8 @@ void FLD::Utils::FluidCouplingWrapperBase::apply_boundary_conditions(
           std::map<std::string, double>::iterator itr = map3_dnp_->find(CouplingVariable.str());
           if (itr == map3_dnp_->end())
           {
-            FOUR_C_THROW("[3D/Reduced-D COUPLING] 3D map has no variable %s for condition [%d]",
-                variable_str.c_str(), condID);
+            FOUR_C_THROW("[3D/Reduced-D COUPLING] 3D map has no variable {} for condition [{}]",
+                variable_str, condID);
           }
           double density = 0.0;
           double viscosity = 0.0;
@@ -340,8 +340,8 @@ void FLD::Utils::FluidCouplingWrapperBase::apply_boundary_conditions(
         }
         else
         {
-          FOUR_C_THROW("(%s): No such coupling variable on the 3D side is defined yet",
-              variable_str.c_str());
+          FOUR_C_THROW(
+              "({}): No such coupling variable on the 3D side is defined yet", variable_str);
         }
         if (Core::Communication::my_mpi_rank(discret_3d_->get_comm()) == 0)
         {
@@ -388,7 +388,7 @@ void FLD::Utils::FluidCouplingWrapperBase::apply_boundary_conditions(
             if (itr == map_red_dnp_->end())
             {
               FOUR_C_THROW(
-                  "[3D/Reduced-D COUPLING] reduced-D map has no variable %s for condition [%d]",
+                  "[3D/Reduced-D COUPLING] reduced-D map has no variable {} for condition [{}]",
                   variable_str.c_str(), condID);
             }
             (*map_red_dnp_)[CouplingVariable.str()] = 0.0;
@@ -400,7 +400,7 @@ void FLD::Utils::FluidCouplingWrapperBase::apply_boundary_conditions(
             if (itr == map_red_dnp_->end())
             {
               FOUR_C_THROW(
-                  "[3D/Reduced-D COUPLING] reduced-D map has no variable %s for condition [%d]",
+                  "[3D/Reduced-D COUPLING] reduced-D map has no variable {} for condition [{}]",
                   variable_str.c_str(), condID);
             }
             (*map_red_dnp_)[CouplingVariable.str()] = 0.0;
@@ -408,8 +408,8 @@ void FLD::Utils::FluidCouplingWrapperBase::apply_boundary_conditions(
 
           else
           {
-            FOUR_C_THROW("(%s): No such coupling variable on the 3D side is defined yet",
-                variable_str.c_str());
+            FOUR_C_THROW(
+                "({}): No such coupling variable on the 3D side is defined yet", variable_str);
           }
           break;
         }
@@ -519,9 +519,8 @@ void FLD::Utils::FluidCouplingWrapperBase::apply_boundary_conditions(
     else
     {
       FOUR_C_THROW(
-          "Reduced-dimensional problem, returned a value of type [%s] at the condition (%d)",
+          "Reduced-dimensional problem, returned a value of type [{}] at the condition ({})",
           ReturnedVariable.c_str(), ID);
-      exit(0);
     }
   }
   return;
@@ -562,7 +561,7 @@ void FLD::Utils::FluidCouplingWrapperBase::update_residual(Core::LinAlg::Vector<
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>//
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>//
 void FLD::Utils::FluidCouplingWrapperBase::evaluate_dirichlet(
-    Core::LinAlg::Vector<double>& velnp, const Epetra_Map& condmap, double time)
+    Core::LinAlg::Vector<double>& velnp, const Core::LinAlg::Map& condmap, double time)
 {
   std::map<const int, std::shared_ptr<class FluidCouplingBc>>::iterator mapiter;
 
@@ -727,7 +726,7 @@ FLD::Utils::FluidCouplingBc::FluidCouplingBc(std::shared_ptr<Core::FE::Discretiz
   // vectors and matrices
   //                 local <-> global dof numbering
   // ---------------------------------------------------------------------
-  const Epetra_Map* dofrowmap = discret_3d_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_3d_->dof_row_map();
   couplingbc_ = Core::LinAlg::create_vector(*dofrowmap, true);
 
   flowrate_ = 0.0;
@@ -765,7 +764,7 @@ FLD::Utils::FluidCouplingBc::FluidCouplingBc(std::shared_ptr<Core::FE::Discretiz
     if (flowrate == 0.0)
     {
       FOUR_C_THROW(
-          "3D SURF condition (%d) expects a flowrate from 1D problem,\nthus it must have a "
+          "3D SURF condition ({}) expects a flowrate from 1D problem,\nthus it must have a "
           "Dirichlet BC of 1 in the direction of flow",
           condid);
     }
@@ -939,7 +938,7 @@ double FLD::Utils::FluidCouplingBc::flow_rate_calculation(double time, double dt
   // get a vector layout from the discretization to construct matching
   // vectors and matrices
   //                 local <-> global dof numbering
-  const Epetra_Map* dofrowmap = discret_3d_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_3d_->dof_row_map();
 
   // create vector (+ initialization with zeros)
   std::shared_ptr<Core::LinAlg::Vector<double>> flowrates =
@@ -996,7 +995,7 @@ double FLD::Utils::FluidCouplingBc::pressure_calculation(double time, double dta
   // get a vector layout from the discretization to construct matching
   // vectors and matrices
   //                 local <-> global dof numbering
-  const Epetra_Map* dofrowmap = discret_3d_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_3d_->dof_row_map();
 
   // get elemental flowrates ...
   std::shared_ptr<Core::LinAlg::Vector<double>> myStoredPressures =
@@ -1058,7 +1057,7 @@ void FLD::Utils::FluidCouplingBc::outflow_boundary(
         "3D/reduced-D coupling condition Id: %d Pressure %f at time %f\n", condid, pressure, time);
 
 
-  couplingbc_->PutScalar(0.0);
+  couplingbc_->put_scalar(0.0);
   const std::string condstring("Art_3D_redD_CouplingCond");
   discret_3d_->evaluate_condition(eleparams, couplingbc_, condstring, condid);
 
@@ -1118,7 +1117,7 @@ void FLD::Utils::FluidCouplingBc::inflow_boundary(
  */
 void FLD::Utils::FluidCouplingBc::update_residual(Core::LinAlg::Vector<double>& residual)
 {
-  residual.Update(1.0, *couplingbc_, 1.0);
+  residual.update(1.0, *couplingbc_, 1.0);
 }
 
 //<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>//
@@ -1133,7 +1132,7 @@ void FLD::Utils::FluidCouplingBc::update_residual(Core::LinAlg::Vector<double>& 
 /*!
  */
 void FLD::Utils::FluidCouplingBc::evaluate_dirichlet(
-    Core::LinAlg::Vector<double>& velnp, const Epetra_Map& condmap, double time)
+    Core::LinAlg::Vector<double>& velnp, const Core::LinAlg::Map& condmap, double time)
 {
   return;
   std::cout << "Evaluating Dirich!" << std::endl;
@@ -1212,16 +1211,14 @@ void FLD::Utils::FluidCouplingBc::evaluate_dirichlet(
           if ((velnp)[lid] > 1.0)
           {
             FOUR_C_THROW("coupled 3D/Reduced-D must have Dirichlet BC = 1");
-            exit(1);
           }
           std::cout << "[" << dof_gid << "]\t|" << val << "\t<-<" << (velnp)[lid] << "|\t";
-          velnp.ReplaceGlobalValues(1, &val, &dof_gid);
+          velnp.replace_global_values(1, &val, &dof_gid);
         }
       }
     }
     std::cout << std::endl;
   }
-  //  exit(1);
 }
 
 FOUR_C_NAMESPACE_CLOSE

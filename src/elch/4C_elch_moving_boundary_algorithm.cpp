@@ -70,9 +70,9 @@ void ElCh::MovingBoundaryAlgorithm::setup()
   idispnp_ = fluid_field()->extract_interface_veln();
   iveln_ = fluid_field()->extract_interface_veln();
 
-  idispn_->PutScalar(0.0);
-  idispnp_->PutScalar(0.0);
-  iveln_->PutScalar(0.0);
+  idispn_->put_scalar(0.0);
+  idispnp_->put_scalar(0.0);
+  iveln_->put_scalar(0.0);
 
   // calculate normal flux vector field only at FSICoupling boundaries (no output to file)
   if (pseudotransient_ or (theta_ < 0.999))
@@ -81,7 +81,7 @@ void ElCh::MovingBoundaryAlgorithm::setup()
   }
 
   // transfer moving mesh data
-  scatra_field()->apply_mesh_movement(ale_field()->dispnp());
+  scatra_field()->apply_mesh_movement(*ale_field()->dispnp());
 
   // initialize the multivector for all possible cases
   fluxn_ = scatra_field()->calc_flux_at_boundary(false);
@@ -111,12 +111,13 @@ void ElCh::MovingBoundaryAlgorithm::time_loop()
   if (not pseudotransient_)
   {
     // transfer convective velocity = fluid velocity - grid velocity
-    scatra_field()->set_velocity_field(fluid_field()->convective_vel(),  // = velnp - grid velocity
-        fluid_field()->hist(), nullptr, nullptr);
+    scatra_field()->set_convective_velocity(*fluid_field()->convective_vel());
+    scatra_field()->set_velocity_field(*fluid_field()->convective_vel());
+    scatra_field()->set_acceleration_field(*fluid_field()->hist());
   }
 
   // transfer moving mesh data
-  scatra_field()->apply_mesh_movement(ale_field()->dispnp());
+  scatra_field()->apply_mesh_movement(*ale_field()->dispnp());
 
   // time loop
   while (not_finished())
@@ -125,7 +126,7 @@ void ElCh::MovingBoundaryAlgorithm::time_loop()
     prepare_time_step();
 
     auto incr = fluid_field()->extract_interface_veln();
-    incr->PutScalar(0.0);
+    incr->put_scalar(0.0);
     double incnorm = 0.0;
     int iter = 0;
     bool stopiter = false;
@@ -141,7 +142,7 @@ void ElCh::MovingBoundaryAlgorithm::time_loop()
       compute_interface_vectors(*idispnp_, *iveln_);
 
       // save guessed value before solve
-      incr->Update(1.0, *idispnp_, 0.0);
+      incr->update(1.0, *idispnp_, 0.0);
 
       // solve nonlinear Navier-Stokes system on a deforming mesh
       solve_fluid_ale();
@@ -153,10 +154,10 @@ void ElCh::MovingBoundaryAlgorithm::time_loop()
       compute_interface_vectors(*idispnp_, *iveln_);
 
       // compare with value after solving
-      incr->Update(-1.0, *idispnp_, 1.0);
+      incr->update(-1.0, *idispnp_, 1.0);
 
       // compute L2 norm of increment
-      incr->Norm2(&incnorm);
+      incr->norm_2(&incnorm);
 
       if (Core::Communication::my_mpi_rank(get_comm()) == 0)
       {
@@ -178,7 +179,7 @@ void ElCh::MovingBoundaryAlgorithm::time_loop()
     }
 
     double normidsinp;
-    idispnp_->Norm2(&normidsinp);
+    idispnp_->norm_2(&normidsinp);
     std::cout << "norm of isdispnp = " << normidsinp << std::endl;
 
     // update all single field solvers
@@ -248,10 +249,10 @@ void ElCh::MovingBoundaryAlgorithm::solve_scatra()
 {
   if (Core::Communication::my_mpi_rank(get_comm()) == 0)
   {
-    std::cout << std::endl;
-    std::cout << "************************" << std::endl;
-    std::cout << "       ELCH SOLVER      " << std::endl;
-    std::cout << "************************" << std::endl;
+    std::cout << '\n';
+    std::cout << "************************" << '\n';
+    std::cout << "       ELCH SOLVER      " << '\n';
+    std::cout << "************************" << '\n';
   }
 
   switch (fluid_field()->tim_int_scheme())
@@ -259,26 +260,24 @@ void ElCh::MovingBoundaryAlgorithm::solve_scatra()
     case Inpar::FLUID::timeint_npgenalpha:
     case Inpar::FLUID::timeint_afgenalpha:
       FOUR_C_THROW("ConvectiveVel() not implemented for Gen.Alpha versions");
-      break;
     case Inpar::FLUID::timeint_one_step_theta:
     case Inpar::FLUID::timeint_bdf2:
     {
       if (not pseudotransient_)
       {
         // transfer convective velocity = fluid velocity - grid velocity
-        scatra_field()->set_velocity_field(
-            fluid_field()->convective_vel(),  // = velnp - grid velocity
-            fluid_field()->hist(), nullptr, nullptr);
+        scatra_field()->set_convective_velocity(*fluid_field()->convective_vel());
+        scatra_field()->set_velocity_field(*fluid_field()->convective_vel());
+        scatra_field()->set_acceleration_field(*fluid_field()->hist());
       }
     }
     break;
     default:
       FOUR_C_THROW("Time integration scheme not supported");
-      break;
   }
 
   // transfer moving mesh data
-  scatra_field()->apply_mesh_movement(ale_field()->dispnp());
+  scatra_field()->apply_mesh_movement(*ale_field()->dispnp());
 
   // solve coupled electrochemistry equations
   scatra_field()->solve();
@@ -293,7 +292,7 @@ void ElCh::MovingBoundaryAlgorithm::update()
   scatra_field()->update();
 
   // perform time shift of interface displacement
-  idispn_->Update(1.0, *idispnp_, 0.0);
+  idispn_->update(1.0, *idispnp_, 0.0);
   // perform time shift of interface mass flux vectors
   fluxn_->Update(1.0, *fluxnp_, 0.0);
 }
@@ -335,7 +334,7 @@ void ElCh::MovingBoundaryAlgorithm::compute_interface_vectors(
   // id of the reacting species
   int reactingspeciesid = 0;
 
-  const Epetra_BlockMap& ivelmap = iveln.Map();
+  const Epetra_BlockMap& ivelmap = iveln.get_block_map();
 
   // loop over all local nodes of fluid discretization
   for (int lnodeid = 0; lnodeid < fluiddis->num_my_row_nodes(); lnodeid++)
@@ -366,15 +365,15 @@ void ElCh::MovingBoundaryAlgorithm::compute_interface_vectors(
       }
 
       // now insert only the first numdim entries (pressure dof is not inserted!)
-      int error = iveln_->ReplaceGlobalValues(numdim, Values.data(), fluidnodedofs.data());
-      if (error > 0) FOUR_C_THROW("Could not insert values into vector iveln_: error %d", error);
+      int error = iveln_->replace_global_values(numdim, Values.data(), fluidnodedofs.data());
+      if (error > 0) FOUR_C_THROW("Could not insert values into vector iveln_: error {}", error);
     }
   }
 
   // have to compute an approximate displacement from given interface velocity
   // id^{n+1} = id^{n} + \delta t vel_i
-  idispnp.Update(1.0, *idispn_, 0.0);
-  idispnp.Update(dt(), *iveln_, 1.0);
+  idispnp.update(1.0, *idispn_, 0.0);
+  idispnp.update(dt(), *iveln_, 1.0);
 }
 
 /*----------------------------------------------------------------------*/

@@ -128,8 +128,8 @@ int Discret::Elements::SolidScatra::evaluate(Teuchos::ParameterList& params,
       // do nothing for now
       return 0;
     default:
-      FOUR_C_THROW("The element action %s is not yet implemented for the new solid-scatra elements",
-          action_type_to_string(action).c_str());
+      FOUR_C_THROW("The element action {} is not yet implemented for the new solid-scatra elements",
+          action_type_to_string(action));
   }
 
   return 0;
@@ -151,13 +151,13 @@ int Discret::Elements::SolidScatra::evaluate_neumann(Teuchos::ParameterList& par
           return params.get("total time", -1.0);
       });
 
-  Discret::Elements::evaluate_neumann_by_element(
-      *this, discretization, condition, lm, elevec1, time);
+  Discret::Elements::evaluate_neumann_by_element<3>(
+      *this, discretization, condition, elevec1, time);
   return 0;
 }
 
 double Discret::Elements::SolidScatra::get_normal_cauchy_stress_at_xi(
-    const std::vector<double>& disp, const std::optional<std::vector<double>>& scalars,
+    const std::vector<double>& disp, const std::vector<double>& scalars,
     const Core::LinAlg::Matrix<3, 1>& xi, const Core::LinAlg::Matrix<3, 1>& n,
     const Core::LinAlg::Matrix<3, 1>& dir,
     Discret::Elements::SolidScatraCauchyNDirLinearizations<3>& linearizations)

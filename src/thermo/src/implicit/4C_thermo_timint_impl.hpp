@@ -8,9 +8,6 @@
 #ifndef FOUR_C_THERMO_TIMINT_IMPL_HPP
 #define FOUR_C_THERMO_TIMINT_IMPL_HPP
 
-/*----------------------------------------------------------------------*
- | headers                                                  bborn 08/09 |
- *----------------------------------------------------------------------*/
 #include "4C_config.hpp"
 
 #include "4C_coupling_adapter_mortar.hpp"
@@ -21,18 +18,13 @@
 
 FOUR_C_NAMESPACE_OPEN
 
-// forward declaration
 namespace Adapter
 {
   class CouplingMortar;
 }
 
-/*----------------------------------------------------------------------*
- | belongs to thermal dynamics namespace                    bborn 08/09 |
- *----------------------------------------------------------------------*/
 namespace Thermo
 {
-  /*====================================================================*/
   //!
   //! \brief Front-end for thermal dynamics
   //!        with \b implicit time integration
@@ -46,8 +38,7 @@ namespace Thermo
   //! residuum an d its tangent. This object provides some utility functions to obtain various force
   //! vectors necessary in the calculation of the force residual in the derived time integrators.
   //!
-  //! \author bborn
-  //! \date 06/08
+
   class TimIntImpl : public TimInt
   {
    public:
@@ -63,27 +54,20 @@ namespace Thermo
         std::shared_ptr<Core::IO::DiscretizationWriter> output  //!< the output
     );
 
-    //! Resize #TimIntMStep<T> multi-step quantities
-    void resize_m_step() override = 0;
-
     //@}
-
-    //! Do time integration of single step
-    void integrate_step() override;
-
-    //! build linear system tangent matrix, rhs/force residual
-    //! Monolithic TSI accesses the linearised thermo problem
-    void evaluate(std::shared_ptr<const Core::LinAlg::Vector<double>> tempi) override;
 
     //! build linear system tangent matrix, rhs/force residual
     //! Monolithic TSI accesses the linearised thermo problem
     void evaluate() override;
 
-    //! @name Prediction
+    //! @name Time step preparation
     //@{
 
+    //! prepare time step
+    void prepare_time_step() override;
+
     //! Predict target solution and identify residual
-    void predict();
+    void predict_step();
 
     //! Identify residual
     //! This method does not predict the target solution but
@@ -91,7 +75,7 @@ namespace Thermo
     //! In partitioned solution schemes, it is better to keep the current
     //! solution instead of evaluating the initial guess (as the predictor)
     //! does.
-    void prepare_partition_step() override;
+    void prepare_step() override;
 
     //! Predict constant temperature, temperature rate,
     //! i.e. the initial guess is equal to the last converged step
@@ -111,12 +95,6 @@ namespace Thermo
     //!
     //! This is an implicit predictor, i.e. it calls the solver once.
     void predict_tang_temp_consist_rate();
-
-    //! prepare time step
-    void prepare_time_step() override;
-
-    // finite difference check for the tangent K_TT
-    void fd_check();
 
     //@}
 
@@ -142,36 +120,33 @@ namespace Thermo
 
     //! determine characteristic norms for relative
     //! error checks of residual temperatures
-    //! \author lw  \date 12/07
     virtual double calc_ref_norm_temperature() = 0;
 
     //! determine characteristic norms for relative
     //! error checks of residual forces
-    //! \author lw  \date 12/07
     virtual double calc_ref_norm_force() = 0;
 
     //! Is convergence reached of iterative solution technique?
     //! Keep your fingers crossed...
-    //! \author lw  \date 12/07
     bool converged();
 
     //! Solve dynamic equilibrium
     //!
     //! This is a general wrapper around the specific techniques.
-    Inpar::Thermo::ConvergenceStatus solve() override;
+    Thermo::ConvergenceStatus solve() override;
 
     //! Do full Newton-Raphson iteration
     //!
     //! This routines expects a prepared negative reisdual force #fres_
     //! and associated effective tangent matrix #tang_
-    virtual Inpar::Thermo::ConvergenceStatus newton_full();
+    virtual Thermo::ConvergenceStatus newton_full();
 
     //! Blank Dirichlet dofs form residual and reactions
     //! calculate norms for convergence checks
     void blank_dirichlet_and_calc_norms();
 
     // check for success of nonlinear solve
-    Inpar::Thermo::ConvergenceStatus newton_full_error_check();
+    Thermo::ConvergenceStatus newton_full_error_check();
 
     //! Do (so-called) modified Newton-Raphson iteration in which
     //! the initial tangent is kept and not adapted to the current
@@ -247,32 +222,21 @@ namespace Thermo
     //@{
 
     //! Print to screen predictor information about residual norm etc.
-    //! \author lw (originally) \date 12/07
     void print_predictor();
 
     //! Print to screen information about residual forces and temperatures
-    //! \author lw (originally) \date 12/07
     void print_newton_iter();
 
     //! Contains text to print_newton_iter
-    //! \author lw (originally) \date 12/07
     void print_newton_iter_text(FILE* ofile  //!< output file handle
     );
 
     //! Contains header to print_newton_iter
-    //! \author lw (originally) \date 12/07
     void print_newton_iter_header(FILE* ofile  //!< output file handle
     );
 
-    //! print statistics of converged Newton-Raphson iteration
-    void print_newton_conv();
-
     //! print summary after step
     void print_step() override;
-
-    //! The text for summary print, see #print_step
-    void print_step_text(FILE* ofile  //!< output file handle
-    );
 
     //@}
 
@@ -280,20 +244,7 @@ namespace Thermo
     //@{
 
     //! Return time integrator name
-    enum Inpar::Thermo::DynamicType method_name() const override = 0;
-
-    //! These time integrators are all implicit (mark their name)
-    bool method_implicit() override { return true; }
-
-    //! Provide number of steps, e.g. a single-step method returns 1,
-    //! a m-multistep method returns m
-    int method_steps() override = 0;
-
-    //! Give local order of accuracy of temperature part
-    int method_order_of_accuracy() override = 0;
-
-    //! Return linear error coefficient of temperatures
-    double method_lin_err_coeff() override = 0;
+    enum Thermo::DynamicType method_name() const override = 0;
 
     //@}
 
@@ -334,7 +285,7 @@ namespace Thermo
             tempi  //!< input residual temperatures
     )
     {
-      if (tempi != nullptr) tempi_->Update(1.0, *tempi, 0.0);
+      if (tempi != nullptr) tempi_->update(1.0, *tempi, 0.0);
     }
 
     //! Return effective residual force \f$R_{n+1}\f$
@@ -356,24 +307,23 @@ namespace Thermo
 
     //! @name General purpose algorithm parameters
     //@{
-    enum Inpar::Thermo::PredEnum pred_;  //!< predictor
+    enum Thermo::PredEnum pred_;  //!< predictor
     //@}
 
     //! @name Iterative solution technique
     //@{
-    enum Inpar::Thermo::NonlinSolTech itertype_;  //!< kind of iteration technique
-                                                  //!< or non-linear solution technique
-    enum Inpar::Thermo::ConvNorm normtypetempi_;  //!< convergence check for residual temperatures
-    enum Inpar::Thermo::ConvNorm normtypefres_;   //!< convergence check for residual forces
+    enum Thermo::NonlinSolTech itertype_;  //!< kind of iteration technique
+                                           //!< or non-linear solution technique
+    enum Thermo::ConvNorm normtypetempi_;  //!< convergence check for residual temperatures
+    enum Thermo::ConvNorm normtypefres_;   //!< convergence check for residual forces
 
-    enum Inpar::Thermo::BinaryOp
-        combtempifres_;  //!< binary operator to combine temperatures and forces
+    enum Thermo::BinaryOp combtempifres_;  //!< binary operator to combine temperatures and forces
 
-    enum Inpar::Thermo::VectorNorm iternorm_;    //!< vector norm to check with
-    int itermax_;                                //!< maximally permitted iterations
-    int itermin_;                                //!< minimally requested iterations
-    enum Inpar::Thermo::DivContAct divcontype_;  // what to do when nonlinear solution fails
-    int divcontrefinelevel_;                     //!< refinement level of adaptive time stepping
+    enum Thermo::VectorNorm iternorm_;    //!< vector norm to check with
+    int itermax_;                         //!< maximally permitted iterations
+    int itermin_;                         //!< minimally requested iterations
+    enum Thermo::DivContAct divcontype_;  // what to do when nonlinear solution fails
+    int divcontrefinelevel_;              //!< refinement level of adaptive time stepping
     int divcontfinesteps_;  //!< number of time steps already performed at current refinement level
     double toltempi_;       //!< tolerance residual temperatures
     double tolfres_;        //!< tolerance force residual
@@ -385,10 +335,7 @@ namespace Thermo
     double normtempi_;      //!< norm of residual temperatures
     std::shared_ptr<Core::LinAlg::Vector<double>> tempi_;  //!< residual temperatures
                                                            //!< \f$\Delta{T}^{<k>}_{n+1}\f$
-    std::shared_ptr<Core::LinAlg::Vector<double>>
-        tempinc_;          //!< sum of temperature vectors already applied,
-                           //!< i.e. the incremental temperature
-    Teuchos::Time timer_;  //!< timer for solution technique
+    Teuchos::Time timer_;                                  //!< timer for solution technique
     std::shared_ptr<Coupling::Adapter::CouplingMortar>
         adaptermeshtying_;  //!< mortar coupling adapter
     //@}
@@ -398,12 +345,9 @@ namespace Thermo
     std::shared_ptr<Core::LinAlg::Vector<double>> fres_;    //!< force residual used for solution
     std::shared_ptr<Core::LinAlg::Vector<double>> freact_;  //!< reaction force
     //@}
-
-  };  // class TimIntImpl
-
+  };
 }  // namespace Thermo
 
-/*----------------------------------------------------------------------*/
 FOUR_C_NAMESPACE_CLOSE
 
 #endif

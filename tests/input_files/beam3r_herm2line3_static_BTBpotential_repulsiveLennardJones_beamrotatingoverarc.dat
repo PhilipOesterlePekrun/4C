@@ -52,11 +52,11 @@ REPARTITIONSTRATEGY             adaptive
 --------------------------------------------------------------BEAM POTENTIAL
 POT_LAW_PREFACTOR               1.0e-14
 POT_LAW_EXPONENT                12
-BEAMPOTENTIAL_TYPE              Volume
+TYPE                            volume
 CUTOFF_RADIUS                   0.2
-STRATEGY                        DoubleLengthSpecific_SmallSepApprox
-NUM_INTEGRATION_SEGMENTS        10
-NUM_GAUSSPOINTS                 10
+STRATEGY                        double_length_specific_small_separations
+N_INTEGRATION_SEGMENTS          10
+N_GAUSS_POINTS                  10
 -------------------------------------------------BEAM POTENTIAL/RUNTIME VTK OUTPUT
 VTK_OUTPUT_BEAM_POTENTIAL           yes
 EVERY_ITERATION                     no
@@ -74,16 +74,14 @@ Linear Solver Details           = No
 Test Details                    = No
 Debug                           = No
 ----------------------------------------------DESIGN POINT DIRICH CONDITIONS
-DPOINT                          5
-E 1 - NUMDOF 9 ONOFF 1 1 1 1 1 1 1 1 1 VAL  0.5707 0.0 0.0  0.0 -1.5707963267948966 0.0  -1.0  0.0  1.0 FUNCT 0 0 0 0 0 0 0 0 0
-E 2 - NUMDOF 9 ONOFF 1 1 1 1 1 1 1 1 1 VAL -0.5707 0.0 0.0  0.0  1.5707963267948966 0.0  -1.0  0.0 -1.0 FUNCT 0 0 0 0 0 0 0 0 0
-E 3 - NUMDOF 9 ONOFF 1 1 1 1 1 1 0 0 0 VAL  1.0  1.0 -0.3  0.0 0.0 1.0  0.0 0.0 0.0 FUNCT 3 2 1 0 0 4 0 0 0
-E 4 - NUMDOF 9 ONOFF 1 1 1 1 1 1 0 0 0 VAL -1.0 -1.0 -0.3  0.0 0.0 1.0  0.0 0.0 0.0 FUNCT 3 2 1 0 0 4 0 0 0
-E 5 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 1 NUMDOF 9 ONOFF 1 1 1 1 1 1 1 1 1 VAL  0.5707 0.0 0.0  0.0 -1.5707963267948966 0.0  -1.0  0.0  1.0 FUNCT 0 0 0 0 0 0 0 0 0
+E 2 NUMDOF 9 ONOFF 1 1 1 1 1 1 1 1 1 VAL -0.5707 0.0 0.0  0.0  1.5707963267948966 0.0  -1.0  0.0 -1.0 FUNCT 0 0 0 0 0 0 0 0 0
+E 3 NUMDOF 9 ONOFF 1 1 1 1 1 1 0 0 0 VAL  1.0  1.0 -0.3  0.0 0.0 1.0  0.0 0.0 0.0 FUNCT 3 2 1 0 0 4 0 0 0
+E 4 NUMDOF 9 ONOFF 1 1 1 1 1 1 0 0 0 VAL -1.0 -1.0 -0.3  0.0 0.0 1.0  0.0 0.0 0.0 FUNCT 3 2 1 0 0 4 0 0 0
+E 5 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 --------------------------------DESIGN LINE BEAM POTENTIAL CHARGE CONDITIONS
-DLINE                           2
-E 1 - POTLAW 1 VAL  1.0 FUNCT none
-E 2 - POTLAW 1 VAL  1.0 FUNCT none
+E 1 POTLAW 1 VAL  1.0 FUNCT none
+E 2 POTLAW 1 VAL  1.0 FUNCT none
 ---------------------------------------------------------DNODE-NODE TOPOLOGY
 NODE  1 DNODE 1
 NODE  3 DNODE 2
@@ -135,4 +133,4 @@ VARIABLE 0 NAME a TYPE multifunction NUMPOINTS 3 TIMES 0 1 5 DESCRIPTION 0 2*pi*
 STRUCTURE DIS structure NODE 6 QUANTITY dispx VALUE  0.000000000000000000000 TOLERANCE 1e-12
 STRUCTURE DIS structure NODE 6 QUANTITY dispy VALUE -2.89829007436123677e-03 TOLERANCE 1e-12
 STRUCTURE DIS structure NODE 6 QUANTITY dispz VALUE -1.62246017553829613e-01 TOLERANCE 1e-12
-STRUCTURE SPECIAL QUANTITY beam_interaction_potential VALUE 3.82743505454230e-02 TOLERANCE 1e-10
+STRUCTURE SPECIAL true QUANTITY beam_interaction_potential VALUE 3.82743505454230e-02 TOLERANCE 1e-10

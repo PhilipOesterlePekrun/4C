@@ -52,6 +52,7 @@
 #include "4C_mat_elast_volpow.hpp"
 #include "4C_mat_elast_volsussmanbathe.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -317,7 +318,7 @@ std::shared_ptr<Mat::Elastic::Summand> Mat::Elastic::Summand::factory(int matnum
       return std::make_shared<ViscoPart>(params);
     }
     default:
-      FOUR_C_THROW("cannot deal with type %d", curmat->type());
+      FOUR_C_THROW("cannot deal with type {}", curmat->type());
   }
   return nullptr;
 }
@@ -338,7 +339,9 @@ void Mat::Elastic::Summand::unpack(Core::Communication::UnpackBuffer& buffer) { 
 void Mat::Elastic::Summand::read_fiber(const Core::IO::InputParameterContainer& container,
     const std::string& specifier, Core::LinAlg::Matrix<3, 1>& fiber_vector)
 {
-  auto fiber1 = container.get<std::vector<double>>(specifier);
+  const auto& fiber_opt = container.get<std::optional<std::vector<double>>>(specifier);
+  FOUR_C_ASSERT(fiber_opt.has_value(), "Internal error: fiber vector not found.");
+  const auto& fiber1 = *fiber_opt;
 
   double f1norm = 0.;
   // normalization

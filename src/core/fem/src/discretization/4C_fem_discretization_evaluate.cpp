@@ -55,7 +55,7 @@ void Core::FE::Discretization::evaluate(
             ele.evaluate(params, *this, la, strategy.elematrix1(), strategy.elematrix2(),
                 strategy.elevector1(), strategy.elevector2(), strategy.elevector3());
         if (err)
-          FOUR_C_THROW("Proc %d: Element %d returned err=%d",
+          FOUR_C_THROW("Proc {}: Element {} returned err={}",
               Core::Communication::my_mpi_rank(get_comm()), ele.id(), err);
       });
 }
@@ -77,21 +77,13 @@ void Core::FE::Discretization::evaluate(Teuchos::ParameterList& params,
   int row = strategy.first_dof_set();
   int col = strategy.second_dof_set();
 
-  // call the element's register class preevaluation method
-  // for each type of element
-  // for most element types, just the base class dummy is called
-  // that does nothing
-  Core::Communication::ParObjectFactory::instance().pre_evaluate(*this, params,
-      strategy.systemmatrix1(), strategy.systemmatrix2(), strategy.systemvector1(),
-      strategy.systemvector2(), strategy.systemvector3());
-
   Core::Elements::LocationArray la(dofsets_.size());
 
   // loop over column elements
   for (auto* actele : my_col_element_range())
   {
     // get element location vector, dirichlet flags and ownerships
-    actele->location_vector(*this, la, false);
+    actele->location_vector(*this, la);
 
     // get dimension of element matrices and vectors
     // Reshape element matrices and vectors and init to zero
@@ -155,7 +147,7 @@ void Core::FE::Discretization::evaluate(Teuchos::ParameterList& params)
         const int err = ele.evaluate(
             params, *this, la, elematrix1, elematrix2, elevector1, elevector2, elevector3);
         if (err)
-          FOUR_C_THROW("Proc %d: Element %d returned err=%d",
+          FOUR_C_THROW("Proc {}: Element {} returned err={}",
               Core::Communication::my_mpi_rank(get_comm()), ele.id(), err);
       });
 }
@@ -187,7 +179,7 @@ void Core::FE::Discretization::evaluate_neumann(Teuchos::ParameterList& params,
   for (const auto& [name, cond] : condition_)
   {
     if (name != (std::string) "PointNeumann") continue;
-    if (assemblemat && !Core::Communication::my_mpi_rank(systemvector.Comm()))
+    if (assemblemat && !Core::Communication::my_mpi_rank(systemvector.get_comm()))
     {
       std::cout << "WARNING: System matrix handed in but no linearization of "
                    "PointNeumann conditions implemented. Did you set the LOADLIN-flag "
@@ -195,7 +187,7 @@ void Core::FE::Discretization::evaluate_neumann(Teuchos::ParameterList& params,
     }
     const std::vector<int>* nodeids = cond->get_nodes();
     if (!nodeids) FOUR_C_THROW("PointNeumann condition does not have nodal cloud");
-    const auto& tmp_funct = cond->parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+    const auto& tmp_funct = cond->parameters().get<std::vector<std::optional<int>>>("FUNCT");
     const auto& onoff = cond->parameters().get<std::vector<int>>("ONOFF");
     const auto& val = cond->parameters().get<std::vector<double>>("VAL");
 
@@ -204,7 +196,7 @@ void Core::FE::Discretization::evaluate_neumann(Teuchos::ParameterList& params,
       // do only nodes in my row map
       if (!node_row_map()->MyGID(nodeid)) continue;
       Core::Nodes::Node* actnode = g_node(nodeid);
-      if (!actnode) FOUR_C_THROW("Cannot find global node %d", nodeid);
+      if (!actnode) FOUR_C_THROW("Cannot find global node {}", nodeid);
       // call explicitly the main dofset, nodeid.e. the first column
       std::vector<int> dofs = dof(0, actnode);
       const unsigned numdf = dofs.size();
@@ -234,8 +226,8 @@ void Core::FE::Discretization::evaluate_neumann(Teuchos::ParameterList& params,
             });
 
         value *= functfac;
-        const int lid = systemvector.Map().LID(gid);
-        if (lid < 0) FOUR_C_THROW("Global id %d not on this proc in system vector", gid);
+        const int lid = systemvector.get_block_map().LID(gid);
+        if (lid < 0) FOUR_C_THROW("Global id {} not on this proc in system vector", gid);
         systemvector[lid] += value;
       }
     }
@@ -304,7 +296,7 @@ void Core::FE::Discretization::evaluate_neumann(Teuchos::ParameterList& params,
 
       // get global node
       Core::Nodes::Node* actnode = g_node(nodeid);
-      if (!actnode) FOUR_C_THROW("Cannot find global node %d", nodeid);
+      if (!actnode) FOUR_C_THROW("Cannot find global node {}", nodeid);
 
       // get elements attached to global node
       Core::Elements::Element** curreleptr = actnode->elements();
@@ -385,9 +377,6 @@ void Core::FE::Discretization::evaluate_condition(Teuchos::ParameterList& params
   int row = strategy.first_dof_set();
   int col = strategy.second_dof_set();
 
-  // get the current time
-  const double time = params.get("total time", -1.0);
-
   Core::Elements::LocationArray la(dofsets_.size());
 
   //----------------------------------------------------------------------
@@ -405,31 +394,11 @@ void Core::FE::Discretization::evaluate_condition(Teuchos::ParameterList& params
         // can exist processors which do not own a portion of the elements belonging
         // to the condition geometry
 
-        // Evaluate Loadcurve if defined. Put current load factor in parameter list
-        const auto* curve = cond->parameters().get_if<Core::IO::Noneable<int>>("curve");
-
-        double curvefac = 1.0;
-        if (curve)
-        {
-          if (curve->has_value() && curve->value() > 0)
-          {
-            const auto& function_manager =
-                params.get<const Core::Utils::FunctionManager*>("function_manager");
-            curvefac = function_manager->function_by_id<Core::Utils::FunctionOfTime>(curve->value())
-                           .evaluate(time);
-          }
-        }
-
         // Get ConditionID of current condition if defined and write value in parameter list
         const auto* condID = cond->parameters().get_if<int>("ConditionID");
         if (condID)
         {
           params.set("ConditionID", *condID);
-          params.set("LoadCurveFactor " + std::to_string(*condID), curvefac);
-        }
-        else
-        {
-          params.set("LoadCurveFactor", curvefac);
         }
         params.set<std::shared_ptr<Core::Conditions::Condition>>("condition", cond);
 
@@ -441,7 +410,7 @@ void Core::FE::Discretization::evaluate_condition(Teuchos::ParameterList& params
           // These dofs do not need to be the same as the dofs of the element
           // (this is the standard case, though). Special boundary conditions,
           // like weak Dirichlet conditions, assemble into the dofs of the parent element.
-          ele->location_vector(*this, la, false, condstring, params);
+          ele->location_vector(*this, la, condstring, params);
 
           // get dimension of element matrices and vectors
           // Reshape element matrices and vectors and initialize to zero
@@ -475,7 +444,21 @@ void Core::FE::Discretization::evaluate_condition(Teuchos::ParameterList& params
       }
     }
   }
-}  // end of Core::FE::Discretization::evaluate_condition
+}
+
+void Core::FE::Discretization::evaluate_condition(Teuchos::ParameterList& params,
+    std::shared_ptr<Core::LinAlg::Vector<double>> systemvector, const std::string& condstring,
+    const int condid)
+{
+  evaluate_condition(params, nullptr, nullptr, systemvector, nullptr, nullptr, condstring, condid);
+}
+
+
+void Core::FE::Discretization::evaluate_condition(
+    Teuchos::ParameterList& params, const std::string& condstring, const int condid)
+{
+  evaluate_condition(params, nullptr, nullptr, nullptr, nullptr, nullptr, condstring, condid);
+}
 
 
 /*----------------------------------------------------------------------*
@@ -505,7 +488,7 @@ void Core::FE::Discretization::evaluate_scalars(
   {
     // get element location vector
     Core::Elements::LocationArray la(dofsets_.size());
-    actele->location_vector(*this, la, false);
+    actele->location_vector(*this, la);
 
     // define element vector
     Core::LinAlg::SerialDenseVector elescalars(numscalars);
@@ -515,7 +498,7 @@ void Core::FE::Discretization::evaluate_scalars(
       int err = actele->evaluate(
           params, *this, la, elematrix1, elematrix2, elescalars, elevector2, elevector3);
       if (err)
-        FOUR_C_THROW("Proc %d: Element %d returned err=%d",
+        FOUR_C_THROW("Proc {}: Element {} returned err={}",
             Core::Communication::my_mpi_rank(get_comm()), actele->id(), err);
     }
 
@@ -584,7 +567,7 @@ void Core::FE::Discretization::evaluate_scalars(
           {
             // construct location vector for current element
             Core::Elements::LocationArray la(dofsets_.size());
-            element->location_vector(*this, la, false);
+            element->location_vector(*this, la);
 
             // initialize result vector for current element
             Core::LinAlg::SerialDenseVector elescalars(numscalars);
@@ -597,7 +580,7 @@ void Core::FE::Discretization::evaluate_scalars(
             if (error)
             {
               FOUR_C_THROW(
-                  "Element evaluation failed for element %d on processor %d with error code %d!",
+                  "Element evaluation failed for element {} on processor {} with error code {}!",
                   element->id(), Core::Communication::my_mpi_rank(get_comm()), error);
             }
 
@@ -644,11 +627,11 @@ void Core::FE::Discretization::evaluate_scalars(
     Core::Elements::Element* actele = l_row_element(i);
 
     if (!scalars.Map().MyGID(actele->id()))
-      FOUR_C_THROW("Proc does not have global element %d", actele->id());
+      FOUR_C_THROW("Proc does not have global element {}", actele->id());
 
     // get element location vector
     Core::Elements::LocationArray la(dofsets_.size());
-    actele->location_vector(*this, la, false);
+    actele->location_vector(*this, la);
 
     // define element vector
     Core::LinAlg::SerialDenseVector elescalars(numscalars);
@@ -658,7 +641,7 @@ void Core::FE::Discretization::evaluate_scalars(
       int err = actele->evaluate(
           params, *this, la, elematrix1, elematrix2, elescalars, elevector2, elevector3);
       if (err)
-        FOUR_C_THROW("Proc %d: Element %d returned err=%d",
+        FOUR_C_THROW("Proc {}: Element {} returned err={}",
             Core::Communication::my_mpi_rank(get_comm()), actele->id(), err);
     }
 

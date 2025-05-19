@@ -140,12 +140,9 @@ char Cut::Output::gmsh_element_type(Core::FE::CellType shape)
       return ' ';
     }
     default:
-      FOUR_C_THROW(
-          "Unsupported cell shape! ( shape = %s )", Core::FE::cell_type_to_string(shape).c_str());
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("Unsupported cell shape! ( shape = {} )", Core::FE::cell_type_to_string(shape));
   }
   // impossible to reach this point
-  exit(EXIT_FAILURE);
 }
 
 /*--------------------------------------------------------------------------------------*
@@ -252,8 +249,7 @@ void Cut::Output::gmsh_side_dump(std::ofstream& file, const Side* s, bool to_loc
     default:
       std::stringstream str;
       str << "unknown element type in gmsh_side_dump for " << nodes.size() << " nodes!";
-      FOUR_C_THROW(str.str());
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("{}", str.str());
   }
   gmsh_element_dump(file, nodes, elementtype, to_local, ele);
 }
@@ -277,8 +273,7 @@ void Cut::Output::gmsh_tri_side_dump(
     {
       std::stringstream str;
       str << "unknown element type in GmshTriSideDump for " << points.size() << " points!";
-      FOUR_C_THROW(str.str());
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("{}", str.str());
     }
   }
 
@@ -610,7 +605,7 @@ void Cut::Output::gmsh_level_set_gradient_dump(std::ofstream& file, Element* ele
     std::vector<double> normal_triag_midp;
     if (facet->on_cut_side())
     {
-      Core::LinAlg::Matrix<3, 1> facet_triang_midpoint_coord(true);
+      Core::LinAlg::Matrix<3, 1> facet_triang_midpoint_coord(Core::LinAlg::Initialization::zero);
 
       if (facet->is_triangulated())
       {
@@ -626,7 +621,7 @@ void Cut::Output::gmsh_level_set_gradient_dump(std::ofstream& file, Element* ele
           std::vector<Point*> facet_triang_tri = *k;
 
           Core::LinAlg::Matrix<3, 1> cur;
-          Core::LinAlg::Matrix<3, 1> f_triang_tri_midp(true);
+          Core::LinAlg::Matrix<3, 1> f_triang_tri_midp(Core::LinAlg::Initialization::zero);
           for (std::vector<Point*>::iterator i = facet_triang_tri.begin();
               i != facet_triang_tri.end(); i++)
           {
@@ -691,7 +686,7 @@ void Cut::Output::gmsh_level_set_value_dump(
 
     if (facet->on_cut_side())
     {
-      Core::LinAlg::Matrix<3, 1> facet_triang_midpoint_coord(true);
+      Core::LinAlg::Matrix<3, 1> facet_triang_midpoint_coord(Core::LinAlg::Initialization::zero);
 
       if (facet->is_triangulated())
       {
@@ -702,7 +697,7 @@ void Cut::Output::gmsh_level_set_value_dump(
           std::vector<Point*> facet_triang_tri = *k;
 
           Core::LinAlg::Matrix<3, 1> cur;
-          Core::LinAlg::Matrix<3, 1> f_triang_tri_midp(true);
+          Core::LinAlg::Matrix<3, 1> f_triang_tri_midp(Core::LinAlg::Initialization::zero);
           for (std::vector<Point*>::iterator i = facet_triang_tri.begin();
               i != facet_triang_tri.end(); i++)
           {
@@ -742,7 +737,7 @@ void Cut::Output::gmsh_level_set_value_dump(
     for (std::vector<Node*>::iterator j = nodes.begin(); j != nodes.end(); j++)
     {
       Node* node = *j;
-      Core::LinAlg::Matrix<3, 1> node_coord(true);
+      Core::LinAlg::Matrix<3, 1> node_coord(Core::LinAlg::Initialization::zero);
       node->coordinates(&node_coord(0, 0));
 
       gmsh_scalar(file, node_coord, node->lsv(), to_local, ele);
@@ -865,7 +860,7 @@ void Cut::Output::gmsh_level_set_orientation_dump(std::ofstream& file, Element* 
 
       std::vector<std::vector<double>> coords_bc = bc->coordinates_v();
       // const Core::LinAlg::SerialDenseMatrix ls_coordEp = bc->coordinates();
-      Core::LinAlg::Matrix<3, 1> ls_coord(true);
+      Core::LinAlg::Matrix<3, 1> ls_coord(Core::LinAlg::Initialization::zero);
       ls_coord(0, 0) = coords_bc[1][0];
       ls_coord(1, 0) = coords_bc[1][1];
       ls_coord(2, 0) = coords_bc[1][2];
@@ -907,7 +902,7 @@ void Cut::Output::gmsh_eqn_plane_normal_dump(
 void Cut::Output::gmsh_eqn_plane_normal_dump(
     std::ofstream& file, Facet* facet, bool normalize, bool to_local, Element* ele)
 {
-  Core::LinAlg::Matrix<3, 1> facet_triang_midpoint_coord(true);
+  Core::LinAlg::Matrix<3, 1> facet_triang_midpoint_coord(Core::LinAlg::Initialization::zero);
   std::vector<Point*> f_cornpts = facet->corner_points();
   std::vector<double> eqn_plane = get_eq_of_plane(f_cornpts);
 
@@ -923,7 +918,7 @@ void Cut::Output::gmsh_eqn_plane_normal_dump(
       std::vector<Point*> facet_triang_tri = *k;
 
       Core::LinAlg::Matrix<3, 1> cur;
-      Core::LinAlg::Matrix<3, 1> f_triang_tri_midp(true);
+      Core::LinAlg::Matrix<3, 1> f_triang_tri_midp(Core::LinAlg::Initialization::zero);
       for (std::vector<Point*>::iterator i = facet_triang_tri.begin(); i != facet_triang_tri.end();
           i++)
       {
@@ -1001,19 +996,19 @@ void Cut::Output::gmsh_vector(std::ofstream& file, Core::LinAlg::Matrix<3, 1> co
 void Cut::Output::gmsh_write_coords(
     std::ofstream& file, std::vector<double> coord, bool to_local, Element* ele)
 {
-  Core::LinAlg::Matrix<3, 1> xyz(true);
+  Core::LinAlg::Matrix<3, 1> xyz(Core::LinAlg::Initialization::zero);
 
   if (coord.size() <= 3)
     std::copy(coord.begin(), coord.end(), xyz.data());
   else
-    FOUR_C_THROW("The coord vector dimension is wrong! (coord.size() = %d)", coord.size());
+    FOUR_C_THROW("The coord vector dimension is wrong! (coord.size() = {})", coord.size());
 
   if (to_local)
   {
     if (ele == nullptr)
       FOUR_C_THROW("GmshWriteCoords: Didn't get a parent element for the Coordinate!");
 
-    Core::LinAlg::Matrix<3, 1> rst(true);
+    Core::LinAlg::Matrix<3, 1> rst(Core::LinAlg::Initialization::zero);
 
     ele->local_coordinates(xyz, rst);
     gmsh_write_coords(file, rst, false, nullptr);  // rst are already local coords!
@@ -1359,7 +1354,7 @@ void Cut::Output::gmsh_element_cut_test(
     file << "     Cut::VolumeCell * vc = &**i;"
          << "\n";
     file << "     "
-            "vc->direct_divergence_gauss_rule(vc->parent_element(),mesh,true,Inpar::Cut::"
+            "vc->direct_divergence_gauss_rule(vc->parent_element(),mesh,true,Cut::"
             "BCellGaussPts_"
             "Tessellation);"
          << "\n";

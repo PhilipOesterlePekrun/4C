@@ -1,0 +1,15 @@
+.red {
+    color: red;
+}
+
+.green {
+    color: green;
+}
+
+.underline {
+    text-decoration: underline;
+}
+
+.wy-table-responsive table td, .wy-table-responsive table th {
+    white-space: normal;
+}

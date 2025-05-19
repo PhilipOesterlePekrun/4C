@@ -7,8 +7,6 @@
 
 #include "4C_contact_nitsche_utils.hpp"
 
-#include <Epetra_FECrsMatrix.h>
-
 #include <memory>
 
 FOUR_C_NAMESPACE_OPEN
@@ -18,13 +16,13 @@ FOUR_C_NAMESPACE_OPEN
 template <Core::FE::CellType parent_distype>
 template <int num_dof_per_node>
 void Mortar::ElementNitscheData<parent_distype>::assemble_rhs(Mortar::Element* mele,
-    const Core::LinAlg::Matrix<Core::FE::num_nodes<parent_distype> * num_dof_per_node, 1>& rhs,
+    const Core::LinAlg::Matrix<Core::FE::num_nodes(parent_distype) * num_dof_per_node, 1>& rhs,
     std::vector<int>& dofs, std::shared_ptr<Epetra_FEVector> fc) const
 {
-  const int nen = Core::FE::num_nodes<parent_distype>;
+  const int nen = Core::FE::num_nodes(parent_distype);
 
   if (num_dof_per_node * nen > dofs.size())
-    FOUR_C_THROW("num_dof_per_node*nen>dofs.size() %d > %d", num_dof_per_node * nen, dofs.size());
+    FOUR_C_THROW("num_dof_per_node*nen>dofs.size() {} > {}", num_dof_per_node * nen, dofs.size());
 
   if (fc != nullptr)
   {
@@ -40,10 +38,10 @@ template <Core::FE::CellType parent_distype>
 template <int num_dof_per_node>
 void Mortar::ElementNitscheData<parent_distype>::assemble_matrix(Mortar::Element* mele,
     const std::unordered_map<int,
-        Core::LinAlg::Matrix<Core::FE::num_nodes<parent_distype> * num_dof_per_node, 1>>& k,
+        Core::LinAlg::Matrix<Core::FE::num_nodes(parent_distype) * num_dof_per_node, 1>>& k,
     std::vector<int>& dofs, std::shared_ptr<Core::LinAlg::SparseMatrix> kc) const
 {
-  const int nen = Core::FE::num_nodes<parent_distype>;
+  const int nen = Core::FE::num_nodes(parent_distype);
 
   if (kc != nullptr)
   {

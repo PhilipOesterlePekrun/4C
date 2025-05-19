@@ -14,6 +14,7 @@
 #include "4C_contact_constitutivelaw_linear_contactconstitutivelaw.hpp"
 #include "4C_contact_constitutivelaw_power_contactconstitutivelaw.hpp"
 #include "4C_global_data.hpp"
+#include "4C_utils_enum.hpp"
 
 #ifdef FOUR_C_WITH_MIRCO
 #include "4C_contact_constitutivelaw_mirco_contactconstitutivelaw.hpp"
@@ -40,36 +41,36 @@ CONTACT::CONSTITUTIVELAW::ConstitutiveLaw::factory(const int id)
   auto& coconstlawdata =
       Global::Problem::instance(probinst)->contact_constitutive_laws()->by_id(id);
 
-  const auto type = coconstlawdata.get<Inpar::CONTACT::ConstitutiveLawType>("LAW_TYPE");
+  const auto type = coconstlawdata.get<CONTACT::CONSTITUTIVELAW::ConstitutiveLawType>("LAW_TYPE");
 
   switch (type)
   {
-    case Inpar::CONTACT::ConstitutiveLawType::colaw_cubic:
+    case CONTACT::CONSTITUTIVELAW::ConstitutiveLawType::colaw_cubic:
     {
       CONTACT::CONSTITUTIVELAW::CubicConstitutiveLawParams params(
           coconstlawdata.group("CoConstLaw_cubic"));
       return std::make_unique<CONTACT::CONSTITUTIVELAW::CubicConstitutiveLaw>(params);
     }
-    case Inpar::CONTACT::ConstitutiveLawType::colaw_brokenrational:
+    case CONTACT::CONSTITUTIVELAW::ConstitutiveLawType::colaw_brokenrational:
     {
       CONTACT::CONSTITUTIVELAW::BrokenRationalConstitutiveLawParams params(
           coconstlawdata.group("CoConstLaw_brokenrational"));
       return std::make_unique<CONTACT::CONSTITUTIVELAW::BrokenRationalConstitutiveLaw>(params);
     }
 
-    case Inpar::CONTACT::ConstitutiveLawType::colaw_linear:
+    case CONTACT::CONSTITUTIVELAW::ConstitutiveLawType::colaw_linear:
     {
       CONTACT::CONSTITUTIVELAW::LinearConstitutiveLawParams params(
           coconstlawdata.group("CoConstLaw_linear"));
       return std::make_unique<CONTACT::CONSTITUTIVELAW::LinearConstitutiveLaw>(params);
     }
-    case Inpar::CONTACT::ConstitutiveLawType::colaw_power:
+    case CONTACT::CONSTITUTIVELAW::ConstitutiveLawType::colaw_power:
     {
       CONTACT::CONSTITUTIVELAW::PowerConstitutiveLawParams params(
           coconstlawdata.group("CoConstLaw_power"));
       return std::make_unique<CONTACT::CONSTITUTIVELAW::PowerConstitutiveLaw>(params);
     }
-    case Inpar::CONTACT::ConstitutiveLawType::colaw_mirco:
+    case CONTACT::CONSTITUTIVELAW::ConstitutiveLawType::colaw_mirco:
     {
 #ifdef FOUR_C_WITH_MIRCO
       CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams params(
@@ -81,12 +82,12 @@ CONTACT::CONSTITUTIVELAW::ConstitutiveLaw::factory(const int id)
           "off. Please enable this flag and build 4C again");
 #endif
     }
-    case Inpar::CONTACT::ConstitutiveLawType::colaw_none:
+    case CONTACT::CONSTITUTIVELAW::ConstitutiveLawType::colaw_none:
     {
       FOUR_C_THROW("No contact constitutive law found\n");
     }
     default:
-      FOUR_C_THROW("unknown type of contact constitutive law %d\n", type);
+      FOUR_C_THROW("unknown type of contact constitutive law {}\n", type);
   }
 }
 

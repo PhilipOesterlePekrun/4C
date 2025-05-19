@@ -8,7 +8,7 @@
 #include "4C_fem_dofset_merged_wrapper.hpp"
 
 #include "4C_fem_condition_utils.hpp"
-#include "4C_fem_geometric_search_matchingoctree.hpp"
+#include "4C_geometric_search_matchingoctree.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 
 #include <Epetra_Export.h>
@@ -45,7 +45,7 @@ Core::DOFSets::DofSetMergedWrapper::~DofSetMergedWrapper()
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-const Epetra_Map* Core::DOFSets::DofSetMergedWrapper::dof_row_map() const
+const Core::LinAlg::Map* Core::DOFSets::DofSetMergedWrapper::dof_row_map() const
 {
   // the merged dofset does not add new dofs. So we can just return the
   // original dof map here.
@@ -54,7 +54,7 @@ const Epetra_Map* Core::DOFSets::DofSetMergedWrapper::dof_row_map() const
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-const Epetra_Map* Core::DOFSets::DofSetMergedWrapper::dof_col_map() const
+const Core::LinAlg::Map* Core::DOFSets::DofSetMergedWrapper::dof_col_map() const
 {
   // the merged dofset does not add new dofs. So we can just return the
   // original dof map here.
@@ -88,7 +88,7 @@ int Core::DOFSets::DofSetMergedWrapper::assign_degrees_of_freedom(
   // all nodes should be coupled
   if (masternodes.size() != coupling.size())
     FOUR_C_THROW(
-        "Did not get 1:1 correspondence. \nmasternodes.size()=%d, coupling.size()=%d."
+        "Did not get 1:1 correspondence. \nmasternodes.size()={}, coupling.size()={}."
         "DofSetMergedWrapper requires matching slave and master meshes!",
         masternodes.size(), coupling.size());
 
@@ -109,7 +109,7 @@ int Core::DOFSets::DofSetMergedWrapper::assign_degrees_of_freedom(
       std::pair<int, double>& coupled = coupling[gid];
       int slavegid = coupled.first;
       int slavelid = dis.node_row_map()->LID(slavegid);
-      if (slavelid == -1) FOUR_C_THROW("slave gid %d was not found on this proc", slavegid);
+      if (slavelid == -1) FOUR_C_THROW("slave gid {} was not found on this proc", slavegid);
 
       // save master gid at col lid of corresponding slave node
       (my_master_nodegids_row_layout)[slavelid] = gid;
@@ -145,7 +145,7 @@ int Core::DOFSets::DofSetMergedWrapper::assign_degrees_of_freedom(
   // all nodes should be coupled
   if (masternodes.size() != coupling.size())
     FOUR_C_THROW(
-        "Did not get 1:1 correspondence. \nmasternodes.size()=%d, coupling.size()=%d."
+        "Did not get 1:1 correspondence. \nmasternodes.size()={}, coupling.size()={}."
         "DofSetMergedWrapper requires matching slave and master meshes!",
         masternodes.size(), coupling.size());
 
@@ -166,7 +166,7 @@ int Core::DOFSets::DofSetMergedWrapper::assign_degrees_of_freedom(
       std::pair<int, double>& coupled = coupling[gid];
       int slavegid = coupled.first;
       int slavelid = dis.node_row_map()->LID(slavegid);
-      if (slavelid == -1) FOUR_C_THROW("slave gid %d was not found on this proc", slavegid);
+      if (slavelid == -1) FOUR_C_THROW("slave gid {} was not found on this proc", slavegid);
 
       // save master gid at col lid of corresponding slave node
       (my_slave_nodegids_row_layout)[slavelid] = gid;

@@ -9,7 +9,6 @@ OUTPUT_BIN                      yes
 OUTPUT_EVERY_ITER               no
 OEI_FILE_COUNTER                0
 STRUCT_DISP                     Yes
-STRUCT_VEL_ACC                  No
 STRUCT_STRESS                   cauchy
 STRUCT_COUPLING_STRESS          No
 STRUCT_STRAIN                   No
@@ -38,7 +37,7 @@ RESTARTEVERY                     3
 TIMESTEP                        10.0
 NUMSTEP                         6
 MAXTIME                         2500000
-DAMPING                         No
+DAMPING                         None
 M_DAMP                          0.0
 K_DAMP                          0.0
 TOLDISP                         1e-5
@@ -52,7 +51,7 @@ NORM_INCO                       Abs
 NORMCOMBI_DISPPRES              And
 NORMCOMBI_RESFINCO              And
 NORMCOMBI_RESFDISP              And
-STC_SCALING                     no
+STC_SCALING                     Inactive
 STC_LAYER                       1
 PTCDT                           0.1
 TOLCONSTR                       1e-07
@@ -66,7 +65,7 @@ ALPHA_LS                        0.5
 SIGMA_LS                        0.0001
 MATERIALTANGENT                 analytical
 LOADLIN                         yes
-MASSLIN                         No
+MASSLIN                         none
 PREDICT                         TangDis
 UZAWAPARAM                      1
 UZAWATOL                        1e-07
@@ -75,14 +74,10 @@ UZAWAALGO                       direct
 LUMPMASS                        No
 MODIFIEDEXPLEULER               Yes
 LINEAR_SOLVER                   1
-GEOMETRY                        full
 --------------------------------------------------------------------SOLVER 1
 SOLVER                          UMFPACK
 AZSOLVE                         GMRES
 AZPREC                          ILU
-IFPACKOVERLAP                   0
-IFPACKGFILL                     0
-IFPACKCOMBINE                   Add
 AZSUB                           5000
 AZCONV                          AZ_r0
 AZOUTPUT                        0
@@ -110,24 +105,19 @@ COMPONENT 0 SYMBOLIC_FUNCTION_OF_SPACE_TIME 0
 COMPONENT 1 SYMBOLIC_FUNCTION_OF_SPACE_TIME 0
 COMPONENT 2 SYMBOLIC_FUNCTION_OF_SPACE_TIME atan(x/y)
 ----------------------------------------------DESIGN SURF NEUMANN CONDITIONS
-DSURF                           1
-E 3 - NUMDOF 3 ONOFF 1 0 0 VAL -13332.2668 0.0 0.0 FUNCT 0 0 0 TYPE orthopressure
+E 3 NUMDOF 3 ONOFF 1 0 0 VAL -13332.2668 0.0 0.0 FUNCT 0 0 0 TYPE orthopressure
 ----------------------------------------------DESIGN POINT DIRICH CONDITIONS
-DPOINT                          1
-E 1 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 1 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 -----------------------------------------------DESIGN LINE DIRICH CONDITIONS
-DLINE                           1
-E 1 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 1 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 -----------------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF                           4
-E 1 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
-E 2 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
-E 4 - NUMDOF 3 ONOFF 1 0 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 1 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 2 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 4 NUMDOF 3 ONOFF 1 0 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 //E 5 - NUMDOF 3 ONOFF 0 0 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
-E 6 - NUMDOF 3 ONOFF 1 0 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 6 NUMDOF 3 ONOFF 1 0 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 -----------------------------------------------DESIGN SURF LOCSYS CONDITIONS
-DSURF                           1
-E 4 - ROTANGLE 0.0 0.0 -1.0 FUNCT 0 0 1 USEUPDATEDNODEPOS 0 USECONSISTENTNODENORMAL 0
+E 4 ROTANGLE 0.0 0.0 -1.0 FUNCT 0 0 1 USEUPDATEDNODEPOS 0 USECONSISTENTNODENORMAL 0
 -------------------------------------------------RESULT DESCRIPTION
 STRUCTURE DIS structure NODE 1261 QUANTITY dispy VALUE 1.51871776697976127e-04 TOLERANCE 1e-8
 ---------------------------------------------------------DNODE-NODE TOPOLOGY

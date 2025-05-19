@@ -17,7 +17,7 @@
 #include <memory>
 
 // Forward declarations.
-class Epetra_Map;
+class Map;
 class Epetra_FEVector;
 
 FOUR_C_NAMESPACE_OPEN
@@ -44,7 +44,7 @@ namespace LinAlg
 }  // namespace LinAlg
 
 
-namespace CONSTRAINTS::EMBEDDEDMESH
+namespace Constraints::EmbeddedMesh
 {
   class SolidInteractionPair;
 
@@ -78,13 +78,13 @@ namespace CONSTRAINTS::EMBEDDEDMESH
     /**
      * \brief Standard Constructor
      *
-     * @params discret (in) Pointer to the discretization.
-     * @params displacement_vector (in) global displacement vector.
-     * @params start_value_lambda_gid (in) Start value for the Lagrange multiplier global IDs.
+     * @param discret (in) Pointer to the discretization.
+     * @param displacement_vector (in) global displacement vector.
+     * @param start_value_lambda_gid (in) Start value for the Lagrange multiplier global IDs.
      */
     SolidToSolidMortarManager(std::shared_ptr<Core::FE::Discretization>& discret,
         const Core::LinAlg::Vector<double>& displacement_vector,
-        CONSTRAINTS::EMBEDDEDMESH::EmbeddedMeshParams& embedded_mesh_coupling_params,
+        Constraints::EmbeddedMesh::EmbeddedMeshParams& embedded_mesh_coupling_params,
         std::shared_ptr<Core::IO::VisualizationManager> visualization_manager,
         int start_value_lambda_gid);
 
@@ -101,7 +101,7 @@ namespace CONSTRAINTS::EMBEDDEDMESH
      * @param lambda_row (out) Standard vector with the global IDs of the Lagrange multipliers for
      * this pair.
      */
-    void location_vector(const CONSTRAINTS::EMBEDDEDMESH::SolidInteractionPair* interaction_pair,
+    void location_vector(const Constraints::EmbeddedMesh::SolidInteractionPair* interaction_pair,
         std::vector<int>& lambda_row) const;
 
     /**
@@ -209,7 +209,7 @@ namespace CONSTRAINTS::EMBEDDEDMESH
      * timestep (to be more precise: only once for each set of contact pairs. If they do not
      * change between timesteps and do not switch rank, we can keep the created maps).
      *
-     * @params displacement_vector (in) global displacement vector.
+     * @param displacement_vector (in) global displacement vector.
      */
     void set_local_maps(const Core::LinAlg::Vector<double>& displacement_vector);
 
@@ -229,7 +229,7 @@ namespace CONSTRAINTS::EMBEDDEDMESH
     bool is_global_maps_build_;
 
     //! Embedded mesh parameters.
-    CONSTRAINTS::EMBEDDEDMESH::EmbeddedMeshParams embedded_mesh_coupling_params_;
+    Constraints::EmbeddedMesh::EmbeddedMeshParams embedded_mesh_coupling_params_;
 
     //! Vector to background row elements that are cut
     std::vector<Core::Elements::Element*> cut_elements_col_vector_;
@@ -244,16 +244,16 @@ namespace CONSTRAINTS::EMBEDDEDMESH
     unsigned int n_lambda_node_ = 0;
 
     //! Row map of the additional Lagrange multiplier DOFs.
-    std::shared_ptr<Epetra_Map> lambda_dof_rowmap_;
+    std::shared_ptr<Core::LinAlg::Map> lambda_dof_rowmap_;
 
     //! Column map of the additional Lagrange multiplier DOFs.
-    std::shared_ptr<Epetra_Map> lambda_dof_colmap_;
+    std::shared_ptr<Core::LinAlg::Map> lambda_dof_colmap_;
 
     //! Row map of the solid boundary layer DOFs.
-    std::shared_ptr<Epetra_Map> boundary_layer_interface_dof_rowmap_;
+    std::shared_ptr<Core::LinAlg::Map> boundary_layer_interface_dof_rowmap_;
 
     //! Row map of the solid background DOFs.
-    std::shared_ptr<Epetra_Map> background_dof_rowmap_;
+    std::shared_ptr<Core::LinAlg::Map> background_dof_rowmap_;
 
     //! Multivector that connects the global node IDs with the Lagrange multiplier DOF IDs.
     //! The global row ID of the multi vector is the global ID of the node that a Lagrange
@@ -289,12 +289,12 @@ namespace CONSTRAINTS::EMBEDDEDMESH
     std::shared_ptr<Epetra_FEVector> global_active_lambda_ = nullptr;
 
     //! Vector with all contact pairs to be evaluated by this mortar manager.
-    std::vector<std::shared_ptr<CONSTRAINTS::EMBEDDEDMESH::SolidInteractionPair>>
+    std::vector<std::shared_ptr<Constraints::EmbeddedMesh::SolidInteractionPair>>
         embedded_mesh_solid_pairs_;
 
     std::shared_ptr<Core::IO::VisualizationManager> visualization_manager_;
   };
-}  // namespace CONSTRAINTS::EMBEDDEDMESH
+}  // namespace Constraints::EmbeddedMesh
 
 FOUR_C_NAMESPACE_CLOSE
 #endif

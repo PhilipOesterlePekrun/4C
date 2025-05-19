@@ -15,6 +15,8 @@
 #include "4C_particle_interaction_sph_equationofstate_bundle.hpp"
 #include "4C_utils_exceptions.hpp"
 
+#include <Teuchos_StandardParameterEntryValidators.hpp>
+
 FOUR_C_NAMESPACE_OPEN
 
 /*---------------------------------------------------------------------------*
@@ -122,8 +124,8 @@ void ParticleInteraction::SPHPhaseChangeBase::setup(
   // safety check
   for (const auto& type_i : {belowphase_, abovephase_})
     if (not particlecontainerbundle_->get_particle_types().count(type_i))
-      FOUR_C_THROW("no particle container for particle type '%s' found!",
-          PARTICLEENGINE::enum_to_type_name(type_i).c_str());
+      FOUR_C_THROW("no particle container for particle type '{}' found!",
+          PARTICLEENGINE::enum_to_type_name(type_i));
 }
 
 void ParticleInteraction::SPHPhaseChangeBase::evaluate_phase_change_from_below_to_above_phase(

@@ -228,7 +228,7 @@ FLD::Utils::FluidImpedanceBc::FluidImpedanceBc(
   // vectors and matrices
   //                 local <-> global dof numbering
   // ---------------------------------------------------------------------
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
   impedancetbc_ = Core::LinAlg::create_vector(*dofrowmap, true);
   impedancetbcsysmat_ = std::make_shared<Core::LinAlg::SparseMatrix>(*dofrowmap, 108, false, true);
   // NOTE: do not call impedancetbcsysmat_->Complete() before it is filled, since
@@ -237,7 +237,7 @@ FLD::Utils::FluidImpedanceBc::FluidImpedanceBc(
   // some safety check
   if (not(treetype_ == "windkessel" or treetype_ == "resistive" or
           treetype_ == "pressure_by_funct"))
-    FOUR_C_THROW("TYPE %s not supported!", treetype_.c_str());
+    FOUR_C_THROW("TYPE {} not supported!", treetype_);
 
   if (myrank_ == 0)
   {
@@ -296,7 +296,7 @@ void FLD::Utils::FluidImpedanceBc::flow_rate_calculation(const int condid)
 
   // get a vector layout from the discretization to construct matching
   // vectors and matrices local <-> global dof numbering
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   // create vector (+ initialization with zeros)
   std::shared_ptr<Core::LinAlg::Vector<double>> flowrates =
@@ -366,7 +366,7 @@ void FLD::Utils::FluidImpedanceBc::calculate_impedance_tractions_and_update_resi
     pressure = 0.0;
     Q_np_fac = 0.0;
 
-    FOUR_C_THROW("Treetype %s not supported!", treetype_.c_str());
+    FOUR_C_THROW("Treetype {} not supported!", treetype_);
   }
 
   // save pressure value
@@ -384,7 +384,7 @@ void FLD::Utils::FluidImpedanceBc::calculate_impedance_tractions_and_update_resi
   //    "<<pressure<<std::endl;
 
 
-  impedancetbc_->PutScalar(0.0);
+  impedancetbc_->put_scalar(0.0);
 
   discret_->evaluate_condition(eleparams, impedancetbc_, "ImpedanceCond", condid);
 
@@ -400,7 +400,7 @@ void FLD::Utils::FluidImpedanceBc::calculate_impedance_tractions_and_update_resi
   if (not impedancetbcsysmat_->filled())
   {
     // calculate dQ/du = ( \phi o n )_Gamma
-    const Epetra_Map* dofrowmap = discret_->dof_row_map();
+    const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
     std::shared_ptr<Core::LinAlg::Vector<double>> dQdu =
         Core::LinAlg::create_vector(*dofrowmap, true);
 
@@ -411,7 +411,7 @@ void FLD::Utils::FluidImpedanceBc::calculate_impedance_tractions_and_update_resi
     discret_->evaluate_condition(eleparams2, dQdu, "ImpedanceCond", condid);
 
     // now move dQdu to one proc
-    std::shared_ptr<Epetra_Map> dofrowmapred = Core::LinAlg::allreduce_e_map(*dofrowmap);
+    std::shared_ptr<Core::LinAlg::Map> dofrowmapred = Core::LinAlg::allreduce_e_map(*dofrowmap);
     Core::LinAlg::Vector<double> dQdu_full(*dofrowmapred, true);
 
     Core::LinAlg::export_to(*dQdu, dQdu_full);  //!!! add off proc components
@@ -424,13 +424,13 @@ void FLD::Utils::FluidImpedanceBc::calculate_impedance_tractions_and_update_resi
 
     const double tfaclhs = eleparams2.get<double>("tfaclhs", 0.0);
 
-    for (int lid = 0; lid < dQdu->MyLength(); lid++)
+    for (int lid = 0; lid < dQdu->local_length(); lid++)
     {
       const int gid = dofrowmap->GID(lid);
       const double val = (*dQdu)[lid];
       if (abs(val) > 1e-15)
       {
-        for (int lid2 = 0; lid2 < dQdu_full.MyLength(); lid2++)
+        for (int lid2 = 0; lid2 < dQdu_full.local_length(); lid2++)
         {
           const int gid2 = dofrowmapred->GID(lid2);
           const double val2 = (dQdu_full)[lid2];
@@ -457,7 +457,7 @@ void FLD::Utils::FluidImpedanceBc::calculate_impedance_tractions_and_update_resi
   // ---------------------------------------------------------------------//
 
   // Apply traction vector to fluid residual
-  residual.Update(1.0, *impedancetbc_, 1.0);
+  residual.update(1.0, *impedancetbc_, 1.0);
 
   // Add linearisation to fluid sysmat
   sysmat.add(*impedancetbcsysmat_, false, Q_np_fac, 1.0);

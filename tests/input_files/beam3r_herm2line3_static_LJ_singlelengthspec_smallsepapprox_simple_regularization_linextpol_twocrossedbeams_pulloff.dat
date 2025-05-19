@@ -61,12 +61,12 @@ REPARTITIONSTRATEGY             Everydt
 --------------------------------------------------------------BEAM POTENTIAL
 POT_LAW_PREFACTOR               -2.356194490192345e-7 1.8948417228819560e-24
 POT_LAW_EXPONENT                6.0 12.0
-BEAMPOTENTIAL_TYPE              Volume
-STRATEGY                        SingleLengthSpecific_SmallSepApprox_Simple
-REGULARIZATION_TYPE             linear_extrapolation
+TYPE                            volume
+STRATEGY                        single_length_specific_small_separations_simple
+REGULARIZATION_TYPE             linear
 REGULARIZATION_SEPARATION       8.0e-4
-NUM_INTEGRATION_SEGMENTS        10
-NUM_GAUSSPOINTS                 50
+N_INTEGRATION_SEGMENTS          10
+N_GAUSS_POINTS                  50
 CUTOFF_RADIUS                   1.0e-1
 ----------------------------------BEAM POTENTIAL/RUNTIME VTK OUTPUT
 VTK_OUTPUT_BEAM_POTENTIAL       yes
@@ -76,15 +76,13 @@ FORCES                          yes
 MOMENTS                         yes
 WRITE_UIDS                      yes
 --------------------------------DESIGN LINE BEAM POTENTIAL CHARGE CONDITIONS
-DLINE 4
-E 1 - POTLAW 1 VAL 1.0 FUNCT none
-E 2 - POTLAW 1 VAL 1.0 FUNCT none
-E 1 - POTLAW 2 VAL 1.0 FUNCT none
-E 2 - POTLAW 2 VAL 1.0 FUNCT none
+E 1 POTLAW 1 VAL 1.0 FUNCT none
+E 2 POTLAW 1 VAL 1.0 FUNCT none
+E 1 POTLAW 2 VAL 1.0 FUNCT none
+E 2 POTLAW 2 VAL 1.0 FUNCT none
 ------------------------------------DESIGN POINT DIRICH CONDITIONS
-DPOINT 2
-E 1 - NUMDOF 9 ONOFF 1 1 1 1 1 1 0 0 0 VAL 0.0 0.0 -0.5 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 1 0 0 0 0 0 0 TAG monitor_reaction
-E 2 - NUMDOF 9 ONOFF 1 1 1 1 1 1 0 0 0 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0 0 TAG monitor_reaction
+E 1 NUMDOF 9 ONOFF 1 1 1 1 1 1 0 0 0 VAL 0.0 0.0 -0.5 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 1 0 0 0 0 0 0 TAG monitor_reaction
+E 2 NUMDOF 9 ONOFF 1 1 1 1 1 1 0 0 0 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0 0 TAG monitor_reaction
 -------------------------------------------------------------FUNCT1
 SYMBOLIC_FUNCTION_OF_SPACE_TIME t
 -----------------------------------------------DNODE-NODE TOPOLOGY
@@ -146,9 +144,9 @@ STRUCTURE DIS structure NODE  9 QUANTITY dispz VALUE  3.09305598697295833e-02 TO
 STRUCTURE DIS structure NODE 18 QUANTITY dispx VALUE  9.85925985805701371e-02 TOLERANCE 1e-10
 STRUCTURE DIS structure NODE 18 QUANTITY dispy VALUE  2.44211955974859944e-02 TOLERANCE 1e-10
 STRUCTURE DIS structure NODE 18 QUANTITY dispz VALUE -2.80910477432726624e-01 TOLERANCE 1e-10
-STRUCTURE SPECIAL QUANTITY beam_interaction_potential VALUE -1.32487944857103e-05 TOLERANCE 1e-10
-STRUCTURE SPECIAL QUANTITY num_iter_step_1 VALUE 7.0 TOLERANCE 1.0e-20
-STRUCTURE SPECIAL QUANTITY num_iter_step_2 VALUE 7.0 TOLERANCE 1.0e-20
-STRUCTURE SPECIAL QUANTITY num_iter_step_3 VALUE 7.0 TOLERANCE 1.0e-20
-STRUCTURE SPECIAL QUANTITY num_iter_step_4 VALUE 8.0 TOLERANCE 1.0e-20
-STRUCTURE SPECIAL QUANTITY num_iter_step_5 VALUE 9.0 TOLERANCE 1.0e-20
+STRUCTURE SPECIAL true QUANTITY beam_interaction_potential VALUE -1.32487944857103e-05 TOLERANCE 1e-10
+STRUCTURE SPECIAL true QUANTITY num_iter_step_1 VALUE 7.0 TOLERANCE 1.0e-20
+STRUCTURE SPECIAL true QUANTITY num_iter_step_2 VALUE 7.0 TOLERANCE 1.0e-20
+STRUCTURE SPECIAL true QUANTITY num_iter_step_3 VALUE 7.0 TOLERANCE 1.0e-20
+STRUCTURE SPECIAL true QUANTITY num_iter_step_4 VALUE 8.0 TOLERANCE 1.0e-20
+STRUCTURE SPECIAL true QUANTITY num_iter_step_5 VALUE 9.0 TOLERANCE 1.0e-20

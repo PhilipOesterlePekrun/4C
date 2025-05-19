@@ -30,7 +30,7 @@ NLNSOL               fullnewton
 TIMESTEP             0.01
 NUMSTEP              200
 MAXTIME              0.24
-DAMPING              Yes
+DAMPING              Rayleigh
 M_DAMP               0.0005
 K_DAMP               0.0005
 TOLRES               1.0E-8
@@ -60,7 +60,7 @@ INTTYPE              segments
 LM_DUAL_CONSISTENT   all
 ALGORITHM            mortar
 ---------------------------MORTAR COUPLING/PARALLEL REDISTRIBUTION
-PARALLEL_REDIST      none
+PARALLEL_REDIST      None
 ----------------------------------------------------------SOLVER 1
 NAME                 Structure_Solver
 SOLVER               Superlu
@@ -77,21 +77,18 @@ VARIABLE 0 NAME a TYPE linearinterpolation NUMPOINTS 3 TIMES 0 0.12 0.36 VALUES 
 COMPONENT 0 SYMBOLIC_FUNCTION_OF_SPACE_TIME a
 VARIABLE 0 NAME a TYPE linearinterpolation NUMPOINTS 3 TIMES 0 0.12 0.36 VALUES 0 0 0.44
 -------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF  2
 // dbc_xy_fixed_line
-E 1 - NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 1 NUMDOF 3 ONOFF 1 1 1 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 // grav
-E 2 - NUMDOF 3 ONOFF 1 1 1 VAL 1.0 0.0 -1.0 FUNCT 2 0 1
+E 2 NUMDOF 3 ONOFF 1 1 1 VAL 1.0 0.0 -1.0 FUNCT 2 0 1
 --------------------------DESIGN SURF MORTAR CONTACT CONDITIONS 3D
-DSURF  2
 // slave
-E 3 - InterfaceID 1 Side Slave Initialization Inactive FrCoeffOrBound 0.2
+E 3 InterfaceID 1 Side Slave Initialization Inactive FrCoeffOrBound 0.2
 // master
-E 4 - InterfaceID 1 Side Master Initialization Inactive FrCoeffOrBound 0.2
+E 4 InterfaceID 1 Side Master Initialization Inactive FrCoeffOrBound 0.2
 -----------------------------DESIGN LINE MORTAR EDGE CONDITIONS 3D
-DLINE  1
 // line
-E 1 -
+E 1
 -----------------------------------------------DLINE-NODE TOPOLOGY
 NODE    199 DLINE 1
 NODE    200 DLINE 1

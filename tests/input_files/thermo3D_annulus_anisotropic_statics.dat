@@ -4,12 +4,6 @@ PROBLEMTYPE                     Thermo
 VERBOSITY                       standard
 ----------------------------------------------IO/RUNTIME VTK OUTPUT
 OUTPUT_DATA_FORMAT              ascii
----------------------------------------IO/RUNTIME VTK OUTPUT/THERMO
-OUTPUT_THERMO                   Yes
-TEMPERATURE                     Yes
-ELEMENT_OWNER                   Yes
-ELEMENT_GID                     Yes
-NODE_GID                        Yes
 ----------------------------------------------------THERMAL DYNAMIC
 DIVERCONT                       stop
 DYNAMICTYPE                     Statics
@@ -28,6 +22,15 @@ NORM_TEMP                       Abs
 PREDICT                         ConstTemp
 TOLRES                          1e-08
 TOLTEMP                         1e-08
+---------------------------------THERMAL DYNAMIC/RUNTIME VTK OUTPUT
+OUTPUT_THERMO                   Yes
+TEMPERATURE                     Yes
+ELEMENT_OWNER                   Yes
+ELEMENT_GID                     Yes
+NODE_GID                        Yes
+---------------------------------THERMAL DYNAMIC/RUNTIME CSV OUTPUT
+OUTPUT_THERMO                   Yes
+ENERGY                          Yes
 -----------------------------------------------------------SOLVER 1
 SOLVER                          Belos
 AZSOLVE                         GMRES
@@ -43,11 +46,10 @@ COMPONENT 0 SYMBOLIC_FUNCTION_OF_SPACE_TIME 100
 -------------------------------------------------------------FUNCT2
 COMPONENT 0 SYMBOLIC_FUNCTION_OF_SPACE_TIME 1
 ----------------------------------------DESIGN SURF DIRICH CONDITIONS
-DSURF 2
 // dirichlet_surf_inner
-E 1 - NUMDOF 1 ONOFF 1 VAL 1.0 FUNCT 1
+E 1 NUMDOF 1 ONOFF 1 VAL 1.0 FUNCT 1
 // dirichlet_surf_outer
-E 2 - NUMDOF 1 ONOFF 1 VAL 1.0 FUNCT 2
+E 2 NUMDOF 1 ONOFF 1 VAL 1.0 FUNCT 2
 -----------------------------------------------DSURF-NODE TOPOLOGY
 NODE      1 DSURFACE 1
 NODE      2 DSURFACE 1

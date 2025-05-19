@@ -186,13 +186,10 @@ bool Cut::Intersection<probdim, edgetype, sidetype, debug, dimedge, dimside, num
     {
       FOUR_C_THROW(
           "The given side element type is currently unsupported! \n"
-          "( dim = %d | sideType = %s ",
+          "( dim = {} | sideType = {} ",
           dimside, Core::FE::cell_type_to_string(sidetype).c_str());
-      exit(EXIT_FAILURE);
     }
   }
-  // this cannot be reached
-  exit(EXIT_FAILURE);
 }
 
 /*--------------------------------------------------------------------------*
@@ -269,7 +266,7 @@ bool Cut::Intersection<probdim, edgetype, sidetype, debug, dimedge, dimside, num
   FOUR_C_THROW("Is this used?");
   if (num_nodes_edge != 2 or num_nodes_side != 2)
     FOUR_C_THROW(
-        "Two line2 elements are expected, but instead a %s (edge) and %s (side) "
+        "Two line2 elements are expected, but instead a {} (edge) and {} (side) "
         "element were given.",
         Core::FE::cell_type_to_string(edgetype).c_str(),
         Core::FE::cell_type_to_string(sidetype).c_str());
@@ -314,7 +311,8 @@ bool Cut::Intersection<probdim, edgetype, sidetype, debug, dimedge, dimside, num
       if (withinlimits)
       {
         side_xyz_corner_intersect.push_back(e_cornerpoint);
-        side_rs_corner_intersect.push_back(Core::LinAlg::Matrix<dimside, 1>(true));
+        side_rs_corner_intersect.push_back(
+            Core::LinAlg::Matrix<dimside, 1>(Core::LinAlg::Initialization::zero));
         pos->local_coordinates(*(side_rs_corner_intersect.end() - 1));
       }
     }
@@ -459,13 +457,14 @@ Cut::ParallelIntersectionStatus Cut::Intersection<probdim, edgetype, sidetype, d
 
   bool zeroarea = false;
   // local coordinates are inside element
-  Core::LinAlg::Matrix<2, 1, bool> lineendpoint_within_surfacelimits(true);
+  Core::LinAlg::Matrix<2, 1, bool> lineendpoint_within_surfacelimits(
+      Core::LinAlg::Initialization::zero);
   // point is really inside element (normal distance = 0)
-  Core::LinAlg::Matrix<2, 1, bool> lineendpoint_in_surface(true);
+  Core::LinAlg::Matrix<2, 1, bool> lineendpoint_in_surface(Core::LinAlg::Initialization::zero);
   Core::LinAlg::Matrix<2, 1> lineendpoint_dist;
   Core::LinAlg::Matrix<2, 1> lineendpoint_tol;
-  Core::LinAlg::Matrix<2, 1, bool> lineendpoint_conv(true);
-  Core::LinAlg::Matrix<dimside + dimedge, 2> lineendpoint_xsi(true);
+  Core::LinAlg::Matrix<2, 1, bool> lineendpoint_conv(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<dimside + dimedge, 2> lineendpoint_xsi(Core::LinAlg::Initialization::zero);
   std::vector<std::vector<int>> lineendpoint_touched_edges(2);
   std::vector<Kernel::PointOnSurfaceLoc> lineendpoint_location_kernel(2);
 
@@ -479,7 +478,7 @@ Cut::ParallelIntersectionStatus Cut::Intersection<probdim, edgetype, sidetype, d
       id_end = 1;
     else
       FOUR_C_THROW(
-          "Trying to skip id = %d of the edge nodes. You can only skip BeginNode(0) or "
+          "Trying to skip id = {} of the edge nodes. You can only skip BeginNode(0) or "
           "EndNode(1)\n",
           skip_id);
 
@@ -887,7 +886,7 @@ void Cut::Intersection<probdim, edgetype, sidetype, debug, dimedge, dimside, num
   catch (Core::Exception& e)
   {
     FOUR_C_THROW(
-        "Cautch error in the cut_intersection:  \n%s . Current tolerance must be increased",
+        "Cautch error in the cut_intersection:  \n{} . Current tolerance must be increased",
         e.what_with_stacktrace().c_str());
   }
 }
@@ -924,7 +923,7 @@ bool Cut::Intersection<probdim, edgetype, sidetype, debug, dimedge, dimside, num
         }
         FOUR_C_THROW(
             "compute_edge_side_intersection for Quad4 didn't converge, "
-            "but compute_edge_tri3_intersection for triangulation (id=%d) is inside the Element!",
+            "but compute_edge_tri3_intersection for triangulation (id={}) is inside the Element!",
             tri);
       }
     }
@@ -968,7 +967,7 @@ bool Cut::Intersection<probdim, edgetype, sidetype, debug, dimedge, dimside, num
       {
         generate_gmsh_dump();
         FOUR_C_THROW(
-            "Cautch error in cut kernel. Current tolerance must be increased! Error is: \n %s ",
+            "Cautch error in cut kernel. Current tolerance must be increased! Error is: \n {} ",
             e.what_with_stacktrace().c_str());
       }
 
@@ -1018,7 +1017,7 @@ bool Cut::Intersection<probdim, edgetype, sidetype, debug, dimedge, dimside, num
         {
           generate_gmsh_dump();
           FOUR_C_THROW(
-              "Cautch error in cut kernel. Current tolerance must be increased! Error is: \n %s ",
+              "Cautch error in cut kernel. Current tolerance must be increased! Error is: \n {} ",
               e.what_with_stacktrace().c_str());
         }
         if (tri_status[tri] != intersect_newton_failed)
@@ -1099,7 +1098,7 @@ bool Cut::Intersection<probdim, edgetype, sidetype, debug, dimedge, dimside, num
             }
             generate_gmsh_dump();
 
-            FOUR_C_THROW(err_msg.str());
+            FOUR_C_THROW("{}", err_msg.str());
           }
           else
           {
@@ -1184,7 +1183,7 @@ bool Cut::Intersection<probdim, edgetype, sidetype, debug, dimedge, dimside, num
     {
       generate_gmsh_dump();
       FOUR_C_THROW(
-          "Cautch error in cut kernel. Current tolerance must be increased! Error is: \n %s ",
+          "Cautch error in cut kernel. Current tolerance must be increased! Error is: \n {} ",
           e.what_with_stacktrace().c_str());
     }
 
@@ -1284,8 +1283,8 @@ bool Cut::Intersection<probdim, edgetype, sidetype, debug, dimedge, dimside, num
       smallestedge = 2;
   }
 
-  Core::LinAlg::Matrix<3, 1> v1(true);
-  Core::LinAlg::Matrix<3, 1> v2(true);
+  Core::LinAlg::Matrix<3, 1> v1(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 1> v2(Core::LinAlg::Initialization::zero);
   v1.update(1.0, surfpoints[(smallestedge + 1) % 3], -1.0, surfpoints[smallestedge]);
   v2.update(1.0, surfpoints[(smallestedge + 2) % 3], -1.0, surfpoints[smallestedge]);
 
@@ -1294,7 +1293,7 @@ bool Cut::Intersection<probdim, edgetype, sidetype, debug, dimedge, dimside, num
     (get_edge().nodes()[nid])->coordinates(actpoint.data());
     linepoints.push_back(actpoint);
   }
-  Core::LinAlg::Matrix<3, 1> v3(true);
+  Core::LinAlg::Matrix<3, 1> v3(Core::LinAlg::Initialization::zero);
   v3.update(1.0, linepoints[1], -1.0, linepoints[0]);
 
   bool overlap = false;  // we have an overlap of the refined bounding boxes?
@@ -1398,11 +1397,10 @@ std::shared_ptr<Cut::IntersectionBase> Cut::IntersectionFactory::create_intersec
     default:
       FOUR_C_THROW(
           "Unsupported edgeType! If meaningful, add your edgeType here. \n"
-          "Given edgeType = %s",
+          "Given edgeType = {}",
           Core::FE::cell_type_to_string(edge_type).c_str());
       break;
   }
-  exit(EXIT_FAILURE);
 }
 
 

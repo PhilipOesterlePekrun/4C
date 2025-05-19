@@ -10,6 +10,7 @@
 #include "4C_comm_mpi_utils.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_node.hpp"
+#include "4C_io_input_parameter_container.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_linear_solver_method_linalg.hpp"
 #include "4C_structure_timint.hpp"
@@ -50,8 +51,7 @@ void StruResultTest::test_node(
 
   if (isnodeofanybody == 0)
   {
-    FOUR_C_THROW(
-        "Node %d does not belong to discretization %s", node + 1, strudisc_->name().c_str());
+    FOUR_C_THROW("Node {} does not belong to discretization {}", node + 1, strudisc_->name());
   }
   else
   {
@@ -69,7 +69,7 @@ void StruResultTest::test_node(
       // test displacements or pressure
       if (dis_ != nullptr)
       {
-        const Epetra_BlockMap& disnpmap = dis_->Map();
+        const Epetra_BlockMap& disnpmap = dis_->get_block_map();
         int idx = -1;
         if (position == "dispx")
           idx = 0;
@@ -85,8 +85,8 @@ void StruResultTest::test_node(
           unknownpos = false;
           int lid = disnpmap.LID(strudisc_->dof(0, actnode, idx));
           if (lid < 0)
-            FOUR_C_THROW("You tried to test %s on nonexistent dof %d on node %d", position.c_str(),
-                idx, actnode->id());
+            FOUR_C_THROW("You tried to test {} on nonexistent dof {} on node {}", position, idx,
+                actnode->id());
           result = (*dis_)[lid];
         }
       }
@@ -94,7 +94,7 @@ void StruResultTest::test_node(
       // test velocities
       if (vel_ != nullptr)
       {
-        const Epetra_BlockMap& velnpmap = vel_->Map();
+        const Epetra_BlockMap& velnpmap = vel_->get_block_map();
         int idx = -1;
         if (position == "velx")
           idx = 0;
@@ -108,8 +108,8 @@ void StruResultTest::test_node(
           unknownpos = false;
           int lid = velnpmap.LID(strudisc_->dof(0, actnode, idx));
           if (lid < 0)
-            FOUR_C_THROW("You tried to test %s on nonexistent dof %d on node %d", position.c_str(),
-                idx, actnode->id());
+            FOUR_C_THROW("You tried to test {} on nonexistent dof {} on node {}", position, idx,
+                actnode->id());
           result = (*vel_)[lid];
         }
       }
@@ -117,7 +117,7 @@ void StruResultTest::test_node(
       // test accelerations
       if (acc_ != nullptr)
       {
-        const Epetra_BlockMap& accnpmap = acc_->Map();
+        const Epetra_BlockMap& accnpmap = acc_->get_block_map();
         int idx = -1;
         if (position == "accx")
           idx = 0;
@@ -131,15 +131,14 @@ void StruResultTest::test_node(
           unknownpos = false;
           int lid = accnpmap.LID(strudisc_->dof(0, actnode, idx));
           if (lid < 0)
-            FOUR_C_THROW("You tried to test %s on nonexistent dof %d on node %d", position.c_str(),
-                idx, actnode->id());
+            FOUR_C_THROW("You tried to test {} on nonexistent dof {} on node {}", position, idx,
+                actnode->id());
           result = (*acc_)[lid];
         }
       }
 
       // catch position std::strings, which are not handled by structure result test
-      if (unknownpos)
-        FOUR_C_THROW("Quantity '%s' not supported in structure testing", position.c_str());
+      if (unknownpos) FOUR_C_THROW("Quantity '{}' not supported in structure testing", position);
 
       // compare values
       const int err = compare_values(result, "NODE", container);
@@ -181,7 +180,7 @@ double StruResultTest::get_special_result_for_testing(const std::string& quantit
   else if (quantity == "lin_iters_contact")  // number of iterations in contact linear solver
     result = static_cast<double>(timeintegrator_->contact_solver()->get_num_iters());
   else  // Catch unknown quantity strings
-    FOUR_C_THROW("Quantity '%s' not supported in structure result test!", quantity.c_str());
+    FOUR_C_THROW("Quantity '{}' not supported in structure result test!", quantity);
 
   return result;
 }

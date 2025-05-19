@@ -22,6 +22,7 @@
 #include "4C_poroelast_scatra_utils.hpp"
 #include "4C_scatra_ele_action.hpp"
 #include "4C_scatra_timint_implicit.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_parameter_list.hpp"
 
 #include <Teuchos_TimeMonitor.hpp>
@@ -199,11 +200,11 @@ void PoroElastScaTra::PoroScatraMono::solve()
 
   // incremental solution vector with length of all dofs
   iterinc_ = Core::LinAlg::create_vector(*dof_row_map(), true);
-  iterinc_->PutScalar(0.0);
+  iterinc_->put_scalar(0.0);
 
   // a zero vector of full length
   zeros_ = Core::LinAlg::create_vector(*dof_row_map(), true);
-  zeros_->PutScalar(0.0);
+  zeros_->put_scalar(0.0);
 
   //---------------------------------------------- iteration loop
 
@@ -270,7 +271,7 @@ void PoroElastScaTra::PoroScatraMono::solve()
   }
   else if (iter_ >= itermax_)
   {
-    FOUR_C_THROW("Newton unconverged in %d iterations", iter_);
+    FOUR_C_THROW("Newton unconverged in {} iterations", iter_);
   }
 
 }  // Solve()
@@ -336,13 +337,13 @@ void PoroElastScaTra::PoroScatraMono::setup_system()
   poro_field()->setup_system();
 
   // create combined map
-  std::vector<std::shared_ptr<const Epetra_Map>> vecSpaces;
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> vecSpaces;
 
   {
     // vecSpaces.push_back(poro_field()->dof_row_map());
     vecSpaces.push_back(poro_field()->dof_row_map_structure());
     vecSpaces.push_back(poro_field()->dof_row_map_fluid());
-    const Epetra_Map* dofrowmapscatra = (scatra_field()->discretization())->dof_row_map(0);
+    const Core::LinAlg::Map* dofrowmapscatra = (scatra_field()->discretization())->dof_row_map(0);
     vecSpaces.push_back(Core::Utils::shared_ptr_from_ref(*dofrowmapscatra));
   }
 
@@ -355,10 +356,10 @@ void PoroElastScaTra::PoroScatraMono::setup_system()
 
   // build dbc map of monolithic system
   {
-    const std::shared_ptr<const Epetra_Map> porocondmap = poro_field()->combined_dbc_map();
-    const std::shared_ptr<const Epetra_Map> scatracondmap =
+    const std::shared_ptr<const Core::LinAlg::Map> porocondmap = poro_field()->combined_dbc_map();
+    const std::shared_ptr<const Core::LinAlg::Map> scatracondmap =
         scatra_field()->dirich_maps()->cond_map();
-    std::shared_ptr<const Epetra_Map> dbcmap =
+    std::shared_ptr<const Core::LinAlg::Map> dbcmap =
         Core::LinAlg::merge_map(porocondmap, scatracondmap, false);
 
     // Finally, create the global FSI Dirichlet map extractor
@@ -372,8 +373,8 @@ void PoroElastScaTra::PoroScatraMono::setup_system()
           *extractor(), *extractor(), 81, false, true);
 
   {
-    std::vector<std::shared_ptr<const Epetra_Map>> scatravecSpaces;
-    const Epetra_Map* dofrowmapscatra = (scatra_field()->discretization())->dof_row_map(0);
+    std::vector<std::shared_ptr<const Core::LinAlg::Map>> scatravecSpaces;
+    const Core::LinAlg::Map* dofrowmapscatra = (scatra_field()->discretization())->dof_row_map(0);
     scatravecSpaces.push_back(Core::Utils::shared_ptr_from_ref(*dofrowmapscatra));
     scatrarowdofmap_.setup(*dofrowmapscatra, scatravecSpaces);
   }
@@ -441,10 +442,10 @@ void PoroElastScaTra::PoroScatraMono::setup_system_matrix()
   mat_pp->un_complete();
 
   // assign matrix block
-  systemmatrix_->assign(0, 0, Core::LinAlg::View, mat_pp->matrix(0, 0));
-  systemmatrix_->assign(0, 1, Core::LinAlg::View, mat_pp->matrix(0, 1));
-  systemmatrix_->assign(1, 0, Core::LinAlg::View, mat_pp->matrix(1, 0));
-  systemmatrix_->assign(1, 1, Core::LinAlg::View, mat_pp->matrix(1, 1));
+  systemmatrix_->assign(0, 0, Core::LinAlg::DataAccess::View, mat_pp->matrix(0, 0));
+  systemmatrix_->assign(0, 1, Core::LinAlg::DataAccess::View, mat_pp->matrix(0, 1));
+  systemmatrix_->assign(1, 0, Core::LinAlg::DataAccess::View, mat_pp->matrix(1, 0));
+  systemmatrix_->assign(1, 1, Core::LinAlg::DataAccess::View, mat_pp->matrix(1, 1));
 
   //----------------------------------------------------------------------
   // 2nd diagonal block (lower right): scatra weighting - scatra solution
@@ -456,7 +457,7 @@ void PoroElastScaTra::PoroScatraMono::setup_system_matrix()
   mat_ss->un_complete();
 
   // assign matrix block
-  systemmatrix_->assign(2, 2, Core::LinAlg::View, *mat_ss);
+  systemmatrix_->assign(2, 2, Core::LinAlg::DataAccess::View, *mat_ss);
 
   // complete scatra block matrix
   systemmatrix_->complete();
@@ -479,8 +480,8 @@ void PoroElastScaTra::PoroScatraMono::setup_system_matrix()
   k_pfs_->un_complete();
 
   // assign matrix block
-  systemmatrix_->assign(0, 2, Core::LinAlg::View, *(k_pss_));
-  systemmatrix_->assign(1, 2, Core::LinAlg::View, *(k_pfs_));
+  systemmatrix_->assign(0, 2, Core::LinAlg::DataAccess::View, *(k_pss_));
+  systemmatrix_->assign(1, 2, Core::LinAlg::DataAccess::View, *(k_pfs_));
 
   //----------------------------------------------------------------------
   // 2nd off-diagonal block (lower left): scatra weighting - poro solution
@@ -499,8 +500,8 @@ void PoroElastScaTra::PoroScatraMono::setup_system_matrix()
   k_spf_->un_complete();
 
   // assign matrix block
-  systemmatrix_->assign(2, 0, Core::LinAlg::View, *(k_sps_));
-  systemmatrix_->assign(2, 1, Core::LinAlg::View, *(k_spf_));
+  systemmatrix_->assign(2, 0, Core::LinAlg::DataAccess::View, *(k_sps_));
+  systemmatrix_->assign(2, 1, Core::LinAlg::DataAccess::View, *(k_spf_));
 
   // complete block matrix
   systemmatrix_->complete();
@@ -522,7 +523,7 @@ void PoroElastScaTra::PoroScatraMono::linear_solve()
     solver_params.lin_tol_better = solveradaptolbetter_;
   }
   // apply Dirichlet BCs to system of equations
-  iterinc_->PutScalar(0.0);  // Useful? depends on solver and more
+  iterinc_->put_scalar(0.0);  // Useful? depends on solver and more
 
   if (directsolve_)
   {
@@ -710,8 +711,8 @@ void PoroElastScaTra::PoroScatraMono::print_newton_iter_header(FILE* ofile)
 
   oss << "------------------------------------------------------------" << std::endl;
   oss << "                   Newton-Raphson Scheme                    " << std::endl;
-  oss << "                NormRES " << vector_norm_string(vectornormfres_);
-  oss << "     NormINC " << vector_norm_string(vectornorminc_) << "                    "
+  oss << "                NormRES " << EnumTools::enum_name(vectornormfres_);
+  oss << "     NormINC " << EnumTools::enum_name(vectornorminc_) << "                    "
       << std::endl;
   oss << "------------------------------------------------------------" << std::endl;
 
@@ -970,7 +971,7 @@ void PoroElastScaTra::PoroScatraMono::build_convergence_norms()
 
 
   //------------------------------------------------------------- build residual increment norms
-  iterinc_->Norm2(&norminc_);
+  iterinc_->norm_2(&norminc_);
 
   // displacement and fluid velocity & pressure incremental vector
   std::shared_ptr<const Core::LinAlg::Vector<double>> interincs;
@@ -1015,7 +1016,7 @@ void PoroElastScaTra::PoroScatraMono::build_convergence_norms()
 /*----------------------------------------------------------------------*
  |                                                         vuong 08/13  |
  *----------------------------------------------------------------------*/
-std::shared_ptr<const Epetra_Map> PoroElastScaTra::PoroScatraMono::dof_row_map() const
+std::shared_ptr<const Core::LinAlg::Map> PoroElastScaTra::PoroScatraMono::dof_row_map() const
 {
   return blockrowdofmap_->full_map();
 }
@@ -1023,7 +1024,7 @@ std::shared_ptr<const Epetra_Map> PoroElastScaTra::PoroScatraMono::dof_row_map()
 /*----------------------------------------------------------------------*
  |                                                         vuong 08/13  |
  *----------------------------------------------------------------------*/
-std::shared_ptr<const Epetra_Map> PoroElastScaTra::PoroScatraMono::combined_dbc_map() const
+std::shared_ptr<const Core::LinAlg::Map> PoroElastScaTra::PoroScatraMono::combined_dbc_map() const
 {
   return dbcmaps_->cond_map();
 }
@@ -1041,9 +1042,9 @@ std::shared_ptr<Core::LinAlg::SparseMatrix> PoroElastScaTra::PoroScatraMono::sys
  | Poroelast_SCATRAicity map together                              vuong 01/12 |
  *----------------------------------------------------------------------*/
 void PoroElastScaTra::PoroScatraMono::set_dof_row_maps(
-    const std::vector<std::shared_ptr<const Epetra_Map>>& maps)
+    const std::vector<std::shared_ptr<const Core::LinAlg::Map>>& maps)
 {
-  std::shared_ptr<Epetra_Map> fullmap = Core::LinAlg::MultiMapExtractor::merge_maps(maps);
+  std::shared_ptr<Core::LinAlg::Map> fullmap = Core::LinAlg::MultiMapExtractor::merge_maps(maps);
 
   // full monolithic-blockmap
   blockrowdofmap_->setup(*fullmap, maps);
@@ -1074,17 +1075,17 @@ void PoroElastScaTra::PoroScatraMono::evaluate_od_block_mat_poro()
   porofluiddis->clear_state();
 
   // set general vector values needed by elements
-  porofluiddis->set_state(0, "dispnp", poro_field()->fluid_field()->dispnp());
-  porofluiddis->set_state(0, "gridv", poro_field()->fluid_field()->grid_vel());
-  porofluiddis->set_state(0, "veln", poro_field()->fluid_field()->veln());
-  porofluiddis->set_state(0, "accnp", poro_field()->fluid_field()->accnp());
-  porofluiddis->set_state(0, "hist", poro_field()->fluid_field()->hist());
+  porofluiddis->set_state(0, "dispnp", *poro_field()->fluid_field()->dispnp());
+  porofluiddis->set_state(0, "gridv", *poro_field()->fluid_field()->grid_vel());
+  porofluiddis->set_state(0, "veln", *poro_field()->fluid_field()->veln());
+  porofluiddis->set_state(0, "accnp", *poro_field()->fluid_field()->accnp());
+  porofluiddis->set_state(0, "hist", *poro_field()->fluid_field()->hist());
 
   poro_field()->fluid_field()->discretization()->set_state(
-      0, "scaaf", poro_field()->fluid_field()->scaaf());
+      0, "scaaf", *poro_field()->fluid_field()->scaaf());
 
-  porofluiddis->set_state(0, "velaf", poro_field()->fluid_field()->velnp());
-  porofluiddis->set_state(0, "velnp", poro_field()->fluid_field()->velnp());
+  porofluiddis->set_state(0, "velaf", *poro_field()->fluid_field()->velnp());
+  porofluiddis->set_state(0, "velnp", *poro_field()->fluid_field()->velnp());
 
   // build specific assemble strategy for the fluid-mechanical system matrix
   // from the point of view of fluid_field:
@@ -1119,9 +1120,9 @@ void PoroElastScaTra::PoroScatraMono::evaluate_od_block_mat_poro()
 
   poro_field()->structure_field()->discretization()->clear_state();
   poro_field()->structure_field()->discretization()->set_state(
-      0, "displacement", poro_field()->structure_field()->dispnp());
+      0, "displacement", *poro_field()->structure_field()->dispnp());
   poro_field()->structure_field()->discretization()->set_state(
-      0, "velocity", poro_field()->structure_field()->velnp());
+      0, "velocity", *poro_field()->structure_field()->velnp());
 
   // build specific assemble strategy for mechanical-fluid system matrix
   // from the point of view of structure_field:
@@ -1157,8 +1158,8 @@ void PoroElastScaTra::PoroScatraMono::evaluate_od_block_mat_scatra()
   sparams_struct.set("total time", time());
 
   scatra_field()->discretization()->clear_state();
-  scatra_field()->discretization()->set_state(0, "hist", scatra_field()->hist());
-  scatra_field()->discretization()->set_state(0, "phinp", scatra_field()->phinp());
+  scatra_field()->discretization()->set_state(0, "hist", *scatra_field()->hist());
+  scatra_field()->discretization()->set_state(0, "phinp", *scatra_field()->phinp());
 
   // build specific assemble strategy for mechanical-fluid system matrix
   // from the point of view of structure_field:
@@ -1190,8 +1191,8 @@ void PoroElastScaTra::PoroScatraMono::evaluate_od_block_mat_scatra()
   sparams_fluid.set("total time", time());
 
   scatra_field()->discretization()->clear_state();
-  scatra_field()->discretization()->set_state(0, "hist", scatra_field()->hist());
-  scatra_field()->discretization()->set_state(0, "phinp", scatra_field()->phinp());
+  scatra_field()->discretization()->set_state(0, "hist", *scatra_field()->hist());
+  scatra_field()->discretization()->set_state(0, "phinp", *scatra_field()->phinp());
 
   // build specific assemble strategy for mechanical-fluid system matrix
   // from the point of view of structure_field:
@@ -1228,23 +1229,22 @@ void PoroElastScaTra::PoroScatraMono::fd_check()
   std::shared_ptr<Core::LinAlg::Vector<double>> iterinc = nullptr;
   iterinc = Core::LinAlg::create_vector(*dof_row_map(), true);
 
-  const int dofs = iterinc->GlobalLength();
+  const int dofs = iterinc->global_length();
   std::cout << "in total " << dofs << " DOFs" << std::endl;
   const double delta = 1e-8;
 
-  iterinc->PutScalar(0.0);
+  iterinc->put_scalar(0.0);
 
-  iterinc->ReplaceGlobalValue(0, 0, delta);
+  iterinc->replace_global_value(0, 0, delta);
 
-  std::shared_ptr<Epetra_CrsMatrix> stiff_approx = nullptr;
-  stiff_approx = Core::LinAlg::create_matrix(*dof_row_map(), 81);
+  auto stiff_approx = std::make_shared<Core::LinAlg::SparseMatrix>(*dof_row_map(), 81);
 
   Core::LinAlg::Vector<double> rhs_old(*dof_row_map(), true);
-  rhs_old.Update(1.0, *rhs_, 0.0);
+  rhs_old.update(1.0, *rhs_, 0.0);
   Core::LinAlg::Vector<double> rhs_copy(*dof_row_map(), true);
 
   std::shared_ptr<Core::LinAlg::SparseMatrix> sparse = systemmatrix_->merge();
-  Core::LinAlg::SparseMatrix sparse_copy(*sparse, Core::LinAlg::Copy);
+  Core::LinAlg::SparseMatrix sparse_copy(*sparse, Core::LinAlg::DataAccess::Copy);
 
 
   const int zeilennr = -1;
@@ -1253,7 +1253,7 @@ void PoroElastScaTra::PoroScatraMono::fd_check()
   {
     if (combined_dbc_map()->MyGID(i))
     {
-      iterinc->ReplaceGlobalValue(i, 0, 0.0);
+      iterinc->replace_global_value(i, 0, 0.0);
     }
 
     if (i == spaltenr)
@@ -1263,9 +1263,9 @@ void PoroElastScaTra::PoroScatraMono::fd_check()
     evaluate(iterinc);
     setup_rhs();
 
-    rhs_copy.Update(1.0, *rhs_, 0.0);
+    rhs_copy.update(1.0, *rhs_, 0.0);
 
-    iterinc_->PutScalar(0.0);  // Useful? depends on solver and more
+    iterinc_->put_scalar(0.0);  // Useful? depends on solver and more
     Core::LinAlg::apply_dirichlet_to_system(
         sparse_copy, *iterinc_, rhs_copy, *zeros_, *combined_dbc_map());
 
@@ -1276,14 +1276,14 @@ void PoroElastScaTra::PoroScatraMono::fd_check()
       std::cout << "rhs_old: " << (rhs_old)[zeilennr] << std::endl;
     }
 
-    rhs_copy.Update(-1.0, rhs_old, 1.0);
-    rhs_copy.Scale(-1.0 / delta);
+    rhs_copy.update(-1.0, rhs_old, 1.0);
+    rhs_copy.scale(-1.0 / delta);
 
     int* index = &i;
     for (int j = 0; j < dofs; ++j)
     {
       double value = (rhs_copy)[j];
-      stiff_approx->InsertGlobalValues(j, 1, &value, index);
+      stiff_approx->insert_global_values(j, 1, &value, index);
 
       if ((j == zeilennr) and (i == spaltenr))
       {
@@ -1314,11 +1314,11 @@ void PoroElastScaTra::PoroScatraMono::fd_check()
       }
     }
 
-    if (not combined_dbc_map()->MyGID(i)) iterinc->ReplaceGlobalValue(i, 0, -delta);
+    if (not combined_dbc_map()->MyGID(i)) iterinc->replace_global_value(i, 0, -delta);
 
-    iterinc->ReplaceGlobalValue(i - 1, 0, 0.0);
+    iterinc->replace_global_value(i - 1, 0, 0.0);
 
-    if (i != dofs - 1) iterinc->ReplaceGlobalValue(i + 1, 0, delta);
+    if (i != dofs - 1) iterinc->replace_global_value(i + 1, 0, delta);
 
     if (i == spaltenr)
       std::cout << "\n******************" << spaltenr + 1 << ". Spalte End!!***************"
@@ -1328,20 +1328,17 @@ void PoroElastScaTra::PoroScatraMono::fd_check()
   evaluate(iterinc);
   setup_rhs();
 
-  stiff_approx->FillComplete();
+  stiff_approx->complete();
 
-  std::shared_ptr<Core::LinAlg::SparseMatrix> stiff_approx_sparse = nullptr;
-  stiff_approx_sparse =
-      std::make_shared<Core::LinAlg::SparseMatrix>(stiff_approx, Core::LinAlg::Copy);
+  auto stiff_approx_sparse = std::make_shared<Core::LinAlg::SparseMatrix>(*stiff_approx);
 
   stiff_approx_sparse->add(sparse_copy, false, -1.0, 1.0);
 
-  std::shared_ptr<Epetra_CrsMatrix> sparse_crs = sparse_copy.epetra_matrix();
+  auto sparse_crs = std::make_shared<Core::LinAlg::SparseMatrix>(sparse_copy);
+  auto error_crs = std::make_shared<Core::LinAlg::SparseMatrix>(*stiff_approx_sparse);
 
-  std::shared_ptr<Epetra_CrsMatrix> error_crs = stiff_approx_sparse->epetra_matrix();
-
-  error_crs->FillComplete();
-  sparse_crs->FillComplete();
+  error_crs->complete();
+  sparse_crs->complete();
 
   bool success = true;
   double error_max_rel = 0.0;
@@ -1361,11 +1358,11 @@ void PoroElastScaTra::PoroScatraMono::fd_check()
           {
             // get error_crs entry ij
             int errornumentries;
-            int errorlength = error_crs->NumGlobalEntries(i);
+            int errorlength = error_crs->num_global_entries(i);
             std::vector<double> errorvalues(errorlength);
             std::vector<int> errorindices(errorlength);
             // int errorextractionstatus =
-            error_crs->ExtractGlobalRowCopy(
+            error_crs->extract_global_row_copy(
                 i, errorlength, errornumentries, errorvalues.data(), errorindices.data());
             for (int k = 0; k < errorlength; ++k)
             {
@@ -1382,11 +1379,11 @@ void PoroElastScaTra::PoroScatraMono::fd_check()
           // get sparse_ij entry ij
           {
             int sparsenumentries;
-            int sparselength = sparse_crs->NumGlobalEntries(i);
+            int sparselength = sparse_crs->num_global_entries(i);
             std::vector<double> sparsevalues(sparselength);
             std::vector<int> sparseindices(sparselength);
             // int sparseextractionstatus =
-            sparse_crs->ExtractGlobalRowCopy(
+            sparse_crs->extract_global_row_copy(
                 i, sparselength, sparsenumentries, sparsevalues.data(), sparseindices.data());
             for (int k = 0; k < sparselength; ++k)
             {
@@ -1403,11 +1400,11 @@ void PoroElastScaTra::PoroScatraMono::fd_check()
           // get stiff_approx entry ij
           {
             int approxnumentries;
-            int approxlength = stiff_approx->NumGlobalEntries(i);
+            int approxlength = stiff_approx->num_global_entries(i);
             std::vector<double> approxvalues(approxlength);
             std::vector<int> approxindices(approxlength);
             // int approxextractionstatus =
-            stiff_approx->ExtractGlobalRowCopy(
+            stiff_approx->extract_global_row_copy(
                 i, approxlength, approxnumentries, approxvalues.data(), approxindices.data());
             for (int k = 0; k < approxlength; ++k)
             {

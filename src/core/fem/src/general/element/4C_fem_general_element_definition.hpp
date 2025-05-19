@@ -23,7 +23,7 @@ FOUR_C_NAMESPACE_OPEN
 
 namespace Core::Elements
 {
-  /// Collection of valid element dat file line definitions
+  /// Collection of valid element input file line definitions
   /*!
     The actual definition is done by each element's type class.
    */
@@ -45,15 +45,14 @@ namespace Core::Elements
     /// return line definitions for given element type
     const Core::IO::InputSpec& element_lines(std::string name, std::string cell_type);
 
+    const auto& definitions() const { return definitions_; }
+
    private:
     /// input line definitions per element type
     std::map<std::string, std::map<std::string, Core::IO::InputSpec>> definitions_;
   };
 
 }  // namespace Core::Elements
-
-
-void print_element_dat_header();
 
 
 FOUR_C_NAMESPACE_CLOSE

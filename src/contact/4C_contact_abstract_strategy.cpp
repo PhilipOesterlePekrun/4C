@@ -10,13 +10,13 @@
 #include "4C_comm_mpi_utils.hpp"
 #include "4C_contact_defines.hpp"
 #include "4C_contact_friction_node.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_contact_interface.hpp"
 #include "4C_contact_noxinterface.hpp"
 #include "4C_contact_paramsinterface.hpp"
 #include "4C_contact_utils_parallel.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_inpar_structure.hpp"
 #include "4C_io.hpp"
 #include "4C_io_control.hpp"
@@ -39,7 +39,7 @@ FOUR_C_NAMESPACE_OPEN
 
 CONTACT::AbstractStrategy::AbstractStrategy(
     const std::shared_ptr<CONTACT::AbstractStrategyDataContainer>& data_ptr,
-    const Epetra_Map* dof_row_map, const Epetra_Map* NodeRowMap,
+    const Core::LinAlg::Map* dof_row_map, const Core::LinAlg::Map* NodeRowMap,
     const Teuchos::ParameterList& params_in, const int spatialDim, const MPI_Comm& comm,
     const double alphaf, const int maxdof)
     : Mortar::StrategyBase(
@@ -100,7 +100,6 @@ CONTACT::AbstractStrategy::AbstractStrategy(
       isselfcontact_(data_ptr->is_self_contact()),
       friction_(data_ptr->is_friction()),
       nonSmoothContact_(data_ptr->is_non_smooth_contact()),
-      regularized_(data_ptr->is_regularized()),
       dualquadslavetrafo_(data_ptr->is_dual_quad_slave_trafo()),
       trafo_(data_ptr->trafo_ptr()),
       invtrafo_(data_ptr->inv_trafo_ptr()),
@@ -115,23 +114,19 @@ CONTACT::AbstractStrategy::AbstractStrategy(
 {
   // set data container pointer (only PRIVATE direct access!)
   data_ptr_->sol_type() =
-      Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(params_in, "STRATEGY");
-  data_ptr_->constr_direction() = Teuchos::getIntegralValue<Inpar::CONTACT::ConstraintDirection>(
-      params_in, "CONSTRAINT_DIRECTIONS");
+      Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(params_in, "STRATEGY");
+  data_ptr_->constr_direction() =
+      Teuchos::getIntegralValue<CONTACT::ConstraintDirection>(params_in, "CONSTRAINT_DIRECTIONS");
   data_ptr_->par_type() = Teuchos::getIntegralValue<Inpar::Mortar::ParallelRedist>(
       params_in.sublist("PARALLEL REDISTRIBUTION"), "PARALLEL_REDIST");
 
-  auto ftype = Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(params(), "FRICTION");
+  auto ftype = Teuchos::getIntegralValue<CONTACT::FrictionType>(params(), "FRICTION");
 
   // set frictional contact status
-  if (ftype != Inpar::CONTACT::friction_none) friction_ = true;
+  if (ftype != CONTACT::FrictionType::none) friction_ = true;
 
   // set nonsmooth contact status
   if (params().get<bool>("NONSMOOTH_GEOMETRIES")) nonSmoothContact_ = true;
-
-  if (Teuchos::getIntegralValue<Inpar::CONTACT::Regularization>(
-          params(), "CONTACT_REGULARIZATION") != Inpar::CONTACT::reg_none)
-    regularized_ = true;
 
   // initialize storage fields for parallel redistribution
   unbalanceEvaluationTime_.clear();
@@ -455,7 +450,7 @@ void CONTACT::AbstractStrategy::setup(bool redistributed, bool init)
   }
 
   // ------------------------------------------------------------------------
-  // setup global accessible Epetra_Maps
+  // setup global accessible Core::LinAlg::Maps
   // ------------------------------------------------------------------------
 
   // make sure to remove all existing maps first
@@ -504,18 +499,18 @@ void CONTACT::AbstractStrategy::setup(bool redistributed, bool init)
       if (redistributed) FOUR_C_THROW("SELF-CONTACT: Parallel redistribution is not supported!");
 
       Interface& inter = *interfaces()[i];
-      std::shared_ptr<const Epetra_Map> refdofrowmap = nullptr;
+      std::shared_ptr<const Core::LinAlg::Map> refdofrowmap = nullptr;
       if (inter.self_contact())
         refdofrowmap = Core::LinAlg::merge_map(inter.slave_row_dofs(), inter.master_row_dofs());
       else
         refdofrowmap = inter.slave_row_dofs();
 
-      std::shared_ptr<Epetra_Map> selfcontact_lmmap =
+      std::shared_ptr<Core::LinAlg::Map> selfcontact_lmmap =
           interfaces()[i]->update_lag_mult_sets(offset_if, redistributed, *refdofrowmap);
 
-      std::shared_ptr<Epetra_Map>& gsc_refdofmap_ptr =
+      std::shared_ptr<Core::LinAlg::Map>& gsc_refdofmap_ptr =
           data().global_self_contact_ref_dof_row_map_ptr();
-      std::shared_ptr<Epetra_Map>& gsc_lmdofmap_ptr =
+      std::shared_ptr<Core::LinAlg::Map>& gsc_lmdofmap_ptr =
           data().global_self_contact_lm_dof_row_map_ptr();
       gsc_lmdofmap_ptr = Core::LinAlg::merge_map(selfcontact_lmmap, gsc_lmdofmap_ptr);
       gsc_refdofmap_ptr = Core::LinAlg::merge_map(refdofrowmap, gsc_refdofmap_ptr);
@@ -555,7 +550,7 @@ void CONTACT::AbstractStrategy::setup(bool redistributed, bool init)
 
     // store initial element col map for binning strategy
     initial_elecolmap_.push_back(
-        std::make_shared<Epetra_Map>(*interfaces()[i]->discret().element_col_map()));
+        std::make_shared<Core::LinAlg::Map>(*interfaces()[i]->discret().element_col_map()));
 
     // ****************************************************
     // friction
@@ -776,10 +771,10 @@ void CONTACT::AbstractStrategy::setup(bool redistributed, bool init)
       for (std::size_t i = 0; i < interfaces().size(); ++i)
         interfaces()[i]->store_unredistributed_maps();
       if (lm_dof_row_map_ptr(true) != nullptr)
-        non_redist_glmdofrowmap_ = std::make_shared<Epetra_Map>(lm_dof_row_map(true));
-      non_redist_gsdofrowmap_ = std::make_shared<Epetra_Map>(slave_dof_row_map(true));
-      non_redist_gmdofrowmap_ = std::make_shared<Epetra_Map>(*gmdofrowmap_);
-      non_redist_gsmdofrowmap_ = std::make_shared<Epetra_Map>(*gsmdofrowmap_);
+        non_redist_glmdofrowmap_ = std::make_shared<Core::LinAlg::Map>(lm_dof_row_map(true));
+      non_redist_gsdofrowmap_ = std::make_shared<Core::LinAlg::Map>(slave_dof_row_map(true));
+      non_redist_gmdofrowmap_ = std::make_shared<Core::LinAlg::Map>(*gmdofrowmap_);
+      non_redist_gsmdofrowmap_ = std::make_shared<Core::LinAlg::Map>(*gsmdofrowmap_);
     }
   }
 
@@ -788,8 +783,8 @@ void CONTACT::AbstractStrategy::setup(bool redistributed, bool init)
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-std::shared_ptr<Epetra_Map> CONTACT::AbstractStrategy::create_deterministic_lm_dof_row_map(
-    const Epetra_Map& gsdofrowmap) const
+std::shared_ptr<Core::LinAlg::Map> CONTACT::AbstractStrategy::create_deterministic_lm_dof_row_map(
+    const Core::LinAlg::Map& gsdofrowmap) const
 {
   const unsigned num_my_sdofs = gsdofrowmap.NumMyElements();
   const int* my_sdof_gids = gsdofrowmap.MyGlobalElements();
@@ -806,7 +801,7 @@ std::shared_ptr<Epetra_Map> CONTACT::AbstractStrategy::create_deterministic_lm_d
     for (auto cit = interfaces().begin(); cit != interfaces().end(); ++cit, ++interface_id)
     {
       const Interface& interface = **cit;
-      std::shared_ptr<const Epetra_Map> sdof_map = interface.slave_row_dofs();
+      std::shared_ptr<const Core::LinAlg::Map> sdof_map = interface.slave_row_dofs();
 
       interface_slid = sdof_map->LID(sgid);
       if (interface_slid != -1) break;
@@ -814,8 +809,8 @@ std::shared_ptr<Epetra_Map> CONTACT::AbstractStrategy::create_deterministic_lm_d
 
     if (interface_slid == -1)
       FOUR_C_THROW(
-          "Couldn't find the global slave dof id #%d in the local interface "
-          "maps on proc #%d!",
+          "Couldn't find the global slave dof id #{} in the local interface "
+          "maps on proc #{}!",
           sgid, Core::Communication::my_mpi_rank(get_comm()));
 
     // get the corresponding Lagrange Multiplier GID
@@ -828,8 +823,8 @@ std::shared_ptr<Epetra_Map> CONTACT::AbstractStrategy::create_deterministic_lm_d
 
     my_lm_gids[slid] = interface_lmgid;
   }
-  return std::make_shared<Epetra_Map>(-1, static_cast<int>(my_lm_gids.size()), my_lm_gids.data(), 0,
-      Core::Communication::as_epetra_comm(get_comm()));
+  return std::make_shared<Core::LinAlg::Map>(-1, static_cast<int>(my_lm_gids.size()),
+      my_lm_gids.data(), 0, Core::Communication::as_epetra_comm(get_comm()));
 }
 
 
@@ -905,9 +900,6 @@ void CONTACT::AbstractStrategy::apply_force_stiff_cmt(
     Core::Communication::barrier(get_comm());
     const double t_end4 = Teuchos::Time::wallTime() - t_start4;
 
-    // only for debugging:
-    interface_forces();
-
     if (Core::Communication::my_mpi_rank(get_comm()) == 0)
     {
       std::cout << "    -->setstate :\t" << t_end1 << " seconds\n";
@@ -953,9 +945,6 @@ void CONTACT::AbstractStrategy::apply_force_stiff_cmt(
     initialize();           // init lin-matrices
     evaluate(kt, f, dis);   // assemble lin. matrices, condensation ...
     evaluate_constr_rhs();  // evaluate the constraint rhs (saddle-point system only)
-
-    // only for debugging:
-    interface_forces();
   }
 }
 
@@ -976,8 +965,8 @@ void CONTACT::AbstractStrategy::set_state(
     }
     default:
     {
-      FOUR_C_THROW("Unsupported state type! (state type = %s)",
-          Mortar::state_type_to_string(statetype).c_str());
+      FOUR_C_THROW(
+          "Unsupported state type! (state type = {})", Mortar::state_type_to_string(statetype));
       break;
     }
   }
@@ -992,18 +981,18 @@ void CONTACT::AbstractStrategy::update_global_self_contact_state()
 
   // reset global slave / master Epetra Maps
   gsnoderowmap_ =
-      std::make_shared<Epetra_Map>(0, 0, Core::Communication::as_epetra_comm(get_comm()));
+      std::make_shared<Core::LinAlg::Map>(0, 0, Core::Communication::as_epetra_comm(get_comm()));
   gsdofrowmap_ =
-      std::make_shared<Epetra_Map>(0, 0, Core::Communication::as_epetra_comm(get_comm()));
+      std::make_shared<Core::LinAlg::Map>(0, 0, Core::Communication::as_epetra_comm(get_comm()));
   gmdofrowmap_ =
-      std::make_shared<Epetra_Map>(0, 0, Core::Communication::as_epetra_comm(get_comm()));
+      std::make_shared<Core::LinAlg::Map>(0, 0, Core::Communication::as_epetra_comm(get_comm()));
   glmdofrowmap_ =
-      std::make_shared<Epetra_Map>(0, 0, Core::Communication::as_epetra_comm(get_comm()));
+      std::make_shared<Core::LinAlg::Map>(0, 0, Core::Communication::as_epetra_comm(get_comm()));
 
   // make numbering of LM dofs consecutive and unique across N interfaces
   int offset_if = 0;
 
-  // setup global slave / master Epetra_Maps
+  // setup global slave / master Core::LinAlg::Maps
   // (this is done by looping over all interfaces and merging)
   for (int i = 0; i < (int)interfaces().size(); ++i)
   {
@@ -1028,8 +1017,8 @@ void CONTACT::AbstractStrategy::update_global_self_contact_state()
       std::make_shared<Core::LinAlg::Vector<double>>(*gsdofrowmap_, true);
 
   {
-    const int* oldgids = zincr_->Map().MyGlobalElements();
-    for (int i = 0; i < zincr_->Map().NumMyElements(); ++i)
+    const int* oldgids = zincr_->get_block_map().MyGlobalElements();
+    for (int i = 0; i < zincr_->get_block_map().NumMyElements(); ++i)
     {
       if (std::abs((*zincr_)[i]) > std::numeric_limits<double>::epsilon())
       {
@@ -1045,10 +1034,10 @@ void CONTACT::AbstractStrategy::update_global_self_contact_state()
     zincr_ = std::make_shared<Core::LinAlg::Vector<double>>(*tmp_ptr);
   }
 
-  tmp_ptr->PutScalar(0.0);
+  tmp_ptr->put_scalar(0.0);
   {
-    const int* oldgids = z_->Map().MyGlobalElements();
-    for (int i = 0; i < z_->Map().NumMyElements(); ++i)
+    const int* oldgids = z_->get_block_map().MyGlobalElements();
+    for (int i = 0; i < z_->get_block_map().NumMyElements(); ++i)
     {
       if (std::abs((*z_)[i]) > std::numeric_limits<double>::epsilon())
       {
@@ -1081,10 +1070,10 @@ void CONTACT::AbstractStrategy::calc_mean_velocity_for_binning(
 
     double meanVelocity = 0.0;
 
-    int err = interfaceVelocity.MeanValue(&meanVelocity);
+    int err = interfaceVelocity.mean_value(&meanVelocity);
     if (err)
-      FOUR_C_THROW("Calculation of mean velocity for interface %s failed.",
-          interface->discret().name().c_str());
+      FOUR_C_THROW(
+          "Calculation of mean velocity for interface {} failed.", interface->discret().name());
     meanVelocity = abs(meanVelocity);
 
     ivel_.push_back(meanVelocity);
@@ -1323,9 +1312,9 @@ void CONTACT::AbstractStrategy::initialize_mortar()
   dmatrix_ = std::make_shared<Core::LinAlg::SparseMatrix>(slave_dof_row_map(true), 10);
   mmatrix_ = std::make_shared<Core::LinAlg::SparseMatrix>(slave_dof_row_map(true), 100);
 
-  if (constr_direction_ == Inpar::CONTACT::constr_xyz)
+  if (constr_direction_ == CONTACT::ConstraintDirection::xyz)
     wgap_ = Core::LinAlg::create_vector(slave_dof_row_map(true), true);
-  else if (constr_direction_ == Inpar::CONTACT::constr_ntt)
+  else if (constr_direction_ == CONTACT::ConstraintDirection::ntt)
     wgap_ = Core::LinAlg::create_vector(slave_row_nodes(), true);
   else
     FOUR_C_THROW("unknown contact constraint direction");
@@ -1504,7 +1493,8 @@ void CONTACT::AbstractStrategy::evaluate_relative_movement()
   // ATTENTION: for evaluate_relative_movement() we need the vector xsmod in
   // fully overlapping layout. Thus, export here. First, allreduce
   // slave dof row map to obtain fully overlapping slave dof map.
-  std::shared_ptr<Epetra_Map> fullsdofs = Core::LinAlg::allreduce_e_map(slave_dof_row_map(true));
+  std::shared_ptr<Core::LinAlg::Map> fullsdofs =
+      Core::LinAlg::allreduce_e_map(slave_dof_row_map(true));
   std::shared_ptr<Core::LinAlg::Vector<double>> xsmodfull =
       std::make_shared<Core::LinAlg::Vector<double>>(*fullsdofs);
   Core::LinAlg::export_to(*xsmod, *xsmodfull);
@@ -1603,7 +1593,7 @@ void CONTACT::AbstractStrategy::store_nodal_quantities(Mortar::StrategyBase::Qua
     // slave dof and node map of the interface
     // columnmap for current or updated LM
     // rowmap for remaining cases
-    std::shared_ptr<const Epetra_Map> sdofmap, snodemap;
+    std::shared_ptr<const Core::LinAlg::Map> sdofmap, snodemap;
     if (type == Mortar::StrategyBase::lmupdate or type == Mortar::StrategyBase::lmcurrent)
     {
       sdofmap = interfaces()[i]->slave_col_dofs();
@@ -1639,7 +1629,7 @@ void CONTACT::AbstractStrategy::store_nodal_quantities(Mortar::StrategyBase::Qua
 
       for (int dof = 0; dof < n_dim(); ++dof)
       {
-        locindex[dof] = (vectorinterface->Map()).LID(cnode->dofs()[dof]);
+        locindex[dof] = (vectorinterface->get_block_map()).LID(cnode->dofs()[dof]);
         if (locindex[dof] < 0) FOUR_C_THROW("StoreNodalQuantities: Did not find dof in map");
 
         switch (type)
@@ -1664,7 +1654,7 @@ void CONTACT::AbstractStrategy::store_nodal_quantities(Mortar::StrategyBase::Qua
 #ifndef CONTACTPSEUDO2D
             // throw a FOUR_C_THROW if node is Active and DBC
             if (cnode->is_dbc() && cnode->active())
-              FOUR_C_THROW("Slave node %i is active AND carries D.B.C.s!", cnode->id());
+              FOUR_C_THROW("Slave node {} is active AND carries D.B.C.s!", cnode->id());
 #endif  // #ifndef CONTACTPSEUDO2D
 
             // store updated LM into node
@@ -1742,14 +1732,14 @@ void CONTACT::AbstractStrategy::compute_contact_stresses()
       // normal stress components
       for (int dof = 0; dof < n_dim(); ++dof)
       {
-        locindex[dof] = (stressnormal_->Map()).LID(cnode->dofs()[dof]);
+        locindex[dof] = (stressnormal_->get_block_map()).LID(cnode->dofs()[dof]);
         (*stressnormal_)[locindex[dof]] = -lmn * nn[dof];
       }
 
       // tangential stress components
       for (int dof = 0; dof < n_dim(); ++dof)
       {
-        locindex[dof] = (stresstangential_->Map()).LID(cnode->dofs()[dof]);
+        locindex[dof] = (stresstangential_->get_block_map()).LID(cnode->dofs()[dof]);
         (*stresstangential_)[locindex[dof]] = -lmt1 * nt1[dof] - lmt2 * nt2[dof];
       }
     }
@@ -1798,7 +1788,7 @@ void CONTACT::AbstractStrategy::store_dirichlet_status(
   // create old style dirichtoggle vector (supposed to go away)
   non_redist_gsdirichtoggle_ = Core::LinAlg::create_vector(slave_dof_row_map(true), true);
   Core::LinAlg::Vector<double> temp(*(dbcmaps->cond_map()));
-  temp.PutScalar(1.0);
+  temp.put_scalar(1.0);
   Core::LinAlg::export_to(temp, *non_redist_gsdirichtoggle_);
 
   post_store_dirichlet_status(dbcmaps);
@@ -1851,7 +1841,7 @@ void CONTACT::AbstractStrategy::update(std::shared_ptr<const Core::LinAlg::Vecto
   if (is_self_contact())
     zold_ = std::make_shared<Core::LinAlg::Vector<double>>(slave_dof_row_map(true));
 
-  zold_->Scale(1.0, *z_);
+  zold_->scale(1.0, *z_);
   store_nodal_quantities(Mortar::StrategyBase::lmold);
   store_dm("old");
 
@@ -1926,7 +1916,7 @@ void CONTACT::AbstractStrategy::do_write_restart(
       Core::Nodes::Node* node = interfaces()[i]->discret().g_node(gid);
       if (!node) FOUR_C_THROW("Cannot find node with gid %", gid);
       Node* cnode = dynamic_cast<Node*>(node);
-      int dof = (activetoggle->Map()).LID(gid);
+      int dof = (activetoggle->get_block_map()).LID(gid);
 
       if (forcedrestart)
       {
@@ -2018,7 +2008,7 @@ void CONTACT::AbstractStrategy::do_read_restart(Core::IO::DiscretizationReader& 
     for (int j = 0; j < (interfaces()[i]->slave_row_nodes())->NumMyElements(); ++j)
     {
       int gid = (interfaces()[i]->slave_row_nodes())->GID(j);
-      int dof = (activetoggle->Map()).LID(gid);
+      int dof = (activetoggle->get_block_map()).LID(gid);
 
       if ((*activetoggle)[dof] == 1)
       {
@@ -2061,7 +2051,7 @@ void CONTACT::AbstractStrategy::do_read_restart(Core::IO::DiscretizationReader& 
 
   // only for Uzawa augmented strategy
   // TODO: this should be moved to contact_penalty_strategy
-  if (stype_ == Inpar::CONTACT::solution_uzawa)
+  if (stype_ == CONTACT::SolvingStrategy::uzawa)
   {
     zuzawa_ = std::make_shared<Core::LinAlg::Vector<double>>(slave_dof_row_map(true));
     if (!restartwithcontact) reader.read_vector(data().lm_uzawa_ptr(), "lagrmultold");
@@ -2077,7 +2067,7 @@ void CONTACT::AbstractStrategy::do_read_restart(Core::IO::DiscretizationReader& 
     store_to_old(Mortar::StrategyBase::dm);
   }
 
-  // (re)setup active global Epetra_Maps
+  // (re)setup active global Core::LinAlg::Maps
   gactivenodes_ = nullptr;
   gactivedofs_ = nullptr;
   gactiven_ = nullptr;
@@ -2120,262 +2110,6 @@ void CONTACT::AbstractStrategy::do_read_restart(Core::IO::DiscretizationReader& 
   // (during restart the interface has been evaluated once)
   unbalanceEvaluationTime_.resize(0);
   unbalanceNumSlaveElements_.resize(0);
-}
-
-/*----------------------------------------------------------------------*
- |  Compute interface forces (for debugging only)             popp 02/08|
- *----------------------------------------------------------------------*/
-void CONTACT::AbstractStrategy::interface_forces(bool output)
-{
-  // check chosen output option
-  auto emtype = Teuchos::getIntegralValue<Inpar::CONTACT::EmOutputType>(params(), "EMOUTPUT");
-
-  // get out of here if no output wanted
-  if (emtype == Inpar::CONTACT::output_none) return;
-
-  // compute discrete slave and master interface forces
-  Core::LinAlg::Vector<double> fcslavetemp(dmatrix_->row_map());
-  Core::LinAlg::Vector<double> fcmastertemp(mmatrix_->domain_map());
-
-  // for self contact, slave and master sets may have changed,
-  // thus we have to export z to new D and M dimensions
-  if (is_self_contact())
-  {
-    Core::LinAlg::Vector<double> zexp(dmatrix_->row_map());
-    if (dmatrix_->row_map().NumGlobalElements()) Core::LinAlg::export_to(*z_, zexp);
-    dmatrix_->multiply(true, zexp, fcslavetemp);
-    mmatrix_->multiply(true, zexp, fcmastertemp);
-  }
-  // if there is no self contact everything is ok
-  else
-  {
-    dmatrix_->multiply(true, *z_, fcslavetemp);
-    mmatrix_->multiply(true, *z_, fcmastertemp);
-  }
-
-  // export the interface forces to full dof layout
-  Core::LinAlg::Vector<double> fcslave(*problem_dofs());
-  Core::LinAlg::Vector<double> fcmaster(*problem_dofs());
-  Core::LinAlg::export_to(fcslavetemp, fcslave);
-  Core::LinAlg::export_to(fcmastertemp, fcmaster);
-
-  // contact forces and moments
-  std::vector<double> gfcs(3);
-  std::vector<double> ggfcs(3);
-  std::vector<double> gfcm(3);
-  std::vector<double> ggfcm(3);
-  std::vector<double> gmcs(3);
-  std::vector<double> ggmcs(3);
-  std::vector<double> gmcm(3);
-  std::vector<double> ggmcm(3);
-
-  std::vector<double> gmcsnew(3);
-  std::vector<double> ggmcsnew(3);
-  std::vector<double> gmcmnew(3);
-  std::vector<double> ggmcmnew(3);
-
-  // weighted gap vector
-  Core::LinAlg::Vector<double> gapslave(dmatrix_->row_map());
-  Core::LinAlg::Vector<double> gapmaster(mmatrix_->domain_map());
-
-  // loop over all interfaces
-  for (int i = 0; i < (int)interfaces().size(); ++i)
-  {
-    // loop over all slave nodes on the current interface
-    for (int j = 0; j < interfaces()[i]->slave_row_nodes()->NumMyElements(); ++j)
-    {
-      int gid = interfaces()[i]->slave_row_nodes()->GID(j);
-      Core::Nodes::Node* node = interfaces()[i]->discret().g_node(gid);
-      if (!node) FOUR_C_THROW("Cannot find node with gid %", gid);
-      Node* cnode = dynamic_cast<Node*>(node);
-
-      std::vector<double> nodeforce(3);
-      std::vector<double> position(3);
-
-      // forces and positions
-      for (int d = 0; d < n_dim(); ++d)
-      {
-        int dofid = (fcslavetemp.Map()).LID(cnode->dofs()[d]);
-        if (dofid < 0) FOUR_C_THROW("ContactForces: Did not find slave dof in map");
-        nodeforce[d] = (fcslavetemp)[dofid];
-        gfcs[d] += nodeforce[d];
-        position[d] = cnode->xspatial()[d];
-      }
-
-      // moments
-      std::vector<double> nodemoment(3);
-      nodemoment[0] = position[1] * nodeforce[2] - position[2] * nodeforce[1];
-      nodemoment[1] = position[2] * nodeforce[0] - position[0] * nodeforce[2];
-      nodemoment[2] = position[0] * nodeforce[1] - position[1] * nodeforce[0];
-      for (int d = 0; d < 3; ++d) gmcs[d] += nodemoment[d];
-
-      // weighted gap
-      Core::LinAlg::SerialDenseVector posnode(n_dim());
-      std::vector<int> lm(n_dim());
-      std::vector<int> lmowner(n_dim());
-      for (int d = 0; d < n_dim(); ++d)
-      {
-        posnode[d] = cnode->xspatial()[d];
-        lm[d] = cnode->dofs()[d];
-        lmowner[d] = cnode->owner();
-      }
-      Core::LinAlg::assemble(gapslave, posnode, lm, lmowner);
-    }
-
-    // loop over all master nodes on the current interface
-    for (int j = 0; j < interfaces()[i]->master_row_nodes()->NumMyElements(); ++j)
-    {
-      int gid = interfaces()[i]->master_row_nodes()->GID(j);
-      Core::Nodes::Node* node = interfaces()[i]->discret().g_node(gid);
-      if (!node) FOUR_C_THROW("Cannot find node with gid %", gid);
-      Node* cnode = dynamic_cast<Node*>(node);
-
-      std::vector<double> nodeforce(3);
-      std::vector<double> position(3);
-
-      // forces and positions
-      for (int d = 0; d < n_dim(); ++d)
-      {
-        int dofid = (fcmastertemp.Map()).LID(cnode->dofs()[d]);
-        if (dofid < 0) FOUR_C_THROW("ContactForces: Did not find master dof in map");
-        nodeforce[d] = -(fcmastertemp)[dofid];
-        gfcm[d] += nodeforce[d];
-        position[d] = cnode->xspatial()[d];
-      }
-
-      // moments
-      std::vector<double> nodemoment(3);
-      nodemoment[0] = position[1] * nodeforce[2] - position[2] * nodeforce[1];
-      nodemoment[1] = position[2] * nodeforce[0] - position[0] * nodeforce[2];
-      nodemoment[2] = position[0] * nodeforce[1] - position[1] * nodeforce[0];
-      for (int d = 0; d < 3; ++d) gmcm[d] += nodemoment[d];
-
-      // weighted gap
-      Core::LinAlg::SerialDenseVector posnode(n_dim());
-      std::vector<int> lm(n_dim());
-      std::vector<int> lmowner(n_dim());
-      for (int d = 0; d < n_dim(); ++d)
-      {
-        posnode[d] = cnode->xspatial()[d];
-        lm[d] = cnode->dofs()[d];
-        lmowner[d] = cnode->owner();
-      }
-      Core::LinAlg::assemble(gapmaster, posnode, lm, lmowner);
-    }
-  }
-
-  // weighted gap
-  Core::LinAlg::Vector<double> gapslavefinal(dmatrix_->row_map());
-  Core::LinAlg::Vector<double> gapmasterfinal(mmatrix_->row_map());
-  dmatrix_->multiply(false, gapslave, gapslavefinal);
-  mmatrix_->multiply(false, gapmaster, gapmasterfinal);
-  Core::LinAlg::Vector<double> gapfinal(dmatrix_->row_map());
-  gapfinal.Update(1.0, gapslavefinal, 0.0);
-  gapfinal.Update(-1.0, gapmasterfinal, 1.0);
-
-  // again, for alternative moment: lambda x gap
-  // loop over all interfaces
-  for (int i = 0; i < (int)interfaces().size(); ++i)
-  {
-    // loop over all slave nodes on the current interface
-    for (int j = 0; j < interfaces()[i]->slave_row_nodes()->NumMyElements(); ++j)
-    {
-      int gid = interfaces()[i]->slave_row_nodes()->GID(j);
-      Core::Nodes::Node* node = interfaces()[i]->discret().g_node(gid);
-      if (!node) FOUR_C_THROW("Cannot find node with gid %", gid);
-      Node* cnode = dynamic_cast<Node*>(node);
-
-      std::vector<double> lm(3);
-      std::vector<double> nodegaps(3);
-      std::vector<double> nodegapm(3);
-
-      // LMs and gaps
-      for (int d = 0; d < n_dim(); ++d)
-      {
-        int dofid = (fcslavetemp.Map()).LID(cnode->dofs()[d]);
-        if (dofid < 0) FOUR_C_THROW("ContactForces: Did not find slave dof in map");
-        nodegaps[d] = (gapslavefinal)[dofid];
-        nodegapm[d] = (gapmasterfinal)[dofid];
-        lm[d] = cnode->mo_data().lm()[d];
-      }
-
-      // moments
-      std::vector<double> nodemoments(3);
-      std::vector<double> nodemomentm(3);
-      nodemoments[0] = nodegaps[1] * lm[2] - nodegaps[2] * lm[1];
-      nodemoments[1] = nodegaps[2] * lm[0] - nodegaps[0] * lm[2];
-      nodemoments[2] = nodegaps[0] * lm[1] - nodegaps[1] * lm[0];
-      nodemomentm[0] = nodegapm[1] * lm[2] - nodegapm[2] * lm[1];
-      nodemomentm[1] = nodegapm[2] * lm[0] - nodegapm[0] * lm[2];
-      nodemomentm[2] = nodegapm[0] * lm[1] - nodegapm[1] * lm[0];
-      for (int d = 0; d < 3; ++d)
-      {
-        gmcsnew[d] += nodemoments[d];
-        gmcmnew[d] -= nodemomentm[d];
-      }
-    }
-  }
-
-  // summing up over all processors
-  for (int i = 0; i < 3; ++i)
-  {
-    Core::Communication::sum_all(&gfcs[i], &ggfcs[i], 1, get_comm());
-    Core::Communication::sum_all(&gfcm[i], &ggfcm[i], 1, get_comm());
-    Core::Communication::sum_all(&gmcs[i], &ggmcs[i], 1, get_comm());
-    Core::Communication::sum_all(&gmcm[i], &ggmcm[i], 1, get_comm());
-    Core::Communication::sum_all(&gmcsnew[i], &ggmcsnew[i], 1, get_comm());
-    Core::Communication::sum_all(&gmcmnew[i], &ggmcmnew[i], 1, get_comm());
-  }
-
-  // print interface results to file
-  if (emtype == Inpar::CONTACT::output_file || emtype == Inpar::CONTACT::output_both)
-  {
-    // do this at end of time step only (output==true)!
-    // processor 0 does all the work
-    if (output && Core::Communication::my_mpi_rank(get_comm()) == 0)
-    {
-      FILE* MyFile = nullptr;
-      std::ostringstream filename;
-      const std::string filebase = Global::Problem::instance()->output_control_file()->file_name();
-      filename << filebase << ".interface";
-      MyFile = fopen(filename.str().c_str(), "at+");
-
-      if (MyFile)
-      {
-        for (int i = 0; i < 3; i++) fprintf(MyFile, "%g\t", ggfcs[i]);
-        for (int i = 0; i < 3; i++) fprintf(MyFile, "%g\t", ggfcm[i]);
-        for (int i = 0; i < 3; i++) fprintf(MyFile, "%g\t", ggmcs[i]);
-        for (int i = 0; i < 3; i++) fprintf(MyFile, "%g\t", ggmcm[i]);
-        // for (int i=0; i<3; i++) fprintf(MyFile, "%g\t", gsfgh[i]);
-        // for (int i=0; i<3; i++) fprintf(MyFile, "%g\t", gsmgh[i]);
-        fprintf(MyFile, "\n");
-        fclose(MyFile);
-      }
-      else
-        FOUR_C_THROW("File for writing meshtying forces could not be opened.");
-    }
-  }
-
-  // print interface results to screen
-  if (emtype == Inpar::CONTACT::output_screen || emtype == Inpar::CONTACT::output_both)
-  {
-    // do this during Newton steps only (output==false)!
-    // processor 0 does all the work
-    if (!output && Core::Communication::my_mpi_rank(get_comm()) == 0)
-    {
-      double snorm = sqrt(ggfcs[0] * ggfcs[0] + ggfcs[1] * ggfcs[1] + ggfcs[2] * ggfcs[2]);
-      double mnorm = sqrt(ggfcm[0] * ggfcm[0] + ggfcm[1] * ggfcm[1] + ggfcm[2] * ggfcm[2]);
-      printf("Slave Contact Force:   % e  % e  % e \tNorm: % e\n", ggfcs[0], ggfcs[1], ggfcs[2],
-          snorm);
-      printf("Master Contact Force:  % e  % e  % e \tNorm: % e\n", ggfcm[0], ggfcm[1], ggfcm[2],
-          mnorm);
-      printf("Slave Contact Moment:  % e  % e  % e\n", ggmcs[0], ggmcs[1], ggmcs[2]);
-      // printf("Slave Contact Moment:  % e  % e  % e\n",ggmcsnew[0],ggmcsnew[1],ggmcsnew[2]);
-      printf("Master Contact Moment: % e  % e  % e\n", ggmcm[0], ggmcm[1], ggmcm[2]);
-      // printf("Master Contact Moment: % e  % e  % e\n",ggmcmnew[0],ggmcmnew[1],ggmcmnew[2]);
-      fflush(stdout);
-    }
-  }
 }
 
 /*----------------------------------------------------------------------*
@@ -2617,7 +2351,7 @@ void CONTACT::AbstractStrategy::print_active_set() const
 
         // invalid status **************************************************
         else
-          FOUR_C_THROW("Invalid node status %i for frictionless case", gsta[k]);
+          FOUR_C_THROW("Invalid node status {} for frictionless case", gsta[k]);
       }
     }
 
@@ -2653,7 +2387,7 @@ void CONTACT::AbstractStrategy::print_active_set() const
 
         // invalid status **************************************************
         else
-          FOUR_C_THROW("Invalid node status %i for frictional case", gsta[k]);
+          FOUR_C_THROW("Invalid node status {} for frictional case", gsta[k]);
       }
     }
   }
@@ -2758,21 +2492,12 @@ void CONTACT::AbstractStrategy::print_active_set() const
 }
 
 /*----------------------------------------------------------------------*
- | Visualization of contact segments with gmsh                popp 08/08|
- *----------------------------------------------------------------------*/
-void CONTACT::AbstractStrategy::visualize_gmsh(const int step, const int iter) const
-{
-  // visualization with gmsh
-  for (int i = 0; i < (int)interfaces().size(); ++i)
-    interfaces()[i]->visualize_gmsh(
-        step, iter, Global::Problem::instance()->output_control_file()->file_name_only_prefix());
-}
-
-/*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
 void CONTACT::AbstractStrategy::collect_maps_for_preconditioner(
-    std::shared_ptr<Epetra_Map>& MasterDofMap, std::shared_ptr<Epetra_Map>& SlaveDofMap,
-    std::shared_ptr<Epetra_Map>& InnerDofMap, std::shared_ptr<Epetra_Map>& ActiveDofMap) const
+    std::shared_ptr<Core::LinAlg::Map>& MasterDofMap,
+    std::shared_ptr<Core::LinAlg::Map>& SlaveDofMap,
+    std::shared_ptr<Core::LinAlg::Map>& InnerDofMap,
+    std::shared_ptr<Core::LinAlg::Map>& ActiveDofMap) const
 {
   InnerDofMap = gndofrowmap_;   // global internal dof row map
   ActiveDofMap = gactivedofs_;  // global active slave dof row map
@@ -2853,7 +2578,7 @@ void CONTACT::AbstractStrategy::evaluate(CONTACT::ParamsInterface& cparams,
         FOUR_C_THROW(
             "The \"Mortar::eval_reset\" action expects \n"
             "exactly 2 evaluation vector pointers! But you \n"
-            "passed %i vector pointers!",
+            "passed {} vector pointers!",
             eval_vec->size());
       const Core::LinAlg::Vector<double>& dispnp = *((*eval_vec)[0]);
       const Core::LinAlg::Vector<double>& xnew = *((*eval_vec)[1]);
@@ -2872,7 +2597,7 @@ void CONTACT::AbstractStrategy::evaluate(CONTACT::ParamsInterface& cparams,
         FOUR_C_THROW(
             "The \"Mortar::eval_recover\" action expects \n"
             "exactly 3 evaluation vector pointers! But you \n"
-            "passed %i vector pointers!",
+            "passed {} vector pointers!",
             eval_vec->size());
 
       const std::shared_ptr<const Core::LinAlg::Vector<double>>& xold_ptr = (*eval_vec)[0];
@@ -2897,14 +2622,14 @@ void CONTACT::AbstractStrategy::evaluate(CONTACT::ParamsInterface& cparams,
         FOUR_C_THROW(
             "The \"Mortar::eval_augment_direction\" action expects \n"
             "exactly 1 constant evaluation vector pointer! But you \n"
-            "passed %i vector pointers!",
+            "passed {} vector pointers!",
             eval_vec->size());
 
       if (eval_vec_mutable->size() != 1)
         FOUR_C_THROW(
             "The \"Mortar::eval_augment_direction\" action expects \n"
             "exactly 1 mutable evaluation vector pointer! But you \n"
-            "passed %i vector pointers!",
+            "passed {} vector pointers!",
             eval_vec->size());
 
       const std::shared_ptr<const Core::LinAlg::Vector<double>>& xold_ptr = eval_vec->front();
@@ -2975,7 +2700,7 @@ void CONTACT::AbstractStrategy::evaluate(CONTACT::ParamsInterface& cparams,
     // -------------------------------------------------------------------
     default:
     {
-      FOUR_C_THROW("Unsupported action type: %i | %s", act, action_type_to_string(act).c_str());
+      FOUR_C_THROW("Unsupported action type: {}", action_type_to_string(act));
       break;
     }
   }
@@ -3103,8 +2828,8 @@ void CONTACT::AbstractStrategy::reset_lagrange_multipliers(
  *----------------------------------------------------------------------*/
 bool CONTACT::AbstractStrategy::is_saddle_point_system() const
 {
-  if ((stype_ == Inpar::CONTACT::solution_lagmult) and
-      system_type() == Inpar::CONTACT::system_saddlepoint)
+  if ((stype_ == CONTACT::SolvingStrategy::lagmult) and
+      system_type() == CONTACT::SystemType::saddlepoint)
   {
     if (is_in_contact() or was_in_contact() or was_in_contact_last_time_step()) return true;
   }
@@ -3115,8 +2840,8 @@ bool CONTACT::AbstractStrategy::is_saddle_point_system() const
  *----------------------------------------------------------------------*/
 bool CONTACT::AbstractStrategy::is_condensed_system() const
 {
-  if (stype_ == Inpar::CONTACT::solution_lagmult and
-      system_type() != Inpar::CONTACT::system_saddlepoint)
+  if (stype_ == CONTACT::SolvingStrategy::lagmult and
+      system_type() != CONTACT::SystemType::saddlepoint)
   {
     if (is_in_contact() or was_in_contact() or was_in_contact_last_time_step()) return true;
   }
@@ -3126,7 +2851,7 @@ bool CONTACT::AbstractStrategy::is_condensed_system() const
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
 void CONTACT::AbstractStrategy::fill_maps_for_preconditioner(
-    std::vector<Teuchos::RCP<Epetra_Map>>& maps) const
+    std::vector<Teuchos::RCP<Core::LinAlg::Map>>& maps) const
 {
   /* FixMe This function replaces the deprecated collect_maps_for_preconditioner(),
    * the old version can be deleted, as soon as the contact uses the new
@@ -3197,9 +2922,8 @@ CONTACT::AbstractStrategy::lagrange_multiplier_n(const bool& redist) const
 double CONTACT::AbstractStrategy::get_potential_value(
     const enum NOX::Nln::MeritFunction::MeritFctName mrt_type) const
 {
-  FOUR_C_THROW("The currently active strategy \"%s\" does not support this method!",
-      Inpar::CONTACT::solving_strategy_to_string(type()).c_str());
-  exit(EXIT_FAILURE);
+  FOUR_C_THROW("The currently active strategy \"{}\" does not support this method!",
+      CONTACT::solving_strategy_to_string(type()));
 }
 
 /*----------------------------------------------------------------------------*
@@ -3210,9 +2934,8 @@ double CONTACT::AbstractStrategy::get_linearized_potential_value_terms(
     const enum NOX::Nln::MeritFunction::LinOrder linorder,
     const enum NOX::Nln::MeritFunction::LinType lintype) const
 {
-  FOUR_C_THROW("The currently active strategy \"%s\" does not support this method!",
-      Inpar::CONTACT::solving_strategy_to_string(type()).c_str());
-  exit(EXIT_FAILURE);
+  FOUR_C_THROW("The currently active strategy \"{}\" does not support this method!",
+      CONTACT::solving_strategy_to_string(type()));
 }
 
 /*----------------------------------------------------------------------*

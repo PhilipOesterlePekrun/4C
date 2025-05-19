@@ -9,6 +9,7 @@
 
 #include "4C_comm_pack_helpers.hpp"
 #include "4C_global_data.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_function.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -56,7 +57,7 @@ Mat::PAR::REACTIONCOUPLING::ReactionInterface::create_reaction(
       FOUR_C_THROW("reac_coup_none is not a valid coupling");
       break;
     default:
-      FOUR_C_THROW("The couplingtype %i is not a valid coupling type.", couplingtype);
+      FOUR_C_THROW("The couplingtype {} is not a valid coupling type.", couplingtype);
       break;
   }
 
@@ -581,7 +582,7 @@ void Mat::PAR::REACTIONCOUPLING::ByFunction::initialize(int numscal,  //!< numbe
       return initialize_internal<3>(numscal, couprole);
 
     default:
-      FOUR_C_THROW("Unsupported dimension %d.", Global::Problem::instance()->n_dim());
+      FOUR_C_THROW("Unsupported dimension {}.", Global::Problem::instance()->n_dim());
   }
 }
 
@@ -655,7 +656,7 @@ double Mat::PAR::REACTIONCOUPLING::ByFunction::calc_rea_body_force_term(
           k, numscal, phinp, constants, couprole, scale_reac);
 
     default:
-      FOUR_C_THROW("Unsupported dimension %d.", Global::Problem::instance()->n_dim());
+      FOUR_C_THROW("Unsupported dimension {}.", Global::Problem::instance()->n_dim());
       return 0.0;
   }
 }
@@ -677,22 +678,10 @@ double Mat::PAR::REACTIONCOUPLING::ByFunction::calc_rea_body_force_term_internal
   // copy phi vector in different format to be read by the function
   build_phi_vector_for_function(phinp, numscal);
 
-  std::vector<std::pair<std::string, double>> variables_for_parser_evaluation = variables_;
-
-  // add possible time dependency
-
-  variables_for_parser_evaluation.emplace_back("t", 0.0);
-
-  // add possible spatial dependency
-
-  variables_for_parser_evaluation.emplace_back("x", 0.0);
-  variables_for_parser_evaluation.emplace_back("y", 0.0);
-  variables_for_parser_evaluation.emplace_back("z", 0.0);
-
   // evaluate reaction term
   double bftfac = Global::Problem::instance()
                       ->function_by_id<Core::Utils::FunctionOfAnything>(round(couprole[k]))
-                      .evaluate(variables_for_parser_evaluation, constants, 0);
+                      .evaluate(variables_, constants, 0);
 
   return scale_reac * bftfac;
 }
@@ -723,7 +712,7 @@ void Mat::PAR::REACTIONCOUPLING::ByFunction::calc_rea_body_force_deriv(
       return calc_rea_body_force_deriv_internal<3>(
           k, numscal, derivs, phinp, constants, couprole, scale_reac);
     default:
-      FOUR_C_THROW("Unsupported dimension %d.", Global::Problem::instance()->n_dim());
+      FOUR_C_THROW("Unsupported dimension {}.", Global::Problem::instance()->n_dim());
   }
 }
 
@@ -745,30 +734,15 @@ void Mat::PAR::REACTIONCOUPLING::ByFunction::calc_rea_body_force_deriv_internal(
   // copy phi vector in different format to be read by the function
   build_phi_vector_for_function(phinp, numscal);
 
-  std::vector<std::pair<std::string, double>> constants_for_parser_evaluation = constants;
-
-  // add possible time dependency
-
-  constants_for_parser_evaluation.emplace_back("t", 0.0);
-
-  // add possible spatial dependency
-
-  constants_for_parser_evaluation.emplace_back("x", 0.0);
-  constants_for_parser_evaluation.emplace_back("y", 0.0);
-  constants_for_parser_evaluation.emplace_back("z", 0.0);
-
-
   // evaluate the derivatives of the reaction term
   std::vector<double> myderivs =
       Global::Problem::instance()
           ->function_by_id<Core::Utils::FunctionOfAnything>(round(couprole[k]))
-          .evaluate_derivative(variables_, constants_for_parser_evaluation, 0);
+          .evaluate_derivative(variables_, constants, 0);
 
   // add it to derivs
   for (int toderive = 0; toderive < numscal; toderive++)
     derivs[toderive] += scale_reac * myderivs[toderive];
-
-  return;
 }
 
 /*----------------------------------------------------------------------*
@@ -795,7 +769,7 @@ void Mat::PAR::REACTIONCOUPLING::ByFunction::calc_rea_body_force_deriv_add_varia
       return calc_rea_body_force_deriv_add_variables_internal<3>(
           k, derivs, variables, constants, couprole, scale_reac);
     default:
-      FOUR_C_THROW("Unsupported dimension %d.", Global::Problem::instance()->n_dim());
+      FOUR_C_THROW("Unsupported dimension {}.", Global::Problem::instance()->n_dim());
   }
 }
 
@@ -820,7 +794,7 @@ void Mat::PAR::REACTIONCOUPLING::ByFunction::calc_rea_body_force_deriv_add_varia
 
   if (myderivs.size() != derivs.size())
   {
-    FOUR_C_THROW("mismatch in dimensions, Input %d, Output %d", derivs.size(), myderivs.size());
+    FOUR_C_THROW("mismatch in dimensions, Input {}, Output {}", derivs.size(), myderivs.size());
   }
 
   // add it to derivs
@@ -847,7 +821,7 @@ void Mat::PAR::REACTIONCOUPLING::ByFunction::add_additional_variables(
     case 3:
       return add_additional_variables_internal<3>(k, variables, couprole);
     default:
-      FOUR_C_THROW("Unsupported dimension %d.", Global::Problem::instance()->n_dim());
+      FOUR_C_THROW("Unsupported dimension {}.", Global::Problem::instance()->n_dim());
   }
 }
 

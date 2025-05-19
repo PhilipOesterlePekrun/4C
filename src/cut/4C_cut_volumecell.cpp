@@ -419,9 +419,7 @@ void Cut::VolumeCell::new_boundary_cell(
       new_quad4_cell(mesh, f, x);
       break;
     default:
-      FOUR_C_THROW(
-          "Unsupported shape ( shape = %s )", Core::FE::cell_type_to_string(shape).c_str());
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("Unsupported shape ( shape = {} )", Core::FE::cell_type_to_string(shape));
   }
 }
 
@@ -538,9 +536,7 @@ void Cut::VolumeCell::new_integration_cell(
       new_pyramid5_cell(mesh, x);
       break;
     default:
-      FOUR_C_THROW(
-          "Unsupported shape ( shape = %s )", Core::FE::cell_type_to_string(shape).c_str());
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("Unsupported shape ( shape = {} )", Core::FE::cell_type_to_string(shape));
   }
 }
 
@@ -1024,7 +1020,7 @@ void Cut::VolumeCell::integrate_specific_functions_tessellation()
 template <Core::FE::CellType distype>
 std::shared_ptr<Core::FE::GaussPoints> Cut::VolumeCell::create_projected(Cut::IntegrationCell* ic)
 {
-  const unsigned nen = Core::FE::num_nodes<distype>;
+  const unsigned nen = Core::FE::num_nodes(distype);
 
   Core::LinAlg::Matrix<3, nen> xie;
 
@@ -1646,7 +1642,7 @@ bool Cut::VolumeCell::set_position_cut_side_based()
 {
   if (position() != Point::undecided)
     FOUR_C_THROW(
-        "Do not call FindPositionCutSideBased() if Position for volumecell is already set (%d)!",
+        "Do not call FindPositionCutSideBased() if Position for volumecell is already set ({})!",
         (int)position());
 
   std::map<Facet*, bool> outsidenormal;
@@ -1711,7 +1707,7 @@ bool Cut::VolumeCell::set_position_cut_side_based()
                   << ref_vec(2, 0) << ")" << std::endl;
         std::cout << "Facet Vector: (" << norm_fac(0, 0) << "," << norm_fac(1, 0) << ","
                   << norm_fac(2, 0) << ")" << std::endl;
-        FOUR_C_THROW("Check this really small dotProduct! %d", dotProduct);
+        FOUR_C_THROW("Check this really small dotProduct! {}", dotProduct);
       }
 
       outsidenormal[f] = (dotProduct > 0);

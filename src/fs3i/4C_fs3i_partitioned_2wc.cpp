@@ -103,8 +103,7 @@ void FS3I::PartFS3I2Wc::initial_calculations()
 {
   // set initial fluid velocity field for evaluation of initial scalar
   // time derivative in fluid-based scalar transport
-  scatravec_[0]->scatra_field()->set_velocity_field(
-      fsi_->fluid_field()->velnp(), nullptr, nullptr, nullptr);
+  scatravec_[0]->scatra_field()->set_convective_velocity(*fsi_->fluid_field()->velnp());
 
   // set initial value of thermodynamic pressure in fluid-based scalar
   // transport
@@ -304,7 +303,7 @@ void FS3I::PartFS3I2Wc::set_scatra_values_in_fsi()
   // (Note potential inconsistencies related to this call in case of generalized-alpha time
   // integration!)
   fsi_->structure_field()->discretization()->set_state(
-      1, "scalarfield", structure_scalar_to_structure(scatravec_[1]->scatra_field()->phinp()));
+      1, "scalarfield", *structure_scalar_to_structure(scatravec_[1]->scatra_field()->phinp()));
 }
 
 

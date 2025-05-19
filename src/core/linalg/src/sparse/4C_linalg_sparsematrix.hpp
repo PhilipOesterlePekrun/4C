@@ -10,6 +10,7 @@
 
 #include "4C_config.hpp"
 
+#include "4C_linalg_graph.hpp"
 #include "4C_linalg_mapextractor.hpp"
 #include "4C_linalg_sparsematrixbase.hpp"
 #include "4C_utils_exceptions.hpp"
@@ -24,6 +25,7 @@ namespace Core::LinAlg
 {
   // forward declarations:
   class BlockSparseMatrixBase;
+
   template <class Strategy>
   class BlockSparseMatrix;
 
@@ -67,8 +69,6 @@ namespace Core::LinAlg
     and not in SparseMatrix that you would like to call (for legitimate
     reasons!) please add them to the SparseMatrix.
 
-    \author u.kue
-    \date 02/08
    */
   class SparseMatrix : public SparseMatrixBase
   {
@@ -91,15 +91,28 @@ namespace Core::LinAlg
     /// with exactly the types matching one of the constructors
     template <typename... T>
     SparseMatrix(T...) = delete;
+
     /// construction of sparse matrix
-    SparseMatrix(std::shared_ptr<Epetra_CrsGraph> crsgraph,
+    SparseMatrix(std::shared_ptr<Core::LinAlg::Graph> crsgraph,
         std::shared_ptr<Core::LinAlg::MultiMapExtractor> dbcmaps);
 
     /// construction of sparse matrix
+    SparseMatrix(const Core::LinAlg::Map& rowmap, const int npr, bool explicitdirichlet = true,
+        bool savegraph = false, MatrixType matrixtype = CRS_MATRIX);
+
+    /// construction of sparse matrix
+    SparseMatrix(const Core::LinAlg::Map& rowmap, const Core::LinAlg::Map& colmap, const int npr,
+        bool explicitdirichlet = true, bool savegraph = false, MatrixType matrixtype = CRS_MATRIX);
+
+    /// construction of sparse matrix using an individual estimate for number of non-zeros per row
+    SparseMatrix(const Core::LinAlg::Map& rowmap, std::vector<int>& numentries,
+        bool explicitdirichlet = true, bool savegraph = false, MatrixType matrixtype = CRS_MATRIX);
+
+    // TODO remove Epetra_Map here
     SparseMatrix(const Epetra_Map& rowmap, const int npr, bool explicitdirichlet = true,
         bool savegraph = false, MatrixType matrixtype = CRS_MATRIX);
 
-    /// construction of sparse matrix using an individual estimate for number of non-zeros per row
+    // TODO remove Epetra_Map here
     SparseMatrix(const Epetra_Map& rowmap, std::vector<int>& numentries,
         bool explicitdirichlet = true, bool savegraph = false, MatrixType matrixtype = CRS_MATRIX);
 
@@ -138,7 +151,7 @@ namespace Core::LinAlg
       \param mat matrix to assign from
       \param access how to treat this assignment: Copy or View
      */
-    SparseMatrix(const SparseMatrix& mat, DataAccess access = Copy);
+    SparseMatrix(const SparseMatrix& mat, DataAccess access = DataAccess::Copy);
 
     /// Assignment operator. Makes a deep copy.
     SparseMatrix& operator=(const SparseMatrix& mat);
@@ -270,8 +283,18 @@ namespace Core::LinAlg
 
       @param enforce_complete Enforce fill_complete() even though the matrix might already be filled
      */
-    void complete(const Epetra_Map& domainmap, const Epetra_Map& rangemap,
+    void complete(const Core::LinAlg::Map& domainmap, const Core::LinAlg::Map& rangemap,
         bool enforce_complete = false) override;
+
+    // The following three interfaces needs so be merged into one.
+    void complete(const Core::LinAlg::Map& domainmap, const Epetra_Map& rangemap,
+        bool enforce_complete = false);
+
+    void complete(const Epetra_Map& domainmap, const Core::LinAlg::Map& rangemap,
+        bool enforce_complete = false);
+
+    void complete(
+        const Epetra_Map& domainmap, const Epetra_Map& rangemap, bool enforce_complete = false);
 
     void un_complete() override;
 
@@ -287,7 +310,7 @@ namespace Core::LinAlg
     ///  matrix was symmetric. However, the blanking of columns is computationally
     ///  quite expensive, because the matrix is stored in a sparse and distributed
     ///  manner.
-    void apply_dirichlet(const Epetra_Map& dbctoggle, bool diagonalblock = true) override;
+    void apply_dirichlet(const Core::LinAlg::Map& dbctoggle, bool diagonalblock = true) override;
 
     /// Apply dirichlet boundary condition to a matrix using a #trafo matrix
     ///
@@ -297,14 +320,14 @@ namespace Core::LinAlg
     /// The transformation matrix #trafo basically holds rotation matrices
     /// for the DOFs of the nodes.
     void apply_dirichlet_with_trafo(const Core::LinAlg::SparseMatrix& trafo,
-        const Epetra_Map& dbctoggle, bool diagonalblock = true, bool complete = true);
+        const Core::LinAlg::Map& dbctoggle, bool diagonalblock = true, bool complete = true);
 
     /// create matrix that contains all Dirichlet lines from my
     std::shared_ptr<SparseMatrix> extract_dirichlet_rows(
         const Core::LinAlg::Vector<double>& dbctoggle);
 
     /// create matrix that contains all Dirichlet lines from my
-    std::shared_ptr<SparseMatrix> extract_dirichlet_rows(const Epetra_Map& dbctoggle);
+    std::shared_ptr<SparseMatrix> extract_dirichlet_rows(const Core::LinAlg::Map& dbctoggle);
 
     //@}
 
@@ -358,6 +381,7 @@ namespace Core::LinAlg
     \param scalarB    (in)     : scaling factor for B
     */
     using SparseMatrixBase::add;
+
     void add(const SparseMatrixBase& A, const bool transposeA, const double scalarA,
         const double scalarB);
 
@@ -365,7 +389,7 @@ namespace Core::LinAlg
 
    private:
     /// saved graph (if any)
-    std::shared_ptr<Epetra_CrsGraph> graph_;
+    std::shared_ptr<Core::LinAlg::Graph> graph_;
 
     /// Dirichlet row map (if known)
     std::shared_ptr<Core::LinAlg::MultiMapExtractor> dbcmaps_;

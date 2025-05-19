@@ -169,11 +169,9 @@ template <Core::FE::CellType distype, int probdim>
 int Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::evaluate_service(
     Core::Elements::Element* ele, Teuchos::ParameterList& params,
     Core::FE::Discretization& discretization, Core::Elements::LocationArray& la,
-    Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-    Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec1_epetra,
-    Core::LinAlg::SerialDenseVector& elevec2_epetra,
-    Core::LinAlg::SerialDenseVector& elevec3_epetra)
+    Core::LinAlg::SerialDenseMatrix& elemat1, Core::LinAlg::SerialDenseMatrix& elemat2,
+    Core::LinAlg::SerialDenseVector& elevec1, Core::LinAlg::SerialDenseVector& elevec2,
+    Core::LinAlg::SerialDenseVector& elevec3)
 {
   // check if this is an hdg element
   Discret::Elements::ScaTraHDG* hdgele = dynamic_cast<Discret::Elements::ScaTraHDG*>(ele);
@@ -207,7 +205,7 @@ int Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::evaluate_service(
       shapes_->evaluate(*ele);
       read_global_vectors(ele, discretization, la);
 
-      return update_interior_variables(hdgele, params, elevec1_epetra);
+      return update_interior_variables(hdgele, params, elevec1);
       break;
     }
 
@@ -215,7 +213,7 @@ int Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::evaluate_service(
     {
       shapes_->evaluate(*ele);
       read_global_vectors(ele, discretization, la);
-      return node_based_values(ele, discretization, elevec1_epetra);
+      return node_based_values(ele, discretization, elevec1);
       break;
     }
 
@@ -224,7 +222,7 @@ int Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::evaluate_service(
       element_init(ele);
       prepare_material_params(ele);
       // set initial field
-      return set_initial_field(ele, params, elevec1_epetra, elevec2_epetra);
+      return set_initial_field(ele, params, elevec1, elevec2);
 
       break;
     }
@@ -239,8 +237,8 @@ int Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::evaluate_service(
         local_solver_->compute_matrices(ele);
         local_solver_->condense_local_part(hdgele);
       }
-      elemat1_epetra.putScalar(0.0);
-      local_solver_->add_diff_mat(elemat1_epetra, hdgele);
+      elemat1.putScalar(0.0);
+      local_solver_->add_diff_mat(elemat1, hdgele);
 
       break;
     }
@@ -252,7 +250,7 @@ int Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::evaluate_service(
     case ScaTra::Action::project_field:
     {
       shapes_->evaluate(*ele);
-      return project_field(ele, discretization, params, elevec1_epetra, elevec2_epetra, la);
+      return project_field(ele, discretization, params, elevec1, elevec2, la);
       break;
     }
     case ScaTra::Action::time_update_material:
@@ -274,7 +272,7 @@ int Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::evaluate_service(
     {
       if (params.isParameter("faceconsider"))
       {
-        return project_dirich_field(ele, params, discretization, la, elevec1_epetra);
+        return project_dirich_field(ele, params, discretization, la, elevec1);
       }
       break;
     }
@@ -289,7 +287,7 @@ int Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::evaluate_service(
         int nfdofs = Core::FE::PolynomialSpaceCache<nsd_ - 1>::instance().create(parameter)->size();
         sumindex += nfdofs;
       }
-      local_solver_->compute_neumann_bc(ele, params, face, elevec1_epetra, sumindex);
+      local_solver_->compute_neumann_bc(ele, params, face, elevec1, sumindex);
       break;
     }
     case ScaTra::Action::calc_padaptivity:
@@ -303,7 +301,7 @@ int Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::evaluate_service(
     {
       shapes_->evaluate(*ele);
       read_global_vectors(ele, discretization, la);
-      return calc_error(ele, params, elevec1_epetra);
+      return calc_error(ele, params, elevec1);
       break;
     }
     default:
@@ -611,14 +609,14 @@ void Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::LocalSolver::compute
   {
     if (scatraparatimint_->is_stationary())
       FOUR_C_THROW(
-          "Inversion for AMmat failed with errorcode %d. This might be due to the fact that in "
+          "Inversion for AMmat failed with errorcode {}. This might be due to the fact that in "
           "stationary problems Mmat_ is a zero matrix and AMat_ (if there is no convection) only "
           "has boundary integrals. Therefore, if you are using elements with internal degrees of "
           "freedom (high degree?), invAMmat_ matrix will be singular. If none of this is the case, "
           "you'll need to find the problem yourself.",
           err);
     else
-      FOUR_C_THROW("Inversion for AMmat failed with errorcode %d", err);
+      FOUR_C_THROW("Inversion for AMmat failed with errorcode {}", err);
   }
 }
 
@@ -778,7 +776,7 @@ void Discret::Elements::ScaTraEleCalcHDG<distype,
 
 
   // coordinate of gauss points
-  Core::LinAlg::Matrix<probdim, 1> gp_coord(true);
+  Core::LinAlg::Matrix<probdim, 1> gp_coord(Core::LinAlg::Initialization::zero);
 
   for (int q = 0; q < intpoints.ip().nquad; ++q)
   {
@@ -1031,8 +1029,6 @@ void Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::LocalSolver::compute
 
   double dt = scatraparatimint_->dt();
   double theta = scatraparatimint_->time_fac() * (1 / dt);
-  const double time = scatraparatimint_->time();
-  bool source = scatrapara_->is_emd();
 
   Core::LinAlg::SerialDenseVector tempVec1(hdgele->ndofs_);
   Core::LinAlg::SerialDenseVector tempVec2(hdgele->ndofs_ * nsd_);
@@ -1053,19 +1049,11 @@ void Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::LocalSolver::compute
   {
     // Reaction term
     tempVecI = hdgele->Ivecnp_;
-    if (source)
-    {
-      compute_source(hdgele, tempVecI, time + dt);
-    }
     tempVecI.scale(dt * theta);
     tempVec1 += tempVecI;
     if (theta != 1.0)
     {
       tempVecI = hdgele->Ivecn_;
-      if (source)
-      {
-        compute_source(hdgele, tempVecI, time);
-      }
       tempVecI.scale(dt * (1.0 - theta));
       tempVec1 += tempVecI;
     }
@@ -1074,10 +1062,6 @@ void Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::LocalSolver::compute
   else
   {
     tempVecI = hdgele->Ivecn_;
-    if (source)
-    {
-      compute_source(hdgele, tempVecI, time);
-    }
     tempVecI.scale(dt);
     tempVec1 += tempVecI;
   }
@@ -1122,46 +1106,6 @@ void Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::LocalSolver::compute
   return;
 }  // ComputeResidual
 
-/*----------------------------------------------------------------------*
- * ComputeSource
- *----------------------------------------------------------------------*/
-template <Core::FE::CellType distype, int probdim>
-void Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::LocalSolver::compute_source(
-    const Core::Elements::Element* ele, Core::LinAlg::SerialDenseVector& elevec1, const double time)
-{
-  const int funcno = scatrapara_->emd_source();
-
-  shapes_->evaluate(*ele);
-
-  // Core::LinAlg::SerialDenseVector source(nsd_);
-  if (nsd_ != Global::Problem::instance()
-                  ->function_by_id<Core::Utils::FunctionOfSpaceTime>(funcno)
-                  .number_components())
-    FOUR_C_THROW(
-        "The source does not have the correct number of components.\n The correct number of "
-        "components should be equal to the number of spatial dimensions.\n Fix the source "
-        "function.");
-
-  for (unsigned int q = 0; q < shapes_->nqpoints_; ++q)
-  {
-    Core::LinAlg::Matrix<3, 1> xyz;
-    // add it all up
-    for (unsigned int i = 0; i < shapes_->ndofs_; ++i)
-      for (unsigned int j = 0; j < shapes_->ndofs_; ++j)
-      {
-        double source = 0;
-        for (unsigned int d = 0; d < nsd_; ++d) xyz(d) = shapes_->nodexyzreal(d, j);
-        for (unsigned int d = 0; d < nsd_; ++d)
-          source += shapes_->shderxy(j * nsd_ + d, q) *
-                    Global::Problem::instance()
-                        ->function_by_id<Core::Utils::FunctionOfSpaceTime>(funcno)
-                        .evaluate(xyz.data(), time, d);
-        elevec1(i) += shapes_->shfunct(i, q) * source * shapes_->jfac(q);
-      }
-  }
-
-  return;
-}
 
 /*----------------------------------------------------------------------*
  * CondenseLocalPart
@@ -1226,7 +1170,7 @@ void Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::LocalSolver::condens
   int err = inverseinW.invert();
   if (err != 0)
     FOUR_C_THROW(
-        "Inversion of temporary matrix for Schur complement failed with errorcode %d", err);
+        "Inversion of temporary matrix for Schur complement failed with errorcode {}", err);
   // tempMat2 = (  D - H A^{-1} B )^{-1}
 
   hdgele->invCondmat_ = tempMat2;
@@ -1325,7 +1269,7 @@ void Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::LocalSolver::compute
   // (assumed to be constant on element boundary)
   const auto onoff = condition->parameters().get<std::vector<int>>("ONOFF");
   const auto val = condition->parameters().get<std::vector<double>>("VAL");
-  const auto func = condition->parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+  const auto func = condition->parameters().get<std::vector<std::optional<int>>>("FUNCT");
 
 
   Core::FE::ShapeValuesFaceParams svfparams(
@@ -1523,8 +1467,6 @@ int Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::update_interior_varia
 
   double dt = local_solver_->scatraparatimint_->dt();
   double theta = local_solver_->scatraparatimint_->time_fac() * (1 / dt);
-  const double time = local_solver_->scatraparatimint_->time();
-  bool source = local_solver_->scatrapara_->is_emd();
 
   Core::LinAlg::SerialDenseVector tempVec1(hdgele->ndofs_);
   if (theta != 1.0)
@@ -1544,19 +1486,11 @@ int Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::update_interior_varia
   if (!local_solver_->scatrapara_->semi_implicit())
   {
     tempVecI = hdgele->Ivecnp_;
-    if (source)
-    {
-      local_solver_->compute_source(hdgele, tempVecI, time + dt);
-    }
     tempVecI.scale(-dt * theta);
     tempVec1 += tempVecI;
     if (theta != 1.0)
     {
       tempVecI = hdgele->Ivecn_;
-      if (source)
-      {
-        local_solver_->compute_source(hdgele, tempVecI, time);
-      }
       tempVecI.scale(-dt * (1.0 - theta));
       tempVec1 += tempVecI;
     }
@@ -1564,10 +1498,6 @@ int Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::update_interior_varia
   else
   {
     tempVecI = hdgele->Ivecn_;
-    if (source)
-    {
-      local_solver_->compute_source(hdgele, tempVecI, time);
-    }
     tempVecI.scale(-dt);
     tempVec1 += tempVecI;
   }
@@ -1696,7 +1626,7 @@ int Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::set_initial_field(
       inverseMass.factorWithEquilibration(true);
       int err2 = inverseMass.factor();
       int err = inverseMass.solve();
-      if (err != 0 || err2 != 0) FOUR_C_THROW("Inversion of matrix failed with errorcode %d", err);
+      if (err != 0 || err2 != 0) FOUR_C_THROW("Inversion of matrix failed with errorcode {}", err);
     }
   }
 
@@ -1746,7 +1676,7 @@ int Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::set_initial_field(
     inverseMass.factorWithEquilibration(true);
     int err2 = inverseMass.factor();
     int err = inverseMass.solve();
-    if (err != 0 || err2 != 0) FOUR_C_THROW("Inversion of matrix failed with errorcode %d", err);
+    if (err != 0 || err2 != 0) FOUR_C_THROW("Inversion of matrix failed with errorcode {}", err);
     for (unsigned int i = 0; i < shapesface_->nfdofs_; ++i) elevec1(nfdofs + i) = trVec(i, 0);
 
     nfdofs += shapesface_->nfdofs_;
@@ -1822,7 +1752,7 @@ void Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::LocalSolver::prepare
   Teuchos::SerialDenseSolver<ordinalType, scalarType> inverseindifftensor;
   inverseindifftensor.setMatrix(Teuchos::rcpFromRef(difftensor));
   int err = inverseindifftensor.invert();
-  if (err != 0) FOUR_C_THROW("Inversion of diffusion tensor failed with errorcode %d", err);
+  if (err != 0) FOUR_C_THROW("Inversion of diffusion tensor failed with errorcode {}", err);
 
   hdgele->invdiff_.push_back(difftensor);
 }
@@ -1900,16 +1830,14 @@ int Discret::Elements::ScaTraEleCalcHDG<distype, probdim>::project_field(
   std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state =
       params.get<std::shared_ptr<Core::LinAlg::Vector<double>>>("phi");
 
-  std::vector<double> tracephi;
-  Core::FE::extract_my_values(*matrix_state, tracephi, la[nds_var_old].lm_);
+  std::vector<double> tracephi = Core::FE::extract_values(*matrix_state, la[nds_var_old].lm_);
 
   // get node based values!
   matrix_state = params.get<std::shared_ptr<Core::LinAlg::Vector<double>>>("intphi");
-  std::vector<double> intphi;
-  Core::FE::extract_my_values(*matrix_state, intphi, la[nds_intvar_old].lm_);
+  std::vector<double> intphi = Core::FE::extract_values(*matrix_state, la[nds_intvar_old].lm_);
   if (intphi.size() != shapes_old->ndofs_ * (nsd_ + 1))
     FOUR_C_THROW(
-        "node number not matching: %d vs. %d", intphi.size(), shapes_old->ndofs_ * (nsd_ + 1));
+        "node number not matching: {} vs. {}", intphi.size(), shapes_old->ndofs_ * (nsd_ + 1));
 
   for (unsigned int i = 0; i < shapes_old->ndofs_ * (nsd_ + 1); ++i) interiorPhi_old(i) = intphi[i];
 

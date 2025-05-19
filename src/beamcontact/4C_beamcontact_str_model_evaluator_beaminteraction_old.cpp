@@ -49,11 +49,6 @@ void Solid::ModelEvaluator::BeamInteractionOld::setup()
   // create beam contact manager
   beamcman_ = std::make_shared<CONTACT::Beam3cmanager>(*discret_ptr(), 0.0);
 
-  // gmsh output at beginning of simulation
-#ifdef GMSHTIMESTEPS
-  beamcman_->GmshOutput(*disnp_ptr_, 0, 0, true);
-#endif
-
   // set flag
   issetup_ = true;
 }
@@ -68,7 +63,7 @@ void Solid::ModelEvaluator::BeamInteractionOld::reset(const Core::LinAlg::Vector
   disnp_ptr_ = global_state().get_dis_np();
 
   // Zero out force and stiffness contributions
-  f_beaminteract_np_ptr_->PutScalar(0.0);
+  f_beaminteract_np_ptr_->put_scalar(0.0);
   stiff_beaminteract_ptr_->zero();
 }
 
@@ -123,12 +118,6 @@ bool Solid::ModelEvaluator::BeamInteractionOld::evaluate_force_stiff()
 
   beamcman_->evaluate(*stiff_beaminteract_ptr_, *f_beaminteract_np_ptr_, *disnp_ptr_,
       beamcontactparams, true, eval_data().get_total_time());
-
-  // visualization of current Newton step
-#ifdef GMSHNEWTONSTEPS
-  beamcman_->GmshOutput(*disnp_ptr_, EvalData().get_step_np(), EvalData().GetNlnIter());
-  beamcman_->ConsoleOutput();
-#endif
 
   // update constraint norm
   beamcman_->update_constr_norm();  // ToDo
@@ -201,7 +190,7 @@ void Solid::ModelEvaluator::BeamInteractionOld::update_step_state(const double& 
       global_state().get_fstructure_old();
 
   // Todo take care of the minus sign in front of timefac_np
-  fstructold_ptr->Update(-timefac_n, *f_beaminteract_np_ptr_, 1.0);
+  fstructold_ptr->update(-timefac_n, *f_beaminteract_np_ptr_, 1.0);
 }
 
 /*----------------------------------------------------------------------*
@@ -250,7 +239,7 @@ void Solid::ModelEvaluator::BeamInteractionOld::reset_step_state() { return; }
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-std::shared_ptr<const Epetra_Map>
+std::shared_ptr<const Core::LinAlg::Map>
 Solid::ModelEvaluator::BeamInteractionOld::get_block_dof_row_map_ptr() const
 {
   check_init_setup();

@@ -25,12 +25,12 @@ namespace Inpar
   {
     enum ModelType : int;
   }
-  namespace CONTACT
-  {
-    enum SolvingStrategy : int;
-    enum SystemType : int;
-  }  // namespace CONTACT
 }  // namespace Inpar
+namespace CONTACT
+{
+  enum class SolvingStrategy;
+  enum class SystemType;
+}  // namespace CONTACT
 namespace Core::LinAlg
 {
   class Solver;
@@ -46,12 +46,12 @@ namespace Solid
     /*! \brief Factory to build the desired linear solver std::map corresponding
      *  to the active model types.
      *
-     *  \author Michael Hiermeier */
+     *  */
     class Factory
     {
      private:
-      typedef std::map<enum Inpar::Solid::ModelType, std::shared_ptr<Core::LinAlg::Solver>>
-          LinSolMap;
+      using LinSolMap =
+          std::map<enum Inpar::Solid::ModelType, std::shared_ptr<Core::LinAlg::Solver>>;
 
      public:
       //! constructor
@@ -67,8 +67,8 @@ namespace Solid
 
       //! create the meshtying/contact linear solver
       static std::shared_ptr<Core::LinAlg::Solver> build_meshtying_contact_lin_solver(
-          Core::FE::Discretization& actdis, enum Inpar::CONTACT::SolvingStrategy sol_type,
-          enum Inpar::CONTACT::SystemType sys_type, const int lin_solver_id);
+          Core::FE::Discretization& actdis, enum CONTACT::SolvingStrategy sol_type,
+          enum CONTACT::SystemType sys_type, const int lin_solver_id);
 
      private:
       //! create the structural linear solver (should be called by default)

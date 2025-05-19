@@ -11,10 +11,10 @@
 #include "4C_config.hpp"
 
 #include "4C_adapter_fld_fluid.hpp"
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
 
-#include <Epetra_Map.h>
 #include <Epetra_Operator.h>
 
 #include <memory>
@@ -55,7 +55,7 @@ namespace Adapter
     //! values specified in given problem-dependent ParameterList)
     /**
      * \note In this function the linear solver object is generated. For pure fluid problems or
-     * fluid meshtying (no block matrix) the FLUID SOLVER block from the 4C dat file is used.
+     * fluid meshtying (no block matrix) the FLUID SOLVER block from the 4C input file is used.
      * For fluid meshtying (block matrix) the MESHTYING SOLVER block is used as main solver object
      * with a block preconditioner (BGS or SIMPLE type). The block preconditioners use the
      * information form the FLUID SOLVER and the FLUID PRESSURE SOLVER block for the velocity and

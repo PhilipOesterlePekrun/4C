@@ -34,7 +34,6 @@ RESULTSEVERY                           1
 //INITIALFIELD                    forced_hit_numeric_spectrum
 INITIALFIELD                    forced_hit_simple_algebraic_spectrum
 LINEAR_SOLVER                   1
-GEOMETRY                        box
 CALCERROR                       beltrami_flow
 -----------------------------------FLUID DYNAMIC/NONLINEAR SOLVER TOLERANCES
 TOL_VEL_RES	  1e-05
@@ -66,12 +65,11 @@ AZOUTPUT          0
 AZSOLVE           GMRES
 AZPREC            ILU
 AZREUSE           15
-IFPACKGFILL       0
 AZTOL             1.0E-10
 AZCONV            AZ_r0
 AZITER            1000
 AZSUB             80
-IFPACKOVERLAP     0
+IFPACK_XML_FILE                 xml/preconditioner/ifpack.xml
 -------------------------------------------------------------------MATERIALS
 MAT 1 MAT_fluid DYNVISCOSITY 0.01 DENSITY 1.0
 ----------------------------------------------------------RESULT DESCRIPTION
@@ -81,22 +79,20 @@ FLUID DIS fluid NODE 1 QUANTITY L2errvel VALUE  9.99864338061471791e-01 TOLERANC
 FLUID DIS fluid NODE 1 QUANTITY H1errvel VALUE  1.00027319239488799e+00 TOLERANCE 1e-12
 FLUID DIS fluid NODE 1 QUANTITY L2errpre VALUE  9.99800313632522863e-01 TOLERANCE 2e-10
 -------------------------------------DESIGN POINT DIRICH CONDITIONS
-DPOINT 1
-E 8 - NUMDOF 4 ONOFF 0 0 0 1 VAL 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0
+E 8 NUMDOF 4 ONOFF 0 0 0 1 VAL 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0
 --------------------------DESIGN SURF PERIODIC BOUNDARY CONDITIONS
-DSURF  6
 // surface_top
-E 1 - ID 3 MASTER_OR_SLAVE Master PLANE xz LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
+E 1 ID 3 MASTER_OR_SLAVE Master PLANE xz LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
 // surface_bottom
-E 2 - ID 3 MASTER_OR_SLAVE Slave PLANE xz LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
+E 2 ID 3 MASTER_OR_SLAVE Slave PLANE xz LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
 // surface_left
-E 3 - ID 1 MASTER_OR_SLAVE Slave PLANE yz LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
+E 3 ID 1 MASTER_OR_SLAVE Slave PLANE yz LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
 // surface_right
-E 4 - ID 1 MASTER_OR_SLAVE Master PLANE yz LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
+E 4 ID 1 MASTER_OR_SLAVE Master PLANE yz LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
 // surface_front
-E 5 - ID 2 MASTER_OR_SLAVE Master PLANE xy LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
+E 5 ID 2 MASTER_OR_SLAVE Master PLANE xy LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
 // surface_back
-E 6 - ID 2 MASTER_OR_SLAVE Slave PLANE xy LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
+E 6 ID 2 MASTER_OR_SLAVE Slave PLANE xy LAYER 1 ANGLE 0.0 ABSTREETOL 1e-9
 -----------------------------------------------DNODE-NODE TOPOLOGY
 CORNER fluid x- y- z+ DNODE 1
 CORNER fluid x- y- z- DNODE 2

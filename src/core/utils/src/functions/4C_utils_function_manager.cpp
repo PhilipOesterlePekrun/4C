@@ -70,59 +70,63 @@ void Core::Utils::add_valid_builtin_functions(Core::Utils::FunctionManager& func
   using namespace IO::InputSpecBuilders;
 
   auto time_info = all_of({
-      entry<int>("NUMPOINTS"),
+      parameter<int>("NUMPOINTS"),
       one_of({
           group("BYNUM",
               {
-                  entry<std::vector<double>>("TIMERANGE", {.size = 2}),
+                  parameter<std::vector<double>>("TIMERANGE", {.size = 2}),
               },
               {.description = "Linearly distribute NUMPOINTS time points in the TIMERANGE."}),
-          entry<std::vector<double>>("TIMES", {.size = from_parameter<int>("NUMPOINTS")}),
+          parameter<std::vector<double>>("TIMES", {.size = from_parameter<int>("NUMPOINTS")}),
       }),
   });
 
   auto spec = one_of({
       all_of({
-          entry<int>("COMPONENT", {.required = false}),
-          entry<std::string>("SYMBOLIC_FUNCTION_OF_SPACE_TIME"),
+          parameter<std::optional<int>>("COMPONENT"),
+          parameter<std::string>("SYMBOLIC_FUNCTION_OF_SPACE_TIME"),
       }),
 
-      entry<std::string>("SYMBOLIC_FUNCTION_OF_TIME"),
+      parameter<std::string>("SYMBOLIC_FUNCTION_OF_TIME"),
 
       all_of({
-          entry<int>("VARIABLE"),
-          entry<std::string>("NAME"),
+          parameter<int>("VARIABLE"),
+          parameter<std::string>("NAME"),
           one_of({
               all_of({
-                  selection<std::string>("TYPE", {"expression"}),
-                  entry<std::string>("DESCRIPTION"),
+                  deprecated_selection<std::string>("TYPE", {"expression"}),
+                  parameter<std::string>("DESCRIPTION"),
               }),
               all_of({
-                  selection<std::string>("TYPE", {"linearinterpolation", "fourierinterpolation"}),
+                  deprecated_selection<std::string>(
+                      "TYPE", {"linearinterpolation", "fourierinterpolation"}),
                   time_info,
-                  entry<std::vector<double>>("VALUES", {.size = from_parameter<int>("NUMPOINTS")}),
+                  parameter<std::vector<double>>(
+                      "VALUES", {.size = from_parameter<int>("NUMPOINTS")}),
               }),
               all_of({
-                  selection<std::string>("TYPE", {"multifunction"}),
+                  deprecated_selection<std::string>("TYPE", {"multifunction"}),
                   time_info,
-                  entry<std::vector<std::string>>(
+                  parameter<std::vector<std::string>>(
                       "DESCRIPTION", {.size = [](const IO::InputParameterContainer& container)
                                          { return container.get<int>("NUMPOINTS") - 1; }}),
               }),
           }),
           group("PERIODIC",
               {
-                  entry<double>("T1"),
-                  entry<double>("T2"),
+                  parameter<double>("T1"),
+                  parameter<double>("T2"),
               },
               {.required = false}),
       }),
 
       all_of({
-          entry<std::string>("VARFUNCTION"),
-          entry<int>("NUMCONSTANTS", {.required = false}),
-          entry<std::vector<std::pair<std::string, double>>>(
-              "CONSTANTS", {.required = false, .size = from_parameter<int>("NUMCONSTANTS")}),
+          parameter<std::string>("VARFUNCTION"),
+          parameter<std::optional<int>>("NUMCONSTANTS"),
+          parameter<std::map<std::string, double>>("CONSTANTS",
+              {.default_value = std::map<std::string, double>{},
+                  .size = [](const IO::InputParameterContainer& container)
+                  { return container.get<std::optional<int>>("NUMCONSTANTS").value_or(0); }}),
       }),
   });
 
@@ -137,7 +141,8 @@ Core::IO::InputSpec Core::Utils::FunctionManager::valid_function_lines()
   {
     specs.emplace_back(spec);
   }
-  return Core::IO::InputSpecBuilders::one_of(specs);
+  return Core::IO::InputSpecBuilders::one_of(
+      specs, Core::IO::InputSpecBuilders::store_index_as<int>("_internal_index"));
 }
 
 
@@ -160,37 +165,21 @@ void Core::Utils::FunctionManager::read_input(Core::IO::InputFile& input)
     const bool stop_parsing = std::invoke(
         [&]()
         {
-          for (auto& [spec, function_factory] : attached_function_data_)
-          {
-            auto [parsed_parameters, unparsed_lines] = Core::IO::read_matching_lines_in_section(
-                input, "FUNCT" + std::to_string(funct_suffix), spec);
+          Core::IO::InputParameterContainer container;
+          const std::string funct_section_name = "FUNCT" + std::to_string(funct_suffix);
+          if (!input.has_section(funct_section_name)) return true;
 
-            // A convoluted way of saying that there are no lines in the section, thus, stop
-            // parsing. This can only be refactored if the reading mechanism is overhauled in
-            // general.
-            if (parsed_parameters.size() + unparsed_lines.size() == 0)
-            {
-              return true;
-            }
+          input.match_section(funct_section_name, container);
 
-            if (parsed_parameters.size() > 0 && unparsed_lines.size() == 0)
-            {
-              functions_.emplace_back(function_factory(parsed_parameters));
-              return false;
-            }
-          }
+          const auto* list = container.get_if<Core::IO::InputParameterContainer::List>(
+              "FUNCT" + std::to_string(funct_suffix));
 
-          // If we end up here, the current sections function definition could not be parsed.
-          {
-            std::stringstream ss;
-            for (const auto& line : input.in_section("FUNCT" + std::to_string(funct_suffix)))
-            {
-              ss << '\n' << line.get_as_dat_style_string();
-            }
+          if (!list or list->empty()) return true;
 
-            FOUR_C_THROW("Could not parse the following lines into a Function known to 4C:\n%s",
-                ss.str().c_str());
-          }
+          const auto& factory =
+              attached_function_data_[list->front().get<int>("_internal_index")].second;
+          functions_.emplace_back(factory(*list));
+          return false;
         });
 
     // Stop reading as soon as the first FUNCT section in the input file is empty

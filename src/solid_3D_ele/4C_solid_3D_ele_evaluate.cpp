@@ -29,10 +29,7 @@ namespace
       const Core::FE::Discretization& discretization, const std::vector<int>& lm)
   {
     const Core::LinAlg::Vector<double>& acceleration = *discretization.get_state("acceleration");
-    std::vector<double> my_acceleration(lm.size());
-    Core::FE::extract_my_values(acceleration, my_acceleration, lm);
-
-    return my_acceleration;
+    return Core::FE::extract_values(acceleration, lm);
   }
 
   void evaluate_inertia_force(const Core::LinAlg::SerialDenseMatrix& mass_matrix,
@@ -272,8 +269,8 @@ int Discret::Elements::Solid::evaluate(Teuchos::ParameterList& params,
     }
 
     default:
-      FOUR_C_THROW("The element action %s is not yet implemented for the new solid elements",
-          action_type_to_string(action).c_str());
+      FOUR_C_THROW("The element action {} is not yet implemented for the new solid elements",
+          action_type_to_string(action));
   }
 
   return 0;
@@ -302,27 +299,17 @@ int Discret::Elements::Solid::evaluate_neumann(Teuchos::ParameterList& params,
           return params.get("total time", -1.0);
       });
 
-  Discret::Elements::evaluate_neumann_by_element(
-      *this, discretization, condition, lm, elevec1, time);
+  Discret::Elements::evaluate_neumann_by_element<3>(
+      *this, discretization, condition, elevec1, time);
   return 0;
 }
 
-template <int dim>
 double Discret::Elements::Solid::get_normal_cauchy_stress_at_xi(const std::vector<double>& disp,
-    const Core::LinAlg::Matrix<dim, 1>& xi, const Core::LinAlg::Matrix<dim, 1>& n,
-    const Core::LinAlg::Matrix<dim, 1>& dir, CauchyNDirLinearizations<dim>& linearizations)
+    const Core::LinAlg::Matrix<3, 1>& xi, const Core::LinAlg::Matrix<3, 1>& n,
+    const Core::LinAlg::Matrix<3, 1>& dir, CauchyNDirLinearizations<3>& linearizations)
 {
-  return Discret::Elements::get_normal_cauchy_stress_at_xi<dim>(
+  return Discret::Elements::get_normal_cauchy_stress_at_xi(
       solid_calc_variant_, *this, *solid_material(), disp, xi, n, dir, linearizations);
 }
-
-template double Discret::Elements::Solid::get_normal_cauchy_stress_at_xi<3>(
-    const std::vector<double>&, const Core::LinAlg::Matrix<3, 1>&,
-    const Core::LinAlg::Matrix<3, 1>&, const Core::LinAlg::Matrix<3, 1>&,
-    CauchyNDirLinearizations<3>&);
-template double Discret::Elements::Solid::get_normal_cauchy_stress_at_xi<2>(
-    const std::vector<double>&, const Core::LinAlg::Matrix<2, 1>&,
-    const Core::LinAlg::Matrix<2, 1>&, const Core::LinAlg::Matrix<2, 1>&,
-    CauchyNDirLinearizations<2>&);
 
 FOUR_C_NAMESPACE_CLOSE

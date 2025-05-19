@@ -13,6 +13,7 @@
 #include "4C_linalg_fixedsizematrix_solver.hpp"
 #include "4C_mat_par_bundle.hpp"
 #include "4C_mat_service.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <Teuchos_ENull.hpp>
 
@@ -250,7 +251,7 @@ void Mat::CrystalPlasticity::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::CrystalPlasticity*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
   }
@@ -271,7 +272,7 @@ void Mat::CrystalPlasticity::unpack(Core::Communication::UnpackBuffer& buffer)
 
     for (int var = 0; var < histsize; ++var)
     {
-      Core::LinAlg::Matrix<3, 3> tmp_matrix(true);
+      Core::LinAlg::Matrix<3, 3> tmp_matrix(Core::LinAlg::Initialization::zero);
       std::vector<double> tmp_vect(def_system_count_);
 
       extract_from_pack(buffer, tmp_matrix);
@@ -325,7 +326,7 @@ void Mat::CrystalPlasticity::setup(int numgp, const Core::IO::InputParameterCont
   // parameters according to chosen lattice type
   this->setup_lattice_vectors();
 
-  //  read Lattice orientation matrix from .dat file
+  //  read Lattice orientation matrix from input file
   this->setup_lattice_orientation(container);
 
   // rotate lattice vectors according to lattice orientation
@@ -507,7 +508,7 @@ void Mat::CrystalPlasticity::update()
   gamma_current_->resize(histsize);
   defect_densities_current_->resize(histsize);
 
-  Core::LinAlg::Matrix<3, 3> emptymat(true);
+  Core::LinAlg::Matrix<3, 3> emptymat(Core::LinAlg::Initialization::zero);
   std::vector<double> emptyvect(def_system_count_);
   for (int i = 0; i < def_system_count_; i++) emptyvect[i] = 0.0;
 
@@ -598,7 +599,7 @@ void Mat::CrystalPlasticity::setup_lattice_vectors()
     def_system_count_ = 2;  // 1 slip systems and 1 twinning system
   else if (lattice_type_ == "D019" && is_twinning_)
     FOUR_C_THROW(
-        "Twinning does not occur in the chosen lattice type %s or is not yet implemented. Omit "
+        "Twinning does not occur in the chosen lattice type {} or is not yet implemented. Omit "
         "all optional parameters of the material input line to switch off twinning.",
         lattice_type_.c_str());
 
@@ -608,18 +609,18 @@ void Mat::CrystalPlasticity::setup_lattice_vectors()
   {
     if (!is_twinning_)
       FOUR_C_THROW(
-          "The number of slip systems NUMSLIPSYS = %d given in the input does not match the "
-          "expected total number of %d deformation systems that is expected for %s lattices in "
+          "The number of slip systems NUMSLIPSYS = {} given in the input does not match the "
+          "expected total number of {} deformation systems that is expected for {} lattices in "
           "the "
           "absence of twinning!",
           params_->num_slip_sys_, params_->num_twin_sys_, def_system_count_, lattice_type_.c_str());
 
     else if (is_twinning_)
       FOUR_C_THROW(
-          "The sum of the number of slip systems NUMSLIPSYS = %d and the number twinning "
+          "The sum of the number of slip systems NUMSLIPSYS = {} and the number twinning "
           "systems "
-          "NUMTWINSYS = %d given in the input does not match the expected total number of %d "
-          "deformation systems that is expected for %s lattices!",
+          "NUMTWINSYS = {} given in the input does not match the expected total number of {} "
+          "deformation systems that is expected for {} lattices!",
           params_->num_slip_sys_, params_->num_twin_sys_, def_system_count_, lattice_type_.c_str());
   }
 
@@ -972,7 +973,7 @@ void Mat::CrystalPlasticity::setup_lattice_vectors()
   }
   else if (lattice_type_ == "HCP" or lattice_type_ == "BCC" or lattice_type_ == "FCC")
     FOUR_C_THROW(
-        "%s lattices are not yet implemented. If you want to use these lattice types you "
+        "{} lattices are not yet implemented. If you want to use these lattice types you "
         "need to extend the SetupLatticeVectors() method accordingly.",
         lattice_type_.c_str());
   // academic test lattice containing only one slip system
@@ -1012,7 +1013,7 @@ void Mat::CrystalPlasticity::setup_lattice_vectors()
     if (!is_perpendicular_)
       FOUR_C_THROW(
           "Warning, slip direction and slip plane normal of slip system "
-          "%s are not perpendicular! Check implementation of lattice vectors.",
+          "{} are not perpendicular! Check implementation of lattice vectors.",
           def_system_id_[i].c_str());
   }
   if (is_twinning_)
@@ -1026,7 +1027,7 @@ void Mat::CrystalPlasticity::setup_lattice_vectors()
       if (!is_perpendicular_)
         FOUR_C_THROW(
             "Warning, twinning direction and twinning plane normal of twinning system "
-            "%s are not perpendicular! Check implementation of lattice vectors.",
+            "{} are not perpendicular! Check implementation of lattice vectors.",
             def_system_id_[i].c_str());
 
       is_non_coplanar_[i].resize(def_system_count_);
@@ -1097,18 +1098,18 @@ void Mat::CrystalPlasticity::setup_lattice_vectors()
 }
 
 /*---------------------------------------------------------------------------------*
- | Read Lattice orientation matrix from .dat file                                    |
+ | Read Lattice orientation matrix from input file                                    |
  *---------------------------------------------------------------------------------*/
 
 void Mat::CrystalPlasticity::setup_lattice_orientation(
     const Core::IO::InputParameterContainer& container)
 {
   // extract fiber vectors as columns of the rotation matrix
-  const auto* fiber1 = container.get_if<std::vector<double>>("FIBER1");
-  const auto* fiber2 = container.get_if<std::vector<double>>("FIBER2");
-  const auto* fiber3 = container.get_if<std::vector<double>>("FIBER3");
+  const auto& fiber1 = container.get<std::optional<std::vector<double>>>("FIBER1");
+  const auto& fiber2 = container.get<std::optional<std::vector<double>>>("FIBER2");
+  const auto& fiber3 = container.get<std::optional<std::vector<double>>>("FIBER3");
 
-  if (fiber1 != nullptr and fiber2 != nullptr and fiber3 != nullptr)
+  if (fiber1 and fiber2 and fiber3)
   {
     // assemble rotation matrix
     for (int i = 0; i < 3; i++)
@@ -1215,7 +1216,7 @@ void Mat::CrystalPlasticity::newton_raphson(Core::LinAlg::Matrix<3, 3>& deform_g
   double total_residual;
 
   // empty matrix
-  Core::LinAlg::Matrix<3, 3> emptymat(true);
+  Core::LinAlg::Matrix<3, 3> emptymat(Core::LinAlg::Initialization::zero);
 
   // iteration
   //--------------------------------------------------------------------------
@@ -1258,23 +1259,23 @@ void Mat::CrystalPlasticity::newton_raphson(Core::LinAlg::Matrix<3, 3>& deform_g
       // depending on total number of deformation systems the equation system has a different
       // size def_system_count_ = 1
       Core::LinAlg::Matrix<1, 1> residual_tangent_1x1;
-      Core::LinAlg::Matrix<1, 1> d_gamma_trial_1(true);
+      Core::LinAlg::Matrix<1, 1> d_gamma_trial_1(Core::LinAlg::Initialization::zero);
       Core::LinAlg::Matrix<1, 1> residuals_trial_LIN_1;
       Core::LinAlg::FixedSizeSerialDenseSolver<1, 1, 1> newton_raphson_solver_1x1;
       // depending on total number of deformation systems the equation system has a different
       // size def_system_count_ = 2
       Core::LinAlg::Matrix<2, 2> residual_tangent_2x2;
-      Core::LinAlg::Matrix<2, 1> d_gamma_trial_2(true);
+      Core::LinAlg::Matrix<2, 1> d_gamma_trial_2(Core::LinAlg::Initialization::zero);
       Core::LinAlg::Matrix<2, 1> residuals_trial_LIN_2;
       Core::LinAlg::FixedSizeSerialDenseSolver<2, 2, 1> newton_raphson_solver_2x2;
       // def_system_count_ = 12
       Core::LinAlg::Matrix<12, 12> residual_tangent_12x12;
-      Core::LinAlg::Matrix<12, 1> d_gamma_trial_12(true);
+      Core::LinAlg::Matrix<12, 1> d_gamma_trial_12(Core::LinAlg::Initialization::zero);
       Core::LinAlg::Matrix<12, 1> residuals_trial_LIN_12;
       Core::LinAlg::FixedSizeSerialDenseSolver<12, 12, 1> newton_raphson_solver_12x12;
       // def_system_count_ = 16
       Core::LinAlg::Matrix<16, 16> residual_tangent_16x16;
-      Core::LinAlg::Matrix<16, 1> d_gamma_trial_16(true);
+      Core::LinAlg::Matrix<16, 1> d_gamma_trial_16(Core::LinAlg::Initialization::zero);
       Core::LinAlg::Matrix<16, 1> residuals_trial_LIN_16;
       Core::LinAlg::FixedSizeSerialDenseSolver<16, 16, 1> newton_raphson_solver_16x16;
 
@@ -1297,7 +1298,7 @@ void Mat::CrystalPlasticity::newton_raphson(Core::LinAlg::Matrix<3, 3>& deform_g
         std::vector<double> defect_densities_perturbed(def_system_count_);
 
         // resultant 2nd PK stress
-        Core::LinAlg::Matrix<3, 3> second_pk_stress_perturbed(true);
+        Core::LinAlg::Matrix<3, 3> second_pk_stress_perturbed(Core::LinAlg::Initialization::zero);
 
         // resultant plastic part of deformation gradient
         Core::LinAlg::Matrix<3, 3> plastic_deform_grad_perturbed;
@@ -1476,7 +1477,7 @@ void Mat::CrystalPlasticity::setup_flow_rule(Core::LinAlg::Matrix<3, 3> deform_g
 
   // determine trial plastic velocity gradient L_p
   // set up L_p_trial
-  Core::LinAlg::Matrix<3, 3> plastic_velocity_grad_trial(true);
+  Core::LinAlg::Matrix<3, 3> plastic_velocity_grad_trial(Core::LinAlg::Initialization::zero);
   Core::LinAlg::Matrix<3, 3> temp_mat;
 
   // slip system contributions
@@ -1497,7 +1498,8 @@ void Mat::CrystalPlasticity::setup_flow_rule(Core::LinAlg::Matrix<3, 3> deform_g
   }
 
   // take unimodular part of I + L_p to ensure plastic incompressibility
-  Core::LinAlg::Matrix<3, 3> unimod_identity_plus_plastic_velocity_grad_trial(true);
+  Core::LinAlg::Matrix<3, 3> unimod_identity_plus_plastic_velocity_grad_trial(
+      Core::LinAlg::Initialization::zero);
 
   unimod_identity_plus_plastic_velocity_grad_trial.update(
       Core::LinAlg::identity_matrix<3>(), plastic_velocity_grad_trial);
@@ -1586,9 +1588,9 @@ void Mat::CrystalPlasticity::setup_flow_rule(Core::LinAlg::Matrix<3, 3> deform_g
     //--------------------------------------------------------------------------
 
     // resolved shear stress/Schmid stress
-    Core::LinAlg::Matrix<1, 1> resolved_shear_stress(true);
+    Core::LinAlg::Matrix<1, 1> resolved_shear_stress(Core::LinAlg::Initialization::zero);
 
-    Core::LinAlg::Matrix<3, 1> TempVec(true);
+    Core::LinAlg::Matrix<3, 1> TempVec(Core::LinAlg::Initialization::zero);
 
     TempVec.multiply_nn(mandel_stress_trial, slip_plane_normal_[i]);
 
@@ -1657,9 +1659,9 @@ void Mat::CrystalPlasticity::setup_flow_rule(Core::LinAlg::Matrix<3, 3> deform_g
       //--------------------------------------------------------------------------
 
       // resolved shear stress/Schmid stress
-      Core::LinAlg::Matrix<1, 1> resolved_shear_stress(true);
+      Core::LinAlg::Matrix<1, 1> resolved_shear_stress(Core::LinAlg::Initialization::zero);
 
-      Core::LinAlg::Matrix<3, 1> TempVec(true);
+      Core::LinAlg::Matrix<3, 1> TempVec(Core::LinAlg::Initialization::zero);
 
       TempVec.multiply_nn(mandel_stress_trial, twin_plane_normal_[i - slip_system_count_]);
 

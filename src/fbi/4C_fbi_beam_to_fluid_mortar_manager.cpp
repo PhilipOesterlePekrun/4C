@@ -11,10 +11,10 @@
 #include "4C_beaminteraction_contact_pair.hpp"
 #include "4C_fbi_beam_to_fluid_meshtying_params.hpp"
 #include "4C_fbi_calc_utils.hpp"
+#include "4C_fbi_input.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_node.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_fbi.hpp"
 #include "4C_linalg_serialdensevector.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
@@ -52,19 +52,19 @@ BeamInteraction::BeamToFluidMortarManager::BeamToFluidMortarManager(
   // Get the number of Lagrange multiplier DOF on a beam node and on a beam element.
   switch (params->get_mortar_shape_function_type())
   {
-    case Inpar::FBI::BeamToFluidMeshtingMortarShapefunctions::line2:
+    case FBI::BeamToFluidMeshtingMortarShapefunctions::line2:
     {
       n_lambda_node_ = 1 * 3;
       n_lambda_element_ = 0 * 3;
       break;
     }
-    case Inpar::FBI::BeamToFluidMeshtingMortarShapefunctions::line3:
+    case FBI::BeamToFluidMeshtingMortarShapefunctions::line3:
     {
       n_lambda_node_ = 1 * 3;
       n_lambda_element_ = 1 * 3;
       break;
     }
-    case Inpar::FBI::BeamToFluidMeshtingMortarShapefunctions::line4:
+    case FBI::BeamToFluidMeshtingMortarShapefunctions::line4:
     {
       n_lambda_node_ = 1 * 3;
       n_lambda_element_ = 2 * 3;
@@ -124,16 +124,17 @@ void BeamInteraction::BeamToFluidMortarManager::setup()
     my_lambda_gid[my_lid] = my_lambda_gid_start_value + my_lid;
 
   // Rowmap for the additional GIDs used by the mortar contact discretization.
-  lambda_dof_rowmap_ = std::make_shared<Epetra_Map>(-1, my_lambda_gid.size(), my_lambda_gid.data(),
-      0, Core::Communication::as_epetra_comm(discretization_structure_->get_comm()));
+  lambda_dof_rowmap_ =
+      std::make_shared<Core::LinAlg::Map>(-1, my_lambda_gid.size(), my_lambda_gid.data(), 0,
+          Core::Communication::as_epetra_comm(discretization_structure_->get_comm()));
 
 
   // We need to be able to get the global ids for a Lagrange multiplier DOF from the global id
   // of a node or element. To do so, we 'abuse' the Core::LinAlg::MultiVector<double> as map between
   // the global node / element ids and the global Lagrange multiplier DOF ids.
-  Epetra_Map node_gid_rowmap(-1, n_nodes, my_nodes_gid.data(), 0,
+  Core::LinAlg::Map node_gid_rowmap(-1, n_nodes, my_nodes_gid.data(), 0,
       Core::Communication::as_epetra_comm(discretization_structure_->get_comm()));
-  Epetra_Map element_gid_rowmap(-1, n_element, my_elements_gid.data(), 0,
+  Core::LinAlg::Map element_gid_rowmap(-1, n_element, my_elements_gid.data(), 0,
       Core::Communication::as_epetra_comm(discretization_structure_->get_comm()));
 
   // Map from global node / element ids to global lagrange multiplier ids. Only create the
@@ -160,7 +161,7 @@ void BeamInteraction::BeamToFluidMortarManager::setup()
 
         // Set the global Lagrange multiplier id for this node.
         error_code = node_gid_to_lambda_gid_->ReplaceMyValue(i_node, i_lambda, lagrange_gid);
-        if (error_code != 0) FOUR_C_THROW("Got error code %d!", error_code);
+        if (error_code != 0) FOUR_C_THROW("Got error code {}!", error_code);
       }
   }
   if (element_gid_to_lambda_gid_ != nullptr)
@@ -174,7 +175,7 @@ void BeamInteraction::BeamToFluidMortarManager::setup()
 
         // Set the global Lagrange multiplier id for this element.
         error_code = element_gid_to_lambda_gid_->ReplaceMyValue(i_element, i_lambda, lagrange_gid);
-        if (error_code != 0) FOUR_C_THROW("Got error code %d!", error_code);
+        if (error_code != 0) FOUR_C_THROW("Got error code {}!", error_code);
       }
   }
 
@@ -183,8 +184,8 @@ void BeamInteraction::BeamToFluidMortarManager::setup()
       *lambda_dof_rowmap_, 30, true, true, Core::LinAlg::SparseMatrix::FE_MATRIX);
   global_m_ = std::make_shared<Core::LinAlg::SparseMatrix>(
       *lambda_dof_rowmap_, 100, true, true, Core::LinAlg::SparseMatrix::FE_MATRIX);
-  global_kappa_ = std::make_shared<Epetra_FEVector>(*lambda_dof_rowmap_);
-  global_active_lambda_ = std::make_shared<Epetra_FEVector>(*lambda_dof_rowmap_);
+  global_kappa_ = std::make_shared<Epetra_FEVector>(lambda_dof_rowmap_->get_epetra_map());
+  global_active_lambda_ = std::make_shared<Epetra_FEVector>(lambda_dof_rowmap_->get_epetra_map());
 
   // Create the maps for beam and solid DOFs.
   set_global_maps();
@@ -218,10 +219,12 @@ void BeamInteraction::BeamToFluidMortarManager::set_global_maps()
   }
 
   // Create the beam and fluid maps.
-  beam_dof_rowmap_ = std::make_shared<Epetra_Map>(-1, field_dofs[0].size(), field_dofs[0].data(), 0,
-      Core::Communication::as_epetra_comm(discretization_structure_->get_comm()));
-  fluid_dof_rowmap_ = std::make_shared<Epetra_Map>(-1, field_dofs[1].size(), field_dofs[1].data(),
-      0, Core::Communication::as_epetra_comm(discretization_fluid_->get_comm()));
+  beam_dof_rowmap_ =
+      std::make_shared<Core::LinAlg::Map>(-1, field_dofs[0].size(), field_dofs[0].data(), 0,
+          Core::Communication::as_epetra_comm(discretization_structure_->get_comm()));
+  fluid_dof_rowmap_ =
+      std::make_shared<Core::LinAlg::Map>(-1, field_dofs[1].size(), field_dofs[1].data(), 0,
+          Core::Communication::as_epetra_comm(discretization_fluid_->get_comm()));
 
   // Reset the local maps.
   node_gid_to_lambda_gid_map_.clear();
@@ -282,9 +285,10 @@ void BeamInteraction::BeamToFluidMortarManager::set_local_maps(
   element_gid_needed.resize(std::distance(element_gid_needed.begin(), it));
 
   // Create the maps for the extraction of the values.
-  Epetra_Map node_gid_needed_rowmap(-1, node_gid_needed.size(), node_gid_needed.data(), 0,
+  Core::LinAlg::Map node_gid_needed_rowmap(-1, node_gid_needed.size(), node_gid_needed.data(), 0,
       Core::Communication::as_epetra_comm(discretization_structure_->get_comm()));
-  Epetra_Map element_gid_needed_rowmap(-1, element_gid_needed.size(), element_gid_needed.data(), 0,
+  Core::LinAlg::Map element_gid_needed_rowmap(-1, element_gid_needed.size(),
+      element_gid_needed.data(), 0,
       Core::Communication::as_epetra_comm(discretization_structure_->get_comm()));
 
   // Create the Multivectors that will be filled with all values needed on this rank.
@@ -334,9 +338,9 @@ void BeamInteraction::BeamToFluidMortarManager::set_local_maps(
   }
 
   // Create the global lambda col map.
-  lambda_dof_colmap_ =
-      std::make_shared<Epetra_Map>(-1, lambda_gid_for_col_map.size(), lambda_gid_for_col_map.data(),
-          0, Core::Communication::as_epetra_comm(discretization_structure_->get_comm()));
+  lambda_dof_colmap_ = std::make_shared<Core::LinAlg::Map>(-1, lambda_gid_for_col_map.size(),
+      lambda_gid_for_col_map.data(), 0,
+      Core::Communication::as_epetra_comm(discretization_structure_->get_comm()));
 
   // Set flags for local maps.
   is_local_maps_build_ = true;
@@ -368,7 +372,7 @@ void BeamInteraction::BeamToFluidMortarManager::location_vector(
         // Check if the id is in the map. If it is, add it to the output vector.
         auto search_key_in_map = node_gid_to_lambda_gid_map_.find(node_id);
         if (search_key_in_map == node_gid_to_lambda_gid_map_.end())
-          FOUR_C_THROW("Global node id %d not in map!", node_id);
+          FOUR_C_THROW("Global node id {} not in map!", node_id);
         for (auto const& lambda_gid : search_key_in_map->second) lambda_row.push_back(lambda_gid);
       }
     }
@@ -385,7 +389,7 @@ void BeamInteraction::BeamToFluidMortarManager::location_vector(
       // Check if the id is in the map. If it is, add it to the output vector.
       auto search_key_in_map = element_gid_to_lambda_gid_map_.find(element_id);
       if (search_key_in_map == element_gid_to_lambda_gid_map_.end())
-        FOUR_C_THROW("Global element id %d not in map!", element_id);
+        FOUR_C_THROW("Global element id {} not in map!", element_id);
       for (auto const& lambda_gid : search_key_in_map->second) lambda_row.push_back(lambda_gid);
     }
   }
@@ -590,11 +594,11 @@ BeamInteraction::BeamToFluidMortarManager::get_global_lambda(
   Core::LinAlg::Vector<double> lambda_temp_2(*lambda_dof_rowmap_);
   int linalg_error = global_d_->multiply(false, beam_vel, lambda_temp_2);
   if (linalg_error != 0) FOUR_C_THROW("Error in Multiply!");
-  linalg_error = lambda_temp_1.Update(1.0, lambda_temp_2, 0.0);
+  linalg_error = lambda_temp_1.update(1.0, lambda_temp_2, 0.0);
   if (linalg_error != 0) FOUR_C_THROW("Error in Update!");
   linalg_error = global_m_->multiply(false, fluid_vel, lambda_temp_2);
   if (linalg_error != 0) FOUR_C_THROW("Error in Multiply!");
-  linalg_error = lambda_temp_1.Update(-1.0, lambda_temp_2, 1.0);
+  linalg_error = lambda_temp_1.update(-1.0, lambda_temp_2, 1.0);
   if (linalg_error != 0) FOUR_C_THROW("Error in Multiply!");
 
   // Scale Lambda with kappa^-1.
@@ -639,7 +643,7 @@ BeamInteraction::BeamToFluidMortarManager::invert_kappa() const
     else
       local_kappa_inv_value = 0.0;
 
-    global_kappa_inv->ReplaceMyValue(lid, 0, local_kappa_inv_value);
+    global_kappa_inv->replace_local_value(lid, 0, local_kappa_inv_value);
   }
 
   return global_kappa_inv;

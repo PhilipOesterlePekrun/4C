@@ -10,10 +10,9 @@
 
 #include "4C_config.hpp"
 
+#include "4C_linalg_map.hpp"
 #include "4C_linalg_vector.hpp"
 
-#include <Epetra_Map.h>
-#include <Epetra_MpiComm.h>
 #include <hdf5.h>
 #include <hdf5_hl.h>
 
@@ -37,8 +36,6 @@ namespace Core::IO
     (for several time steps, as it happens with restart.) This class
     handles the basic HDF5 file access.
 
-    \author m.kue
-    \date 02/07
   */
   class HDFReader
   {
@@ -122,7 +119,7 @@ namespace Core::IO
      */
     std::shared_ptr<std::vector<char>> read_result_data_vec_char(std::string id_path,
         std::string value_path, int columns, MPI_Comm Comm,
-        std::shared_ptr<Epetra_Map>& elemap) const;
+        std::shared_ptr<Core::LinAlg::Map>& elemap) const;
 
     std::shared_ptr<std::vector<char>> read_char_vector(
         std::string value_path, MPI_Comm Comm) const;

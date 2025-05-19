@@ -7,10 +7,8 @@
 
 #include "4C_inpar_IO_monitor_structure_dbc.hpp"
 
-#include "4C_io_geometry_type.hpp"
-#include "4C_utils_parameter_list.hpp"
+#include "4C_io_input_spec_builders.hpp"
 
-#include <Teuchos_ParameterList.hpp>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -20,43 +18,59 @@ namespace Inpar
   {
     /*----------------------------------------------------------------------*
      *----------------------------------------------------------------------*/
-    void set_valid_parameters(Teuchos::ParameterList& list)
+    void set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
     {
-      using Teuchos::setStringToIntegralParameter;
-      using Teuchos::tuple;
+      using namespace Core::IO::InputSpecBuilders;
 
       // related sublist
-      Teuchos::ParameterList& sublist_IO = list.sublist("IO", false, "");
-      Teuchos::ParameterList& sublist_IO_monitor_structure_dbc =
-          sublist_IO.sublist("MONITOR STRUCTURE DBC", false, "");
+      list["IO/MONITOR STRUCTURE DBC"] = group("IO/MONITOR STRUCTURE DBC",
+          {
 
-      // output interval regarding steps: write output every INTERVAL_STEPS steps
-      Core::Utils::int_parameter("INTERVAL_STEPS", -1,
-          "write reaction force output every INTERVAL_STEPS steps",
-          &sublist_IO_monitor_structure_dbc);
+              // output interval regarding steps: write output every INTERVAL_STEPS steps
+              parameter<int>("INTERVAL_STEPS",
+                  {.description = "write reaction force output every INTERVAL_STEPS steps",
+                      .default_value = -1}),
 
-      // precision for file
-      Core::Utils::int_parameter(
-          "PRECISION_FILE", 16, "precision for written file", &sublist_IO_monitor_structure_dbc);
+              // precision for file
+              parameter<int>("PRECISION_FILE",
+                  {.description = "precision for written file", .default_value = 16}),
 
-      // precision for screen
-      Core::Utils::int_parameter("PRECISION_SCREEN", 5, "precision for written screen output",
-          &sublist_IO_monitor_structure_dbc);
+              // precision for screen
+              parameter<int>("PRECISION_SCREEN",
+                  {.description = "precision for written screen output", .default_value = 5}),
 
-      // type of written output file
-      setStringToIntegralParameter<Inpar::IOMonitorStructureDBC::FileType>("FILE_TYPE", "csv",
-          "type of written output file",
-          tuple<std::string>("csv", "CSV", "Csv", "data", "Data", "DATA"),
-          tuple<Inpar::IOMonitorStructureDBC::FileType>(Inpar::IOMonitorStructureDBC::csv,
-              Inpar::IOMonitorStructureDBC::csv, Inpar::IOMonitorStructureDBC::csv,
-              Inpar::IOMonitorStructureDBC::data, Inpar::IOMonitorStructureDBC::data,
-              Inpar::IOMonitorStructureDBC::data),
-          &sublist_IO_monitor_structure_dbc);
+              // type of written output file
+              deprecated_selection<Inpar::IOMonitorStructureDBC::FileType>("FILE_TYPE",
+                  {
+                      {"csv", Inpar::IOMonitorStructureDBC::csv},
+                      {"CSV", Inpar::IOMonitorStructureDBC::csv},
+                      {"Csv", Inpar::IOMonitorStructureDBC::csv},
+                      {"data", Inpar::IOMonitorStructureDBC::data},
+                      {"Data", Inpar::IOMonitorStructureDBC::data},
+                      {"DATA", Inpar::IOMonitorStructureDBC::data},
+                  },
+                  {.description = "type of written output file",
+                      .default_value = Inpar::IOMonitorStructureDBC::csv}),
 
-      // whether to write output in every iteration of the nonlinear solver
-      Core::Utils::bool_parameter("WRITE_HEADER", "No",
-          "write information about monitored boundary condition to output file",
-          &sublist_IO_monitor_structure_dbc);
+              // whether to write output in every iteration of the nonlinear solver
+              parameter<bool>("WRITE_HEADER",
+                  {.description =
+                          "write information about monitored boundary condition to output file",
+                      .default_value = false})},
+          {.defaultable = true});
+    }
+
+    std::string to_string(FileType type)
+    {
+      switch (type)
+      {
+        case FileType::csv:
+          return "csv";
+        case FileType::data:
+          return "data";
+        default:
+          FOUR_C_THROW("Unknown file type");
+      }
     }
   }  // namespace IOMonitorStructureDBC
 }  // namespace Inpar

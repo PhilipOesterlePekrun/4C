@@ -10,6 +10,7 @@
 #include "4C_adapter_scatra_base_algorithm.hpp"
 #include "4C_adapter_str_factory.hpp"
 #include "4C_adapter_str_ssiwrapper.hpp"
+#include "4C_adapter_str_structure.hpp"
 #include "4C_adapter_str_structure_new.hpp"
 #include "4C_contact_nitsche_strategy_ssi.hpp"
 #include "4C_coupling_volmortar.hpp"
@@ -21,7 +22,6 @@
 #include "4C_io_input_file.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
 #include "4C_mat_par_bundle.hpp"
-#include "4C_membrane.hpp"
 #include "4C_rebalance_binning_based.hpp"
 #include "4C_scatra_timint_implicit.hpp"
 #include "4C_scatra_timint_meshtying_strategy_s2i.hpp"
@@ -29,7 +29,6 @@
 #include "4C_solid_3D_ele.hpp"
 #include "4C_ssi_clonestrategy.hpp"
 #include "4C_ssi_coupling.hpp"
-#include "4C_ssi_partitioned.hpp"
 #include "4C_ssi_resulttest.hpp"
 #include "4C_ssi_str_model_evaluator_partitioned.hpp"
 #include "4C_ssi_utils.hpp"
@@ -51,17 +50,17 @@ SSI::SSIBase::SSIBase(MPI_Comm comm, const Teuchos::ParameterList& globaltimepar
       is_scatra_manifold_(globaltimeparams.sublist("MANIFOLD").get<bool>("ADD_MANIFOLD")),
       is_manifold_meshtying_(globaltimeparams.sublist("MANIFOLD").get<bool>("MESHTYING_MANIFOLD")),
       is_s2i_kinetic_with_pseudo_contact_(
-          check_s2_i_kinetics_condition_for_pseudo_contact("structure")),
+          check_s2i_kinetics_condition_for_pseudo_contact("structure")),
       macro_scale_(Global::Problem::instance()->materials()->first_id_by_type(
                        Core::Materials::m_scatra_multiscale) != -1 or
                    Global::Problem::instance()->materials()->first_id_by_type(
                        Core::Materials::m_newman_multiscale) != -1),
-      ssiinterfacecontact_(
+      ssi_interface_contact_(
           Global::Problem::instance()->get_dis("structure")->get_condition("SSIInterfaceContact") !=
           nullptr),
-      ssiinterfacemeshtying_(Global::Problem::instance()
-                                 ->get_dis("structure")
-                                 ->get_condition("ssi_interface_meshtying") != nullptr),
+      ssi_interface_meshtying_(Global::Problem::instance()
+                                   ->get_dis("structure")
+                                   ->get_condition("ssi_interface_meshtying") != nullptr),
       temperature_funct_num_(
           Global::Problem::instance()->elch_control_params().get<int>("TEMPERATURE_FROM_FUNCT")),
       use_old_structure_(Global::Problem::instance()
@@ -77,11 +76,10 @@ SSI::SSIBase::SSIBase(MPI_Comm comm, const Teuchos::ParameterList& globaltimepar
 }
 
 /*----------------------------------------------------------------------*
- | Init this class                                          rauch 08/16 |
  *----------------------------------------------------------------------*/
 void SSI::SSIBase::init(MPI_Comm comm, const Teuchos::ParameterList& globaltimeparams,
     const Teuchos::ParameterList& scatraparams, const Teuchos::ParameterList& structparams,
-    const std::string& struct_disname, const std::string& scatra_disname, bool isAle)
+    const std::string& struct_disname, const std::string& scatra_disname, const bool is_ale)
 {
   // reset the setup flag
   set_is_setup(false);
@@ -91,11 +89,11 @@ void SSI::SSIBase::init(MPI_Comm comm, const Teuchos::ParameterList& globaltimep
       comm, struct_disname, scatra_disname, globaltimeparams.get<bool>("REDISTRIBUTE_SOLID"));
 
   init_time_integrators(
-      globaltimeparams, scatraparams, structparams, struct_disname, scatra_disname, isAle);
+      globaltimeparams, scatraparams, structparams, struct_disname, scatra_disname, is_ale);
 
   const RedistributionType redistribution_type = init_field_coupling(struct_disname);
 
-  if (redistribution_type != SSI::RedistributionType::none) redistribute(redistribution_type);
+  if (redistribution_type != RedistributionType::none) redistribute(redistribution_type);
 
   check_ssi_flags();
 
@@ -106,7 +104,6 @@ void SSI::SSIBase::init(MPI_Comm comm, const Teuchos::ParameterList& globaltimep
 }
 
 /*----------------------------------------------------------------------*
- | Setup this class                                         rauch 08/16 |
  *----------------------------------------------------------------------*/
 void SSI::SSIBase::setup()
 {
@@ -117,7 +114,7 @@ void SSI::SSIBase::setup()
   ssicoupling_->setup();
 
   // in case of an ssi  multi scale formulation we need to set the displacement here
-  auto dummy_vec = std::make_shared<Core::LinAlg::Vector<double>>(
+  auto dummy_vec = Core::LinAlg::Vector<double>(
       *Global::Problem::instance()->get_dis("structure")->dof_row_map(), true);
   ssicoupling_->set_mesh_disp(scatra_base_algorithm(), dummy_vec);
 
@@ -153,7 +150,7 @@ void SSI::SSIBase::setup()
       temperature_vector_ = std::make_shared<Core::LinAlg::Vector<double>>(
           *Global::Problem::instance()->get_dis("structure")->dof_row_map(2), true);
 
-      temperature_vector_->PutScalar(Global::Problem::instance()
+      temperature_vector_->put_scalar(Global::Problem::instance()
               ->function_by_id<Core::Utils::FunctionOfTime>(temperature_funct_num_)
               .evaluate(time()));
 
@@ -180,11 +177,13 @@ void SSI::SSIBase::setup()
 
   // for old structural time integration
   else if (use_old_structure_)
-    structure_->setup();
-
-  if (is_s2_i_kinetics_with_pseudo_contact())
   {
-    auto dummy_stress_state = std::make_shared<Core::LinAlg::Vector<double>>(
+    structure_->setup();
+  }
+
+  if (is_s2i_kinetics_with_pseudo_contact())
+  {
+    const auto dummy_stress_state = std::make_shared<Core::LinAlg::Vector<double>>(
         *structure_field()->discretization()->dof_row_map(2), true);
     ssicoupling_->set_mechanical_stress_state(*scatra_field()->discretization(), dummy_stress_state,
         scatra_field()->nds_two_tensor_quantity());
@@ -204,7 +203,7 @@ void SSI::SSIBase::setup()
   if (ssi_interface_meshtying())
   {
     ssi_structure_meshtying_ = std::make_shared<SSI::Utils::SSIMeshTying>(
-        "ssi_interface_meshtying", structure_->discretization(), true, true);
+        "ssi_interface_meshtying", *structure_->discretization(), true, true);
 
     // extract meshtying strategy for scatra-scatra interface coupling on scatra discretization
     meshtying_strategy_s2i_ =
@@ -223,10 +222,26 @@ void SSI::SSIBase::setup()
 }
 
 /*----------------------------------------------------------------------*
- | Setup the discretizations                                rauch 08/16 |
+ *----------------------------------------------------------------------*/
+void SSI::SSIBase::post_setup() const
+{
+  check_is_setup();
+
+  // communicate scatra states to structure if necessary
+  if (Teuchos::getIntegralValue<Inpar::SSI::SolutionSchemeOverFields>(
+          Global::Problem::instance()->ssi_control_params(), "COUPALGO") !=
+      Inpar::SSI::SolutionSchemeOverFields::ssi_OneWay_SolidToScatra)
+  {
+    set_scatra_solution(scatra_field()->phinp());
+  }
+
+  structure_->post_setup();
+}
+
+/*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
 void SSI::SSIBase::init_discretizations(MPI_Comm comm, const std::string& struct_disname,
-    const std::string& scatra_disname, bool redistribute_struct_dis)
+    const std::string& scatra_disname, const bool redistribute_struct_dis)
 {
   Global::Problem* problem = Global::Problem::instance();
 
@@ -250,12 +265,13 @@ void SSI::SSIBase::init_discretizations(MPI_Comm comm, const std::string& struct
     {
       FOUR_C_THROW(
           "If 'FIELDCOUPLING' is NOT 'volume_matching' or 'volumeboundary_matching' in the SSI "
-          "CONTROL section cloning of the scatra discretization from the structure discretization "
+          "CONTROL section cloning of the scatra discretization from the structure "
+          "discretization "
           "is not supported!");
     }
 
     // fill scatra discretization by cloning structure discretization
-    Core::FE::clone_discretization<SSI::ScatraStructureCloneStrategy>(
+    Core::FE::clone_discretization<ScatraStructureCloneStrategy>(
         *structdis, *scatradis, Global::Problem::instance()->cloning_material_map());
     scatradis->fill_complete();
 
@@ -327,7 +343,8 @@ void SSI::SSIBase::init_discretizations(MPI_Comm comm, const std::string& struct
         const int num_conditions =
             static_cast<int>(scatra_manifold_dis->get_all_conditions().size());
         auto cond = std::make_shared<Core::Conditions::Condition>(num_conditions + 1,
-            Core::Conditions::ScatraPartitioning, true, Core::Conditions::geometry_type_surface);
+            Core::Conditions::ScatraPartitioning, true, Core::Conditions::geometry_type_surface,
+            Core::Conditions::EntityType::legacy_id);
         cond->parameters().add("ConditionID", 0);
         cond->set_nodes(glob_node_ids);
 
@@ -342,10 +359,12 @@ void SSI::SSIBase::init_discretizations(MPI_Comm comm, const std::string& struct
     if (fieldcoupling_ == Inpar::SSI::FieldCoupling::volume_match)
     {
       FOUR_C_THROW(
-          "Reading a TRANSPORT discretization from the .dat file for the input parameter "
+          "Reading a TRANSPORT discretization from the input file for the input parameter "
           "'FIELDCOUPLING volume_matching' in the SSI CONTROL section is not supported! As this "
-          "coupling relies on matching node (and sometimes element) IDs, the ScaTra discretization "
-          "is cloned from the structure discretization. Delete the ScaTra discretization from your "
+          "coupling relies on matching node (and sometimes element) IDs, the ScaTra "
+          "discretization "
+          "is cloned from the structure discretization. Delete the ScaTra discretization from "
+          "your "
           "input file.");
     }
 
@@ -366,32 +385,32 @@ void SSI::SSIBase::init_discretizations(MPI_Comm comm, const std::string& struct
           Inpar::ScaTra::impltype_undefined)
       {
         FOUR_C_THROW(
-            "A TRANSPORT discretization is read from the .dat file, which is fine since the scatra "
+            "A TRANSPORT discretization is read from the input file, which is fine since the "
+            "scatra "
             "discretization is not cloned from the structure discretization. But in the STRUCTURE "
-            "ELEMENTS section of the .dat file an ImplType that is NOT 'Undefined' is prescribed "
+            "ELEMENTS section of the input file an ImplType that is NOT 'Undefined' is prescribed "
             "which does not make sense if you don't want to clone the structure discretization. "
-            "Change the ImplType to 'Undefined' or decide to clone the scatra discretization from "
+            "Change the ImplType to 'Undefined' or decide to clone the scatra discretization "
+            "from "
             "the structure discretization.");
       }
     }
   }
   // read in the micro field, has to be done after cloning of the scatra discretization
   auto input_file_name = problem->output_control_file()->input_file_name();
-  Global::read_micro_fields(*problem, std::filesystem::path(input_file_name).parent_path());
+  read_micro_fields(*problem, std::filesystem::path(input_file_name).parent_path());
 }
 
 /*----------------------------------------------------------------------*
- | Setup ssi coupling object                                rauch 08/16 |
  *----------------------------------------------------------------------*/
 SSI::RedistributionType SSI::SSIBase::init_field_coupling(const std::string& struct_disname)
 {
   // initialize return variable
-  RedistributionType redistribution_required = SSI::RedistributionType::none;
-
-  auto scatra_integrator = scatra_base_algorithm()->scatra_field();
+  auto redistribution_required{RedistributionType::none};
 
   // safety check
   {
+    auto scatra_integrator = scatra_base_algorithm()->scatra_field();
     // check for ssi coupling condition
     std::vector<Core::Conditions::Condition*> ssicoupling;
     scatra_integrator->discretization()->get_condition("SSICoupling", ssicoupling);
@@ -413,11 +432,8 @@ SSI::RedistributionType SSI::SSIBase::init_field_coupling(const std::string& str
               volmortarparams, "COUPLINGTYPE") != Coupling::VolMortar::couplingtype_coninter)
       {
         FOUR_C_THROW(
-            "Volmortar coupling only tested for consistent interpolation, "
-            "i.e. 'COUPLINGTYPE consint' in VOLMORTAR COUPLING section. Try other couplings "
-            "at "
-            "own "
-            "risk.");
+            "Volmortar coupling only tested for consistent interpolation, i.e. 'COUPLINGTYPE "
+            "coninter' in VOLMORTAR COUPLING section. Try other couplings at own risk.");
       }
     }
     if (is_scatra_manifold() and fieldcoupling_ != Inpar::SSI::FieldCoupling::volumeboundary_match)
@@ -433,21 +449,21 @@ SSI::RedistributionType SSI::SSIBase::init_field_coupling(const std::string& str
     case Inpar::SSI::FieldCoupling::volume_nonmatch:
       ssicoupling_ = std::make_shared<SSICouplingNonMatchingVolume>();
       // redistribution is still performed inside
-      redistribution_required = SSI::RedistributionType::binning;
+      redistribution_required = RedistributionType::binning;
       break;
     case Inpar::SSI::FieldCoupling::boundary_nonmatch:
       ssicoupling_ = std::make_shared<SSICouplingNonMatchingBoundary>();
       break;
     case Inpar::SSI::FieldCoupling::volumeboundary_match:
       ssicoupling_ = std::make_shared<SSICouplingMatchingVolumeAndBoundary>();
-      redistribution_required = SSI::RedistributionType::match;
+      redistribution_required = RedistributionType::match;
       break;
     default:
       FOUR_C_THROW("unknown type of field coupling for SSI!");
   }
 
   // initialize coupling objects including dof sets
-  Global::Problem* problem = Global::Problem::instance();
+  const Global::Problem* problem = Global::Problem::instance();
   ssicoupling_->init(
       problem->n_dim(), problem->get_dis(struct_disname), Core::Utils::shared_ptr_from_ref(*this));
 
@@ -455,18 +471,17 @@ SSI::RedistributionType SSI::SSIBase::init_field_coupling(const std::string& str
 }
 
 /*----------------------------------------------------------------------*
- | read restart information for given time step (public)   vuong 01/12  |
  *----------------------------------------------------------------------*/
-void SSI::SSIBase::read_restart(int restart)
+void SSI::SSIBase::read_restart(const int restart)
 {
   if (restart)
   {
     structure_->read_restart(restart);
 
     const Teuchos::ParameterList& ssidyn = Global::Problem::instance()->ssi_control_params();
-    const bool restartfromstructure = ssidyn.get<bool>("RESTART_FROM_STRUCTURE");
+    const bool restart_from_structure = ssidyn.get<bool>("RESTART_FROM_STRUCTURE");
 
-    if (not restartfromstructure)  // standard restart
+    if (not restart_from_structure)  // standard restart
     {
       scatra_field()->read_restart(restart);
       if (is_scatra_manifold()) scatra_manifold()->read_restart(restart);
@@ -498,14 +513,13 @@ void SSI::SSIBase::test_results(MPI_Comm comm) const
   problem->add_field_test(scatra_base_algorithm()->create_scatra_field_test());
   if (is_scatra_manifold())
     problem->add_field_test(scatra_manifold_base_algorithm()->create_scatra_field_test());
-  problem->add_field_test(
-      std::make_shared<SSI::SSIResultTest>(Core::Utils::shared_ptr_from_ref(*this)));
+  problem->add_field_test(std::make_shared<SSIResultTest>(Core::Utils::shared_ptr_from_ref(*this)));
   problem->test_all(comm);
 }
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void SSI::SSIBase::set_struct_solution(std::shared_ptr<const Core::LinAlg::Vector<double>> disp,
+void SSI::SSIBase::set_struct_solution(const Core::LinAlg::Vector<double>& disp,
     std::shared_ptr<const Core::LinAlg::Vector<double>> vel, const bool set_mechanical_stress)
 {
   // safety checks
@@ -516,7 +530,7 @@ void SSI::SSIBase::set_struct_solution(std::shared_ptr<const Core::LinAlg::Vecto
   set_velocity_fields(vel);
 
   if (set_mechanical_stress)
-    set_mechanical_stress_state(modelevaluator_ssi_base_->get_mechanical_stress_state());
+    set_mechanical_stress_state(modelevaluator_ssi_base_->get_mechanical_stress_state_n());
 }
 
 /*----------------------------------------------------------------------*/
@@ -566,7 +580,7 @@ void SSI::SSIBase::evaluate_and_set_temperature_field()
         Global::Problem::instance()
             ->function_by_id<Core::Utils::FunctionOfTime>(temperature_funct_num_)
             .evaluate(time());
-    temperature_vector_->PutScalar(temperature);
+    temperature_vector_->put_scalar(temperature);
 
     // set temperature vector to structure discretization
     ssicoupling_->set_temperature_field(*structure_->discretization(), temperature_vector_);
@@ -600,7 +614,7 @@ void SSI::SSIBase::set_mechanical_stress_state(
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-void SSI::SSIBase::set_mesh_disp(std::shared_ptr<const Core::LinAlg::Vector<double>> disp)
+void SSI::SSIBase::set_mesh_disp(const Core::LinAlg::Vector<double>& disp)
 {
   // safety checks
   check_is_init();
@@ -719,7 +733,7 @@ std::shared_ptr<ScaTra::ScaTraTimIntImpl> SSI::SSIBase::scatra_manifold() const
 /*----------------------------------------------------------------------*/
 void SSI::SSIBase::init_time_integrators(const Teuchos::ParameterList& globaltimeparams,
     const Teuchos::ParameterList& scatraparams, const Teuchos::ParameterList& structparams,
-    const std::string& struct_disname, const std::string& scatra_disname, const bool isAle)
+    const std::string& struct_disname, const std::string& scatra_disname, const bool is_ale)
 {
   // get the global problem
   auto* problem = Global::Problem::instance();
@@ -777,8 +791,8 @@ void SSI::SSIBase::init_time_integrators(const Teuchos::ParameterList& globaltim
   // scatra time integrator constructed and initialized inside.
   // mesh is written inside. cloning must happen before!
   scatra_base_algorithm_ = std::make_shared<Adapter::ScaTraBaseAlgorithm>(*scatratimeparams,
-      SSI::Utils::modify_sca_tra_params(scatraparams),
-      problem->solver_params(scatraparams.get<int>("LINEAR_SOLVER")), scatra_disname, isAle);
+      SSI::Utils::modify_scatra_params(scatraparams),
+      problem->solver_params(scatraparams.get<int>("LINEAR_SOLVER")), scatra_disname, is_ale);
 
   scatra_base_algorithm()->init();
 
@@ -787,10 +801,10 @@ void SSI::SSIBase::init_time_integrators(const Teuchos::ParameterList& globaltim
   {
     scatra_manifold_base_algorithm_ =
         std::make_shared<Adapter::ScaTraBaseAlgorithm>(*scatratimeparams,
-            SSI::Utils::clone_sca_tra_manifold_params(
+            SSI::Utils::clone_scatra_manifold_params(
                 scatraparams, globaltimeparams.sublist("MANIFOLD")),
             problem->solver_params(globaltimeparams.sublist("MANIFOLD").get<int>("LINEAR_SOLVER")),
-            "scatra_manifold", isAle);
+            "scatra_manifold", is_ale);
 
     scatra_manifold_base_algorithm()->init();
   }
@@ -807,12 +821,12 @@ bool SSI::SSIBase::do_calculate_initial_potential_field() const
   const auto ssi_params = Global::Problem::instance()->ssi_control_params();
   const bool init_pot_calc = ssi_params.sublist("ELCH").get<bool>("INITPOTCALC");
 
-  return init_pot_calc and is_elch_scatra_tim_int_type();
+  return init_pot_calc and is_elch_scatra_time_int_type();
 }
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-bool SSI::SSIBase::is_elch_scatra_tim_int_type() const
+bool SSI::SSIBase::is_elch_scatra_time_int_type() const
 {
   const auto ssi_params = Global::Problem::instance()->ssi_control_params();
   const auto scatra_type =
@@ -849,13 +863,13 @@ void SSI::SSIBase::check_adaptive_time_stepping(
           structparams.sublist("TIMEADAPTIVITY"), "KIND") != Inpar::Solid::timada_kind_none)
     FOUR_C_THROW("Adaptive time stepping in SSI currently just from ScaTra");
   if (Teuchos::getIntegralValue<Inpar::Solid::DynamicType>(structparams, "DYNAMICTYPE") ==
-      Inpar::Solid::dyna_ab2)
+      Inpar::Solid::DynamicType::AdamsBashforth2)
     FOUR_C_THROW("Currently, only one step methods are allowed for adaptive time stepping");
 }
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
-bool SSI::SSIBase::check_s2_i_kinetics_condition_for_pseudo_contact(
+bool SSI::SSIBase::check_s2i_kinetics_condition_for_pseudo_contact(
     const std::string& struct_disname) const
 {
   bool is_s2i_kinetic_with_pseudo_contact = false;
@@ -869,8 +883,9 @@ bool SSI::SSIBase::check_s2_i_kinetics_condition_for_pseudo_contact(
   structdis->get_condition("SSIInterfaceContact", ssi_contact_conditions);
   for (auto* s2ikinetics_cond : s2ikinetics_conditions)
   {
-    if ((s2ikinetics_cond->parameters().get<int>("INTERFACE_SIDE") == Inpar::S2I::side_slave) and
-        (s2ikinetics_cond->parameters().get<int>("KINETIC_MODEL") !=
+    if ((s2ikinetics_cond->parameters().get<Inpar::S2I::InterfaceSides>("INTERFACE_SIDE") ==
+            Inpar::S2I::side_slave) and
+        (s2ikinetics_cond->parameters().get<Inpar::S2I::KineticModels>("KINETIC_MODEL") !=
             Inpar::S2I::kinetics_nointerfaceflux) and
         s2ikinetics_cond->parameters().get<bool>("IS_PSEUDO_CONTACT"))
     {
@@ -883,7 +898,8 @@ bool SSI::SSIBase::check_s2_i_kinetics_condition_for_pseudo_contact(
         {
           FOUR_C_THROW(
               "Pseudo contact formulation of s2i kinetics conditions does not make sense in "
-              "combination with resolved contact formulation. Set the respective IS_PSEUDO_CONTACT "
+              "combination with resolved contact formulation. Set the respective "
+              "IS_PSEUDO_CONTACT "
               "flag to 'False'");
         }
       }
@@ -921,7 +937,7 @@ void SSI::SSIBase::check_ssi_interface_conditions(const std::string& struct_disn
     // get ssi condition to be tested
     std::vector<Core::Conditions::Condition*> ssiconditions;
     structdis->get_condition("SSIInterfaceContact", ssiconditions);
-    SSI::Utils::check_consistency_of_ssi_interface_contact_condition(ssiconditions, structdis);
+    SSI::Utils::check_consistency_of_ssi_interface_contact_condition(ssiconditions, *structdis);
   }
 }
 
@@ -929,7 +945,7 @@ void SSI::SSIBase::check_ssi_interface_conditions(const std::string& struct_disn
 /*----------------------------------------------------------------------*/
 void SSI::SSIBase::setup_system()
 {
-  if (ssiinterfacemeshtying_)
+  if (ssi_interface_meshtying_)
     ssi_structure_mesh_tying()->check_slave_side_has_dirichlet_conditions(
         structure_field()->get_dbc_map_extractor()->cond_map());
 }
@@ -939,7 +955,7 @@ void SSI::SSIBase::setup_system()
 void SSI::SSIBase::setup_model_evaluator()
 {
   // register the model evaluator if s2i condition with pseudo contact is available
-  if (is_s2_i_kinetics_with_pseudo_contact())
+  if (is_s2i_kinetics_with_pseudo_contact())
   {
     modelevaluator_ssi_base_ = std::make_shared<Solid::ModelEvaluator::BaseSSI>();
     structure_base_algorithm()->register_model_evaluator(
@@ -952,15 +968,17 @@ void SSI::SSIBase::setup_model_evaluator()
 void SSI::SSIBase::setup_contact_strategy()
 {
   // get the contact solution strategy
-  auto contact_solution_type = Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(
+  auto contact_solution_type = Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(
       Global::Problem::instance()->contact_dynamic_params(), "STRATEGY");
 
-  if (contact_solution_type == Inpar::CONTACT::solution_nitsche)
+  if (contact_solution_type == CONTACT::SolvingStrategy::nitsche)
   {
     if (Teuchos::getIntegralValue<Inpar::Solid::IntegrationStrategy>(
             Global::Problem::instance()->structural_dynamic_params(), "INT_STRATEGY") !=
         Inpar::Solid::int_standard)
+    {
       FOUR_C_THROW("ssi contact only with new structural time integration");
+    }
 
     // get the contact model evaluator and store a pointer to the strategy
     auto& model_evaluator_contact = dynamic_cast<Solid::ModelEvaluator::Contact&>(
@@ -969,7 +987,9 @@ void SSI::SSIBase::setup_contact_strategy()
         model_evaluator_contact.strategy_ptr());
   }
   else
+  {
     FOUR_C_THROW("Only Nitsche contact implemented for SSI problems at the moment!");
+  }
 }
 
 FOUR_C_NAMESPACE_CLOSE

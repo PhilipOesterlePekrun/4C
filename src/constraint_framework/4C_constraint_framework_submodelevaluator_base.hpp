@@ -15,7 +15,7 @@
 
 FOUR_C_NAMESPACE_OPEN
 
-namespace CONSTRAINTS::SUBMODELEVALUATOR
+namespace Constraints::SubmodelEvaluator
 {
   /*! \brief Interface class of all submodel evaluators managing
    *  constraint terms
@@ -61,7 +61,7 @@ namespace CONSTRAINTS::SUBMODELEVALUATOR
 
    private:
     //! Column Map
-    std::shared_ptr<Epetra_Map> n_condition_map_;
+    std::shared_ptr<Core::LinAlg::Map> n_condition_map_;
 
     //! Penalty parameter
     double penalty_parameter_;
@@ -92,7 +92,7 @@ namespace CONSTRAINTS::SUBMODELEVALUATOR
     std::shared_ptr<Core::LinAlg::Vector<double>> constraint_vector_;
   };
 
-}  // namespace CONSTRAINTS::SUBMODELEVALUATOR
+}  // namespace Constraints::SubmodelEvaluator
 
 FOUR_C_NAMESPACE_CLOSE
 #endif

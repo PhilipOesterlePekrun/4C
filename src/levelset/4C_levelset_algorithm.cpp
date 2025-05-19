@@ -93,7 +93,7 @@ void ScaTra::LevelSetAlgorithm::setup()
   // get a vector layout from the discretization to construct matching
   // vectors and matrices: local <-> global dof numbering
   // -------------------------------------------------------------------
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
 
   // -------------------------------------------------------------------
   //         initialize reinitialization
@@ -148,7 +148,7 @@ void ScaTra::LevelSetAlgorithm::setup()
         // vector for nodal velocity for reinitialization
         // velocities (always three velocity components per node)
         // (get noderowmap of discretization for creating this multivector)
-        const Epetra_Map* noderowmap = discret_->node_row_map();
+        const Core::LinAlg::Map* noderowmap = discret_->node_row_map();
         nb_grad_val_ = std::make_shared<Core::LinAlg::MultiVector<double>>(*noderowmap, 3, true);
       }
 
@@ -176,7 +176,7 @@ void ScaTra::LevelSetAlgorithm::setup()
         // vector for nodal level-set gradient for reinitialization
         // gradients (always three gradient components per node)
         // (get noderowmap of discretization for creating this multivector)
-        const Epetra_Map* noderowmap = discret_->node_row_map();
+        const Core::LinAlg::Map* noderowmap = discret_->node_row_map();
         nb_grad_val_ = std::make_shared<Core::LinAlg::MultiVector<double>>(*noderowmap, 3, true);
       }
     }
@@ -193,7 +193,7 @@ void ScaTra::LevelSetAlgorithm::setup()
       // reset phin vector
       // remark: for BDF2, we do not have to set phinm,
       //        since it is not used for the first time step as a backward Euler step is performed
-      phin_->Update(1.0, *phinp_, 0.0);
+      phin_->update(1.0, *phinp_, 0.0);
 
       // reinitialization is done, reset flag
       switchreinit_ = false;

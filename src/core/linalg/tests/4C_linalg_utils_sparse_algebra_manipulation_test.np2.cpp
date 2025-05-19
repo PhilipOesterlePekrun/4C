@@ -12,7 +12,6 @@
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
 #include "4C_unittest_utils_support_files_test.hpp"
 
-#include <Epetra_MpiComm.h>
 #include <EpetraExt_CrsMatrixIn.h>
 
 FOUR_C_NAMESPACE_OPEN
@@ -44,7 +43,7 @@ namespace
         Core::Communication::as_epetra_comm(comm_), A);
     if (err != 0) FOUR_C_THROW("Matrix read failed.");
     std::shared_ptr<Epetra_CrsMatrix> A_crs = Core::Utils::shared_ptr_from_ref(*A);
-    Core::LinAlg::SparseMatrix A_sparse(A_crs, Core::LinAlg::Copy);
+    Core::LinAlg::SparseMatrix A_sparse(A_crs, Core::LinAlg::DataAccess::Copy);
 
     const double tol = 1.1;
     std::shared_ptr<Core::LinAlg::SparseMatrix> A_thresh =
@@ -71,7 +70,7 @@ namespace
         Core::Communication::as_epetra_comm(comm_), A);
     if (err != 0) FOUR_C_THROW("Matrix read failed.");
     std::shared_ptr<Epetra_CrsMatrix> A_crs = Core::Utils::shared_ptr_from_ref(*A);
-    Core::LinAlg::SparseMatrix A_sparse(A_crs, Core::LinAlg::Copy);
+    Core::LinAlg::SparseMatrix A_sparse(A_crs, Core::LinAlg::DataAccess::Copy);
 
     const double tol = 1e-5;
     std::shared_ptr<Core::LinAlg::SparseMatrix> A_thresh =
@@ -98,13 +97,13 @@ namespace
         Core::Communication::as_epetra_comm(comm_), A);
     if (err != 0) FOUR_C_THROW("Matrix read failed.");
     std::shared_ptr<Epetra_CrsMatrix> A_crs = Core::Utils::shared_ptr_from_ref(*A);
-    Core::LinAlg::SparseMatrix A_sparse(A_crs, Core::LinAlg::Copy);
+    Core::LinAlg::SparseMatrix A_sparse(A_crs, Core::LinAlg::DataAccess::Copy);
 
     const double tol = 1e-5;
-    std::shared_ptr<Epetra_CrsGraph> G = Core::LinAlg::threshold_matrix_graph(A_sparse, tol);
+    std::shared_ptr<Core::LinAlg::Graph> G = Core::LinAlg::threshold_matrix_graph(A_sparse, tol);
 
     // Check for global entries
-    const int A_thresh_nnz = G->NumGlobalNonzeros();
+    const int A_thresh_nnz = G->num_global_nonzeros();
     EXPECT_EQ(A_thresh_nnz, 13);
   }
 
@@ -123,60 +122,60 @@ namespace
         Core::Communication::as_epetra_comm(comm_), A);
     if (err != 0) FOUR_C_THROW("Matrix read failed.");
     std::shared_ptr<Epetra_CrsMatrix> A_crs = Core::Utils::shared_ptr_from_ref(*A);
-    Core::LinAlg::SparseMatrix A_sparse(A_crs, Core::LinAlg::Copy);
+    Core::LinAlg::SparseMatrix A_sparse(A_crs, Core::LinAlg::DataAccess::Copy);
 
     {
       const int power = 0;
-      std::shared_ptr<Epetra_CrsGraph> graph_enriched =
+      std::shared_ptr<Core::LinAlg::Graph> graph_enriched =
           Core::LinAlg::enrich_matrix_graph(A_sparse, power);
 
       // Check for global entries
-      EXPECT_EQ(graph_enriched->NumGlobalNonzeros(), 58);
+      EXPECT_EQ(graph_enriched->num_global_nonzeros(), 58);
     }
 
     {
       const int power = -3;
-      std::shared_ptr<Epetra_CrsGraph> graph_enriched =
+      std::shared_ptr<Core::LinAlg::Graph> graph_enriched =
           Core::LinAlg::enrich_matrix_graph(A_sparse, power);
 
       // Check for global entries
-      EXPECT_EQ(graph_enriched->NumGlobalNonzeros(), 58);
+      EXPECT_EQ(graph_enriched->num_global_nonzeros(), 58);
     }
 
     {
       const int power = 1;
-      std::shared_ptr<Epetra_CrsGraph> graph_enriched =
+      std::shared_ptr<Core::LinAlg::Graph> graph_enriched =
           Core::LinAlg::enrich_matrix_graph(A_sparse, power);
 
       // Check for global entries
-      EXPECT_EQ(graph_enriched->NumGlobalNonzeros(), 58);
+      EXPECT_EQ(graph_enriched->num_global_nonzeros(), 58);
     }
 
     {
       const int power = 2;
-      std::shared_ptr<Epetra_CrsGraph> graph_enriched =
+      std::shared_ptr<Core::LinAlg::Graph> graph_enriched =
           Core::LinAlg::enrich_matrix_graph(A_sparse, power);
 
       // Check for global entries
-      EXPECT_EQ(graph_enriched->NumGlobalNonzeros(), 94);
+      EXPECT_EQ(graph_enriched->num_global_nonzeros(), 94);
     }
 
     {
       const int power = 3;
-      std::shared_ptr<Epetra_CrsGraph> graph_enriched =
+      std::shared_ptr<Core::LinAlg::Graph> graph_enriched =
           Core::LinAlg::enrich_matrix_graph(A_sparse, power);
 
       // Check for global entries
-      EXPECT_EQ(graph_enriched->NumGlobalNonzeros(), 128);
+      EXPECT_EQ(graph_enriched->num_global_nonzeros(), 128);
     }
 
     {
       const int power = 4;
-      std::shared_ptr<Epetra_CrsGraph> graph_enriched =
+      std::shared_ptr<Core::LinAlg::Graph> graph_enriched =
           Core::LinAlg::enrich_matrix_graph(A_sparse, power);
 
       // Check for global entries
-      EXPECT_EQ(graph_enriched->NumGlobalNonzeros(), 160);
+      EXPECT_EQ(graph_enriched->num_global_nonzeros(), 160);
     }
   }
 
@@ -189,15 +188,15 @@ namespace
         Core::Communication::as_epetra_comm(comm_), A);
     if (err != 0) FOUR_C_THROW("Matrix read failed.");
     std::shared_ptr<Epetra_CrsMatrix> A_crs = Core::Utils::shared_ptr_from_ref(*A);
-    Core::LinAlg::SparseMatrix A_sparse(A_crs, Core::LinAlg::Copy);
+    Core::LinAlg::SparseMatrix A_sparse(A_crs, Core::LinAlg::DataAccess::Copy);
 
     {
       const int power = 3;
-      std::shared_ptr<Epetra_CrsGraph> graph_enriched =
+      std::shared_ptr<Core::LinAlg::Graph> graph_enriched =
           Core::LinAlg::enrich_matrix_graph(A_sparse, power);
 
       // Check for global entries
-      EXPECT_EQ(graph_enriched->NumGlobalNonzeros(), 228400);
+      EXPECT_EQ(graph_enriched->num_global_nonzeros(), 228400);
     }
   }
 }  // namespace

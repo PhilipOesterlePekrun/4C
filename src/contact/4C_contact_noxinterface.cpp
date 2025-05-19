@@ -11,6 +11,7 @@
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_solver_nonlin_nox_aux.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <NOX_Epetra_Vector.H>
 #include <Teuchos_RCPStdSharedPtrConversions.hpp>
@@ -23,7 +24,7 @@ CONTACT::NoxInterface::NoxInterface()
     : isinit_(false),
       issetup_(false),
       strategy_ptr_(nullptr),
-      cycling_maps_(std::vector<std::shared_ptr<Epetra_Map>>(0))
+      cycling_maps_(std::vector<std::shared_ptr<Core::LinAlg::Map>>(0))
 {
   // should stay empty
 }
@@ -70,7 +71,7 @@ double CONTACT::NoxInterface::get_constraint_rhs_norms(const Core::LinAlg::Vecto
   std::shared_ptr<Core::LinAlg::Vector<double>> constrRhs_red = nullptr;
   // Note: PointSameAs is faster than SameAs and should do the job right here,
   // since we replace the map afterwards anyway.               hiermeier 08/17
-  if (not constrRhs->Map().PointSameAs(strategy().lm_dof_row_map(true)))
+  if (not constrRhs->get_block_map().PointSameAs(strategy().lm_dof_row_map(true).get_epetra_map()))
   {
     constrRhs_red = std::make_shared<Core::LinAlg::Vector<double>>(strategy().lm_dof_row_map(true));
     Core::LinAlg::export_to(*constrRhs, *constrRhs_red);
@@ -79,7 +80,7 @@ double CONTACT::NoxInterface::get_constraint_rhs_norms(const Core::LinAlg::Vecto
     constrRhs_red = std::make_shared<Core::LinAlg::Vector<double>>(*constrRhs);
 
   // replace the map
-  constrRhs_red->ReplaceMap(strategy().slave_dof_row_map(true));
+  constrRhs_red->replace_map(strategy().slave_dof_row_map(true));
 
   double constrNorm = -1.0;
   Teuchos::RCP<const ::NOX::Epetra::Vector> constrRhs_nox = Teuchos::null;
@@ -93,7 +94,7 @@ double CONTACT::NoxInterface::get_constraint_rhs_norms(const Core::LinAlg::Vecto
 
 
       constrRhs_nox = Teuchos::make_rcp<::NOX::Epetra::Vector>(
-          Teuchos::rcp(nConstrRhs->get_ptr_of_Epetra_Vector()), ::NOX::Epetra::Vector::CreateView);
+          Teuchos::rcp(nConstrRhs->get_ptr_of_epetra_vector()), ::NOX::Epetra::Vector::CreateView);
       break;
     }
     case NOX::Nln::StatusTest::quantity_contact_friction:
@@ -103,7 +104,7 @@ double CONTACT::NoxInterface::get_constraint_rhs_norms(const Core::LinAlg::Vecto
           Core::LinAlg::extract_my_vector(*constrRhs_red, strategy().slave_t_dof_row_map(true));
 
       constrRhs_nox = Teuchos::make_rcp<::NOX::Epetra::Vector>(
-          Teuchos::rcp(tConstrRhs->get_ptr_of_Epetra_Vector()), ::NOX::Epetra::Vector::CreateView);
+          Teuchos::rcp(tConstrRhs->get_ptr_of_epetra_vector()), ::NOX::Epetra::Vector::CreateView);
       break;
     }
     default:
@@ -207,7 +208,7 @@ double CONTACT::NoxInterface::get_lagrange_multiplier_update_norms(
   }
 
   const ::NOX::Epetra::Vector zincr_nox_ptr(
-      Teuchos::rcpFromRef(*zincr_ptr->get_ptr_of_Epetra_Vector()),
+      Teuchos::rcpFromRef(*zincr_ptr->get_ptr_of_epetra_vector()),
       ::NOX::Epetra::Vector::CreateView);
 
   updatenorm = zincr_nox_ptr.norm(type);
@@ -235,7 +236,7 @@ double CONTACT::NoxInterface::get_previous_lagrange_multiplier_norms(
    * (NOT equal to zOld_, which is stored in the Strategy object!!!) */
   std::shared_ptr<Core::LinAlg::Vector<double>> zold_ptr =
       std::make_shared<Core::LinAlg::Vector<double>>(*strategy().lagrange_multiplier_np(true));
-  zold_ptr->Update(-1.0, *strategy().lagrange_multiplier_increment(), 1.0);
+  zold_ptr->update(-1.0, *strategy().lagrange_multiplier_increment(), 1.0);
   std::shared_ptr<::NOX::Epetra::Vector> zold_nox_ptr = nullptr;
   switch (checkQuantity)
   {
@@ -245,7 +246,7 @@ double CONTACT::NoxInterface::get_previous_lagrange_multiplier_norms(
           Core::LinAlg::extract_my_vector(*zold_ptr, strategy().slave_n_dof_row_map(true));
 
       zold_nox_ptr = std::make_shared<::NOX::Epetra::Vector>(
-          Teuchos::rcp(znold_ptr->get_ptr_of_Epetra_Vector()), ::NOX::Epetra::Vector::CreateView);
+          Teuchos::rcp(znold_ptr->get_ptr_of_epetra_vector()), ::NOX::Epetra::Vector::CreateView);
       break;
     }
     case NOX::Nln::StatusTest::quantity_contact_friction:
@@ -254,7 +255,7 @@ double CONTACT::NoxInterface::get_previous_lagrange_multiplier_norms(
           Core::LinAlg::extract_my_vector(*zold_ptr, strategy().slave_t_dof_row_map(true));
 
       zold_nox_ptr = std::make_shared<::NOX::Epetra::Vector>(
-          Teuchos::rcp(ztold_ptr->get_ptr_of_Epetra_Vector()), ::NOX::Epetra::Vector::CreateView);
+          Teuchos::rcp(ztold_ptr->get_ptr_of_epetra_vector()), ::NOX::Epetra::Vector::CreateView);
       break;
     }
     default:
@@ -314,7 +315,7 @@ enum ::NOX::StatusTest::StatusType CONTACT::NoxInterface::get_active_set_info(
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-Teuchos::RCP<const Epetra_Map> CONTACT::NoxInterface::get_current_active_set_map(
+Teuchos::RCP<const Core::LinAlg::Map> CONTACT::NoxInterface::get_current_active_set_map(
     enum NOX::Nln::StatusTest::QuantityType checkQuantity) const
 {
   switch (checkQuantity)
@@ -341,7 +342,7 @@ Teuchos::RCP<const Epetra_Map> CONTACT::NoxInterface::get_current_active_set_map
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-Teuchos::RCP<const Epetra_Map> CONTACT::NoxInterface::get_old_active_set_map(
+Teuchos::RCP<const Core::LinAlg::Map> CONTACT::NoxInterface::get_old_active_set_map(
     enum NOX::Nln::StatusTest::QuantityType checkQuantity) const
 {
   switch (checkQuantity)
@@ -386,12 +387,10 @@ double CONTACT::NoxInterface::get_model_value(NOX::Nln::MeritFunction::MeritFctN
       return 0.0;
     }
     default:
-      FOUR_C_THROW("Unsupported Merit function name! (enum = %d)", name);
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("Unsupported Merit function name! (enum = {})", name);
   }
 
   FOUR_C_THROW("Impossible to reach this point.");
-  exit(EXIT_FAILURE);
 }
 
 /*----------------------------------------------------------------------------*
@@ -414,12 +413,10 @@ double CONTACT::NoxInterface::get_linearized_model_terms(const Core::LinAlg::Vec
       return lin_val;
     }
     default:
-      FOUR_C_THROW("Unsupported Merit function name! (enum = %d)", name);
-      exit(EXIT_FAILURE);
+      FOUR_C_THROW("Unsupported Merit function name! (enum = {})", name);
   }
 
   FOUR_C_THROW("Impossible to reach this point.");
-  exit(EXIT_FAILURE);
 }
 
 FOUR_C_NAMESPACE_CLOSE

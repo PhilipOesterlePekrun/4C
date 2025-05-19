@@ -9,16 +9,17 @@
 
 #include "4C_beam3_euler_bernoulli.hpp"
 #include "4C_beaminteraction_calc_utils.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_global_data.hpp"
 #include "4C_inpar_cardiovascular0d.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_inpar_structure.hpp"
 #include "4C_io_control.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
 #include "4C_linear_solver_method.hpp"
 #include "4C_linear_solver_method_linalg.hpp"
 #include "4C_linear_solver_method_parameters.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <Teuchos_ParameterList.hpp>
 
@@ -80,8 +81,7 @@ std::shared_ptr<Solid::SOLVER::Factory::LinSolMap> Solid::SOLVER::Factory::build
         (*linsolvers)[*mt_iter] = build_cardiovascular0_d_lin_solver(sdyn, actdis);
         break;
       default:
-        FOUR_C_THROW("No idea which solver to use for the given model type %s",
-            model_type_string(*mt_iter).c_str());
+        FOUR_C_THROW("No idea which solver to use for the given model type {}", *mt_iter);
     }
   }
 
@@ -137,12 +137,12 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_structure_li
           actdis.dof(node, solidDofs);
       }
 
-      std::shared_ptr<Epetra_Map> rowmap1(new Epetra_Map(-1, solidDofs.size(), solidDofs.data(), 0,
-          Core::Communication::as_epetra_comm(actdis.get_comm())));
-      std::shared_ptr<Epetra_Map> rowmap2(new Epetra_Map(-1, beamDofs.size(), beamDofs.data(), 0,
-          Core::Communication::as_epetra_comm(actdis.get_comm())));
+      std::shared_ptr<Core::LinAlg::Map> rowmap1(new Core::LinAlg::Map(-1, solidDofs.size(),
+          solidDofs.data(), 0, Core::Communication::as_epetra_comm(actdis.get_comm())));
+      std::shared_ptr<Core::LinAlg::Map> rowmap2(new Core::LinAlg::Map(-1, beamDofs.size(),
+          beamDofs.data(), 0, Core::Communication::as_epetra_comm(actdis.get_comm())));
 
-      std::vector<std::shared_ptr<const Epetra_Map>> maps;
+      std::vector<std::shared_ptr<const Core::LinAlg::Map>> maps;
       maps.emplace_back(rowmap1);
       maps.emplace_back(rowmap2);
 
@@ -154,7 +154,7 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_structure_li
 
       linsolver->params()
           .sublist("Inverse1")
-          .set<std::shared_ptr<Epetra_Map>>("null space: map", rowmap1);
+          .set<std::shared_ptr<Core::LinAlg::Map>>("null space: map", rowmap1);
       Core::LinearSolver::Parameters::compute_solver_parameters(
           actdis, linsolver->params().sublist("Inverse1"));
 
@@ -175,10 +175,9 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_meshtying_co
 {
   const Teuchos::ParameterList& mcparams = Global::Problem::instance()->contact_dynamic_params();
 
-  const auto sol_type =
-      Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(mcparams, "STRATEGY");
+  const auto sol_type = Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(mcparams, "STRATEGY");
 
-  const auto sys_type = Teuchos::getIntegralValue<Inpar::CONTACT::SystemType>(mcparams, "SYSTEM");
+  const auto sys_type = Teuchos::getIntegralValue<CONTACT::SystemType>(mcparams, "SYSTEM");
 
   const int lin_solver_id = mcparams.get<int>("LINEAR_SOLVER");
 
@@ -188,8 +187,8 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_meshtying_co
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
 std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_meshtying_contact_lin_solver(
-    Core::FE::Discretization& actdis, enum Inpar::CONTACT::SolvingStrategy sol_type,
-    enum Inpar::CONTACT::SystemType sys_type, const int lin_solver_id)
+    Core::FE::Discretization& actdis, enum CONTACT::SolvingStrategy sol_type,
+    enum CONTACT::SystemType sys_type, const int lin_solver_id)
 {
   std::shared_ptr<Core::LinAlg::Solver> linsolver = nullptr;
 
@@ -207,7 +206,7 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_meshtying_co
 
   switch (sys_type)
   {
-    case Inpar::CONTACT::system_saddlepoint:
+    case CONTACT::SystemType::saddlepoint:
     {
       // meshtying/contact for structure
       // check if the meshtying/contact solver has a valid solver number
@@ -226,14 +225,13 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_meshtying_co
       if (sol != Core::LinearSolver::SolverType::umfpack &&
           sol != Core::LinearSolver::SolverType::superlu)
       {
-        // if an iterative solver is chosen we need a block preconditioner like CheapSIMPLE
+        // if an iterative solver is chosen we need a block preconditioner
         if (prec != Core::LinearSolver::PreconditionerType::multigrid_muelu &&
             prec != Core::LinearSolver::PreconditionerType::block_teko)
           FOUR_C_THROW(
               "You have chosen an iterative linear solver. For mortar/Contact in saddlepoint "
               "formulation you have to choose a block preconditioner such as SIMPLE. Choose "
-              "CheapSIMPLE or MueLu (if MueLu is available) in the SOLVER %i block in "
-              "your dat file.",
+              "Teko or MueLu in the SOLVER {} block in your input file.",
               lin_solver_id);
       }
 
@@ -256,7 +254,7 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_meshtying_co
             "this cannot be: no saddlepoint problem for beamcontact "
             "or pure structure problem.");
 
-      if (sol_type == Inpar::CONTACT::solution_lagmult)
+      if (sol_type == CONTACT::SolvingStrategy::lagmult)
       {
         // provide null space information
         if (prec == Core::LinearSolver::PreconditionerType::multigrid_muelu)

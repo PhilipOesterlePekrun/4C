@@ -64,9 +64,9 @@ REPARTITIONSTRATEGY             Everydt
 --------------------------------------------------------------BEAM POTENTIAL
 POT_LAW_PREFACTOR               -3e-5
 POT_LAW_EXPONENT                6.0
-BEAMPOTENTIAL_TYPE              Volume
-STRATEGY                        DoubleLengthSpecific_SmallSepApprox
-NUM_GAUSSPOINTS                 32
+TYPE                            volume
+STRATEGY                        double_length_specific_small_separations
+N_GAUSS_POINTS                  32
 AUTOMATIC_DIFFERENTIATION       no
 ----------------------------------BEAM POTENTIAL/RUNTIME VTK OUTPUT
 VTK_OUTPUT_BEAM_POTENTIAL       yes
@@ -74,18 +74,15 @@ INTERVAL_STEPS                  1
 EVERY_ITERATION                 no
 FORCES                          yes
 --------------------------------DESIGN LINE BEAM POTENTIAL CHARGE CONDITIONS
-DLINE 2
-E 1 - POTLAW 1 VAL 1.0 FUNCT none
-E 2 - POTLAW 1 VAL 1.0 FUNCT none
+E 1 POTLAW 1 VAL 1.0 FUNCT none
+E 2 POTLAW 1 VAL 1.0 FUNCT none
 ------------------------------------DESIGN POINT DIRICH CONDITIONS
-DPOINT 1
-E 1 - NUMDOF 9 ONOFF 1 1 1 1 1 0 0 0 1 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0 0
+E 1 NUMDOF 9 ONOFF 1 1 1 1 1 0 0 0 1 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0 0
 ------------------------------------DESIGN LINE DIRICH CONDITIONS
-DLINE 4
-E 1 - NUMDOF 9 ONOFF 0 0 1 1 1 0 0 0 1 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0 0
-E 2 - NUMDOF 9 ONOFF 0 0 1 1 1 0 0 0 1 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0 0
-E 3 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
-E 4 - NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 1 NUMDOF 9 ONOFF 0 0 1 1 1 0 0 0 1 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0 0
+E 2 NUMDOF 9 ONOFF 0 0 1 1 1 0 0 0 1 VAL 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 FUNCT 0 0 0 0 0 0 0 0 0
+E 3 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
+E 4 NUMDOF 3 ONOFF 1 1 0 VAL 0.0 0.0 0.0 FUNCT 0 0 0
 -----------------------------------------------DNODE-NODE TOPOLOGY
 NODE       5 DNODE 1
 NODE      14 DNODE 1

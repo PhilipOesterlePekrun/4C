@@ -22,6 +22,7 @@ FOUR_C_NAMESPACE_OPEN
  */
 [[nodiscard]] ModuleCallbacks global_legacy_module_callbacks();
 
+
 FOUR_C_NAMESPACE_CLOSE
 
 #endif

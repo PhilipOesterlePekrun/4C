@@ -7,6 +7,7 @@
 
 #include "4C_linear_solver_method_iterative.hpp"
 
+#include "4C_linalg_map.hpp"
 #include "4C_linear_solver_amgnxn_preconditioner.hpp"
 #include "4C_linear_solver_preconditioner_ifpack.hpp"
 #include "4C_linear_solver_preconditioner_krylovprojection.hpp"
@@ -22,7 +23,6 @@
 #include <BelosPseudoBlockCGSolMgr.hpp>
 #include <BelosPseudoBlockGmresSolMgr.hpp>
 #include <Epetra_CrsMatrix.h>
-#include <Epetra_Map.h>
 #include <Teuchos_RCPStdSharedPtrConversions.hpp>
 #include <Teuchos_TimeMonitor.hpp>
 #include <Teuchos_XMLParameterListHelpers.hpp>
@@ -62,7 +62,7 @@ void Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::setup(
   x_ = x;
   b_ = b;
 
-  preconditioner_->setup(create, a_.get(), x_.get(), b_.get());
+  if (create) preconditioner_->setup(a_.get(), x_.get(), b_.get());
 }
 
 //----------------------------------------------------------------------------------
@@ -137,8 +137,8 @@ int Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::solve()
   else
   {
     if (Core::Communication::my_mpi_rank(comm_) == 0)
-      std::cout << "WARNING: The linear solver input parameters from the .dat file will be "
-                   "depreciated soon. Switch to an appropriate xml-file version."
+      std::cout << "WARNING: The linear solver input parameters from the input file will be "
+                   "removed soon. Switch to an appropriate xml-file version."
                 << std::endl;
 
     std::string solverType = belist.get<std::string>("Solver Type");
@@ -157,19 +157,33 @@ int Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::solve()
 
   Belos::ReturnType ret = newSolver->solve();
 
-  int my_error = 0;
-  if (ret != Belos::Converged) my_error = 1;
-  int glob_error = 0;
-  Core::Communication::sum_all(&my_error, &glob_error, 1, comm_);
-
-  if (glob_error > 0 and Core::Communication::my_mpi_rank(this->comm_) == 0)
-    std::cout << std::endl
-              << "Core::LinearSolver::BelosSolver: WARNING: Iterative solver did not converge!"
-              << std::endl;
-
   numiters_ = newSolver->getNumIters();
-
   ncall_ += 1;
+
+  // Check and communicate failed convergence to user
+  {
+    int my_error = 0;
+    if (ret != Belos::Converged) my_error = 1;
+    int glob_error = 0;
+    Core::Communication::sum_all(&my_error, &glob_error, 1, comm_);
+
+    if (glob_error > 0)
+    {
+      if (belist.get<bool>("THROW_IF_UNCONVERGED"))
+      {
+        FOUR_C_THROW("Core::LinearSolver::BelosSolver: Iterative solver did not converge.");
+      }
+      else
+      {
+        if (Core::Communication::my_mpi_rank(comm_) == 0)
+        {
+          std::cout
+              << "Core::LinearSolver::BelosSolver: WARNING: Iterative solver did not converge."
+              << std::endl;
+        }
+      }
+    }
+  }
 
   return 0;
 }

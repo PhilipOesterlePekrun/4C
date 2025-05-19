@@ -11,9 +11,10 @@
 
 #include "4C_config.hpp"
 
+#include "4C_io_input_spec.hpp"
 #include "4C_utils_exceptions.hpp"
-#include "4C_utils_parameter_list.fwd.hpp"
 
+#include <map>
 #include <vector>
 
 FOUR_C_NAMESPACE_OPEN
@@ -37,28 +38,6 @@ namespace Inpar
       rotvec,    ///< non-additive rotation (pseudo-)vector DOFs
       ps_mulf    ///< prestressing: mulf
     };
-
-    /// Map element technology to string
-    static inline std::string ele_tech_string(const enum EleTech name  ///< enum to convert
-    )
-    {
-      switch (name)
-      {
-        case EleTech::eas:
-          return "EAS";
-          break;
-        case EleTech::fbar:
-          return "FBar";
-          break;
-        case EleTech::rotvec:
-          return "rotationvectorDOFs";
-          break;
-        default:
-          FOUR_C_THROW("Cannot make std::string for element technology %d", name);
-          break;
-      }
-      return "";
-    }
 
     /// Type of the used models/conditions
     /// necessary for the model evaluator
@@ -84,99 +63,6 @@ namespace Inpar
       model_multiscale = 13        ///< consider multi scale simulations
     };
 
-    /// Map model type to string
-    static inline std::string model_type_string(const enum ModelType name  ///< enum to convert
-    )
-    {
-      switch (name)
-      {
-        case model_structure:
-          return "Structure";
-          break;
-        case model_contact:
-          return "Contact";
-          break;
-        case model_meshtying:
-          return "Meshtying";
-          break;
-        case model_cardiovascular0d:
-          return "Cardiovascular0D";
-          break;
-        case model_springdashpot:
-          return "SpringDashpot";
-          break;
-        case model_lag_pen_constraint:
-          return "Lag-Pen-Constraint";
-          break;
-        case model_monolithic_coupling:
-          return "Monolithic-Coupling";
-          break;
-        case model_partitioned_coupling:
-          return "Partitioned-Coupling";
-          break;
-        case model_beam_interaction_old:
-          return "BeamInteractionOld";
-          break;
-        case model_browniandyn:
-          return "BrownianDyn";
-          break;
-        case model_beaminteraction:
-          return "BeamInteraction";
-          break;
-        case model_basic_coupling:
-          return "Basic-Coupling";
-          break;
-        case model_constraints:
-          return "Constraints";
-          break;
-        case model_multiscale:
-          return "Multiscale";
-          break;
-
-        default:
-          FOUR_C_THROW("Cannot make std::string for model type %d", name);
-          return "";
-      }
-    };
-
-    //! Map model std::string to enum
-    inline enum ModelType string_to_model_type(const std::string& name)
-    {
-      ModelType type = model_vague;
-      if (name == "Structure")
-        type = model_structure;
-      else if (name == "Contact")
-        type = model_contact;
-      else if (name == "Meshtying")
-        type = model_meshtying;
-      else if (name == "Cardiovascular0D")
-        type = model_cardiovascular0d;
-      else if (name == "SpringDashpot")
-        type = model_springdashpot;
-      else if (name == "Lag-Pen-Constraint")
-        type = model_lag_pen_constraint;
-      else if (name == "Monolithic-Coupling")
-        type = model_monolithic_coupling;
-      else if (name == "Partitioned-Coupling")
-        type = model_partitioned_coupling;
-      else if (name == "BeamInteractionOld")
-        type = model_beam_interaction_old;
-      else if (name == "BrownianDyn")
-        type = model_browniandyn;
-      else if (name == "BeamInteraction")
-        type = model_beaminteraction;
-      else if (name == "Basic-Coupling")
-        type = model_basic_coupling;
-      else if (name == "Constraints")
-        type = model_constraints;
-      else if (name == "Multiscale")
-        type = model_multiscale;
-      else
-        FOUR_C_THROW("Unknown Inpar::Solid::ModelType with name '%s'.", name.c_str());
-
-      return type;
-    };
-
     /// @name Time integration
     //!@{
 
@@ -194,54 +80,18 @@ namespace Inpar
     };
 
     /// Type of time integrator including statics
-    enum DynamicType : int
+    enum class DynamicType : int
     {
-      dyna_statics,            ///< static analysis
-      dyna_genalpha,           ///< generalised-alpha time integrator (implicit)
-      dyna_genalpha_liegroup,  ///< generalised-alpha time integrator for Lie groups (e.g. SO3 group
-                               ///< of rotation matrices) (implicit)
-      dyna_onesteptheta,       ///< one-step-theta time integrator (implicit)
-      dyna_expleuler,          ///< forward Euler (explicit)
-      dyna_centrdiff,          ///< central differences (explicit)
-      dyna_ab2,                ///< Adams-Bashforth 2nd order (explicit)
-      dyna_ab4                 ///< Adams-Bashforth 4th order (explicit)
+      Statics,           ///< static analysis
+      GenAlpha,          ///< generalised-alpha time integrator (implicit)
+      GenAlphaLieGroup,  ///< generalised-alpha time integrator for Lie groups (e.g. SO3 group
+                         ///< of rotation matrices) (implicit)
+      OneStepTheta,      ///< one-step-theta time integrator (implicit)
+      ExplEuler,         ///< forward Euler (explicit)
+      CentrDiff,         ///< central differences (explicit)
+      AdamsBashforth2,   ///< Adams-Bashforth 2nd order (explicit)
+      AdamsBashforth4    ///< Adams-Bashforth 4th order (explicit)
     };
-
-    /// Map time integrator to std::string
-    static inline std::string dynamic_type_string(const enum DynamicType name  ///< enum to convert
-    )
-    {
-      switch (name)
-      {
-        case dyna_statics:
-          return "Statics";
-          break;
-        case dyna_genalpha:
-          return "GenAlpha";
-          break;
-        case dyna_genalpha_liegroup:
-          return "GenAlphaLieGroup";
-          break;
-        case dyna_onesteptheta:
-          return "OneStepTheta";
-          break;
-        case dyna_expleuler:
-          return "ExplEuler";
-          break;
-        case dyna_centrdiff:
-          return "CentrDiff";
-          break;
-        case dyna_ab2:
-          return "AdamsBashforth2";
-          break;
-        case dyna_ab4:
-          return "AdamsBashforth4";
-          break;
-        default:
-          FOUR_C_THROW("Cannot make std::string for time integrator %d", name);
-          return "";
-      }
-    }
 
     /// Type of (global) damping
     enum DampKind
@@ -254,8 +104,7 @@ namespace Inpar
     /*! \brief Mid-average type of internal forces for generalised-alpha-like time integration
      * schemes
      *
-     * \author bborn
-     * \date 11/08
+
      */
     enum MidAverageEnum
     {
@@ -272,26 +121,6 @@ namespace Inpar
                          ///<  (TR means trapezoidal rule.)
     };
 
-    /// Map mid-averaging to std::string
-    static inline std::string mid_average_string(
-        const enum MidAverageEnum name  ///< enum to convert
-    )
-    {
-      switch (name)
-      {
-        case midavg_vague:
-          return "Vague";
-          break;
-        case midavg_imrlike:
-          return "IMR-like";
-        case midavg_trlike:
-          return "TR-like";
-          break;
-        default:
-          FOUR_C_THROW("Cannot make std::string for time integrator %d", name);
-          return "";
-      }
-    }
 
     /// Type of predictor
     enum PredEnum : int
@@ -317,34 +146,7 @@ namespace Inpar
     };
 
     /// Map predictor enum term to std::string
-    static inline std::string pred_enum_string(const PredEnum name  ///< identifier
-    )
-    {
-      switch (name)
-      {
-        case pred_vague:
-          return "Vague";
-        case pred_constdis:
-          return "ConstDis";
-        case pred_constvel:
-          return "ConstVel";
-        case pred_constacc:
-          return "ConstAcc";
-        case pred_constdisvelacc:
-          return "ConstDisVelAcc";
-        case pred_tangdis:
-          return "TangDis";
-        case pred_tangdis_constfext:
-          return "TangDisConstFext";
-        case pred_constdispres:
-          return "ConstDisPres";
-        case pred_constdisvelaccpres:
-          return "ConstDisVelAccPres";
-        default:
-          FOUR_C_THROW("Cannot make std::string for predictor %d", name);
-          exit(EXIT_FAILURE);
-      }
-    }
+    std::string pred_enum_string(const PredEnum name);
 
     //!@}
 
@@ -352,10 +154,9 @@ namespace Inpar
     //!@{
 
     /// have inertia forces to be linearized?
-    enum MassLin
+    enum class MassLin
     {
       ml_none,      ///< constant mass matrix
-      ml_standard,  ///< nonlinear inertia terms, translational DoFs
       ml_rotations  ///< nonlinear inertia terms, rotational DoFs
     };
 
@@ -378,51 +179,6 @@ namespace Inpar
       soltech_singlestep            ///< single step for explicit dynamics
     };
 
-    /// Map solution technique enum to std::string
-    static inline std::string nonlin_sol_tech_string(
-        const enum NonlinSolTech name  ///< enum to convert
-    )
-    {
-      switch (name)
-      {
-        case soltech_vague:
-          return "vague";
-          break;
-        case soltech_newtonfull:
-          return "fullnewton";
-          break;
-        case soltech_newtonls:
-          return "lsnewton";
-          break;
-        case soltech_newtonmod:
-          return "modnewton";
-          break;
-        case soltech_newtonuzawalin:
-          return "newtonlinuzawa";
-          break;
-        case soltech_newtonuzawanonlin:
-          return "augmentedlagrange";
-          break;
-        case soltech_noxnewtonlinesearch:
-          return "NoxNewtonLineSearch";
-          break;
-        case soltech_noxgeneral:
-          return "noxgeneral";
-          break;
-        case soltech_nox_nln:
-          return "nox_nln";
-          break;
-        case soltech_ptc:
-          return "ptc";
-          break;
-        case soltech_singlestep:
-          return "singlestep";
-          break;
-        default:
-          FOUR_C_THROW("Cannot make std::string for solution technique %d", name);
-          return "";
-      }
-    }
 
     /// Handling of non-converged nonlinear solver
     enum DivContAct
@@ -442,48 +198,6 @@ namespace Inpar
       divcont_adapt_3D0Dptc_ele_err  ///< adaptive pseudo-transient continuation of structural part
                                      ///< of 3D0D-coupled problem
     };
-
-    /// Map  enum to string
-    static inline std::string div_cont_act_string(const enum DivContAct name  ///< enum to convert
-    )
-    {
-      switch (name)
-      {
-        case divcont_stop:
-          return "stop";
-          break;
-        case divcont_continue:
-          return "continue";
-          break;
-        case divcont_repeat_step:
-          return "repeat_step";
-          break;
-        case divcont_halve_step:
-          return "halve_step";
-          break;
-        case divcont_adapt_step:
-          return "adapt_step";
-          break;
-        case divcont_rand_adapt_step:
-          return "rand_adapt_step";
-          break;
-        case divcont_rand_adapt_step_ele_err:
-          return "rand_adapt_step_ele_err";
-          break;
-        case divcont_repeat_simulation:
-          return "repeat_simulation";
-          break;
-        case divcont_adapt_penaltycontact:
-          return "adapt_penaltycontact";
-          break;
-        case divcont_adapt_3D0Dptc_ele_err:
-          return "adapt_3D0Dptc_ele_err";
-          break;
-        default:
-          FOUR_C_THROW("Cannot make string for solution div cont technique %d", name);
-          return "";
-      }
-    }
 
     /// Handling of non-converged nonlinear solver
     enum ConvergenceStatus
@@ -525,31 +239,10 @@ namespace Inpar
     /// STC scaling for thin shell structures
     enum StcScale
     {
-      stc_none = 0,  ///< no scaling
-      stc_curr,      ///< Non-symmetric STC
-      stc_currsym    ///< Symmetric STC
+      stc_inactive = 0,  ///< no scaling
+      stc_curr,          ///< Non-symmetric STC
+      stc_currsym        ///< Symmetric STC
     };
-
-    /// map convergence check to enum term
-    static inline std::string stc_string(const enum StcScale name  ///< enum term
-    )
-    {
-      switch (name)
-      {
-        case stc_none:
-          return "stc_none";
-          break;
-        case stc_curr:
-          return "stc_curr";
-          break;
-        case stc_currsym:
-          return "stc_currsym";
-          break;
-        default:
-          FOUR_C_THROW("Cannot make std::string for stc method %d", name);
-          return "";
-      }
-    }
 
     /// @name Constraints (global, geometric)
     //!@{
@@ -599,7 +292,7 @@ namespace Inpar
     };
 
     /// Type of structural optional quantity output
-    /// (this enum represents the input file parameter STRUCT_OPTIONAL_QUANTITY)
+    /// (this enum represents the input file parameter OPTIONAL_QUANTITY)
     enum OptQuantityType
     {
       optquantity_none,              ///< no optional output
@@ -668,32 +361,6 @@ namespace Inpar
       byfunct                ///< evaluate error from function
     };
 
-    /// map enum term to std::string
-    static inline std::string vector_norm_string(const enum VectorNorm norm  ///< input enum term
-    )
-    {
-      switch (norm)
-      {
-        case Inpar::Solid::norm_vague:
-          return "Vague";
-          break;
-        case Inpar::Solid::norm_l1:
-          return "L1";
-          break;
-        case Inpar::Solid::norm_l2:
-          return "L2";
-          break;
-        case Inpar::Solid::norm_rms:
-          return "Rms";
-          break;
-        case Inpar::Solid::norm_inf:
-          return "Inf";
-          break;
-        default:
-          FOUR_C_THROW("Cannot make std::string to vector norm %d", norm);
-          return "";
-      }
-    }
 
     /// kinematic description
     enum class KinemType
@@ -703,24 +370,11 @@ namespace Inpar
       nonlinearTotLag  ///< nonlinear kinematics Total Lagrange
     };
 
-    static inline std::string kinem_type_string(const KinemType kinem_type)
-    {
-      switch (kinem_type)
-      {
-        case Inpar::Solid::KinemType::vague:
-          return "vague";
-        case Inpar::Solid::KinemType::linear:
-          return "linear";
-        case Inpar::Solid::KinemType::nonlinearTotLag:
-          return "nonlinear_total_lagrange";
-      }
-
-      FOUR_C_THROW("Unknown kinematic type %d", kinem_type);
-    }
+    std::string kinem_type_string(const KinemType kinem_type);
     //!@}
 
     /// set the structure parameters
-    void set_valid_parameters(Teuchos::ParameterList& list);
+    void set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list);
 
     /// set structure-specific conditions
     void set_valid_conditions(std::vector<Core::Conditions::ConditionDefinition>& condlist);

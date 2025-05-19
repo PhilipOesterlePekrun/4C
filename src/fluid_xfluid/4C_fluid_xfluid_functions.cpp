@@ -28,11 +28,12 @@ namespace
 
     const auto& function_lin_def = parameters.front();
 
-    if (function_lin_def.get_or<bool>("FORWARDFACINGSTEP", false))
+    const auto type = function_lin_def.get<std::string>("XFLUID_FUNCTION");
+    if (type == "FORWARDFACINGSTEP")
     {
       return std::make_shared<GerstenbergerForwardfacingStep>();
     }
-    else if (function_lin_def.get_or<bool>("MOVINGLEVELSETCYLINDER", false))
+    else if (type == "MOVINGLEVELSETCYLINDER")
     {
       auto origin = function_lin_def.get<std::vector<double>>("ORIGIN");
 
@@ -47,9 +48,8 @@ namespace
       return std::make_shared<MovingLevelSetCylinder>(
           &origin, radius, &direction, distance, maxspeed);
     }
-    else if (function_lin_def.get_or<bool>("MOVINGLEVELSETTORUS", false) or
-             function_lin_def.get_or<bool>("MOVINGLEVELSETTORUSVELOCITY", false) or
-             function_lin_def.get_or<bool>("MOVINGLEVELSETTORUSSLIPLENGTH", false))
+    else if (type == "MOVINGLEVELSETTORUS" or type == "MOVINGLEVELSETTORUSVELOCITY" or
+             type == "MOVINGLEVELSETTORUSSLIPLENGTH")
     {
       auto origin = function_lin_def.get<std::vector<double>>("ORIGIN");
 
@@ -72,13 +72,13 @@ namespace
       auto rotramptime =
           function_lin_def.get<double>("ROTATION_RAMPTIME");  // revolutions per second
 
-      if (function_lin_def.get_or<bool>("MOVINGLEVELSETTORUS", false))
+      if (type == "MOVINGLEVELSETTORUS")
         return std::make_shared<MovingLevelSetTorus>(&origin, &orient_vec_torus, radius,
             radius_tube, &direction, distance, maxspeed, &rot_vec_torus, rotspeed, rotramptime);
-      else if (function_lin_def.get_or<bool>("MOVINGLEVELSETTORUSVELOCITY", false))
+      else if (type == "MOVINGLEVELSETTORUSVELOCITY")
         return std::make_shared<MovingLevelSetTorusVelocity>(&origin, &orient_vec_torus, radius,
             radius_tube, &direction, distance, maxspeed, &rot_vec_torus, rotspeed, rotramptime);
-      else if (function_lin_def.get_or<bool>("MOVINGLEVELSETTORUSSLIPLENGTH", false))
+      else if (type == "MOVINGLEVELSETTORUSSLIPLENGTH")
       {
         auto slipfunct = function_lin_def.get<int>("SLIP_FUNCT");
         return std::make_shared<MovingLevelSetTorusSliplength>(&origin, &orient_vec_torus, radius,
@@ -91,7 +91,7 @@ namespace
         return std::shared_ptr<Core::Utils::FunctionOfSpaceTime>(nullptr);
       }
     }
-    else if (function_lin_def.get_or<bool>("TAYLORCOUETTEFLOW", false))
+    else if (type == "TAYLORCOUETTEFLOW")
     {
       auto radius_i = function_lin_def.get<double>("RADIUS_I");
       auto radius_o = function_lin_def.get<double>("RADIUS_O");
@@ -110,7 +110,7 @@ namespace
       return std::make_shared<TaylorCouetteFlow>(radius_i, radius_o, vel_theta_i, vel_theta_o,
           sliplength_i, sliplength_o, traction_theta_i, traction_theta_o, viscosity);
     }
-    else if (function_lin_def.get_or<bool>("URQUIZABOXFLOW", false))
+    else if (type == "URQUIZABOXFLOW")
     {
       auto lengthx = function_lin_def.get<double>("LENGTHX");
       auto lengthy = function_lin_def.get<double>("LENGTHY");
@@ -134,7 +134,7 @@ namespace
       return std::make_shared<UrquizaBoxFlow>(
           lengthx, lengthy, rotation, viscosity, density, functno, lin_comb);
     }
-    else if (function_lin_def.get_or<bool>("URQUIZABOXFLOW_FORCE", false))
+    else if (type == "URQUIZABOXFLOW_FORCE")
     {
       auto lengthx = function_lin_def.get<double>("LENGTHX");
       auto lengthy = function_lin_def.get<double>("LENGTHY");
@@ -158,7 +158,7 @@ namespace
       return std::make_shared<UrquizaBoxFlowForce>(
           lengthx, lengthy, rotation, viscosity, density, functno, lin_comb);
     }
-    else if (function_lin_def.get_or<bool>("URQUIZABOXFLOW_TRACTION", false))
+    else if (type == "URQUIZABOXFLOW_TRACTION")
     {
       auto lengthx = function_lin_def.get<double>("LENGTHX");
       auto lengthy = function_lin_def.get<double>("LENGTHY");
@@ -194,96 +194,65 @@ void Discret::Utils::add_valid_xfluid_functions(Core::Utils::FunctionManager& fu
   using namespace Core::IO::InputSpecBuilders;
 
   auto spec = one_of({
-      tag("FORWARDFACINGSTEP"),
+      deprecated_selection<std::string>("XFLUID_FUNCTION", {"FORWARDFACINGSTEP"}),
       all_of({
-          tag("MOVINGLEVELSETCYLINDER"),
-          entry<std::vector<double>>("ORIGIN", {.size = 3}),
-          entry<double>("RADIUS"),
-          entry<std::vector<double>>("DIRECTION", {.size = 3}),
-          entry<double>("DISTANCE"),
-          entry<double>("MAXSPEED"),
+          deprecated_selection<std::string>("XFLUID_FUNCTION", {"MOVINGLEVELSETCYLINDER"}),
+          parameter<std::vector<double>>("ORIGIN", {.size = 3}),
+          parameter<double>("RADIUS"),
+          parameter<std::vector<double>>("DIRECTION", {.size = 3}),
+          parameter<double>("DISTANCE"),
+          parameter<double>("MAXSPEED"),
       }),
       all_of({
-          tag("MOVINGLEVELSETTORUS"),
-          entry<std::vector<double>>("ORIGIN", {.size = 3}),
-          entry<std::vector<double>>("ORIENTVEC_TORUS", {.size = 3}),
-          entry<double>("RADIUS"),
-          entry<double>("RADIUS_TUBE"),
-          entry<std::vector<double>>("DIRECTION", {.size = 3}),
-          entry<double>("DISTANCE"),
-          entry<double>("MAXSPEED"),
-          entry<std::vector<double>>("ROTATION_VEC", {.size = 3}),
-          entry<double>("ROTATION_SPEED"),
-          entry<double>("ROTATION_RAMPTIME"),
+          deprecated_selection<std::string>(
+              "XFLUID_FUNCTION", {"MOVINGLEVELSETTORUS", "MOVINGLEVELSETTORUSVELOCITY"}),
+          parameter<std::vector<double>>("ORIGIN", {.size = 3}),
+          parameter<std::vector<double>>("ORIENTVEC_TORUS", {.size = 3}),
+          parameter<double>("RADIUS"),
+          parameter<double>("RADIUS_TUBE"),
+          parameter<std::vector<double>>("DIRECTION", {.size = 3}),
+          parameter<double>("DISTANCE"),
+          parameter<double>("MAXSPEED"),
+          parameter<std::vector<double>>("ROTATION_VEC", {.size = 3}),
+          parameter<double>("ROTATION_SPEED"),
+          parameter<double>("ROTATION_RAMPTIME"),
       }),
       all_of({
-          tag("MOVINGLEVELSETTORUSVELOCITY"),
-          entry<std::vector<double>>("ORIGIN", {.size = 3}),
-          entry<std::vector<double>>("ORIENTVEC_TORUS", {.size = 3}),
-          entry<double>("RADIUS"),
-          entry<double>("RADIUS_TUBE"),
-          entry<std::vector<double>>("DIRECTION", {.size = 3}),
-          entry<double>("DISTANCE"),
-          entry<double>("MAXSPEED"),
-          entry<std::vector<double>>("ROTATION_VEC", {.size = 3}),
-          entry<double>("ROTATION_SPEED"),
-          entry<double>("ROTATION_RAMPTIME"),
+          deprecated_selection<std::string>("XFLUID_FUNCTION", {"MOVINGLEVELSETTORUSSLIPLENGTH"}),
+          parameter<std::vector<double>>("ORIGIN", {.size = 3}),
+          parameter<std::vector<double>>("ORIENTVEC_TORUS", {.size = 3}),
+          parameter<double>("RADIUS"),
+          parameter<double>("RADIUS_TUBE"),
+          parameter<std::vector<double>>("DIRECTION", {.size = 3}),
+          parameter<double>("DISTANCE"),
+          parameter<double>("MAXSPEED"),
+          parameter<std::vector<double>>("ROTATION_VEC", {.size = 3}),
+          parameter<double>("ROTATION_SPEED"),
+          parameter<double>("ROTATION_RAMPTIME"),
+          parameter<int>("SLIP_FUNCT"),
       }),
       all_of({
-          tag("MOVINGLEVELSETTORUSSLIPLENGTH"),
-          entry<std::vector<double>>("ORIGIN", {.size = 3}),
-          entry<std::vector<double>>("ORIENTVEC_TORUS", {.size = 3}),
-          entry<double>("RADIUS"),
-          entry<double>("RADIUS_TUBE"),
-          entry<std::vector<double>>("DIRECTION", {.size = 3}),
-          entry<double>("DISTANCE"),
-          entry<double>("MAXSPEED"),
-          entry<std::vector<double>>("ROTATION_VEC", {.size = 3}),
-          entry<double>("ROTATION_SPEED"),
-          entry<double>("ROTATION_RAMPTIME"),
-          entry<int>("SLIP_FUNCT"),
+          deprecated_selection<std::string>("XFLUID_FUNCTION", {"TAYLORCOUETTEFLOW"}),
+          parameter<double>("RADIUS_I"),
+          parameter<double>("RADIUS_O"),
+          parameter<double>("VEL_THETA_I"),
+          parameter<double>("VEL_THETA_O"),
+          parameter<double>("SLIPLENGTH_I"),
+          parameter<double>("SLIPLENGTH_O"),
+          parameter<double>("TRACTION_THETA_I"),
+          parameter<double>("TRACTION_THETA_O"),
+          parameter<double>("VISCOSITY"),
       }),
       all_of({
-          tag("TAYLORCOUETTEFLOW"),
-          entry<double>("RADIUS_I"),
-          entry<double>("RADIUS_O"),
-          entry<double>("VEL_THETA_I"),
-          entry<double>("VEL_THETA_O"),
-          entry<double>("SLIPLENGTH_I"),
-          entry<double>("SLIPLENGTH_O"),
-          entry<double>("TRACTION_THETA_I"),
-          entry<double>("TRACTION_THETA_O"),
-          entry<double>("VISCOSITY"),
-      }),
-      all_of({
-          tag("URQUIZABOXFLOW"),
-          entry<double>("LENGTHX"),
-          entry<double>("LENGTHY"),
-          entry<double>("ROTATION"),
-          entry<double>("VISCOSITY"),
-          entry<double>("DENSITY"),
-          entry<int>("CASE"),
-          entry<std::vector<double>>("COMBINATION", {.size = 2}),
-      }),
-      all_of({
-          tag("URQUIZABOXFLOW_TRACTION"),
-          entry<double>("LENGTHX"),
-          entry<double>("LENGTHY"),
-          entry<double>("ROTATION"),
-          entry<double>("VISCOSITY"),
-          entry<double>("DENSITY"),
-          entry<int>("CASE"),
-          entry<std::vector<double>>("COMBINATION", {.size = 2}),
-      }),
-      all_of({
-          tag("URQUIZABOXFLOW_FORCE"),
-          entry<double>("LENGTHX"),
-          entry<double>("LENGTHY"),
-          entry<double>("ROTATION"),
-          entry<double>("VISCOSITY"),
-          entry<double>("DENSITY"),
-          entry<int>("CASE"),
-          entry<std::vector<double>>("COMBINATION", {.size = 2}),
+          deprecated_selection<std::string>("XFLUID_FUNCTION",
+              {"URQUIZABOXFLOW", "URQUIZABOXFLOW_TRACTION", "URQUIZABOXFLOW_FORCE"}),
+          parameter<double>("LENGTHX"),
+          parameter<double>("LENGTHY"),
+          parameter<double>("ROTATION"),
+          parameter<double>("VISCOSITY"),
+          parameter<double>("DENSITY"),
+          parameter<int>("CASE"),
+          parameter<std::vector<double>>("COMBINATION", {.size = 2}),
       }),
   });
 
@@ -983,7 +952,7 @@ double Discret::Utils::TaylorCouetteFlow::evaluate(
       return (c1_ * c1_) * (radius * radius) * 0.5 + 2.0 * c1_ * c2_ * log(radius) -
              (c2_ * c2_) / (2.0 * (radius * radius)) + c3_;
     default:
-      FOUR_C_THROW("wrong component %d", component);
+      FOUR_C_THROW("wrong component {}", component);
       break;
   }
 
@@ -1039,7 +1008,7 @@ std::vector<double> Discret::Utils::TaylorCouetteFlow::evaluate_spatial_derivati
       break;
     }
     default:
-      FOUR_C_THROW("wrong component %d", component);
+      FOUR_C_THROW("wrong component {}", component);
       break;
   }
 
@@ -1237,7 +1206,7 @@ double Discret::Utils::UrquizaBoxFlow::evaluate(
     case 3:  // pressure
       return px;
     default:
-      FOUR_C_THROW("wrong component %d", component);
+      FOUR_C_THROW("wrong component {}", component);
       break;
   }
 
@@ -1332,7 +1301,7 @@ std::vector<double> Discret::Utils::UrquizaBoxFlow::evaluate_spatial_derivative(
       break;
     }
     default:
-      FOUR_C_THROW("wrong component %d", component);
+      FOUR_C_THROW("wrong component {}", component);
       break;
   }
 
@@ -1486,7 +1455,7 @@ double Discret::Utils::UrquizaBoxFlowForce::evaluate(
     case 2:  // z-dir = 0.0
       return 0.0;
     default:
-      FOUR_C_THROW("wrong component %d", component);
+      FOUR_C_THROW("wrong component {}", component);
       break;
   }
 
@@ -1667,7 +1636,7 @@ double Discret::Utils::UrquizaBoxFlowTraction::evaluate(
     case 2:  // z-dir = 0.0
       return 0.0;
     default:
-      FOUR_C_THROW("wrong component %d", component);
+      FOUR_C_THROW("wrong component {}", component);
       break;
   }
 

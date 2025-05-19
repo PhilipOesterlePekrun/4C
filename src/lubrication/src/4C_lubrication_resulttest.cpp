@@ -10,6 +10,7 @@
 #include "4C_comm_mpi_utils.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_node.hpp"
+#include "4C_io_input_parameter_container.hpp"
 #include "4C_lubrication_timint_implicit.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -46,7 +47,7 @@ void Lubrication::ResultTest::test_node(
 
   if (isnodeofanybody == 0)
   {
-    FOUR_C_THROW("Node %d does not belong to discretization %s", node + 1, dis_->name().c_str());
+    FOUR_C_THROW("Node {} does not belong to discretization {}", node + 1, dis_->name());
   }
   else
   {
@@ -82,14 +83,14 @@ double Lubrication::ResultTest::result_node(
   double result(0.);
 
   // extract row map from solution vector
-  const Epetra_BlockMap& prenpmap = mysol_->Map();
+  const Epetra_BlockMap& prenpmap = mysol_->get_block_map();
 
   // test result value of pressure field
   if (quantity == "pre") result = (*mysol_)[prenpmap.LID(dis_->dof(0, node, 0))];
 
   // catch unknown quantity strings
   else
-    FOUR_C_THROW("Quantity '%s' not supported in result test!", quantity.c_str());
+    FOUR_C_THROW("Quantity '{}' not supported in result test!", quantity);
 
   return result;
 }  // Lubrication::ResultTest::ResultNode
@@ -131,7 +132,7 @@ double Lubrication::ResultTest::result_special(
   if (quantity == "numiterlastnewton") result = (double)mynumiter_;
   // catch unknown quantity strings
   else
-    FOUR_C_THROW("Quantity '%s' not supported in result test!", quantity.c_str());
+    FOUR_C_THROW("Quantity '{}' not supported in result test!", quantity);
 
   return result;
 }  // Lubrication::ResultTest::result_special

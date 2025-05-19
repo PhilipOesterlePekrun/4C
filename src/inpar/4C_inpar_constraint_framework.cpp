@@ -7,47 +7,41 @@
 
 #include "4C_inpar_constraint_framework.hpp"
 
-#include "4C_utils_parameter_list.hpp"
-
+#include "4C_io_input_spec_builders.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
 /**
  *
  */
-void Inpar::CONSTRAINTS::set_valid_parameters(Teuchos::ParameterList& list)
+void Inpar::Constraints::set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list)
 {
-  using Teuchos::setStringToIntegralParameter;
-  using Teuchos::tuple;
+  using namespace Core::IO::InputSpecBuilders;
 
-  Teuchos::ParameterList& embeddedmeshcoupling = list.sublist("EMBEDDED MESH COUPLING", false, "");
-  {
-    setStringToIntegralParameter<EmbeddedMeshCouplingStrategy>("COUPLING_STRATEGY", "none",
-        "Strategy to couple background and overlapping mesh", tuple<std::string>("none", "mortar"),
-        tuple<EmbeddedMeshCouplingStrategy>(
-            EmbeddedMeshCouplingStrategy::none, EmbeddedMeshCouplingStrategy::mortar),
-        &embeddedmeshcoupling);
+  list["EMBEDDED MESH COUPLING"] = group("EMBEDDED MESH COUPLING",
+      {
 
-    setStringToIntegralParameter<SolidToSolidMortarShapefunctions>("MORTAR_SHAPE_FUNCTION", "none",
-        "Shape functions that should be use in case of coupling using the Mortar/Lagrange "
-        "Multiplier method",
-        tuple<std::string>("none", "quad4", "quad9", "nurbs9"),
-        tuple<SolidToSolidMortarShapefunctions>(SolidToSolidMortarShapefunctions::none,
-            SolidToSolidMortarShapefunctions::quad4, SolidToSolidMortarShapefunctions::quad9,
-            SolidToSolidMortarShapefunctions::nurbs9),
-        &embeddedmeshcoupling);
+          parameter<EmbeddedMeshCouplingStrategy>("COUPLING_STRATEGY",
+              {.description = "Strategy to couple background and overlapping mesh",
+                  .default_value = EmbeddedMeshCouplingStrategy::none}),
 
-    setStringToIntegralParameter<EmbeddedMeshConstraintEnforcement>("CONSTRAINT_ENFORCEMENT",
-        "none", "Apply a constraint enforcement in the embedded mesh coupling strategy",
-        tuple<std::string>("none", "penalty"),
-        tuple<EmbeddedMeshConstraintEnforcement>(
-            EmbeddedMeshConstraintEnforcement::none, EmbeddedMeshConstraintEnforcement::penalty),
-        &embeddedmeshcoupling);
 
-    Core::Utils::double_parameter("CONSTRAINT_ENFORCEMENT_PENALTYPARAM", 0.0,
-        "Penalty parameter for the constraint enforcement in embedded mesh coupling",
-        &embeddedmeshcoupling);
-  }
+          parameter<SolidToSolidMortarShapefunctions>("MORTAR_SHAPE_FUNCTION",
+              {.description = "Shape functions that should be use in case of coupling using the "
+                              "Mortar/Lagrange  Multiplier method ",
+                  .default_value = SolidToSolidMortarShapefunctions::none}),
+
+
+          parameter<EmbeddedMeshConstraintEnforcement>("CONSTRAINT_ENFORCEMENT",
+              {.description =
+                      "Apply a constraint enforcement in the embedded mesh coupling strategy",
+                  .default_value = EmbeddedMeshConstraintEnforcement::none}),
+
+          parameter<double>("CONSTRAINT_ENFORCEMENT_PENALTYPARAM",
+              {.description =
+                      "Penalty parameter for the constraint enforcement in embedded mesh coupling",
+                  .default_value = 0.0})},
+      {.defaultable = true});
 }
 
 FOUR_C_NAMESPACE_CLOSE

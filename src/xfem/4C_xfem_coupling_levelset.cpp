@@ -114,8 +114,8 @@ bool XFEM::LevelSetCoupling::have_matching_nodes(
     Core::FE::Discretization& dis_A, Core::FE::Discretization& dis_B)
 {
   // check for equal node row maps
-  const Epetra_Map* noderowmap_A = dis_A.node_row_map();
-  const Epetra_Map* noderowmap_B = dis_B.node_row_map();
+  const Core::LinAlg::Map* noderowmap_A = dis_A.node_row_map();
+  const Core::LinAlg::Map* noderowmap_B = dis_B.node_row_map();
 
   if (!(noderowmap_A->SameAs(*noderowmap_B))) return false;
 
@@ -160,7 +160,7 @@ void XFEM::LevelSetCoupling::init_state_vectors()
 void XFEM::LevelSetCoupling::init_state_vectors_bg()
 {
   // background-dis (fluid) related state vectors
-  const Epetra_Map* bg_dofrowmap = bg_dis_->dof_row_map(bg_nds_phi_);
+  const Core::LinAlg::Map* bg_dofrowmap = bg_dis_->dof_row_map(bg_nds_phi_);
 
   phinp_ = Core::LinAlg::create_vector(*bg_dofrowmap, true);
 }
@@ -173,9 +173,9 @@ void XFEM::LevelSetCoupling::init_state_vectors_bg()
 void XFEM::LevelSetCoupling::init_state_vectors_cutter()
 {
   // cutter-dis related state vectors
-  const Epetra_Map* cutter_dofrowmap =
+  const Core::LinAlg::Map* cutter_dofrowmap =
       cutter_dis_->dof_row_map(cutter_nds_phi_);  // used for level set field and its derivatives
-  const Epetra_Map* cutter_dofcolmap =
+  const Core::LinAlg::Map* cutter_dofcolmap =
       cutter_dis_->dof_col_map(cutter_nds_phi_);  // used for level set field and its derivatives
 
   cutter_phinp_ = Core::LinAlg::create_vector(*cutter_dofrowmap, true);
@@ -243,7 +243,7 @@ void XFEM::LevelSetCoupling::set_level_set_boolean_type()
   else if (booleantype == "sym_difference")
     ls_boolean_type_ = ls_sym_difference;
   else
-    FOUR_C_THROW("not a valid boolean type %s: ", booleantype.c_str());
+    FOUR_C_THROW("not a valid boolean type {}: ", booleantype);
 }
 
 
@@ -377,8 +377,8 @@ bool XFEM::LevelSetCoupling::set_level_set_field(const double time)
   // make a copy of last time step
 
   std::shared_ptr<Core::LinAlg::Vector<double>> delta_phi =
-      Core::LinAlg::create_vector(cutter_phinp_->Map(), true);
-  delta_phi->Update(1.0, *cutter_phinp_, 0.0);
+      Core::LinAlg::create_vector(cutter_phinp_->get_block_map(), true);
+  delta_phi->update(1.0, *cutter_phinp_, 0.0);
 
   // initializations
   int err(0);
@@ -413,8 +413,8 @@ bool XFEM::LevelSetCoupling::set_level_set_field(const double time)
     if (lm.size() != 1) FOUR_C_THROW("assume 1 dof in cutterdis-Dofset for phi vector");
 
     const int gid = lm[0];
-    const int lid = cutter_phinp_->Map().LID(gid);
-    err = cutter_phinp_->ReplaceMyValues(1, &value, &lid);
+    const int lid = cutter_phinp_->get_block_map().LID(gid);
+    err = cutter_phinp_->replace_local_values(1, &value, &lid);
     if (err) FOUR_C_THROW("could not replace values for phi vector");
   }
 
@@ -427,8 +427,8 @@ bool XFEM::LevelSetCoupling::set_level_set_field(const double time)
   if (cond_type == Inpar::XFEM::CouplingCond_LEVELSET_NAVIER_SLIP)
   {
     // Do we need smoothed gradients? I.e. what type is it?
-    const int val = cutterele_conds_[lid].second->parameters().get<int>("SURFACE_PROJECTION");
-    projtosurf_ = static_cast<Inpar::XFEM::ProjToSurface>(val);
+    projtosurf_ = cutterele_conds_[lid].second->parameters().get<Inpar::XFEM::ProjToSurface>(
+        "SURFACE_PROJECTION");
 
     if (projtosurf_ != Inpar::XFEM::Proj_normal)  // and projtosurf_!=Inpar::XFEM::Proj_normal_phi
     {
@@ -448,12 +448,12 @@ bool XFEM::LevelSetCoupling::set_level_set_field(const double time)
 
       // To get phi nodal values into pressure dofs in the fluid discretization!!! - any idea for
       // nice implementation?
-      const Epetra_Map* modphinp_dofrowmap =
+      const Core::LinAlg::Map* modphinp_dofrowmap =
           std::dynamic_pointer_cast<XFEM::DiscretizationXFEM>(cutter_dis_)->initial_dof_row_map();
       std::shared_ptr<Core::LinAlg::Vector<double>> modphinp =
           std::make_shared<Core::LinAlg::Vector<double>>(*modphinp_dofrowmap, true);
 
-      double* val = cutter_phinp_->Values();
+      double* val = cutter_phinp_->get_values();
 
       int numrows = cutter_dis_->num_my_row_nodes();
       // loop all column nodes on the processor
@@ -467,18 +467,18 @@ bool XFEM::LevelSetCoupling::set_level_set_field(const double time)
             std::dynamic_pointer_cast<XFEM::DiscretizationXFEM>(cutter_dis_)->initial_dof(lsnode);
 
         if (initialdof.size() != 4)
-          FOUR_C_THROW("Initial Dof Size is not 4! Size: %d", initialdof.size());
+          FOUR_C_THROW("Initial Dof Size is not 4! Size: {}", initialdof.size());
 
         const int gid = initialdof[3];
 
-        int err = modphinp->ReplaceGlobalValues(1, &val[lnodeid], &gid);
+        int err = modphinp->replace_global_values(1, &val[lnodeid], &gid);
         if (err != 0) FOUR_C_THROW("Something went wrong when replacing the values.");
 
       }  // Loop over all nodes
 
       // SAFETY check
       // dependent on the desired projection, just remove this line
-      if (not modphinp->Map().SameAs(
+      if (not modphinp->get_map().SameAs(
               *std::dynamic_pointer_cast<XFEM::DiscretizationXFEM>(cutter_dis_)
                   ->initial_dof_row_map()))
         FOUR_C_THROW("input map is not a dof row map of the fluid");
@@ -503,7 +503,7 @@ bool XFEM::LevelSetCoupling::set_level_set_field(const double time)
         for (int ivec = 0; ivec < gradphinp_smoothed_rownode->NumVectors(); ivec++)
         {
           auto& itemp = (*gradphinp_smoothed_rownode)(ivec);
-          for (int jlength = 0; jlength < itemp.MyLength(); jlength++)
+          for (int jlength = 0; jlength < itemp.local_length(); jlength++)
           {
             gradphinp_smoothed_node_->ReplaceMyValue(jlength, ivec, itemp[jlength]);
           }
@@ -522,10 +522,10 @@ bool XFEM::LevelSetCoupling::set_level_set_field(const double time)
 
   // check if boundary position changed from the last step
 
-  delta_phi->Update(1.0, *cutter_phinp_, -1.0);  // phinp - phin
+  delta_phi->update(1.0, *cutter_phinp_, -1.0);  // phinp - phin
 
   double norm = 0.0;
-  delta_phi->Norm2(&norm);
+  delta_phi->norm_2(&norm);
 
   return (norm > 1e-14);  // did interface change?
 }
@@ -562,12 +562,11 @@ void XFEM::LevelSetCoupling::map_cutter_to_bg_vector(Core::FE::Discretization& s
       if (static_cast<int>(lm_target.size()) != 1)
         FOUR_C_THROW("we expect a unique dof per node here!");
 
-      std::vector<double> val_source;
-      Core::FE::extract_my_values(source_vec_dofbased, val_source, lm_source);
+      std::vector<double> val_source = Core::FE::extract_values(source_vec_dofbased, lm_source);
 
       // set to a dofrowmap based vector!
-      const int lid_target = target_vec_dofbased.Map().LID(lm_target[0]);
-      const int err = target_vec_dofbased.ReplaceMyValues(1, val_source.data(), &lid_target);
+      const int lid_target = target_vec_dofbased.get_block_map().LID(lm_target[0]);
+      const int err = target_vec_dofbased.replace_local_values(1, val_source.data(), &lid_target);
       if (err) FOUR_C_THROW("could not replace values for convective velocity");
     }
   }
@@ -590,13 +589,12 @@ XFEM::LevelSetCoupling::get_level_set_field_as_node_row_vector()
     std::vector<int> lm_source;
     bg_dis_->dof(bg_nds_phi_, node, lm_source);
 
-    std::vector<double> val_source;
-    Core::FE::extract_my_values(*phinp_, val_source, lm_source);
+    std::vector<double> val_source = Core::FE::extract_values(*phinp_, lm_source);
 
     if (val_source.size() != 1) FOUR_C_THROW("we expect only one dof");
 
     const int lid_target = bg_dis_->node_row_map()->LID(node->id());
-    const int err = bg_phinp_nodemap_->ReplaceMyValues(1, val_source.data(), &lid_target);
+    const int err = bg_phinp_nodemap_->replace_local_values(1, val_source.data(), &lid_target);
     if (err) FOUR_C_THROW("could not replace values for phi vector");
   }
 
@@ -1242,9 +1240,9 @@ void XFEM::LevelSetCouplingNavierSlip::set_element_conditions()
 
   // Get robin coupling IDs
   const auto maybe_robin_dirichlet_id =
-      cond->parameters().get<Core::IO::Noneable<int>>("ROBIN_DIRICHLET_ID");
+      cond->parameters().get<std::optional<int>>("ROBIN_DIRICHLET_ID");
   const auto maybe_robin_neumann_id =
-      cond->parameters().get<Core::IO::Noneable<int>>("ROBIN_NEUMANN_ID");
+      cond->parameters().get<std::optional<int>>("ROBIN_NEUMANN_ID");
 
   // zero based robin coupling IDs
   robin_dirichlet_id_ = maybe_robin_dirichlet_id.value_or(-1) - 1;
@@ -1312,7 +1310,7 @@ void XFEM::LevelSetCouplingNavierSlip::set_element_specific_conditions(
     if (mynewcond.size() != 1)
     {
       FOUR_C_THROW(
-          "%i conditions of the same name with robin id %i, for element %i! %s coupling-condition "
+          "{} conditions of the same name with robin id {}, for element {}! {} coupling-condition "
           "not unique!",
           mynewcond.size(), robin_id, cutele->id(), cond_name.c_str());
     }
@@ -1330,7 +1328,7 @@ void XFEM::LevelSetCouplingNavierSlip::set_element_specific_conditions(
   for (int lid = 0; lid < nummycolele; ++lid)
   {
     if (cutterele_cond[lid] == nullptr)
-      FOUR_C_THROW("cutter element with local id %i has no Robin-condition!!!", lid);
+      FOUR_C_THROW("cutter element with local id {} has no Robin-condition!!!", lid);
   }
 }
 
@@ -1424,7 +1422,7 @@ void XFEM::LevelSetCouplingNavierSlip::get_condition_by_robin_id(
   for (size_t i = 0; i < mycond.size(); ++i)
   {
     Core::Conditions::Condition* cond = mycond[i];
-    const auto maybe_id = cond->parameters().get<Core::IO::Noneable<int>>("ROBIN_ID");
+    const auto maybe_id = cond->parameters().get<std::optional<int>>("ROBIN_ID");
     const int id = maybe_id.value_or(-1) - 1;
 
     if (id == coupling_id) mynewcond.push_back(cond);

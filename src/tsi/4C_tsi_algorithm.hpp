@@ -70,9 +70,6 @@ namespace TSI
   //!  the order in which the filters handle the Discretizations, which in turn
   //!  defines the dof number ordering of the Discretizations... Don't get
   //!  confused. Just always list structure, thermo. In that order.
-  //!
-  //!  \author u.kue
-  //!  \date 02/08
   class Algorithm : public Adapter::AlgorithmBase
   {
    public:
@@ -84,6 +81,13 @@ namespace TSI
 
     /// initialise TSI system
     virtual void setup_system() = 0;
+
+    /*!
+     * @brief Perform all necessary tasks after setting up the TSI
+     * algorithm. Currently, this only calls the post_setup method of the
+     * structure_field.
+     */
+    void post_setup();
 
     /// non-linear solve, i.e. (multiple) corrector
     virtual void solve() = 0;

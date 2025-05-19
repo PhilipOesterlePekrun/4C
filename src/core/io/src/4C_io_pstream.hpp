@@ -52,7 +52,6 @@ namespace Core::IO
    *        o limit output to certain procs
    *        o selecting an output level
    *
-   * \author wichmann & hammerl \date 11/12
    */
   class Pstream
   {
@@ -64,8 +63,8 @@ namespace Core::IO
     virtual ~Pstream();
 
     /// configure the output. Must be called before Core::IO::cout can be used. Is
-    /// currently called in the global problem using the params specified in the
-    /// IO section of the .dat-file.
+    /// currently called indat the global problem using the params specified in the
+    /// IO section of the input file.
     void setup(const bool writetoscreen,       ///< bool whether output is written to screen
         const bool writetofile,                ///< bool whether output is written to file
         const bool prefixgroupID,              ///< bool whether group ID is prefixed in each line
@@ -152,7 +151,7 @@ namespace Core::IO
      *  as the processor restriction also for standard print() methods which
      *  typically expect a std::ostream object as input argument.
      *
-     *  \author hiermeier 12/17 */
+     *  */
     std::ostream& os(const Verbositylevel level = undef) const;
 
     /// Return verbosity level
@@ -223,7 +222,6 @@ namespace Core::IO
    * \brief This object handles output if a level was specified.
    *        Everything is then streamed to Pstream.
    *
-   * \author wichmann & hammerl \date 09/16
    */
   class Level
   {

@@ -75,14 +75,14 @@ void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype,
   // extract local nodal values on present and opposite side of scatra-scatra interface
   this->extract_node_values(discretization, la);
   std::vector<Core::LinAlg::Matrix<nen_, 1>> emasterphinp(
-      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true));
+      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
   if (params.isParameter("evaluate_manifold_coupling"))
     my::extract_node_values(emasterphinp, discretization, la, "manifold_on_scatra");
   else
     my::extract_node_values(emasterphinp, discretization, la, "imasterphinp");
 
-  Core::LinAlg::Matrix<nen_, 1> eslavetempnp(true);
-  Core::LinAlg::Matrix<nen_, 1> emastertempnp(true);
+  Core::LinAlg::Matrix<nen_, 1> eslavetempnp(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<nen_, 1> emastertempnp(Core::LinAlg::Initialization::zero);
   if (kineticmodel == Inpar::S2I::kinetics_butlervolmerreducedthermoresistance)
   {
     my::extract_node_values(
@@ -104,7 +104,7 @@ void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype,
   // element slave mechanical stress tensor
   const bool is_pseudo_contact = my::scatraparamsboundary_->is_pseudo_contact();
   std::vector<Core::LinAlg::Matrix<nen_, 1>> eslavestress_vector(
-      6, Core::LinAlg::Matrix<nen_, 1>(true));
+      6, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
   if (is_pseudo_contact)
     my::extract_node_values(eslavestress_vector, discretization, la, "mechanicalStressState",
         my::scatraparams_->nds_two_tensor_quantity());
@@ -141,14 +141,14 @@ void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype, probdim>::
     evaluate_s2_i_coupling_at_integration_point(
         const std::shared_ptr<const Mat::Electrode>& matelectrode,
         const std::vector<Core::LinAlg::Matrix<nen_, 1>>& eslavephinp,
-        const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>>&
+        const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>>&
             emasterphinp,
         const Core::LinAlg::Matrix<nen_, 1>& eslavetempnp,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>& emastertempnp,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>& emastertempnp,
         const double pseudo_contact_fac, const Core::LinAlg::Matrix<nen_, 1>& funct_slave,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>& funct_master,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>& funct_master,
         const Core::LinAlg::Matrix<nen_, 1>& test_slave,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>& test_master,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>& test_master,
         const Discret::Elements::ScaTraEleParameterBoundary* const scatra_parameter_boundary,
         const double timefacfac, const double timefacrhsfac, const double detF, double frt,
         const int num_dof_per_node, Core::LinAlg::SerialDenseMatrix& k_ss,
@@ -169,7 +169,7 @@ void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype, probdim>::
   const std::vector<int>* onoff = scatra_parameter_boundary->on_off();
 
   // number of nodes of master-side mortar element
-  const int nen_master = Core::FE::num_nodes<distype_master>;
+  const int nen_master = Core::FE::num_nodes(distype_master);
 
   // evaluate dof values at current integration point on present and opposite side of scatra-scatra
   // interface
@@ -451,9 +451,9 @@ void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype,
   // extract local nodal values of temporal derivatives at current timestep on both sides of the
   // scatra-scatra interface
   std::vector<Core::LinAlg::Matrix<nen_, 1>> eslavephidtnp(
-      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true));
+      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
   std::vector<Core::LinAlg::Matrix<nen_, 1>> emasterphidtnp(
-      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true));
+      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
   if (kineticmodel == Inpar::S2I::kinetics_butlervolmerreducedcapacitance)
   {
     my::extract_node_values(eslavephidtnp, discretization, la, "islavephidtnp");
@@ -463,7 +463,7 @@ void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype,
   // extract local nodal values of current time step at master-side of scatra-scatra interface
   this->extract_node_values(discretization, la);
   std::vector<Core::LinAlg::Matrix<nen_, 1>> emasterphinp(
-      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true));
+      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
   my::extract_node_values(emasterphinp, discretization, la, "imasterphinp");
 
   Core::LinAlg::Matrix<nsd_, 1> normal;
@@ -471,7 +471,7 @@ void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype,
   // element slave mechanical stress tensor
   const bool is_pseudo_contact = my::scatraparamsboundary_->is_pseudo_contact();
   std::vector<Core::LinAlg::Matrix<nen_, 1>> eslavestress_vector(
-      6, Core::LinAlg::Matrix<nen_, 1>(true));
+      6, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
   if (is_pseudo_contact)
     my::extract_node_values(eslavestress_vector, discretization, la, "mechanicalStressState",
         my::scatraparams_->nds_two_tensor_quantity());
@@ -506,15 +506,15 @@ template <Core::FE::CellType distype_master>
 void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype, probdim>::
     evaluate_s2_i_coupling_capacitance_at_integration_point(
         const std::vector<Core::LinAlg::Matrix<nen_, 1>>& eslavephidtnp,
-        const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>>&
+        const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>>&
             emasterphidtnp,
         const std::vector<Core::LinAlg::Matrix<nen_, 1>>& eslavephinp,
-        const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>>&
+        const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>>&
             emasterphinp,
         const double pseudo_contact_fac, const Core::LinAlg::Matrix<nen_, 1>& funct_slave,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>& funct_master,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>& funct_master,
         const Core::LinAlg::Matrix<nen_, 1>& test_slave,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>& test_master,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>& test_master,
         const Discret::Elements::ScaTraEleParameterBoundary* const scatra_parameter_boundary,
         const double timederivfac, const double timefacfac, const double timefacrhsfac,
         const int num_dof_per_node, Core::LinAlg::SerialDenseMatrix& k_ss,
@@ -527,7 +527,7 @@ void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype, probdim>::
   const double capacitance = scatra_parameter_boundary->capacitance();
 
   // number of nodes of master-side mortar element
-  const int nen_master = Core::FE::num_nodes<distype_master>;
+  const int nen_master = Core::FE::num_nodes(distype_master);
 
   // get faraday constant
   const double faraday = Discret::Elements::ScaTraEleParameterElch::instance("scatra")->faraday();
@@ -591,7 +591,7 @@ void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype,
   // extract local nodal values on present and opposite side of scatra-scatra interface
   this->extract_node_values(discretization, la);
   std::vector<Core::LinAlg::Matrix<nen_, 1>> emasterphinp(
-      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true));
+      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
   if (params.isParameter("evaluate_manifold_coupling"))
     my::extract_node_values(emasterphinp, discretization, la, "manifold_on_scatra");
   else
@@ -599,7 +599,7 @@ void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype,
 
   // element slave mechanical stress tensor
   std::vector<Core::LinAlg::Matrix<nen_, 1>> eslavestress_vector(
-      6, Core::LinAlg::Matrix<nen_, 1>(true));
+      6, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
   if (is_pseudo_contact)
     my::extract_node_values(eslavestress_vector, discretization, la, "mechanicalStressState",
         my::scatraparams_->nds_two_tensor_quantity());
@@ -822,9 +822,9 @@ void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype,
   // extract local nodal values of time derivatives at current time step on both sides of the
   // scatra-scatra interface
   std::vector<Core::LinAlg::Matrix<nen_, 1>> eslavephidtnp(
-      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true));
+      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
   std::vector<Core::LinAlg::Matrix<nen_, 1>> emasterphidtnp(
-      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true));
+      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
   if (kineticmodel == Inpar::S2I::kinetics_butlervolmerreducedcapacitance)
   {
     my::extract_node_values(eslavephidtnp, discretization, la, "islavephidtnp");
@@ -834,12 +834,12 @@ void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype,
   // extract local nodal values of current time step on master side of scatra-scatra interface
   this->extract_node_values(discretization, la);
   std::vector<Core::LinAlg::Matrix<nen_, 1>> emasterphinp(
-      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true));
+      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
   my::extract_node_values(emasterphinp, discretization, la, "imasterphinp");
 
   // element slave mechanical stress tensor
   std::vector<Core::LinAlg::Matrix<nen_, 1>> eslavestress_vector(
-      6, Core::LinAlg::Matrix<nen_, 1>(true));
+      6, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
   if (is_pseudo_contact)
     my::extract_node_values(eslavestress_vector, discretization, la, "mechanicalStressState",
         my::scatraparams_->nds_two_tensor_quantity());
@@ -963,9 +963,9 @@ template <Core::FE::CellType distype, int probdim>
 template <Core::FE::CellType distype_master>
 void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype,
     probdim>::calculate_rh_sand_global_system(const Core::LinAlg::Matrix<nen_, 1>& funct_slave,
-    const Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>& funct_master,
+    const Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>& funct_master,
     const Core::LinAlg::Matrix<nen_, 1>& test_slave,
-    const Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>& test_master,
+    const Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>& test_master,
     const double pseudo_contact_fac, const double numelectrons, const int nen_master,
     const double timefacfac, const double timefacrhsfac, const double dj_dc_slave,
     const double dj_dc_master, const double dj_dpot_slave, const double dj_dpot_master,
@@ -1072,7 +1072,7 @@ void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype,
     probdim>::calculate_rh_sand_global_system_capacitive_flux(const Core::LinAlg::Matrix<nen_, 1>&
                                                                   funct_slave,
     const Core::LinAlg::Matrix<nen_, 1>& test_slave,
-    const Core::LinAlg::Matrix<Core::FE::num_nodes<distype_master>, 1>& test_master,
+    const Core::LinAlg::Matrix<Core::FE::num_nodes(distype_master), 1>& test_master,
     const double pseudo_contact_fac, const int numelectrons, const double timefacfac,
     const double timefacrhsfac, const int nen_master, const double jC, const double djC_dpot_slave,
     const int num_dof_per_node, Core::LinAlg::SerialDenseMatrix& k_ss,
@@ -1162,7 +1162,7 @@ void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype,
   // extract local nodal values on present and opposite side of scatra-scatra interface
   this->extract_node_values(discretization, la);
   std::vector<Core::LinAlg::Matrix<nen_, 1>> emasterphinp(
-      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(true));
+      my::numdofpernode_, Core::LinAlg::Matrix<nen_, 1>(Core::LinAlg::Initialization::zero));
   if (params.isParameter("evaluate_manifold_coupling"))
     my::extract_node_values(emasterphinp, discretization, la, "manifold_on_scatra");
   else
@@ -1177,8 +1177,8 @@ void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<distype,
     // evaluate values of shape functions and domain integration factor at current integration point
     const double fac = my::eval_shape_func_and_int_fac(intpoints, gpid);
 
-    Core::LinAlg::Matrix<nen_, 1> eslavetempnp(true);
-    Core::LinAlg::Matrix<nen_, 1> emastertempnp(true);
+    Core::LinAlg::Matrix<nen_, 1> eslavetempnp(Core::LinAlg::Initialization::zero);
+    Core::LinAlg::Matrix<nen_, 1> emastertempnp(Core::LinAlg::Initialization::zero);
     if (kineticmodel == Inpar::S2I::kinetics_butlervolmerreducedthermoresistance)
     {
       my::extract_node_values(
@@ -1344,13 +1344,13 @@ template void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<Core::FE::Ce
     evaluate_s2_i_coupling_at_integration_point<Core::FE::CellType::tri3>(
         const std::shared_ptr<const Mat::Electrode>&,
         const std::vector<Core::LinAlg::Matrix<nen_, 1>>&,
-        const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::tri3>, 1>>&,
+        const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::tri3), 1>>&,
         const Core::LinAlg::Matrix<nen_, 1>&,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::tri3>, 1>&, const double,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::tri3), 1>&, const double,
         const Core::LinAlg::Matrix<nen_, 1>&,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::tri3>, 1>&,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::tri3), 1>&,
         const Core::LinAlg::Matrix<nen_, 1>&,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::tri3>, 1>&,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::tri3), 1>&,
         const Discret::Elements::ScaTraEleParameterBoundary* const, const double, const double,
         const double, double, const int, Core::LinAlg::SerialDenseMatrix&,
         Core::LinAlg::SerialDenseMatrix&, Core::LinAlg::SerialDenseMatrix&,
@@ -1360,13 +1360,13 @@ template void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<Core::FE::Ce
     evaluate_s2_i_coupling_at_integration_point<Core::FE::CellType::quad4>(
         const std::shared_ptr<const Mat::Electrode>&,
         const std::vector<Core::LinAlg::Matrix<nen_, 1>>&,
-        const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::quad4>, 1>>&,
+        const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::quad4), 1>>&,
         const Core::LinAlg::Matrix<nen_, 1>&,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::quad4>, 1>&,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::quad4), 1>&,
         const double, const Core::LinAlg::Matrix<nen_, 1>&,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::quad4>, 1>&,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::quad4), 1>&,
         const Core::LinAlg::Matrix<nen_, 1>&,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::quad4>, 1>&,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::quad4), 1>&,
         const Discret::Elements::ScaTraEleParameterBoundary* const, const double, const double,
         const double, double, const int, Core::LinAlg::SerialDenseMatrix&,
         Core::LinAlg::SerialDenseMatrix&, Core::LinAlg::SerialDenseMatrix&,
@@ -1376,13 +1376,13 @@ template void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<Core::FE::Ce
     evaluate_s2_i_coupling_at_integration_point<Core::FE::CellType::tri3>(
         const std::shared_ptr<const Mat::Electrode>&,
         const std::vector<Core::LinAlg::Matrix<nen_, 1>>&,
-        const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::tri3>, 1>>&,
+        const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::tri3), 1>>&,
         const Core::LinAlg::Matrix<nen_, 1>&,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::tri3>, 1>&, const double,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::tri3), 1>&, const double,
         const Core::LinAlg::Matrix<nen_, 1>&,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::tri3>, 1>&,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::tri3), 1>&,
         const Core::LinAlg::Matrix<nen_, 1>&,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::tri3>, 1>&,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::tri3), 1>&,
         const Discret::Elements::ScaTraEleParameterBoundary* const, const double, const double,
         const double, double, const int, Core::LinAlg::SerialDenseMatrix&,
         Core::LinAlg::SerialDenseMatrix&, Core::LinAlg::SerialDenseMatrix&,
@@ -1392,13 +1392,13 @@ template void Discret::Elements::ScaTraEleBoundaryCalcElchElectrode<Core::FE::Ce
     evaluate_s2_i_coupling_at_integration_point<Core::FE::CellType::quad4>(
         const std::shared_ptr<const Mat::Electrode>&,
         const std::vector<Core::LinAlg::Matrix<nen_, 1>>&,
-        const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::quad4>, 1>>&,
+        const std::vector<Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::quad4), 1>>&,
         const Core::LinAlg::Matrix<nen_, 1>&,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::quad4>, 1>&,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::quad4), 1>&,
         const double, const Core::LinAlg::Matrix<nen_, 1>&,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::quad4>, 1>&,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::quad4), 1>&,
         const Core::LinAlg::Matrix<nen_, 1>&,
-        const Core::LinAlg::Matrix<Core::FE::num_nodes<Core::FE::CellType::quad4>, 1>&,
+        const Core::LinAlg::Matrix<Core::FE::num_nodes(Core::FE::CellType::quad4), 1>&,
         const Discret::Elements::ScaTraEleParameterBoundary* const, const double, const double,
         const double, double, const int, Core::LinAlg::SerialDenseMatrix&,
         Core::LinAlg::SerialDenseMatrix&, Core::LinAlg::SerialDenseMatrix&,

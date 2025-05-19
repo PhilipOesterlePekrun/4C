@@ -10,6 +10,7 @@
 #include "4C_comm_pack_helpers.hpp"
 #include "4C_global_data.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 /*----------------------------------------------------------------------*
@@ -46,7 +47,7 @@ Mat::PAR::FluidPoroViscosityLaw* Mat::PAR::FluidPoroViscosityLaw::create_viscosi
       break;
     }
     default:
-      FOUR_C_THROW("invalid material for viscosity law %d", curmat->type());
+      FOUR_C_THROW("invalid material for viscosity law {}", curmat->type());
       break;
   }
 

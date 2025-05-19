@@ -149,7 +149,7 @@ void FLD::DynSmagFilter::apply_filter_for_dynamic_computation_of_cs(
     const std::shared_ptr<const Core::LinAlg::Vector<double>> scalar, const double thermpress,
     const std::shared_ptr<const Core::LinAlg::Vector<double>> dirichtoggle)
 {
-  const Epetra_Map* nodecolmap = discret_->node_col_map();
+  const Core::LinAlg::Map* nodecolmap = discret_->node_col_map();
 
 
   // perform filtering
@@ -219,7 +219,7 @@ void FLD::DynSmagFilter::apply_filter_for_dynamic_computation_of_prt(
     const std::shared_ptr<const Core::LinAlg::Vector<double>> dirichtoggle,
     Teuchos::ParameterList& extraparams, const int ndsvel)
 {
-  const Epetra_Map* nodecolmap = scatradiscret_->node_col_map();
+  const Core::LinAlg::Map* nodecolmap = scatradiscret_->node_col_map();
 
   // perform filtering
   boxfsc_->apply_filter_scatra(scalar, thermpress, dirichtoggle, ndsvel);
@@ -321,7 +321,7 @@ void FLD::DynSmagFilter::dyn_smag_compute_cs()
   std::vector<double> local_ele_sum_CI_denominator;
 
   // final constants (Cs*delta)^2 and (Ci*delta)^2 (loma only)
-  const Epetra_Map* elerowmap = discret_->element_row_map();
+  const Core::LinAlg::Map* elerowmap = discret_->element_row_map();
   Core::LinAlg::Vector<double> Cs_delta_sq(*elerowmap, true);
   Core::LinAlg::Vector<double> Ci_delta_sq(*elerowmap, true);
 
@@ -452,7 +452,7 @@ void FLD::DynSmagFilter::dyn_smag_compute_cs()
     int err = ele->evaluate(
         calc_smag_const_params, *discret_, lm, dummym1, dummym2, dummyv1, dummyv2, dummyv3);
     if (err)
-      FOUR_C_THROW("Proc %d: Element %d returned err=%d",
+      FOUR_C_THROW("Proc {}: Element {} returned err={}",
           Core::Communication::my_mpi_rank(discret_->get_comm()), ele->id(), err);
 
     // get turbulent Cs and Ci of this element
@@ -460,8 +460,8 @@ void FLD::DynSmagFilter::dyn_smag_compute_cs()
     double ele_Ci_delta_sq = calc_smag_const_params.get<double>("ele_Ci_delta_sq");
     // and store it in vector
     const int id = ele->id();
-    int myerr = Cs_delta_sq.ReplaceGlobalValues(1, &ele_Cs_delta_sq, &id);
-    myerr += Ci_delta_sq.ReplaceGlobalValues(1, &ele_Ci_delta_sq, &id);
+    int myerr = Cs_delta_sq.replace_global_values(1, &ele_Cs_delta_sq, &id);
+    myerr += Ci_delta_sq.replace_global_values(1, &ele_Ci_delta_sq, &id);
     if (myerr != 0) FOUR_C_THROW("Problem");
 
     // local contributions to in plane averaging for channel flows
@@ -588,15 +588,15 @@ void FLD::DynSmagFilter::dyn_smag_compute_cs()
   }  // end loop over elements
 
   // export from row to column map
-  const Epetra_Map* elecolmap = discret_->element_col_map();
+  const Core::LinAlg::Map* elecolmap = discret_->element_col_map();
   std::shared_ptr<Core::LinAlg::Vector<double>> col_Cs_delta_sq =
       std::make_shared<Core::LinAlg::Vector<double>>(*elecolmap, true);
-  col_Cs_delta_sq->PutScalar(0.0);
+  col_Cs_delta_sq->put_scalar(0.0);
 
   Core::LinAlg::export_to(Cs_delta_sq, *col_Cs_delta_sq);
   std::shared_ptr<Core::LinAlg::Vector<double>> col_Ci_delta_sq =
       std::make_shared<Core::LinAlg::Vector<double>>(*elecolmap, true);
-  col_Ci_delta_sq->PutScalar(0.0);
+  col_Ci_delta_sq->put_scalar(0.0);
 
   Core::LinAlg::export_to(Ci_delta_sq, *col_Ci_delta_sq);
 
@@ -706,7 +706,7 @@ void FLD::DynSmagFilter::dyn_smag_compute_prt(
 {
   TEUCHOS_FUNC_TIME_MONITOR("ComputePrt");
 
-  const Epetra_Map* elerowmap = scatradiscret_->element_row_map();
+  const Core::LinAlg::Map* elerowmap = scatradiscret_->element_row_map();
   Core::LinAlg::Vector<double> Prt(*elerowmap, true);
 
   // for special flows, LijMij and MijMij averaged in each
@@ -830,21 +830,21 @@ void FLD::DynSmagFilter::dyn_smag_compute_prt(
 
     // get element location vector, dirichlet flags and ownerships
     Core::Elements::LocationArray la(scatradiscret_->num_dof_sets());
-    ele->location_vector(*scatradiscret_, la, false);
+    ele->location_vector(*scatradiscret_, la);
 
     // call the element evaluate method to integrate functions
     // against heaviside function element
     int err = ele->evaluate(
         calc_turb_prandtl_params, *scatradiscret_, la, dummym1, dummym2, dummyv1, dummyv2, dummyv3);
     if (err)
-      FOUR_C_THROW("Proc %d: Element %d returned err=%d",
+      FOUR_C_THROW("Proc {}: Element {} returned err={}",
           Core::Communication::my_mpi_rank(scatradiscret_->get_comm()), ele->id(), err);
 
     // get turbulent Prandlt number of this element
     double ele_Prt = calc_turb_prandtl_params.get<double>("ele_Prt");
     // and store it in vector
     const int id = ele->id();
-    int myerr = Prt.ReplaceGlobalValues(1, &ele_Prt, &id);
+    int myerr = Prt.replace_global_values(1, &ele_Prt, &id);
     if (myerr != 0) FOUR_C_THROW("Problem");
 
     // local contributions to in plane averaging for channel flows
@@ -959,10 +959,10 @@ void FLD::DynSmagFilter::dyn_smag_compute_prt(
   }  // end loop over elements
 
   // export from row to column map
-  const Epetra_Map* elecolmap = scatradiscret_->element_col_map();
+  const Core::LinAlg::Map* elecolmap = scatradiscret_->element_col_map();
   std::shared_ptr<Core::LinAlg::Vector<double>> col_Prt =
       std::make_shared<Core::LinAlg::Vector<double>>(*elecolmap, true);
-  col_Prt->PutScalar(0.0);
+  col_Prt->put_scalar(0.0);
   Core::LinAlg::export_to(Prt, *col_Prt);
   // store in parameters
   Teuchos::ParameterList* modelparams = &(extraparams.sublist("TURBULENCE MODEL"));

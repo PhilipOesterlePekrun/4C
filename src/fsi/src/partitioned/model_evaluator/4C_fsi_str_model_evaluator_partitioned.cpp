@@ -50,8 +50,8 @@ void Solid::ModelEvaluator::PartitionedFSI::setup_multi_map_extractor()
 }
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-std::shared_ptr<const Epetra_Map> Solid::ModelEvaluator::PartitionedFSI::get_block_dof_row_map_ptr()
-    const
+std::shared_ptr<const Core::LinAlg::Map>
+Solid::ModelEvaluator::PartitionedFSI::get_block_dof_row_map_ptr() const
 {
   check_init_setup();
   return global_state().dof_row_map();
@@ -93,7 +93,7 @@ void Solid::ModelEvaluator::PartitionedFSI::update_step_state(const double& time
     // add the old time factor scaled contributions to the residual
     std::shared_ptr<Core::LinAlg::Vector<double>>& fstructold_ptr =
         global_state().get_fstructure_old();
-    fstructold_ptr->Update(-timefac_n, *interface_force_np_ptr_, 1.0);
+    fstructold_ptr->update(-timefac_n, *interface_force_np_ptr_, 1.0);
   }
   else
   {
@@ -122,7 +122,7 @@ Solid::ModelEvaluator::PartitionedFSI::solve_relaxation_linear(
       const_cast<Solid::Nln::SOLVER::Generic&>(*(ti_impl->get_nln_solver_ptr()));
 
   // get the solution group
-  ::NOX::Abstract::Group& grp = nlnsolver.solution_group();
+  ::NOX::Abstract::Group& grp = nlnsolver.get_solution_group();
   NOX::Nln::Group* grp_ptr = dynamic_cast<NOX::Nln::Group*>(&grp);
   if (grp_ptr == nullptr) FOUR_C_THROW("Dynamic cast failed!");
 
@@ -143,10 +143,10 @@ Solid::ModelEvaluator::PartitionedFSI::solve_relaxation_linear(
   grp_ptr->computeJacobian();
 
   // overwrite F with boundary force
-  interface_force_np_ptr_->Scale(-(ti_impl->tim_int_param()));
+  interface_force_np_ptr_->scale(-(ti_impl->tim_int_param()));
   ti_impl->dbc_ptr()->apply_dirichlet_to_rhs(*interface_force_np_ptr_);
   Teuchos::RCP<::NOX::Epetra::Vector> nox_force = Teuchos::make_rcp<::NOX::Epetra::Vector>(
-      Teuchos::rcpFromRef(*interface_force_np_ptr_->get_ptr_of_Epetra_Vector()));
+      Teuchos::rcpFromRef(*interface_force_np_ptr_->get_ptr_of_epetra_vector()));
   grp_ptr->set_f(nox_force);
 
   // ---------------------------------------------------------------------------

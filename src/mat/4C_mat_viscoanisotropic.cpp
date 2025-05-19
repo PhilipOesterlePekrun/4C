@@ -11,6 +11,7 @@
 #include "4C_global_data.hpp"
 #include "4C_linalg_fixedsizematrix_tensor_products.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <vector>
 
@@ -138,7 +139,7 @@ void Mat::ViscoAnisotropic::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::ViscoAnisotropic*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
 
@@ -179,7 +180,7 @@ void Mat::ViscoAnisotropic::unpack(Core::Communication::UnpackBuffer& buffer)
   for (int var = 0; var < numhist; var++)
   {
     // current vectors have to be initialized
-    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> tmp(true);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> tmp(Core::LinAlg::Initialization::zero);
     histstresscurr_->push_back(tmp);
     artstresscurr_->push_back(tmp);
 
@@ -209,9 +210,14 @@ void Mat::ViscoAnisotropic::setup(int numgp, const Core::IO::InputParameterConta
   const double gamma = (params_->gamma_ * M_PI) / 180.;  // convert
 
   // read local (cylindrical) cosy-directions at current element
-  auto rad = container.get<std::vector<double>>("RAD");
-  auto axi = container.get<std::vector<double>>("AXI");
-  auto cir = container.get<std::vector<double>>("CIR");
+  auto rad_opt = container.get<std::optional<std::vector<double>>>("RAD");
+  auto axi_opt = container.get<std::optional<std::vector<double>>>("AXI");
+  auto cir_opt = container.get<std::optional<std::vector<double>>>("CIR");
+  FOUR_C_ASSERT_ALWAYS(rad_opt && axi_opt && cir_opt, "Require RAD, AXI and CIR parameters.");
+
+  const auto& rad = *rad_opt;
+  const auto& axi = *axi_opt;
+  const auto& cir = *cir_opt;
 
   Core::LinAlg::Matrix<3, 3> locsys;
   // basis is local cosy with third vec e3 = circumferential dir and e2 = axial dir
@@ -260,7 +266,7 @@ void Mat::ViscoAnisotropic::setup(int numgp, const Core::IO::InputParameterConta
   artstresscurr_ = std::make_shared<std::vector<Core::LinAlg::Matrix<NUM_STRESS_3D, 1>>>();
   histstresslast_ = std::make_shared<std::vector<Core::LinAlg::Matrix<NUM_STRESS_3D, 1>>>();
   artstresslast_ = std::make_shared<std::vector<Core::LinAlg::Matrix<NUM_STRESS_3D, 1>>>();
-  const Core::LinAlg::Matrix<NUM_STRESS_3D, 1> emptyvec(true);
+  const Core::LinAlg::Matrix<NUM_STRESS_3D, 1> emptyvec(Core::LinAlg::Initialization::zero);
 
   // how many stress types are used?
   const int numst = params_->numstresstypes_;
@@ -352,7 +358,7 @@ void Mat::ViscoAnisotropic::update()
   artstresslast_ = artstresscurr_;
 
   // empty vectors of current data
-  const Core::LinAlg::Matrix<NUM_STRESS_3D, 1> emptyvec(true);
+  const Core::LinAlg::Matrix<NUM_STRESS_3D, 1> emptyvec(Core::LinAlg::Initialization::zero);
   histstresscurr_ = std::make_shared<std::vector<Core::LinAlg::Matrix<NUM_STRESS_3D, 1>>>();
   artstresscurr_ = std::make_shared<std::vector<Core::LinAlg::Matrix<NUM_STRESS_3D, 1>>>();
   const int histsize = histstresslast_->size();
@@ -399,7 +405,7 @@ void Mat::ViscoAnisotropic::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
 
   // right Cauchy-Green Tensor  C = 2 * E + I
   // build identity tensor I
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> Id(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> Id(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; i++) Id(i) = 1.0;
   Core::LinAlg::Matrix<NUM_STRESS_3D, 1> C(*glstrain);
   C.scale(2.0);
@@ -414,7 +420,7 @@ void Mat::ViscoAnisotropic::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
   const double incJ = std::pow(I3, -1.0 / 3.0);  // J^{-2/3}
 
   // invert C
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> Cinv(6);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> Cinv(Core::LinAlg::Initialization::zero);
 
   Cinv(0) = C(1) * C(2) - 0.25 * C(4) * C(4);
   Cinv(1) = C(0) * C(2) - 0.25 * C(5) * C(5);
@@ -449,7 +455,7 @@ void Mat::ViscoAnisotropic::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
   // Ciso = 0 + 2/3 J^{-2/3} Sbar:C Psl - 2/3 (Cinv x Siso + Siso x Cinv)
   // Cvol not affected by viscosity
   Core::LinAlg::Matrix<NUM_STRESS_3D, NUM_STRESS_3D> CisoEla_nh(
-      true);  // isochoric elastic C from NeoHooke
+      Core::LinAlg::Initialization::zero);  // isochoric elastic C from NeoHooke
 
   Core::LinAlg::Tensor::add_holzapfel_product((*cmat), Cinv, (-2 * J * p));  // -2 J p Cinv o Cinv
 
@@ -457,7 +463,7 @@ void Mat::ViscoAnisotropic::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
   // fac Psl = fac (Cinv o Cinv) - fac/3 (Cinv x Cinv)
 
   Core::LinAlg::Matrix<NUM_STRESS_3D, NUM_STRESS_3D> Psl(
-      true);  // Psl = Cinv o Cinv - 1/3 Cinv x Cinv
+      Core::LinAlg::Initialization::zero);  // Psl = Cinv o Cinv - 1/3 Cinv x Cinv
   Core::LinAlg::Tensor::add_holzapfel_product(Psl, Cinv, 1.0);  // first part Psl = Cinv o Cinv
 
   for (int i = 0; i < 6; ++i)

@@ -109,13 +109,13 @@ void XFEM::evaluate_neumann_standard(
   for (fool = condition.begin(); fool != condition.end(); ++fool)
   {
     if (fool->first != (std::string) "PointNeumann") continue;
-    if (assemblemat && !Core::Communication::my_mpi_rank(systemvector.Comm()))
+    if (assemblemat && !Core::Communication::my_mpi_rank(systemvector.get_comm()))
       std::cout << "WARNING: No linearization of PointNeumann conditions" << std::endl;
     Core::Conditions::Condition& cond = *(fool->second);
     const std::vector<int>* nodeids = cond.get_nodes();
     if (!nodeids) FOUR_C_THROW("PointNeumann condition does not have nodal cloud");
     const int nnode = (*nodeids).size();
-    const auto funct = cond.parameters().get<std::vector<Core::IO::Noneable<int>>>("FUNCT");
+    const auto funct = cond.parameters().get<std::vector<std::optional<int>>>("FUNCT");
     const auto onoff = cond.parameters().get<std::vector<int>>("ONOFF");
     const auto val = cond.parameters().get<std::vector<double>>("VAL");
 
@@ -132,7 +132,7 @@ void XFEM::evaluate_neumann_standard(
       // do only nodes in my row map
       if (!discret.node_row_map()->MyGID((*nodeids)[i])) continue;
       Core::Nodes::Node* actnode = discret.g_node((*nodeids)[i]);
-      if (!actnode) FOUR_C_THROW("Cannot find global node %d", (*nodeids)[i]);
+      if (!actnode) FOUR_C_THROW("Cannot find global node {}", (*nodeids)[i]);
       // call explicitly the main dofset, i.e. the first column
       std::vector<int> dofs = discret.dof(0, actnode);
       const unsigned numdf = dofs.size();
@@ -142,8 +142,8 @@ void XFEM::evaluate_neumann_standard(
         const int gid = dofs[j];
         double value = val[j];
         value *= functfac;
-        const int lid = systemvector.Map().LID(gid);
-        if (lid < 0) FOUR_C_THROW("Global id %d not on this proc in system vector", gid);
+        const int lid = systemvector.get_block_map().LID(gid);
+        if (lid < 0) FOUR_C_THROW("Global id {} not on this proc in system vector", gid);
         systemvector[lid] += value;
       }
     }

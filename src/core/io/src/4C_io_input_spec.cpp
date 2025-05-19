@@ -8,12 +8,12 @@
 #include "4C_io_input_spec.hpp"
 
 #include "4C_io_input_spec_builders.hpp"
-#include "4C_io_yaml_emitter.hpp"
+#include "4C_io_yaml.hpp"
 #include "4C_utils_exceptions.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
-Core::IO::InputSpec::InputSpec(std::unique_ptr<Internal::InputSpecTypeErasedBase> pimpl)
+Core::IO::InputSpec::InputSpec(std::unique_ptr<Internal::InputSpecImpl> pimpl)
     : pimpl_(std::move(pimpl))
 {
 }
@@ -45,8 +45,35 @@ void Core::IO::InputSpec::fully_parse(
     std::stringstream ss;
     container.print(ss);
     std::string remainder(parser.get_unparsed_remainder());
-    FOUR_C_THROW("After parsing, the line still contains '%s'.\nParsed parameters: %s",
-        remainder.c_str(), ss.str().c_str());
+    FOUR_C_THROW(
+        "After parsing, the line still contains '{}'.\nParsed parameters: {}", remainder, ss.str());
+  }
+}
+
+void Core::IO::InputSpec::match(ConstYamlNodeRef yaml, InputParameterContainer& container) const
+{
+  FOUR_C_ASSERT(pimpl_, "InputSpec is empty.");
+
+  Internal::MatchTree match_tree{*this, yaml};
+  pimpl_->match(yaml, container, match_tree.root());
+
+  match_tree.assert_match();
+}
+
+void Core::IO::InputSpec::emit(YamlNodeRef yaml,
+    FourC::Core::IO::InputParameterContainer& container, InputSpecEmitOptions options) const
+{
+  FOUR_C_ASSERT(pimpl_, "InputSpec is empty.");
+
+  bool success = pimpl_->emit(yaml, container, options);
+  if (!success)
+  {
+    std::stringstream ss;
+    ss << "Failed to emit this data\n";
+    container.print(ss);
+    ss << "under the following specification\n";
+    print_as_dat(ss);
+    FOUR_C_THROW("{}", ss.str());
   }
 }
 
@@ -57,22 +84,20 @@ void Core::IO::InputSpec::print_as_dat(std::ostream& stream) const
   pimpl_->print(stream, 0u);
 }
 
-void Core::IO::InputSpec::emit_metadata(YamlEmitter& yaml) const
+void Core::IO::InputSpec::emit_metadata(YamlNodeRef yaml) const
 {
   FOUR_C_ASSERT(pimpl_, "InputSpec is empty.");
 
-  auto root = yaml.node;
-  root |= ryml::MAP;
-  pimpl_->emit_metadata(root.append_child());
+  pimpl_->emit_metadata(yaml);
 }
 
-Core::IO::Internal::InputSpecTypeErasedBase& Core::IO::InputSpec::impl()
+Core::IO::Internal::InputSpecImpl& Core::IO::InputSpec::impl()
 {
   FOUR_C_ASSERT(pimpl_, "InputSpec is empty.");
   return *pimpl_;
 }
 
-const Core::IO::Internal::InputSpecTypeErasedBase& Core::IO::InputSpec::impl() const
+const Core::IO::Internal::InputSpecImpl& Core::IO::InputSpec::impl() const
 {
   FOUR_C_ASSERT(pimpl_, "InputSpec is empty.");
   return *pimpl_;

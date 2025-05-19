@@ -8,6 +8,7 @@
 #include "4C_fluid_timint_genalpha.hpp"
 
 #include "4C_fluid_ele_action.hpp"
+#include "4C_fluid_ele_parameter_timint.hpp"
 #include "4C_fluid_turbulence_boxfilter.hpp"
 #include "4C_fluid_turbulence_dyn_smag.hpp"
 #include "4C_fluid_turbulence_dyn_vreman.hpp"
@@ -157,7 +158,7 @@ void FLD::TimIntGenAlpha::set_old_part_of_righthandside()
 
   */
 
-  hist_->PutScalar(0.0);
+  hist_->put_scalar(0.0);
 
   return;
 }
@@ -188,8 +189,8 @@ void FLD::TimIntGenAlpha::gen_alpha_update_acceleration()
       physicaltype_ == Inpar::FLUID::weakly_compressible or
       physicaltype_ == Inpar::FLUID::weakly_compressible_stokes)
   {
-    accnp_->Update(fact2, *accn_, 0.0);
-    accnp_->Update(fact1, *velnp_, -fact1, *veln_, 1.0);
+    accnp_->update(fact2, *accn_, 0.0);
+    accnp_->update(fact1, *velnp_, -fact1, *veln_, 1.0);
   }
   else
   {
@@ -200,10 +201,10 @@ void FLD::TimIntGenAlpha::gen_alpha_update_acceleration()
     std::shared_ptr<Core::LinAlg::Vector<double>> onlyvelnp =
         velpressplitter_->extract_other_vector(*velnp_);
 
-    Core::LinAlg::Vector<double> onlyaccnp(onlyaccn->Map());
+    Core::LinAlg::Vector<double> onlyaccnp(onlyaccn->get_block_map());
 
-    onlyaccnp.Update(fact2, *onlyaccn, 0.0);
-    onlyaccnp.Update(fact1, *onlyvelnp, -fact1, *onlyveln, 1.0);
+    onlyaccnp.update(fact2, *onlyaccn, 0.0);
+    onlyaccnp.update(fact1, *onlyvelnp, -fact1, *onlyveln, 1.0);
 
     // copy back into global vector
     Core::LinAlg::export_to(onlyaccnp, *accnp_);
@@ -233,7 +234,7 @@ void FLD::TimIntGenAlpha::gen_alpha_intermediate_values()
       physicaltype_ == Inpar::FLUID::weakly_compressible or
       physicaltype_ == Inpar::FLUID::weakly_compressible_stokes)
   {
-    accam_->Update((alphaM_), *accnp_, (1.0 - alphaM_), *accn_, 0.0);
+    accam_->update((alphaM_), *accnp_, (1.0 - alphaM_), *accn_, 0.0);
   }
   else
   {
@@ -242,9 +243,9 @@ void FLD::TimIntGenAlpha::gen_alpha_intermediate_values()
     std::shared_ptr<Core::LinAlg::Vector<double>> onlyaccnp =
         velpressplitter_->extract_other_vector(*accnp_);
 
-    Core::LinAlg::Vector<double> onlyaccam(onlyaccnp->Map());
+    Core::LinAlg::Vector<double> onlyaccam(onlyaccnp->get_block_map());
 
-    onlyaccam.Update((alphaM_), *onlyaccnp, (1.0 - alphaM_), *onlyaccn, 0.0);
+    onlyaccam.update((alphaM_), *onlyaccnp, (1.0 - alphaM_), *onlyaccn, 0.0);
 
     // copy back into global vector
     Core::LinAlg::export_to(onlyaccam, *accam_);
@@ -264,7 +265,7 @@ void FLD::TimIntGenAlpha::gen_alpha_intermediate_values()
   //
   // note that its af-genalpha with mid-point treatment of the pressure,
   // not implicit treatment as for the genalpha according to Whiting
-  velaf_->Update((alphaF_), *velnp_, (1.0 - alphaF_), *veln_, 0.0);
+  velaf_->update((alphaF_), *velnp_, (1.0 - alphaF_), *veln_, 0.0);
 
 }  // TimIntGenAlpha::gen_alpha_intermediate_values
 
@@ -285,15 +286,16 @@ void FLD::TimIntGenAlpha::gen_alpha_intermediate_values(
   //       n+alphaF
   //    vec         = alpha_F * vecnp     + (1-alpha_F) *  vecn
 
-  // do stupid conversion into Epetra map
-  Epetra_Map vecmap(vecnp->Map().NumGlobalElements(), vecnp->Map().NumMyElements(),
-      vecnp->Map().MyGlobalElements(), 0, vecnp->Map().Comm());
+  // do stupid conversion into map
+  Core::LinAlg::Map vecmap(vecnp->get_block_map().NumGlobalElements(),
+      vecnp->get_block_map().NumMyElements(), vecnp->get_block_map().MyGlobalElements(), 0,
+      vecnp->get_block_map().Comm());
 
   std::shared_ptr<Core::LinAlg::Vector<double>> vecam = Core::LinAlg::create_vector(vecmap, true);
-  vecam->Update((alphaM_), *vecnp, (1.0 - alphaM_), *vecn, 0.0);
+  vecam->update((alphaM_), *vecnp, (1.0 - alphaM_), *vecn, 0.0);
 
   std::shared_ptr<Core::LinAlg::Vector<double>> vecaf = Core::LinAlg::create_vector(vecmap, true);
-  vecaf->Update((alphaF_), *vecnp, (1.0 - alphaF_), *vecn, 0.0);
+  vecaf->update((alphaF_), *vecnp, (1.0 - alphaF_), *vecn, 0.0);
 
   // store computed intermediate values in given vectors
   vecnp = vecaf;
@@ -308,11 +310,9 @@ void FLD::TimIntGenAlpha::gen_alpha_intermediate_values(
 *-----------------------------------------------------------------------*/
 void FLD::TimIntGenAlpha::set_state_tim_int()
 {
-  discret_->set_state("velaf", velaf_);
-  discret_->set_state("velam", velam_);
-  if (timealgo_ == Inpar::FLUID::timeint_npgenalpha) discret_->set_state("velnp", velnp_);
-
-  return;
+  discret_->set_state("velaf", *velaf_);
+  discret_->set_state("velam", *velam_);
+  if (timealgo_ == Inpar::FLUID::timeint_npgenalpha) discret_->set_state("velnp", *velnp_);
 }
 
 /*----------------------------------------------------------------------*|
@@ -374,7 +374,7 @@ void FLD::TimIntGenAlpha::sep_multiply()
 *-----------------------------------------------------------------------*/
 void FLD::TimIntGenAlpha::update_velaf_gen_alpha()
 {
-  velaf_->Update((alphaF_), *velnp_, (1.0 - alphaF_), *veln_, 0.0);
+  velaf_->update((alphaF_), *velnp_, (1.0 - alphaF_), *veln_, 0.0);
   return;
 }
 
@@ -386,7 +386,7 @@ void FLD::TimIntGenAlpha::outputof_filtered_vel(
     std::shared_ptr<Core::LinAlg::Vector<double>> outvec,
     std::shared_ptr<Core::LinAlg::Vector<double>> fsoutvec)
 {
-  const Epetra_Map* dofrowmap = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
   std::shared_ptr<Core::LinAlg::Vector<double>> row_finescaleveltmp;
   row_finescaleveltmp = std::make_shared<Core::LinAlg::Vector<double>>(*dofrowmap, true);
 
@@ -397,9 +397,9 @@ void FLD::TimIntGenAlpha::outputof_filtered_vel(
     FOUR_C_THROW("Unknown separation type!");
 
   // get filtered or coarse scale velocity
-  outvec->Update(1.0, *velaf_, -1.0, *row_finescaleveltmp, 0.0);
+  outvec->update(1.0, *velaf_, -1.0, *row_finescaleveltmp, 0.0);
 
-  fsoutvec->Update(1.0, *row_finescaleveltmp, 0.0);
+  fsoutvec->update(1.0, *row_finescaleveltmp, 0.0);
 
   return;
 }
@@ -412,7 +412,6 @@ void FLD::TimIntGenAlpha::set_element_time_parameter()
 {
   Teuchos::ParameterList eleparams;
 
-  eleparams.set<FLD::Action>("action", FLD::set_time_parameter);
   eleparams.set<Inpar::FLUID::PhysicalType>("Physical Type", physicaltype_);
 
   // set time integration scheme
@@ -435,9 +434,7 @@ void FLD::TimIntGenAlpha::set_element_time_parameter()
   eleparams.set("alphaM", alphaM_);
   eleparams.set("gamma", gamma_);
 
-  // call standard loop over elements
-  discret_->evaluate(eleparams, nullptr, nullptr, nullptr, nullptr, nullptr);
-  return;
+  Discret::Elements::FluidEleParameterTimInt::instance()->set_element_time_parameter(eleparams);
 }
 
 /*----------------------------------------------------------------------*
@@ -453,7 +450,7 @@ std::shared_ptr<Core::LinAlg::Vector<double>> FLD::TimIntGenAlpha::extrapolate_e
   // For gen-alpha extrapolate mid-point quantities to end-point.
   // Otherwise, equilibrium time level is already end-point.
 
-  vecnp->Update((alphaF_ - 1.0) / alphaF_, *vecn, 1.0 / alphaF_);
+  vecnp->update((alphaF_ - 1.0) / alphaF_, *vecn, 1.0 / alphaF_);
 
   return vecnp;
 }

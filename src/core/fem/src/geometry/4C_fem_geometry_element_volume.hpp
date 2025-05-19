@@ -23,7 +23,7 @@ namespace Core::Geo
   double element_length_t(const Matrixtype& xyze)  ///> xyze nsd = 3 coords, number of nodes
   {
     // gaussian points
-    static constexpr int numnode = Core::FE::num_nodes<distype>;
+    static constexpr int numnode = Core::FE::num_nodes(distype);
     const Core::FE::GaussIntegration intpoints(distype);
 
     Core::LinAlg::Matrix<1, 1> eleCoord;
@@ -61,7 +61,7 @@ namespace Core::Geo
   double element_area_t(const Matrixtype& xyze)  ///> xyze nsd = 3 coords, number of nodes
   {
     // gaussian points
-    static constexpr int numnode = Core::FE::num_nodes<distype>;
+    static constexpr int numnode = Core::FE::num_nodes(distype);
     const Core::FE::GaussIntegration intpoints(distype);
 
     Core::LinAlg::Matrix<2, 1> eleCoord;
@@ -105,7 +105,7 @@ namespace Core::Geo
   )
   {
     // number of nodes for element
-    const int numnode = Core::FE::num_nodes<distype>;
+    const int numnode = Core::FE::num_nodes(distype);
     // gaussian points
     const Core::FE::GaussIntegration intpoints(distype);
 
@@ -136,7 +136,7 @@ namespace Core::Geo
       const double det = xjm.determinant();
       const double fac = intpoints.weight(iquad) * det;
 
-      if (det <= 0.0) FOUR_C_THROW("NEGATIVE JACOBIAN DETERMINANT: %g", det);
+      if (det <= 0.0) FOUR_C_THROW("NEGATIVE JACOBIAN DETERMINANT: {}", det);
 
       vol += fac;
     }  // end loop over gauss points
@@ -145,8 +145,8 @@ namespace Core::Geo
 
   /** \brief calculates the length of a edge element in given configuration
    *
-   *  \params distype (in) : discretization type of the given element
-   *  \params xyze    (in) : spatial coordinates of the elememnt nodes
+   *  \param distype (in) : discretization type of the given element
+   *  \param xyze    (in) : spatial coordinates of the elememnt nodes
    *                         (row = dim, col = number of nodes)
    */
   template <class Matrixtype>
@@ -190,7 +190,6 @@ namespace Core::Geo
         return element_area_t<Core::FE::CellType::quad9>(xyze);
       default:
         FOUR_C_THROW("Unsupported surface element type!");
-        exit(EXIT_FAILURE);
     }
 
     return -1.0;

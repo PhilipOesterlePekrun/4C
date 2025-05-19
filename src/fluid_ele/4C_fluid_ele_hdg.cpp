@@ -14,6 +14,7 @@
 #include "4C_fluid_ele_interface.hpp"
 #include "4C_inpar_fluid.hpp"
 #include "4C_io_input_spec_builders.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 
@@ -81,12 +82,12 @@ void Discret::Elements::FluidHDGType::compute_null_space(
 {
   if (Core::FE::DiscretizationFaces* facedis = dynamic_cast<Core::FE::DiscretizationFaces*>(&dis))
   {
-    const Epetra_Map* rowmap = dis.dof_row_map();
+    const Core::LinAlg::Map* rowmap = dis.dof_row_map();
     const int lrows = rowmap->NumMyElements();
     double* mode[6];
     for (int i = 0; i < dimns; ++i) mode[i] = &(ns[i * lrows]);
 
-    const Epetra_Map* frowmap = facedis->face_row_map();
+    const Core::LinAlg::Map* frowmap = facedis->face_row_map();
     for (int i = 0; i < frowmap->NumMyElements(); ++i)
     {
       std::vector<int> dofs = facedis->dof(0, facedis->l_row_face(i));
@@ -100,7 +101,7 @@ void Discret::Elements::FluidHDGType::compute_null_space(
         mode[i / ndofs][lid] = 1.;
       }
     }
-    const Epetra_Map* erowmap = dis.element_row_map();
+    const Core::LinAlg::Map* erowmap = dis.element_row_map();
     for (int i = 0; i < erowmap->NumMyElements(); ++i)
     {
       std::vector<int> dofs = dis.dof(0, dis.l_row_element(i));
@@ -136,8 +137,8 @@ void Discret::Elements::FluidHDGType ::setup_element_definition(
   {
     defs_hdg[key] = all_of({
         fluid_line_def,
-        entry<int>("DEG"),
-        entry<int>("SPC", {.required = false}),
+        parameter<int>("DEG"),
+        parameter<std::optional<bool>>("SPC"),
     });
   }
 }
@@ -225,7 +226,7 @@ bool Discret::Elements::FluidHDG::read_element(const std::string& eletype,
   bool success = Fluid::read_element(eletype, distype, container);
   degree_ = container.get<int>("DEG");
 
-  completepol_ = container.get_or<int>("SPC", false);
+  completepol_ = container.get<std::optional<bool>>("SPC").value_or(false);
 
   return success;
 }
@@ -283,14 +284,8 @@ int Discret::Elements::FluidHDG::evaluate(Teuchos::ParameterList& params,
       break;
     }
 
-    case FLD::set_general_fluid_parameter:
-    case FLD::set_time_parameter:
-    case FLD::set_turbulence_parameter:
-    case FLD::set_loma_parameter:
-      break;
-
     default:
-      FOUR_C_THROW("Unknown type of action '%i' for FluidHDG", act);
+      FOUR_C_THROW("Unknown type of action '{}' for FluidHDG", act);
       break;
   }
 

@@ -86,7 +86,7 @@ struct WriteNodalHeatfluxStep : SpecialFieldInterface
       numdf = 1;
     else
       FOUR_C_THROW(
-          "Cannot handle dimension %g", filter_.get_writer().get_field()->problem()->num_dim());
+          "Cannot handle dimension {}", filter_.get_writer().get_field()->problem()->num_dim());
     return numdf;
   }
 
@@ -126,7 +126,7 @@ struct WriteNodalHeatfluxStep : SpecialFieldInterface
 
     // change the dis from a dof_row_map to a NodeRowMap, because Paraview can only visualize
     // nodebased date
-    const Epetra_Map* nodemap = dis->node_row_map();
+    const Core::LinAlg::Map* nodemap = dis->node_row_map();
     std::shared_ptr<Core::LinAlg::MultiVector<double>> nodal_heatfluxes =
         std::make_shared<Core::LinAlg::MultiVector<double>>(*nodemap, numdf);
 
@@ -183,7 +183,7 @@ struct WriteNodalHeatfluxStep : SpecialFieldInterface
     }
     else
     {
-      FOUR_C_THROW("Cannot handle numdf=%g", numdf);
+      FOUR_C_THROW("Cannot handle numdf={}", numdf);
     }
 
     filter_.get_writer().write_nodal_result_step(
@@ -213,7 +213,7 @@ struct WriteElementCenterHeatfluxStep : SpecialFieldInterface
       numdf = 1;
     else
       FOUR_C_THROW(
-          "Cannot handle dimension %g", filter_.get_writer().get_field()->problem()->num_dim());
+          "Cannot handle dimension {}", filter_.get_writer().get_field()->problem()->num_dim());
     return numdf;
   }
 
@@ -292,7 +292,6 @@ void ThermoFilter::write_heatflux(
   else
   {
     FOUR_C_THROW("trying to write something that is not a heatflux or a temperature gradient");
-    exit(1);
   }
 
   if (kind == nodebased)

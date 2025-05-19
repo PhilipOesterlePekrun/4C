@@ -106,7 +106,7 @@ namespace FLD
       }
       default:
       {
-        FOUR_C_THROW("Set problem size! %i", discret_->num_global_elements());
+        FOUR_C_THROW("Set problem size! {}", discret_->num_global_elements());
         break;
       }
     }
@@ -443,7 +443,7 @@ namespace FLD
         Core::Nodes::Node* node = discret_->l_row_node(inode);
 
         // get coordinates
-        Core::LinAlg::Matrix<3, 1> xyz(true);
+        Core::LinAlg::Matrix<3, 1> xyz(Core::LinAlg::Initialization::zero);
         for (int idim = 0; idim < 3; idim++) xyz(idim, 0) = node->x()[idim];
 
         // get global ids of all dofs of the node
@@ -872,7 +872,7 @@ namespace FLD
         Core::Nodes::Node* node = discret_->l_row_node(inode);
 
         // get coordinates
-        Core::LinAlg::Matrix<3, 1> xyz(true);
+        Core::LinAlg::Matrix<3, 1> xyz(Core::LinAlg::Initialization::zero);
         for (int idim = 0; idim < 3; idim++) xyz(idim, 0) = node->x()[idim];
 
         // get global ids of all dofs of the node
@@ -1040,7 +1040,7 @@ namespace FLD
         Core::Nodes::Node* node = discret_->l_row_node(inode);
 
         // get coordinates
-        Core::LinAlg::Matrix<3, 1> xyz(true);
+        Core::LinAlg::Matrix<3, 1> xyz(Core::LinAlg::Initialization::zero);
         for (int idim = 0; idim < 3; idim++) xyz(idim, 0) = node->x()[idim];
 
         // get global ids of all dofs of the node
@@ -1074,18 +1074,18 @@ namespace FLD
         // get local dof id corresponding to the global id
         int lid = discret_->dof_row_map()->LID(dofs[0]);
         // set value
-        int err = forcing_->ReplaceMyValues(1, &((f1)[pos]), &lid);
+        int err = forcing_->replace_local_values(1, &((f1)[pos]), &lid);
         // analogous for remaining directions
         lid = discret_->dof_row_map()->LID(dofs[1]);
-        err = forcing_->ReplaceMyValues(1, &((f2)[pos]), &lid);
+        err = forcing_->replace_local_values(1, &((f2)[pos]), &lid);
         lid = discret_->dof_row_map()->LID(dofs[2]);
-        err = forcing_->ReplaceMyValues(1, &((f3)[pos]), &lid);
+        err = forcing_->replace_local_values(1, &((f3)[pos]), &lid);
         if (err > 0) FOUR_C_THROW("Could not set forcing!");
       }
     }
     else
       // set force to zero
-      forcing_->PutScalar(0.0);
+      forcing_->put_scalar(0.0);
 
     return;
 #else
@@ -1119,7 +1119,7 @@ namespace FLD
     for (int rr = 0; rr < (nummodes_ * nummodes_ * (nummodes_ / 2 + 1)); rr++)
       (*force_fac_)(rr) = 0.0;
 
-    forcing_->PutScalar(0.0);
+    forcing_->put_scalar(0.0);
 
     return;
   }
@@ -1263,7 +1263,7 @@ namespace FLD
       if (forcing_type_ == Inpar::FLUID::linear_compensation_from_intermediate_spectrum or
           (forcing_type_ == Inpar::FLUID::fixed_power_input and (not is_genalpha_)))
       {
-        discret_->set_state(1, "intvelnp", velnp_);
+        discret_->set_state(1, "intvelnp", *velnp_);
       }
       else
         FOUR_C_THROW(
@@ -1287,7 +1287,7 @@ namespace FLD
         for (int i = 0; i < 5 * 5 * 5; ++i)
         {
           // get coordinates
-          Core::LinAlg::Matrix<3, 1> xyz(true);
+          Core::LinAlg::Matrix<3, 1> xyz(Core::LinAlg::Initialization::zero);
           for (int d = 0; d < 3; ++d) xyz(d) = interpolVec(i * 6 + d + 3);
           // determine position
           std::vector<int> loc(3);
@@ -1703,7 +1703,7 @@ namespace FLD
       Teuchos::ParameterList params;
       params.set<FLD::Action>("action", FLD::interpolate_hdg_for_hit);
 
-      discret_->set_state(1, "intvelnp", velnp_);
+      discret_->set_state(1, "intvelnp", *velnp_);
 
       std::vector<int> dummy;
       Core::LinAlg::SerialDenseMatrix dummyMat;
@@ -1724,7 +1724,7 @@ namespace FLD
         for (int i = 0; i < 5 * 5 * 5; ++i)
         {
           // get coordinates
-          Core::LinAlg::Matrix<3, 1> xyz(true);
+          Core::LinAlg::Matrix<3, 1> xyz(Core::LinAlg::Initialization::zero);
           for (int d = 0; d < 3; ++d) xyz(d) = interpolVec(i * 6 + d + 3);
           // determine position
           std::vector<int> loc(3);
@@ -1873,13 +1873,13 @@ namespace FLD
       // this is a dummy, forcing_ should be zero is written in the first components of interpolVec
       discret_->clear_state(true);
 
-      discret_->set_state(1, "intvelnp", velnp_);
+      discret_->set_state(1, "intvelnp", *velnp_);
 
       // this is the real value
-      discret_->set_state(1, "forcing", forcing_);
+      discret_->set_state(1, "forcing", *forcing_);
 
       // for 2nd evaluate
-      const Epetra_Map* intdofrowmap = discret_->dof_row_map(1);
+      const Core::LinAlg::Map* intdofrowmap = discret_->dof_row_map(1);
       Core::LinAlg::SerialDenseVector elevec1, elevec3;
       Core::LinAlg::SerialDenseMatrix elemat1, elemat2;
       Teuchos::ParameterList initParams;
@@ -1905,7 +1905,7 @@ namespace FLD
         for (int i = 0; i < 5 * 5 * 5; ++i)
         {
           // get coordinates
-          Core::LinAlg::Matrix<3, 1> xyz(true);
+          Core::LinAlg::Matrix<3, 1> xyz(Core::LinAlg::Initialization::zero);
           for (int d = 0; d < 3; ++d) xyz(d) = interpolVec(i * 6 + d + 3);
           // determine position
           std::vector<int> loc(3);
@@ -1940,7 +1940,7 @@ namespace FLD
         }
 
         // 2nd evaluate
-        ele->location_vector(*discret_, la, false);
+        ele->location_vector(*discret_, la);
         if (elevec1.numRows() != discret_->num_dof(1, ele)) elevec1.size(discret_->num_dof(1, ele));
 
         ele->evaluate(
@@ -1953,13 +1953,13 @@ namespace FLD
               localDofs.size() == static_cast<std::size_t>(elevec1.numRows()), "Internal error");
           for (unsigned int i = 0; i < localDofs.size(); ++i)
             localDofs[i] = intdofrowmap->LID(localDofs[i]);
-          forcing_->ReplaceMyValues(localDofs.size(), elevec1.values(), localDofs.data());
+          forcing_->replace_local_values(localDofs.size(), elevec1.values(), localDofs.data());
         }
       }
     }
     else
       // set force to zero
-      forcing_->PutScalar(0.0);
+      forcing_->put_scalar(0.0);
     discret_->clear_state(true);
 
     return;
@@ -2020,9 +2020,9 @@ namespace FLD
 
     eleparams.set<double>("length", length_);
 
-    discret_->set_state("velnp", velnp_);
+    discret_->set_state("velnp", *velnp_);
 
-    const Epetra_Map* elementrowmap = discret_->element_row_map();
+    const Core::LinAlg::Map* elementrowmap = discret_->element_row_map();
     Core::LinAlg::MultiVector<double> massflvec(*elementrowmap, 1, true);
 
     // optional: elementwise defined div u may be written to standard output file (not implemented
@@ -2065,7 +2065,7 @@ namespace FLD
     newforce = 500.0 * dgoalm - 30000.0 * dm + oldforce_;
 
     // now insert values in vector
-    forcing_->PutScalar(0.0);
+    forcing_->put_scalar(0.0);
 
     for (int i = 0; i < discret_->node_row_map()->NumMyElements(); ++i)
     {
@@ -2075,9 +2075,9 @@ namespace FLD
 
       int firstgdofid = discret_->dof(0, node, 0);
 
-      int firstldofid = forcing_->Map().LID(firstgdofid);
+      int firstldofid = forcing_->get_block_map().LID(firstgdofid);
 
-      int err = forcing_->ReplaceMyValue(firstldofid, 0, newforce);
+      int err = forcing_->replace_local_value(firstldofid, 0, newforce);
       if (err != 0) FOUR_C_THROW("something went wrong during replacemyvalue");
     }
 

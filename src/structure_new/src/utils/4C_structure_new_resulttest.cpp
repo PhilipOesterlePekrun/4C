@@ -11,9 +11,11 @@
 #include "4C_fem_discretization.hpp"
 #include "4C_fem_general_node.hpp"
 #include "4C_global_data.hpp"
+#include "4C_io_input_parameter_container.hpp"
 #include "4C_linalg_fixedsizematrix_voigt_notation.hpp"
 #include "4C_structure_new_model_evaluator_data.hpp"
 #include "4C_structure_new_timint_base.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_exceptions.hpp"
 
 #include <optional>
@@ -65,8 +67,8 @@ namespace
 
     if (local_id < 0)
     {
-      FOUR_C_THROW("You tried to test %s on a proc that does not own node %i.",
-          name_and_component.name.c_str(), node_id);
+      FOUR_C_THROW("You tried to test {} on a proc that does not own node {}.",
+          name_and_component.name, node_id);
     }
 
     return data(name_and_component.component)[local_id];
@@ -113,8 +115,8 @@ namespace
     if (voigt_index < 0)
     {
       FOUR_C_THROW(
-          "You try to test an unknown %s component %s. Use one of %s{_xx, _yy, _zz, _xy, _xz, "
-          "_yz}.",
+          "You try to test an unknown {} component {}. Use one of {}<_xx, _yy, _zz, _xy, _xz, "
+          "_yz>.",
           label.c_str(), prefix.c_str(), prefix.c_str());
     }
 
@@ -122,8 +124,7 @@ namespace
 
     if (local_id < 0)
     {
-      FOUR_C_THROW(
-          "You tried to test %s on a proc that does not own node %i.", label.c_str(), node_id);
+      FOUR_C_THROW("You tried to test {} on a proc that does not own node {}.", label, node_id);
     }
 
     return nodal_data(voigt_index)[local_id];
@@ -193,8 +194,7 @@ void Solid::ResultTest::test_node(
 
   if (isnodeofanybody == 0)
   {
-    FOUR_C_THROW(
-        "Node %d does not belong to discretization %s", node + 1, strudisc_->name().c_str());
+    FOUR_C_THROW("Node {} does not belong to discretization {}", node + 1, strudisc_->name());
   }
 
   std::string position = container.get<std::string>("QUANTITY");
@@ -231,7 +231,7 @@ int Solid::ResultTest::get_nodal_result(
   // test displacements or pressure
   if (disn_ != nullptr)
   {
-    const Epetra_BlockMap& disnpmap = disn_->Map();
+    const Epetra_BlockMap& disnpmap = disn_->get_block_map();
     int idx = -1;
     if (position == "dispx")
       idx = 0;
@@ -247,8 +247,8 @@ int Solid::ResultTest::get_nodal_result(
       unknownpos = false;
       int lid = disnpmap.LID(strudisc_->dof(0, actnode, idx));
       if (lid < 0)
-        FOUR_C_THROW("You tried to test %s on nonexistent dof %d on node %d", position.c_str(), idx,
-            actnode->id());
+        FOUR_C_THROW(
+            "You tried to test {} on nonexistent dof {} on node {}", position, idx, actnode->id());
       result = (*disn_)[lid];
     }
   }
@@ -256,7 +256,7 @@ int Solid::ResultTest::get_nodal_result(
   // test velocities
   if (veln_ != nullptr)
   {
-    const Epetra_BlockMap& velnpmap = veln_->Map();
+    const Epetra_BlockMap& velnpmap = veln_->get_block_map();
     int idx = -1;
     if (position == "velx")
       idx = 0;
@@ -270,8 +270,8 @@ int Solid::ResultTest::get_nodal_result(
       unknownpos = false;
       int lid = velnpmap.LID(strudisc_->dof(0, actnode, idx));
       if (lid < 0)
-        FOUR_C_THROW("You tried to test %s on nonexistent dof %d on node %d", position.c_str(), idx,
-            actnode->id());
+        FOUR_C_THROW(
+            "You tried to test {} on nonexistent dof {} on node {}", position, idx, actnode->id());
       result = (*veln_)[lid];
     }
   }
@@ -279,7 +279,7 @@ int Solid::ResultTest::get_nodal_result(
   // test accelerations
   if (accn_ != nullptr)
   {
-    const Epetra_BlockMap& accnpmap = accn_->Map();
+    const Epetra_BlockMap& accnpmap = accn_->get_block_map();
     int idx = -1;
     if (position == "accx")
       idx = 0;
@@ -293,8 +293,8 @@ int Solid::ResultTest::get_nodal_result(
       unknownpos = false;
       int lid = accnpmap.LID(strudisc_->dof(0, actnode, idx));
       if (lid < 0)
-        FOUR_C_THROW("You tried to test %s on nonexistent dof %d on node %d", position.c_str(), idx,
-            actnode->id());
+        FOUR_C_THROW(
+            "You tried to test {} on nonexistent dof {} on node {}", position, idx, actnode->id());
       result = (*accn_)[lid];
     }
   }
@@ -344,7 +344,7 @@ int Solid::ResultTest::get_nodal_result(
   // test reaction
   if (reactn_ != nullptr)
   {
-    const Epetra_BlockMap& reactmap = reactn_->Map();
+    const Epetra_BlockMap& reactmap = reactn_->get_block_map();
     int idx = -1;
     if (position == "reactx")
       idx = 0;
@@ -358,15 +358,14 @@ int Solid::ResultTest::get_nodal_result(
       unknownpos = false;
       int lid = reactmap.LID(strudisc_->dof(0, actnode, idx));
       if (lid < 0)
-        FOUR_C_THROW("You tried to test %s on nonexistent dof %d on node %d", position.c_str(), idx,
-            actnode->id());
+        FOUR_C_THROW(
+            "You tried to test {} on nonexistent dof {} on node {}", position, idx, actnode->id());
       result = (*reactn_)[lid];
     }
   }
 
   // catch position std::strings, which are not handled by structure result test
-  if (unknownpos)
-    FOUR_C_THROW("Quantity '%s' not supported in structure testing", position.c_str());
+  if (unknownpos) FOUR_C_THROW("Quantity '{}' not supported in structure testing", position);
 
   return 0;
 }
@@ -418,20 +417,11 @@ void Solid::ResultTest::test_node_on_geometry(const Core::IO::InputParameterCont
 
   FOUR_C_ASSERT(geometry_type >= 0 && geometry_type <= 3, "The geometry type is invalid");
   if (geometry_id < 0 || geometry_id >= static_cast<int>(nodeset[geometry_type].size()))
-    FOUR_C_THROW("Invalid geometry id %d", geometry_id);
+    FOUR_C_THROW("Invalid geometry id {}", geometry_id);
 
   const std::vector<int>& nodes = nodeset[geometry_type][geometry_id];
 
-  TestOp op = TestOp::unknown;
-  std::string op_str = container.get<std::string>("OP");
-  if (op_str == "sum")
-    op = TestOp::sum;
-  else if (op_str == "max")
-    op = TestOp::max;
-  else if (op_str == "min")
-    op = TestOp::min;
-  else
-    FOUR_C_THROW("Invalid operation %s", op_str.c_str());
+  TestOp op = container.get<TestOp>("OP");
   std::string position = container.get<std::string>("QUANTITY");
 
   // collect the local result
@@ -550,8 +540,7 @@ void Solid::ResultTest::test_special(const Core::IO::InputParameterContainer& co
     default:
     {
       FOUR_C_THROW(
-          "Solid::ResultTest::test_special: Undefined status type (enum=%d)!", special_status);
-      exit(EXIT_FAILURE);
+          "Solid::ResultTest::test_special: Undefined status type (enum={})!", special_status);
     }
   }
 }
@@ -585,11 +574,9 @@ std::optional<double> Solid::ResultTest::get_special_result(
   }
   else
     FOUR_C_THROW(
-        "Quantity '%s' not supported by special result testing functionality "
+        "Quantity '{}' not supported by special result testing functionality "
         "for structure field!",
         quantity.c_str());
-
-  exit(EXIT_FAILURE);
 }
 
 /*----------------------------------------------------------------------------*
@@ -696,7 +683,6 @@ int Solid::get_integer_number_at_last_position_of_name(const std::string& quanti
         "The correct format is:\n"
         "\"<prefix_name>_<number>\"");
   }
-  exit(EXIT_FAILURE);
 }
 
 FOUR_C_NAMESPACE_CLOSE

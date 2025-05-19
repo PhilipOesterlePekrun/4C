@@ -20,7 +20,7 @@ FOUR_C_NAMESPACE_OPEN
  |  ctor UnbiasedSelfBinaryTree (public)                   schmidt 01/19|
  *----------------------------------------------------------------------*/
 CONTACT::UnbiasedSelfBinaryTree::UnbiasedSelfBinaryTree(Core::FE::Discretization& discret,
-    const Teuchos::ParameterList& iparams, std::shared_ptr<Epetra_Map> elements, int dim,
+    const Teuchos::ParameterList& iparams, std::shared_ptr<Core::LinAlg::Map> elements, int dim,
     double eps)
     : SelfBinaryTree(discret, iparams, elements, dim, eps),
       two_half_pass_(iparams.get<bool>("Two_half_pass")),
@@ -77,7 +77,7 @@ void CONTACT::UnbiasedSelfBinaryTree::calculate_proc_specific_dual_graph(
 
     // get current elements and its nodes
     Core::Elements::Element* element = discret().g_element(gid);
-    if (!element) FOUR_C_THROW("Cannot find element with gid %\n", gid);
+    if (!element) FOUR_C_THROW("Cannot find element with gid {}", gid);
     Core::Nodes::Node** nodes = element->nodes();
     if (!nodes) FOUR_C_THROW("Null pointer!");
 
@@ -312,7 +312,7 @@ void CONTACT::UnbiasedSelfBinaryTree::initialize_tree_bottom_up(std::map<int,
         "thereby assigned to a root node in this algorithm), if they are owned by the same "
         "processor. So in the rare case when there are <= 2 surface elements that are connected "
         "and owned by one processor appear at one of the contact surfaces, those elements can not "
-        "be assigned to a root node and the algorithm fails! %i elements were not assigned to a "
+        "be assigned to a root node and the algorithm fails! {} elements were not assigned to a "
         "root node!\n\n"
         "POSSIBLE SOLUTION: choose a different number of processors!",
         leafsmap().size() - list.size());
@@ -341,13 +341,13 @@ bool CONTACT::UnbiasedSelfBinaryTree::rough_check_ref_config(int ele1gid, int el
 {
   // variables
   bool refconfig(false);
-  static Core::LinAlg::Matrix<2, 1> xicele1(true);
-  static Core::LinAlg::Matrix<3, 1> ele1coords(true);
-  static Core::LinAlg::Matrix<3, 1> ele1normal(true);
-  static Core::LinAlg::Matrix<2, 1> xicele2(true);
-  static Core::LinAlg::Matrix<3, 1> ele2coords(true);
-  static Core::LinAlg::Matrix<3, 1> ele1ele2vec(true);
-  static Core::LinAlg::Matrix<1, 1> scalarprod(true);
+  static Core::LinAlg::Matrix<2, 1> xicele1(Core::LinAlg::Initialization::zero);
+  static Core::LinAlg::Matrix<3, 1> ele1coords(Core::LinAlg::Initialization::zero);
+  static Core::LinAlg::Matrix<3, 1> ele1normal(Core::LinAlg::Initialization::zero);
+  static Core::LinAlg::Matrix<2, 1> xicele2(Core::LinAlg::Initialization::zero);
+  static Core::LinAlg::Matrix<3, 1> ele2coords(Core::LinAlg::Initialization::zero);
+  static Core::LinAlg::Matrix<3, 1> ele1ele2vec(Core::LinAlg::Initialization::zero);
+  static Core::LinAlg::Matrix<1, 1> scalarprod(Core::LinAlg::Initialization::zero);
 
   // get center and normal of leaf1-element
   const Core::Elements::Element* ele1 = discret().g_element(ele1gid);

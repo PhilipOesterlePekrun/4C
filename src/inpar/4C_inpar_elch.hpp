@@ -10,8 +10,9 @@
 
 #include "4C_config.hpp"
 
-#include "4C_utils_parameter_list.fwd.hpp"
+#include "4C_io_input_spec.hpp"
 
+#include <map>
 #include <vector>
 
 FOUR_C_NAMESPACE_OPEN
@@ -75,18 +76,18 @@ namespace Inpar
 
     enum class CCCVHalfCyclePhase
     {
-      undefined,           //!< undefined mode
-      constant_current,    //!< constant-current (CC) mode
-      constant_voltage,    //!< constant-voltage (CV) mode
-      relaxation,          //!< relaxation (RX) mode
-      initital_relaxation  //!< initial relaxation mode
+      undefined,          //!< undefined mode
+      constant_current,   //!< constant-current (CC) mode
+      constant_voltage,   //!< constant-voltage (CV) mode
+      relaxation,         //!< relaxation (RX) mode
+      initial_relaxation  //!< initial relaxation mode
     };
 
     // permittivitaet (not a general definition, but only once used)
     const double epsilon_const = 1.e-4;
 
     /// set the elch parameters
-    void set_valid_parameters(Teuchos::ParameterList& list);
+    void set_valid_parameters(std::map<std::string, Core::IO::InputSpec>& list);
 
     /// set specific elch conditions
     void set_valid_conditions(std::vector<Core::Conditions::ConditionDefinition>& condlist);

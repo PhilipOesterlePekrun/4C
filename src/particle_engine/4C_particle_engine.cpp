@@ -11,6 +11,7 @@
 #include "4C_comm_mpi_utils.hpp"
 #include "4C_comm_pack_helpers.hpp"
 #include "4C_comm_utils_factory.hpp"
+#include "4C_fem_discretization.hpp"
 #include "4C_fem_general_element.hpp"
 #include "4C_global_data.hpp"
 #include "4C_inpar_particle.hpp"
@@ -24,6 +25,7 @@
 #include "4C_particle_engine_runtime_vtp_writer.hpp"
 #include "4C_particle_engine_unique_global_id.hpp"
 #include "4C_utils_exceptions.hpp"
+#include "4C_utils_parameter_list.hpp"
 
 #include <Teuchos_TimeMonitor.hpp>
 
@@ -181,7 +183,7 @@ void PARTICLEENGINE::ParticleEngine::check_number_of_unique_global_ids()
 
   // safety check
   if (numberofparticles + numberofreusableglobalids != (maxglobalid + 1))
-    FOUR_C_THROW("sum of particles and reusable global ids unequal total global ids: %d + %d != %d",
+    FOUR_C_THROW("sum of particles and reusable global ids unequal total global ids: {} + {} != {}",
         numberofparticles, numberofreusableglobalids, (maxglobalid + 1));
 }
 
@@ -214,8 +216,7 @@ void PARTICLEENGINE::ParticleEngine::erase_particles_outside_bounding_box(
     ParticleContainer* container = particlecontainerbundle_->get_specific_container(type, Owned);
 
     if (static_cast<int>(pos.size()) != container->get_state_dim(Position))
-      FOUR_C_THROW(
-          "dimension of particle state '%s' not valid!", enum_to_state_name(Position).c_str());
+      FOUR_C_THROW("dimension of particle state '{}' not valid!", enum_to_state_name(Position));
 #endif
 
     // check particle location with respect to bounding box in each spatial directions
@@ -744,7 +745,7 @@ void PARTICLEENGINE::ParticleEngine::get_particles_within_radius(const double* p
   // bin size safety check
   if (radius > minbinsize_)
     FOUR_C_THROW(
-        "the given radius is larger than the minimal bin size (%f > %f)!", radius, minbinsize_);
+        "the given radius is larger than the minimal bin size ({} > {})!", radius, minbinsize_);
 #endif
 
   // get global id of bin
@@ -981,7 +982,7 @@ void PARTICLEENGINE::ParticleEngine::setup_bin_ghosting()
     const int size = static_cast<int>(ghostbins.size());
     std::vector<int> pidlist(size);
     const int err = binrowmap_->RemoteIDList(size, ghostbins_vec.data(), pidlist.data(), nullptr);
-    if (err < 0) FOUR_C_THROW("Epetra_BlockMap::RemoteIDList returned err=%d", err);
+    if (err < 0) FOUR_C_THROW("Epetra_BlockMap::RemoteIDList returned err={}", err);
 
     for (int i = 0; i < size; ++i)
     {
@@ -997,7 +998,7 @@ void PARTICLEENGINE::ParticleEngine::setup_bin_ghosting()
 
   // copy bin gids to a vector and create bincolmap
   std::vector<int> bincolmapvec(bins.begin(), bins.end());
-  bincolmap_ = std::make_shared<Epetra_Map>(-1, static_cast<int>(bincolmapvec.size()),
+  bincolmap_ = std::make_shared<Core::LinAlg::Map>(-1, static_cast<int>(bincolmapvec.size()),
       bincolmapvec.data(), 0, Core::Communication::as_epetra_comm(comm_));
 
   if (bincolmap_->NumGlobalElements() == 1 && Core::Communication::num_mpi_ranks(comm_) > 1)
@@ -1395,8 +1396,7 @@ void PARTICLEENGINE::ParticleEngine::determine_particles_to_be_distributed(
     ParticleContainer* container = particlecontainerbundle_->get_specific_container(type, Owned);
 
     if (static_cast<int>(pos.size()) != container->get_state_dim(Position))
-      FOUR_C_THROW(
-          "dimension of particle state '%s' not valid!", enum_to_state_name(Position).c_str());
+      FOUR_C_THROW("dimension of particle state '{}' not valid!", enum_to_state_name(Position));
 #endif
 
     // get global id of bin
@@ -1416,7 +1416,7 @@ void PARTICLEENGINE::ParticleEngine::determine_particles_to_be_distributed(
     std::vector<int> unique_pidlist(uniquesize);
     int err = binrowmap_->RemoteIDList(
         uniquesize, uniquevec_bingidlist.data(), unique_pidlist.data(), nullptr);
-    if (err < 0) FOUR_C_THROW("RemoteIDList returned err=%d", err);
+    if (err < 0) FOUR_C_THROW("RemoteIDList returned err={}", err);
 
     // 3) build full pid list via lookup table
     std::map<int, int> lookuptable;
@@ -1520,7 +1520,7 @@ void PARTICLEENGINE::ParticleEngine::determine_particles_to_be_transferred(
 #ifdef FOUR_C_ENABLE_ASSERTIONS
         if (not particlestoremove[type].count(ownedindex))
           FOUR_C_THROW(
-              "on processor %d a particle left the computational domain without being detected!",
+              "on processor {} a particle left the computational domain without being detected!",
               myrank_);
 #endif
         continue;
@@ -1850,8 +1850,7 @@ void PARTICLEENGINE::ParticleEngine::insert_owned_particles(
             particlecontainerbundle_->get_specific_container(type, Owned);
 
         if (static_cast<int>(pos.size()) != container->get_state_dim(Position))
-          FOUR_C_THROW(
-              "dimension of particle state '%s' not valid!", enum_to_state_name(Position).c_str());
+          FOUR_C_THROW("dimension of particle state '{}' not valid!", enum_to_state_name(Position));
 
         // get global id of bin
         gidofbin = binstrategy_->convert_pos_to_gid(pos.data());

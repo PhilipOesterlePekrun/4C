@@ -29,7 +29,7 @@ FOUR_C_NAMESPACE_OPEN
 CONTACT::Coupling2d::Coupling2d(Core::FE::Discretization& idiscret, int dim, bool quad,
     Teuchos::ParameterList& params, Mortar::Element& sele, Mortar::Element& mele)
     : Mortar::Coupling2d(idiscret, dim, quad, params, sele, mele),
-      stype_(Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(params, "STRATEGY"))
+      stype_(Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(params, "STRATEGY"))
 {
   // empty constructor
 
@@ -144,7 +144,7 @@ CONTACT::Coupling2dManager::Coupling2dManager(Core::FE::Discretization& idiscret
     bool quad, Teuchos::ParameterList& params, Mortar::Element* sele,
     std::vector<Mortar::Element*> mele)
     : Mortar::Coupling2dManager(idiscret, dim, quad, params, sele, mele),
-      stype_(Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(params, "STRATEGY"))
+      stype_(Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(params, "STRATEGY"))
 {
   // empty constructor
   return;
@@ -459,7 +459,7 @@ void CONTACT::Coupling2dManager::consistent_dual_shape()
   }
 
   // map iterator
-  typedef Core::Gen::Pairedvector<int, double>::const_iterator _CI;
+  using _CI = Core::Gen::Pairedvector<int, double>::const_iterator;
 
   // no overlap: the applied dual shape functions don't matter, as the integration domain is void
   if ((ximax == -1.0 && ximin == 1.0) || (ximax - ximin < 4. * MORTARINTLIM)) return;

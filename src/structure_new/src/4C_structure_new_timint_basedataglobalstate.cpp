@@ -8,11 +8,11 @@
 #include "4C_structure_new_timint_basedataglobalstate.hpp"
 
 #include "4C_beam3_base.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_contact_meshtying_abstract_strategy.hpp"
 #include "4C_fem_discretization_utils.hpp"
 #include "4C_fem_general_largerotations.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_linalg_sparsematrix.hpp"
 #include "4C_linalg_utils_sparse_algebra_assemble.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
@@ -26,6 +26,7 @@
 #include "4C_structure_new_model_evaluator_meshtying.hpp"
 #include "4C_structure_new_timint_basedatasdyn.hpp"
 #include "4C_structure_new_utils.hpp"
+#include "4C_utils_enum.hpp"
 
 #include <NOX_Epetra_Vector.H>
 #include <Teuchos_RCPStdSharedPtrConversions.hpp>
@@ -40,7 +41,7 @@ Solid::TimeInt::BaseDataGlobalState::BaseDataGlobalState()
       datasdyn_(nullptr),
       dim_(Global::Problem::instance()->n_dim()),
       discret_(nullptr),
-      comm_(nullptr),
+      comm_(MPI_COMM_NULL),
       my_rank_(-1),
       timenp_(0.0),
       timen_(nullptr),
@@ -204,7 +205,7 @@ void Solid::TimeInt::BaseDataGlobalState::setup()
   mass_ = std::make_shared<Core::LinAlg::SparseMatrix>(*dof_row_map_view(), 81, true, true);
   if (datasdyn_->get_damping_type() != Inpar::Solid::damp_none)
   {
-    if (datasdyn_->get_mass_lin_type() == Inpar::Solid::ml_none)
+    if (datasdyn_->get_mass_lin_type() == Inpar::Solid::MassLin::ml_none)
     {
       damp_ = std::make_shared<Core::LinAlg::SparseMatrix>(*dof_row_map_view(), 81, true, true);
     }
@@ -217,8 +218,8 @@ void Solid::TimeInt::BaseDataGlobalState::setup()
     }
   }
 
-  if (datasdyn_->get_dynamic_type() == Inpar::Solid::dyna_statics and
-      datasdyn_->get_mass_lin_type() != Inpar::Solid::ml_none)
+  if (datasdyn_->get_dynamic_type() == Inpar::Solid::DynamicType::Statics and
+      datasdyn_->get_mass_lin_type() != Inpar::Solid::MassLin::ml_none)
     FOUR_C_THROW(
         "Do not set parameter MASSLIN in static simulations as this leads to undesired"
         " evaluation of mass matrix on element level!");
@@ -266,7 +267,7 @@ int Solid::TimeInt::BaseDataGlobalState::setup_block_information(
 {
   check_init();
   Global::Problem* problem = Global::Problem::instance();
-  std::shared_ptr<const Epetra_Map> me_map_ptr = me.get_block_dof_row_map_ptr();
+  std::shared_ptr<const Core::LinAlg::Map> me_map_ptr = me.get_block_dof_row_map_ptr();
 
   model_maps_[mt] = me_map_ptr;
 
@@ -282,22 +283,22 @@ int Solid::TimeInt::BaseDataGlobalState::setup_block_information(
     }
     case Inpar::Solid::model_contact:
     {
-      auto systype = Teuchos::getIntegralValue<Inpar::CONTACT::SystemType>(
+      auto systype = Teuchos::getIntegralValue<CONTACT::SystemType>(
           problem->contact_dynamic_params(), "SYSTEM");
 
-      auto soltype = Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(
+      auto soltype = Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(
           problem->contact_dynamic_params(), "STRATEGY");
 
       // systems without additional dofs
-      if (soltype == Inpar::CONTACT::solution_nitsche ||
-          soltype == Inpar::CONTACT::solution_penalty ||
-          soltype == Inpar::CONTACT::solution_uzawa ||
-          soltype == Inpar::CONTACT::solution_multiscale)
+      if (soltype == CONTACT::SolvingStrategy::nitsche ||
+          soltype == CONTACT::SolvingStrategy::penalty ||
+          soltype == CONTACT::SolvingStrategy::uzawa ||
+          soltype == CONTACT::SolvingStrategy::multiscale)
       {
         model_block_id_[mt] = 0;
       }
       // --- saddle-point system
-      else if (systype == Inpar::CONTACT::system_saddlepoint)
+      else if (systype == CONTACT::SystemType::saddlepoint)
       {
         model_block_id_[mt] = max_block_num_;
         ++max_block_num_;
@@ -314,27 +315,27 @@ int Solid::TimeInt::BaseDataGlobalState::setup_block_information(
       const Solid::ModelEvaluator::Meshtying& mt_me =
           dynamic_cast<const Solid::ModelEvaluator::Meshtying&>(me);
 
-      enum Inpar::CONTACT::SystemType systype = mt_me.strategy().system_type();
+      enum CONTACT::SystemType systype = mt_me.strategy().system_type();
 
-      auto soltype = Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(
+      auto soltype = Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(
           mt_me.strategy().params(), "STRATEGY");
 
       // systems without additional dofs
-      if (soltype == Inpar::CONTACT::solution_nitsche ||
-          soltype == Inpar::CONTACT::solution_penalty ||
-          soltype == Inpar::CONTACT::solution_uzawa ||
-          soltype == Inpar::CONTACT::solution_multiscale)
+      if (soltype == CONTACT::SolvingStrategy::nitsche ||
+          soltype == CONTACT::SolvingStrategy::penalty ||
+          soltype == CONTACT::SolvingStrategy::uzawa ||
+          soltype == CONTACT::SolvingStrategy::multiscale)
       {
         model_block_id_[mt] = 0;
       }
       // --- saddle-point system
-      else if (systype == Inpar::CONTACT::system_saddlepoint)
+      else if (systype == CONTACT::SystemType::saddlepoint)
       {
         model_block_id_[mt] = max_block_num_;
         ++max_block_num_;
       }
       // --- condensed system
-      else if (systype == Inpar::CONTACT::system_condensed)
+      else if (systype == CONTACT::SystemType::condensed)
       {
         model_block_id_[mt] = 0;
       }
@@ -427,7 +428,7 @@ void Solid::TimeInt::BaseDataGlobalState::setup_multi_map_extractor()
   check_init();
   /* copy the std::map into a std::vector and keep the numbering of the model-id
    * map */
-  std::vector<std::shared_ptr<const Epetra_Map>> maps_vec(max_block_number(), nullptr);
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> maps_vec(max_block_number(), nullptr);
   // Make sure, that the block ids and the vector entry ids coincide!
   std::map<Inpar::Solid::ModelType, int>::const_iterator ci;
   for (ci = model_block_id_.begin(); ci != model_block_id_.end(); ++ci)
@@ -482,8 +483,7 @@ Solid::TimeInt::BaseDataGlobalState::get_element_technology_map_extractor(
     const enum Inpar::Solid::EleTech etech) const
 {
   if (mapextractors_.find(etech) == mapextractors_.end())
-    FOUR_C_THROW("Could not find element technology \"%s\" in map extractors.",
-        Inpar::Solid::ele_tech_string(etech).c_str());
+    FOUR_C_THROW("Could not find element technology \"{}\" in map extractors.", etech);
 
   return mapextractors_.at(etech);
 }
@@ -528,7 +528,7 @@ void Solid::TimeInt::BaseDataGlobalState::setup_rot_vec_map_extractor(
 
       if (nodaladditdofs.size() + nodalrotvecdofs.size() !=
           (unsigned)beameleptr->num_dof_per_node(*nodeptr))
-        FOUR_C_THROW("Expected %d DoFs for node with GID %d but collected %d DoFs",
+        FOUR_C_THROW("Expected {} DoFs for node with GID {} but collected {} DoFs",
             beameleptr->num_dof_per_node(*nodeptr), discret_->node_row_map()->GID(i),
             nodaladditdofs.size() + nodalrotvecdofs.size());
     }
@@ -545,24 +545,37 @@ void Solid::TimeInt::BaseDataGlobalState::setup_rot_vec_map_extractor(
   additdofmapvec.reserve(additdofset.size());
   additdofmapvec.assign(additdofset.begin(), additdofset.end());
   additdofset.clear();
-  std::shared_ptr<Epetra_Map> additdofmap = std::make_shared<Epetra_Map>(-1, additdofmapvec.size(),
-      additdofmapvec.data(), 0, Core::Communication::as_epetra_comm(discret_->get_comm()));
+  std::shared_ptr<Core::LinAlg::Map> additdofmap =
+      std::make_shared<Core::LinAlg::Map>(-1, additdofmapvec.size(), additdofmapvec.data(), 0,
+          Core::Communication::as_epetra_comm(discret_->get_comm()));
   additdofmapvec.clear();
 
   std::vector<int> rotvecdofmapvec;
   rotvecdofmapvec.reserve(rotvecdofset.size());
   rotvecdofmapvec.assign(rotvecdofset.begin(), rotvecdofset.end());
   rotvecdofset.clear();
-  std::shared_ptr<Epetra_Map> rotvecdofmap =
-      std::make_shared<Epetra_Map>(-1, rotvecdofmapvec.size(), rotvecdofmapvec.data(), 0,
+  std::shared_ptr<Core::LinAlg::Map> rotvecdofmap =
+      std::make_shared<Core::LinAlg::Map>(-1, rotvecdofmapvec.size(), rotvecdofmapvec.data(), 0,
           Core::Communication::as_epetra_comm(discret_->get_comm()));
   rotvecdofmapvec.clear();
 
-  std::vector<std::shared_ptr<const Epetra_Map>> maps(2);
+  std::vector<std::shared_ptr<const Core::LinAlg::Map>> maps(2);
   maps[0] = additdofmap;
   maps[1] = rotvecdofmap;
 
   multimapext.setup(*dof_row_map_view(), maps);
+}
+
+Core::LinAlg::Map Solid::TimeInt::BaseDataGlobalState::block_map(
+    const Inpar::Solid::ModelType& mt) const
+{
+  if (model_maps_.find(mt) == model_maps_.end())
+    FOUR_C_THROW(
+        "There is no block map for the given "
+        "modeltype \"{}\".",
+        mt);
+
+  return *(model_maps_.at(mt));
 }
 
 /*----------------------------------------------------------------------------*
@@ -630,7 +643,7 @@ std::shared_ptr<::NOX::Epetra::Vector> Solid::TimeInt::BaseDataGlobalState::crea
 
   // wrap and return
   return std::make_shared<::NOX::Epetra::Vector>(
-      Teuchos::rcp(xvec_ptr.get_ptr_of_Epetra_Vector()), ::NOX::Epetra::Vector::CreateView);
+      Teuchos::rcp(xvec_ptr.get_ptr_of_epetra_vector()), ::NOX::Epetra::Vector::CreateView);
 }
 
 /*----------------------------------------------------------------------------*
@@ -691,10 +704,10 @@ Solid::TimeInt::BaseDataGlobalState::create_aux_jacobian() const
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-std::shared_ptr<const Epetra_Map> Solid::TimeInt::BaseDataGlobalState::dof_row_map() const
+std::shared_ptr<const Core::LinAlg::Map> Solid::TimeInt::BaseDataGlobalState::dof_row_map() const
 {
   check_init();
-  const Epetra_Map* dofrowmap_ptr = discret_->dof_row_map();
+  const Core::LinAlg::Map* dofrowmap_ptr = discret_->dof_row_map();
   // since it's const, we do not need to copy the map
   return Core::Utils::shared_ptr_from_ref(*dofrowmap_ptr);
 }
@@ -702,11 +715,11 @@ std::shared_ptr<const Epetra_Map> Solid::TimeInt::BaseDataGlobalState::dof_row_m
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-std::shared_ptr<const Epetra_Map> Solid::TimeInt::BaseDataGlobalState::dof_row_map(
+std::shared_ptr<const Core::LinAlg::Map> Solid::TimeInt::BaseDataGlobalState::dof_row_map(
     unsigned nds) const
 {
   check_init();
-  const Epetra_Map* dofrowmap_ptr = discret_->dof_row_map(nds);
+  const Core::LinAlg::Map* dofrowmap_ptr = discret_->dof_row_map(nds);
   // since it's const, we do not need to copy the map
   return Core::Utils::shared_ptr_from_ref(*dofrowmap_ptr);
 }
@@ -714,7 +727,7 @@ std::shared_ptr<const Epetra_Map> Solid::TimeInt::BaseDataGlobalState::dof_row_m
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-const Epetra_Map* Solid::TimeInt::BaseDataGlobalState::dof_row_map_view() const
+const Core::LinAlg::Map* Solid::TimeInt::BaseDataGlobalState::dof_row_map_view() const
 {
   check_init();
   return discret_->dof_row_map();
@@ -722,18 +735,18 @@ const Epetra_Map* Solid::TimeInt::BaseDataGlobalState::dof_row_map_view() const
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-const Epetra_Map* Solid::TimeInt::BaseDataGlobalState::additive_dof_row_map_view() const
+const Core::LinAlg::Map* Solid::TimeInt::BaseDataGlobalState::additive_dof_row_map_view() const
 {
   check_init();
-  return get_element_technology_map_extractor(Inpar::Solid::EleTech::rotvec).Map(0).get();
+  return get_element_technology_map_extractor(Inpar::Solid::EleTech::rotvec).map(0).get();
 }
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-const Epetra_Map* Solid::TimeInt::BaseDataGlobalState::rot_vec_dof_row_map_view() const
+const Core::LinAlg::Map* Solid::TimeInt::BaseDataGlobalState::rot_vec_dof_row_map_view() const
 {
   check_init();
-  return get_element_technology_map_extractor(Inpar::Solid::EleTech::rotvec).Map(1).get();
+  return get_element_technology_map_extractor(Inpar::Solid::EleTech::rotvec).map(1).get();
 }
 
 /*----------------------------------------------------------------------------*
@@ -753,12 +766,13 @@ Solid::TimeInt::BaseDataGlobalState::extract_model_entries(
 {
   std::shared_ptr<Core::LinAlg::Vector<double>> model_ptr = nullptr;
   // extract from the full state vector
-  if (source.Map().NumGlobalElements() == block_extractor().full_map()->NumGlobalElements())
+  if (source.get_block_map().NumGlobalElements() ==
+      block_extractor().full_map()->NumGlobalElements())
   {
     model_ptr = block_extractor().extract_vector(source, model_block_id_.at(mt));
   }
   // copy the vector
-  else if (source.Map().NumGlobalElements() == model_maps_.at(mt)->NumGlobalElements())
+  else if (source.get_block_map().NumGlobalElements() == model_maps_.at(mt)->NumGlobalElements())
   {
     model_ptr = std::make_shared<Core::LinAlg::Vector<double>>(source);
   }
@@ -826,7 +840,7 @@ void Solid::TimeInt::BaseDataGlobalState::assign_model_block(Core::LinAlg::Spars
       }
       default:
       {
-        FOUR_C_THROW("model block %s is not supported", mat_block_type_to_string(bt).c_str());
+        FOUR_C_THROW("model block {} is not supported", mat_block_type_to_string(bt));
         break;
       }
     }
@@ -892,7 +906,7 @@ Solid::TimeInt::BaseDataGlobalState::extract_model_block(Core::LinAlg::SparseOpe
       }
       default:
       {
-        FOUR_C_THROW("model block %s is not supported", mat_block_type_to_string(bt).c_str());
+        FOUR_C_THROW("model block {} is not supported", mat_block_type_to_string(bt));
         break;
       }
     }
@@ -915,7 +929,6 @@ Solid::TimeInt::BaseDataGlobalState::extract_model_block(Core::LinAlg::SparseOpe
   FOUR_C_THROW(
       "The jacobian has the wrong type! (no Core::LinAlg::SparseMatrix "
       "and no Core::LinAlg::BlockSparseMatrix)");
-  exit(EXIT_FAILURE);
 }
 
 /*----------------------------------------------------------------------------*
@@ -971,7 +984,6 @@ Solid::TimeInt::BaseDataGlobalState::extract_row_of_blocks(
   FOUR_C_THROW(
       "The jacobian has the wrong type! (no Core::LinAlg::SparseMatrix "
       "and no Core::LinAlg::BlockSparseMatrix)");
-  exit(EXIT_FAILURE);
 }
 
 /*----------------------------------------------------------------------------*
@@ -1016,7 +1028,7 @@ Solid::TimeInt::BaseDataGlobalState::get_jacobian_block(
 int Solid::TimeInt::BaseDataGlobalState::get_last_lin_iteration_number(const unsigned step) const
 {
   check_init_setup();
-  if (step < 1) FOUR_C_THROW("The given step number must be larger than 1. (step=%d)", step);
+  if (step < 1) FOUR_C_THROW("The given step number must be larger than 1. (step={})", step);
 
   auto linsolvers = datasdyn_->get_lin_solvers();
   int iter = -1;
@@ -1040,7 +1052,7 @@ int Solid::TimeInt::BaseDataGlobalState::get_last_lin_iteration_number(const uns
       }
       default:
         FOUR_C_THROW(
-            "The given model type '%s' is not supported for linear iteration output right now.",
+            "The given model type '{}' is not supported for linear iteration output right now.",
             Inpar::Solid::model_structure);
     }
   }
@@ -1053,7 +1065,7 @@ int Solid::TimeInt::BaseDataGlobalState::get_last_lin_iteration_number(const uns
 int Solid::TimeInt::BaseDataGlobalState::get_nln_iteration_number(const unsigned step) const
 {
   check_init_setup();
-  if (step < 1) FOUR_C_THROW("The given step number must be larger than 1. (step=%d)", step);
+  if (step < 1) FOUR_C_THROW("The given step number must be larger than 1. (step={})", step);
 
   auto cit = nln_iter_numbers_.begin();
   while (cit != nln_iter_numbers_.end())
@@ -1062,8 +1074,7 @@ int Solid::TimeInt::BaseDataGlobalState::get_nln_iteration_number(const unsigned
     ++cit;
   }
 
-  FOUR_C_THROW("There is no nonlinear iteration number for the given step %d.", step);
-  exit(EXIT_FAILURE);
+  FOUR_C_THROW("There is no nonlinear iteration number for the given step {}.", step);
 }
 
 /*----------------------------------------------------------------------------*
@@ -1080,7 +1091,7 @@ void Solid::TimeInt::BaseDataGlobalState::set_nln_iteration_number(const int nln
       if (cit->second != nln_iter)
         FOUR_C_THROW(
             "There is already a different nonlinear iteration number "
-            "for step %d.",
+            "for step {}.",
             stepn_);
       else
         return;
@@ -1126,13 +1137,14 @@ void NOX::Nln::GROUP::PrePostOp::TimeInt::RotVecUpdater::run_pre_compute_x(
 
   /* since parallel distribution is node-wise, the three entries belonging to
    * a rotation vector should be stored on the same processor: safety-check */
-  if (x_rotvec.Map().NumMyElements() % 3 != 0 or dir_rotvec.Map().NumMyElements() % 3 != 0)
+  if (x_rotvec.get_block_map().NumMyElements() % 3 != 0 or
+      dir_rotvec.get_block_map().NumMyElements() % 3 != 0)
     FOUR_C_THROW(
         "fatal error: apparently, the three DOFs of a nodal rotation vector are"
         " not stored on this processor. Can't apply multiplicative update!");
 
   // rotation vectors always consist of three consecutive DoFs
-  for (int i = 0; i < x_rotvec.Map().NumMyElements(); i = i + 3)
+  for (int i = 0; i < x_rotvec.get_block_map().NumMyElements(); i = i + 3)
   {
     // create a Core::LinAlg::Matrix from reference to three x vector entries
     Core::LinAlg::Matrix<3, 1> theta(&x_rotvec[i], true);
@@ -1148,11 +1160,11 @@ void NOX::Nln::GROUP::PrePostOp::TimeInt::RotVecUpdater::run_pre_compute_x(
   }
 
   // first update entire x vector in an additive manner
-  xnew->Update(1.0, xold, step, dir, 0.0);
+  xnew->update(1.0, xold, step, dir, 0.0);
 
   // now replace the rotvec entries by the correct value computed before
   Core::LinAlg::assemble_my_vector(0.0, *xnew, 1.0, x_rotvec);
-  curr_grp_mutable.setX(Teuchos::rcpFromRef(*xnew->get_ptr_of_Epetra_Vector()));
+  curr_grp_mutable.setX(Teuchos::rcpFromRef(*xnew->get_ptr_of_epetra_vector()));
 
   /* tell the NOX::Nln::Group that the x vector has already been updated in
    * this preComputeX operator call */

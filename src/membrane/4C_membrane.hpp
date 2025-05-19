@@ -93,7 +93,7 @@ namespace Discret
       Core::Elements::Element* clone() const override;
 
       //! number of element nodes
-      static constexpr int numnod_ = Core::FE::num_nodes<distype>;
+      static constexpr int numnod_ = Core::FE::num_nodes(distype);
 
       //! number of space dimensions
       static constexpr int numdim_ = Core::FE::dim<distype>;
@@ -341,11 +341,10 @@ namespace Discret
       \return 0 if successful, negative otherwise
       */
       int evaluate(Teuchos::ParameterList& params, Core::FE::Discretization& discretization,
-          std::vector<int>& lm, Core::LinAlg::SerialDenseMatrix& elemat1_epetra,
-          Core::LinAlg::SerialDenseMatrix& elemat2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec1_epetra,
-          Core::LinAlg::SerialDenseVector& elevec2_epetra,
-          Core::LinAlg::SerialDenseVector& elevec3_epetra) override;
+          std::vector<int>& lm, Core::LinAlg::SerialDenseMatrix& elemat1,
+          Core::LinAlg::SerialDenseMatrix& elemat2, Core::LinAlg::SerialDenseVector& elevec1,
+          Core::LinAlg::SerialDenseVector& elevec2,
+          Core::LinAlg::SerialDenseVector& elevec3) override;
 
 
       /*!
@@ -383,27 +382,23 @@ namespace Discret
        *
        *  \param p (in): Parameter list coming from the time integrator.
        *
-       *  \author hiermeier
-       *  \date 04/16 */
+       */
       void set_params_interface_ptr(const Teuchos::ParameterList& p) override;
 
       /** \brief returns true if the parameter interface is defined and initialized, otherwise false
        *
-       *  \author hiermeier
-       *  \date 04/16 */
+       */
       inline bool is_params_interface() const override { return (interface_ptr_ != nullptr); }
 
       /** \brief get access to the parameter interface pointer
        *
-       *  \author hiermeier
-       *  \date 04/16 */
+       */
       std::shared_ptr<Core::Elements::ParamsInterface> params_interface_ptr() override;
 
      protected:
       /** \brief get access to the interface
        *
-       *  \author hiermeier
-       *  \date 04/16 */
+       */
       inline Core::Elements::ParamsInterface& params_interface()
       {
         if (not is_params_interface()) FOUR_C_THROW("The interface ptr is not set!");
@@ -412,8 +407,7 @@ namespace Discret
 
       /** \brief get access to the structure interface
        *
-       *  \author vuong
-       *  \date 11/16 */
+       */
       Solid::Elements::ParamsInterface& str_params_interface();
 
      private:
@@ -493,7 +487,7 @@ namespace Discret
           Core::LinAlg::Matrix<noddof_, noddof_>& defgrd_global) const;
 
       // determine extrapolation matrix for postprocessing purposes
-      Core::LinAlg::Matrix<Core::FE::num_nodes<distype>,
+      Core::LinAlg::Matrix<Core::FE::num_nodes(distype),
           Thermo::DisTypeToNumGaussPoints<distype>::nquad>
       mem_extrapolmat() const;
 
@@ -607,7 +601,7 @@ namespace Discret
 
       //! number of nodes per line
       static constexpr int numnod_line_ =
-          Core::FE::num_nodes<Core::FE::DisTypeToFaceShapeType<distype2>::shape>;
+          Core::FE::num_nodes(Core::FE::DisTypeToFaceShapeType<distype2>::shape);
 
       static constexpr int noddof_ = 3;
 

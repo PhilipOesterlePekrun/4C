@@ -171,7 +171,7 @@ void ParticleInteraction::SPHNeighborPairs::evaluate_particle_pairs()
 
 #ifdef FOUR_C_ENABLE_ASSERTIONS
     if (absdist < (1.0e-10 * rad_i[0]) or absdist < (1.0e-10 * rad_j[0]))
-      FOUR_C_THROW("absolute distance %f between particles close to zero!", absdist);
+      FOUR_C_THROW("absolute distance {} between particles close to zero!", absdist);
 #endif
 
     // neighboring particles within interaction distance
@@ -296,7 +296,7 @@ void ParticleInteraction::SPHNeighborPairs::evaluate_particle_wall_pairs()
 
 #ifdef FOUR_C_ENABLE_ASSERTIONS
     if (absdist < (1.0e-10 * rad_i[0]))
-      FOUR_C_THROW("absolute distance %f between particle and wall close to zero!", absdist);
+      FOUR_C_THROW("absolute distance {} between particle and wall close to zero!", absdist);
 #endif
 
     // neighboring particle and wall element within interaction distance
@@ -328,7 +328,7 @@ void ParticleInteraction::SPHNeighborPairs::evaluate_particle_wall_pairs()
       Utils::vec_set_scale(particlewallpair.e_ij_, -1.0 / absdist, r_ji);
 
       // get coordinates of wall contact point in element parameter space
-      Core::LinAlg::Matrix<2, 1> elecoords(true);
+      Core::LinAlg::Matrix<2, 1> elecoords(Core::LinAlg::Initialization::zero);
       const Core::LinAlg::SerialDenseMatrix xyze(
           Core::Geo::get_current_nodal_positions(ele, colelenodalpos));
       Core::Geo::current_to_surface_element_coordinates(ele->shape(), xyze, closestpos, elecoords);

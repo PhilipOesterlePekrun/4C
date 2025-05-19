@@ -25,11 +25,6 @@ void StructureFilter::write_all_results(PostField* field)
       "prolongated_gauss_2PK_stresses_xyz", "prolongated_gauss_2PK_stresses_xyz", nodebased, 6);
   writer_->write_result(
       "prolongated_gauss_GL_strains_xyz", "prolongated_gauss_GL_strains_xyz", nodebased, 6);
-  if (field->problem()->struct_vel_acc() == "yes")
-  {
-    writer_->write_result("velocity", "velocity", dofbased, field->problem()->num_dim());
-    writer_->write_result("acceleration", "acceleration", dofbased, field->problem()->num_dim());
-  }
   if (field->problem()->struct_mat_disp() == "yes")
     writer_->write_result(
         "material_displacement", "material_displacement", dofbased, field->problem()->num_dim());
@@ -69,11 +64,6 @@ void StructureFilter::write_all_results(PostField* field)
   writer_->write_result("L2_norm", "L2_norm", elementbased, 1);
   writer_->write_result("H1_norm", "H1_norm", elementbased, 1);
   writer_->write_result("Energy_norm", "Energy_norm", elementbased, 1);
-
-  // one-dimensional artery
-  writer_->write_result("one_d_artery_pressure", "pressure", dofbased, 1);
-  writer_->write_result("one_d_artery_flow", "flow", nodebased, 1);
-  writer_->write_result("one_d_artery_area", "area", nodebased, 1);
 
   // reduced dimensional airway
   writer_->write_result("pnp", "pressure", dofbased, 1);
@@ -166,10 +156,6 @@ void StructureFilter::write_all_results(PostField* field)
     // the same for plastic strains
     post_stress("gauss_pl_GL_strains_xyz", straintype_);
     post_stress("gauss_pl_EA_strains_xyz", straintype_);
-  }
-  if (optquantitytype_ != "none")
-  {
-    post_stress("gauss_membrane_thickness", optquantitytype_);
   }
 
   // write structural rotation tensor R
@@ -406,20 +392,6 @@ void ThermoFilter::write_all_results(PostField* field)
   write_element_results(field);
 
 }  // ThermoFilter::WriteAllResults
-
-/*----------------------------------------------------------------------*/
-/*----------------------------------------------------------------------*/
-void ElemagFilter::write_all_results(PostField* field)
-{
-  writer_->write_result("electric", "electric", nodebased, 3);
-  writer_->write_result("electric_post", "electric_post", nodebased, 3);
-  writer_->write_result("magnetic", "magnetic", nodebased, 3);
-  writer_->write_result("trace", "trace", nodebased, 3);
-  writer_->write_result("dft", "dft", nodebased, 3);
-  writer_->write_result("conductivity", "conductivity", elementbased, 1);
-  writer_->write_result("permittivity", "permittivity", elementbased, 1);
-  writer_->write_result("permeability", "permeability", elementbased, 1);
-}
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/

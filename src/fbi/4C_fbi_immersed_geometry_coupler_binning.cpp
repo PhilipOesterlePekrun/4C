@@ -16,6 +16,7 @@
 #include "4C_fem_general_extract_values.hpp"
 #include "4C_fem_general_node.hpp"
 #include "4C_linalg_fixedsizematrix.hpp"
+#include "4C_linalg_map.hpp"
 
 #include <Teuchos_TimeMonitor.hpp>
 
@@ -140,9 +141,8 @@ void FBI::FBIBinningGeometryCoupler::compute_current_positions(Core::FE::Discret
   positions->clear();
   std::vector<int> src_dofs(
       9);  // todo this does not work for all possible elements, does it? Variable size?
-  std::vector<double> mydisp(3, 0.0);
 
-  const Epetra_Map* bincolmap = binstrategy_->bin_discret()->element_col_map();
+  const Core::LinAlg::Map* bincolmap = binstrategy_->bin_discret()->element_col_map();
   std::vector<int> colbinvec;
   colbinvec.reserve(bincolmap->NumMyElements());
 
@@ -170,7 +170,7 @@ void FBI::FBIBinningGeometryCoupler::compute_current_positions(Core::FE::Discret
         // get the DOF numbers of the current node
         dis.dof(node, 0, src_dofs);
         // get the current displacements
-        Core::FE::extract_my_values(*disp, mydisp, src_dofs);
+        std::vector<double> mydisp = Core::FE::extract_values(*disp, src_dofs);
 
         for (int d = 0; d < 3; ++d) (*positions)[node->id()](d) = node->x()[d] + mydisp.at(d);
       }
@@ -185,7 +185,8 @@ void FBI::FBIBinningGeometryCoupler::set_binning(
 {
   binstrategy_ = binning;
   binstrategy_->bin_discret()->fill_complete(false, false, false);
-  binrowmap_ = std::make_shared<Epetra_Map>(*(binstrategy_->bin_discret()->element_row_map()));
+  binrowmap_ =
+      std::make_shared<Core::LinAlg::Map>(*(binstrategy_->bin_discret()->element_row_map()));
 };
 
 FOUR_C_NAMESPACE_CLOSE

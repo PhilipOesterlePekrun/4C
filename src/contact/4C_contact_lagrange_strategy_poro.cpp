@@ -9,12 +9,13 @@
 
 #include "4C_contact_defines.hpp"
 #include "4C_contact_friction_node.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_contact_interface.hpp"
 #include "4C_coupling_adapter.hpp"
 #include "4C_coupling_adapter_converter.hpp"
+#include "4C_fem_discretization.hpp"
 #include "4C_fem_general_extract_values.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_io.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
 #include "4C_linalg_utils_sparse_algebra_manipulation.hpp"
@@ -29,12 +30,12 @@ FOUR_C_NAMESPACE_OPEN
  *----------------------------------------------------------------------*/
 CONTACT::LagrangeStrategyPoro::LagrangeStrategyPoro(
     const std::shared_ptr<CONTACT::AbstractStrategyDataContainer>& data_ptr,
-    const Epetra_Map* dof_row_map, const Epetra_Map* NodeRowMap, Teuchos::ParameterList params,
-    std::vector<std::shared_ptr<CONTACT::Interface>> interface, int dim, MPI_Comm comm,
-    double alphaf, int maxdof, bool poroslave, bool poromaster)
+    const Core::LinAlg::Map* dof_row_map, const Core::LinAlg::Map* NodeRowMap,
+    Teuchos::ParameterList params, std::vector<std::shared_ptr<CONTACT::Interface>> interface,
+    int dim, MPI_Comm comm, double alphaf, int maxdof, bool poroslave, bool poromaster)
     : MonoCoupledLagrangeStrategy(
           data_ptr, dof_row_map, NodeRowMap, params, interface, dim, comm, alphaf, maxdof),
-      no_penetration_(params.get<bool>("CONTACTNOPEN")),
+      no_penetration_(params.get<bool>("CONTACT_NO_PENETRATION")),
       nopenalpha_(0.0),
       poroslave_(poroslave),
       poromaster_(poromaster)
@@ -118,7 +119,7 @@ void CONTACT::LagrangeStrategyPoro::setup_no_penetration_condition()
  |                            for next Newton step (public)   ager 08/14|
  *----------------------------------------------------------------------*/
 void CONTACT::LagrangeStrategyPoro::poro_initialize(
-    Coupling::Adapter::Coupling& coupfs, const Epetra_Map& fluiddofs, bool fullinit)
+    Coupling::Adapter::Coupling& coupfs, const Core::LinAlg::Map& fluiddofs, bool fullinit)
 {
   if (fullinit)  // fullinit is true by default, but needed when this method is called for
                  // meshtying, as the maps and matrix mapping stay the same for meshtying. would
@@ -135,7 +136,7 @@ void CONTACT::LagrangeStrategyPoro::poro_initialize(
       fgndofrowmap_ = Core::LinAlg::split_map(fluiddofs,
           *fgsmdofrowmap_);  // Not equal to transforming gndofrowmap_ (pressure dofs missing!)
       fgactivedofs_ = coupfs.master_to_slave_map(*gactivedofs_);
-      falldofrowmap_ = std::make_shared<Epetra_Map>(fluiddofs);
+      falldofrowmap_ = std::make_shared<Core::LinAlg::Map>(fluiddofs);
       fgactiven_ = coupfs.master_to_slave_map(*gactiven_);
       fgactivet_ = coupfs.master_to_slave_map(*gactivet_);
     }
@@ -168,7 +169,7 @@ void CONTACT::LagrangeStrategyPoro::poro_initialize(
   else
   {
     // In the case of meshtying resetting the matrices is sufficient as they retain their size
-    NCoup_->PutScalar(0.0);
+    NCoup_->put_scalar(0.0);
 
     // (re)setup global linearisation matrices of nCoup
     NCoup_lindisp_->zero();
@@ -313,7 +314,7 @@ void CONTACT::LagrangeStrategyPoro::poro_initialize(
       // better solution to get maps as wanted? -- for this matrix map as important as there will be
       // a matrix-matrix multiplication
 
-      std::shared_ptr<Epetra_Map> restfgmdofrowmap, restfgactivedofs;
+      std::shared_ptr<Core::LinAlg::Map> restfgmdofrowmap, restfgactivedofs;
       std::shared_ptr<Core::LinAlg::SparseMatrix> tmpm1, tmpm2, tmpm3;
 
       // This should just be a temporary solution to change the row map of the matrix ...
@@ -344,7 +345,7 @@ void CONTACT::LagrangeStrategyPoro::poro_initialize(
       // better solution to get maps as wanted? -- for this matrix map as important as there will be
       // a matrix-matrix multiplication
 
-      std::shared_ptr<Epetra_Map> restfgactivet, restfgactivedofs;
+      std::shared_ptr<Core::LinAlg::Map> restfgactivet, restfgactivedofs;
       std::shared_ptr<Core::LinAlg::SparseMatrix> tmpm1, tmpm2, tmpm3;
 
       // This should just be a temporary solution to change the row map of the matrix ...
@@ -483,8 +484,8 @@ void CONTACT::LagrangeStrategyPoro::evaluate_mat_poro_no_pen(
   std::shared_ptr<Core::LinAlg::SparseMatrix> k_fs_smsm, k_fs_smn, k_fs_nsm;
 
   // some temporary std::shared_ptrs
-  std::shared_ptr<Epetra_Map> tempmap;
-  std::shared_ptr<Epetra_Map> ftempmap1, ftempmap2, ftempmap3;
+  std::shared_ptr<Core::LinAlg::Map> tempmap;
+  std::shared_ptr<Core::LinAlg::Map> ftempmap1, ftempmap2, ftempmap3;
   std::shared_ptr<Core::LinAlg::SparseMatrix> tempmtx1;
   std::shared_ptr<Core::LinAlg::SparseMatrix> tempmtx2;
 
@@ -568,12 +569,12 @@ void CONTACT::LagrangeStrategyPoro::evaluate_mat_poro_no_pen(
   std::shared_ptr<Core::LinAlg::SparseMatrix> k_fs_an, k_fs_in, k_fs_am, k_fs_im, k_fs_ma, k_fs_mi;
 
   // we will get the i rowmap as a by-product
-  std::shared_ptr<Epetra_Map> gidofs;
-  std::shared_ptr<Epetra_Map> fgidofs;
+  std::shared_ptr<Core::LinAlg::Map> gidofs;
+  std::shared_ptr<Core::LinAlg::Map> fgidofs;
 
   // some more temporary std::shared_ptrs
-  std::shared_ptr<Epetra_Map> tempmap1, tempmap2;
-  std::shared_ptr<Epetra_Map> ftempmap4, ftempmap5, ftempmap6, ftempmap7;
+  std::shared_ptr<Core::LinAlg::Map> tempmap1, tempmap2;
+  std::shared_ptr<Core::LinAlg::Map> ftempmap4, ftempmap5, ftempmap6, ftempmap7;
 
   // do the splitting
   Core::LinAlg::split_matrix2x2(
@@ -758,7 +759,7 @@ void CONTACT::LagrangeStrategyPoro::evaluate_mat_poro_no_pen(
   {
     Core::LinAlg::Vector<double> tempvecm(*fgmdofrowmap_);
     fmoldtransp_->multiply(false, *lambdaold_, tempvecm);
-    fm->Update(nopenalpha_, tempvecm, 1.0);
+    fm->update(nopenalpha_, tempvecm, 1.0);
   }
 
   // fs: prepare alphaf * old contact forces (t_n)
@@ -789,7 +790,7 @@ void CONTACT::LagrangeStrategyPoro::evaluate_mat_poro_no_pen(
     Core::LinAlg::Vector<double> faadd(*fgactivedofs_);
     Core::LinAlg::export_to(fsadd, faadd);
 
-    fa->Update(-nopenalpha_, faadd, 1.0);
+    fa->update(-nopenalpha_, faadd, 1.0);
   }
 
   // fm: add T(mhat)*fa
@@ -798,7 +799,7 @@ void CONTACT::LagrangeStrategyPoro::evaluate_mat_poro_no_pen(
   {
     fmmod = std::make_shared<Core::LinAlg::Vector<double>>(*fgmdofrowmap_);
     if (aset) fmhataam_->multiply(true, *fa, *fmmod);
-    fmmod->Update(1.0, *fm, 1.0);
+    fmmod->update(1.0, *fm, 1.0);
   }
 
   //----------------------------------------------------------- THIRD LINE
@@ -807,13 +808,13 @@ void CONTACT::LagrangeStrategyPoro::evaluate_mat_poro_no_pen(
   {
     Core::LinAlg::Vector<double> fiadd(*fgidofs);
     Core::LinAlg::export_to(fsadd, fiadd);
-    fi->Update(-nopenalpha_, fiadd, 1.0);
+    fi->update(-nopenalpha_, fiadd, 1.0);
   }
 
   // fi: add T(dhat)*fa
   Core::LinAlg::Vector<double> fimod(*fgidofs);
   if (aset) fdhat_->multiply(true, *fa, fimod);
-  fimod.Update(1.0, *fi, -1.0);
+  fimod.update(1.0, *fi, -1.0);
 
   //---------------------------------------------------------- FOURTH LINE
   // gactive: nothing to do
@@ -895,14 +896,14 @@ void CONTACT::LagrangeStrategyPoro::evaluate_mat_poro_no_pen(
 
   Core::LinAlg::export_to(*fn, fnexp);
 
-  feffnew->Update(1.0, fnexp, 1.0);
+  feffnew->update(1.0, fnexp, 1.0);
   //---------------------------------------------------------- SECOND LINE
   // add m subvector to feffnew
   if (mset)
   {
     Core::LinAlg::Vector<double> fmmodexp(*falldofrowmap_);
     Core::LinAlg::export_to(*fmmod, fmmodexp);
-    feffnew->Update(1.0, fmmodexp, 1.0);
+    feffnew->update(1.0, fmmodexp, 1.0);
   }
   //----------------------------------------------------------- THIRD LINE
   // add i subvector to feffnew
@@ -911,7 +912,7 @@ void CONTACT::LagrangeStrategyPoro::evaluate_mat_poro_no_pen(
   {
     fimodexp = std::make_shared<Core::LinAlg::Vector<double>>(*falldofrowmap_);
     Core::LinAlg::export_to(fimod, *fimodexp);
-    feffnew->Update(1.0, *fimodexp, 1.0);
+    feffnew->update(1.0, *fimodexp, 1.0);
   }
 
   //---------------------------------------------------------- FOURTH LINE
@@ -921,7 +922,7 @@ void CONTACT::LagrangeStrategyPoro::evaluate_mat_poro_no_pen(
   {
     nCoupexp = std::make_shared<Core::LinAlg::Vector<double>>(*falldofrowmap_);
     Core::LinAlg::export_to(*fNCoup_, *nCoupexp);
-    feffnew->Update(-1.0, *nCoupexp, 1.0);
+    feffnew->update(-1.0, *nCoupexp, 1.0);
   }
 
   //----------------------------------------------------------- FIFTH LINE
@@ -931,7 +932,7 @@ void CONTACT::LagrangeStrategyPoro::evaluate_mat_poro_no_pen(
   {
     famodexp = std::make_shared<Core::LinAlg::Vector<double>>(*falldofrowmap_);
     Core::LinAlg::export_to(*famod, *famodexp);
-    feffnew->Update(-1.0, *famodexp, 1.0);
+    feffnew->update(-1.0, *famodexp, 1.0);
   }
 
   // finally do the replacement
@@ -960,7 +961,8 @@ void CONTACT::LagrangeStrategyPoro::evaluate_other_mat_poro_no_pen(
   // (this is a prerequisite for the Split2x2 methods to be called later)
   Feff->complete();
 
-  std::shared_ptr<Epetra_Map> domainmap = std::make_shared<Epetra_Map>(Feff->domain_map());
+  std::shared_ptr<Core::LinAlg::Map> domainmap =
+      std::make_shared<Core::LinAlg::Map>(Feff->domain_map());
 
   // shape function
   auto shapefcn = Teuchos::getIntegralValue<Inpar::Mortar::ShapeFcn>(params(), "LM_SHAPEFCN");
@@ -987,9 +989,9 @@ void CONTACT::LagrangeStrategyPoro::evaluate_other_mat_poro_no_pen(
   std::shared_ptr<Core::LinAlg::SparseMatrix> F_sm, F_sm0, F_n0, F_m0, F_s0;
 
   // some temporary std::shared_ptrs
-  std::shared_ptr<Epetra_Map> tempmap0;
-  std::shared_ptr<Epetra_Map> tempmap1;
-  std::shared_ptr<Epetra_Map> ftempmap;
+  std::shared_ptr<Core::LinAlg::Map> tempmap0;
+  std::shared_ptr<Core::LinAlg::Map> tempmap1;
+  std::shared_ptr<Core::LinAlg::Map> ftempmap;
   std::shared_ptr<Core::LinAlg::SparseMatrix> tempmtx1;
   std::shared_ptr<Core::LinAlg::SparseMatrix> tempmtx2;
   std::shared_ptr<Core::LinAlg::SparseMatrix> tempmtx3;
@@ -1026,7 +1028,7 @@ void CONTACT::LagrangeStrategyPoro::evaluate_other_mat_poro_no_pen(
   std::shared_ptr<Core::LinAlg::SparseMatrix> F_an, F_in, F_am, F_im, F_ma, F_mi;
 
   // we will get the i rowmap as a by-product
-  std::shared_ptr<Epetra_Map> fgidofs;
+  std::shared_ptr<Core::LinAlg::Map> fgidofs;
 
   Core::LinAlg::split_matrix2x2(
       F_s, fgactivedofs_, fgidofs, domainmap, tempmap1, F_a, F_a0, F_i, F_i0);
@@ -1187,7 +1189,7 @@ void CONTACT::LagrangeStrategyPoro::recover_poro_no_pen(Core::LinAlg::Vector<dou
     // only contains the active diagonal block
     // (this automatically renders the inactive LM to be zero)
     std::shared_ptr<Core::LinAlg::SparseMatrix> finvda;
-    std::shared_ptr<Epetra_Map> tempmap1, tempmap2;
+    std::shared_ptr<Core::LinAlg::Map> tempmap1, tempmap2;
     std::shared_ptr<Core::LinAlg::SparseMatrix> tempmtx1, tempmtx2, tempmtx3;
     Core::LinAlg::split_matrix2x2(finvda_, fgactivedofs_, tempmap1, gactivedofs_, tempmap2, finvda,
         tempmtx1, tempmtx2, tempmtx3);
@@ -1204,11 +1206,11 @@ void CONTACT::LagrangeStrategyPoro::recover_poro_no_pen(Core::LinAlg::Vector<dou
       Core::LinAlg::Vector<double> mod(*fgsdofrowmap_);
 
       cfssn_->multiply(false, disin, mod);
-      flambda.Update(-1.0, mod, 0.0);
+      flambda.update(-1.0, mod, 0.0);
       cfssm_->multiply(false, disim, mod);
-      flambda.Update(-1.0, mod, 1.0);
+      flambda.update(-1.0, mod, 1.0);
       cfsss_->multiply(false, disis, mod);
-      flambda.Update(-1.0, mod, 1.0);
+      flambda.update(-1.0, mod, 1.0);
 
       // loop over all offdiag blocks!!!
       std::map<int, std::shared_ptr<Core::LinAlg::SparseOperator>>::iterator matiter;
@@ -1218,25 +1220,25 @@ void CONTACT::LagrangeStrategyPoro::recover_poro_no_pen(Core::LinAlg::Vector<dou
         inciter = inc.find(matiter->first);
         if (inciter == inc.end())
           FOUR_C_THROW(
-              "CONTACT::LagrangeStrategyPoro::RecoverPoroNoPen: Couldn't find increment block %d "
+              "CONTACT::LagrangeStrategyPoro::RecoverPoroNoPen: Couldn't find increment block {} "
               "for recovery of the lagrange multiplier!",
               matiter->first);
 
         matiter->second->multiply(false, *inciter->second, mod);
-        flambda.Update(-1.0, mod, 1.0);
+        flambda.update(-1.0, mod, 1.0);
       }
 
-      flambda.Update(1.0, *ffs_, 1.0);
+      flambda.update(1.0, *ffs_, 1.0);
 
       fdoldtransp_->multiply(false, *lambdaold_, mod);
 
-      flambda.Update(-nopenalpha_, mod, 1.0);
+      flambda.update(-nopenalpha_, mod, 1.0);
 
       Core::LinAlg::Vector<double> lambdacopy(flambda);
 
       finvdmod.multiply(true, lambdacopy, *lambda_);  // should be lambda_ at the end!!!
 
-      lambda_->Scale(
+      lambda_->scale(
           (1 - alphaf_) / (1 - nopenalpha_));  //-- is already scaled by this factor by scaling
                                                // invda_!!! --- scale it back to with nopenalpha_...
     }
@@ -1253,7 +1255,7 @@ void CONTACT::LagrangeStrategyPoro::update_poro_contact()
   if (no_penetration_)
   {
     // std::cout << "print lambda: " << *lambda_ << std::endl;
-    lambdaold_->Update(1.0, *lambda_, 0.0);
+    lambdaold_->update(1.0, *lambda_, 0.0);
   }
 }
 
@@ -1292,11 +1294,10 @@ void CONTACT::LagrangeStrategyPoro::set_state(
             {
               CONTACT::Node* node = dynamic_cast<CONTACT::Node*>(idiscret_.l_col_node(i));
               const int numdof = node->num_dof();
-              std::vector<double> myvel(numdof);
               std::vector<int> lm(numdof);
 
               for (int j = 0; j < numdof; ++j) lm[j] = node->dofs()[j];
-              Core::FE::extract_my_values(global, myvel, lm);
+              std::vector<double> myvel = Core::FE::extract_values(global, lm);
 
               // add myvel[2]=0 for 2D problems
               if (myvel.size() < 3) myvel.resize(3);
@@ -1324,12 +1325,11 @@ void CONTACT::LagrangeStrategyPoro::set_state(
               CONTACT::Node* node = dynamic_cast<CONTACT::Node*>(idiscret_.l_col_node(i));
 
               const int numdof = node->num_dof();
-              std::vector<double> mylm(numdof);
               std::vector<int> lm(numdof);
 
               for (int j = 0; j < numdof; ++j) lm[j] = node->dofs()[j];
 
-              Core::FE::extract_my_values(global, mylm, lm);
+              std::vector<double> mylm = Core::FE::extract_values(global, lm);
 
               // add myvel[2]=0 for 2D problems
               if (mylm.size() < 3) mylm.resize(3);
@@ -1361,7 +1361,7 @@ void CONTACT::LagrangeStrategyPoro::set_state(
 
               fpres = node->dofs()[0];  // here get ids of first component of node
 
-              myfpres = global.Values()[global.Map().LID(fpres)];
+              myfpres = global.get_values()[global.get_block_map().LID(fpres)];
 
               *node->poro_data().fpres() = myfpres;
             }
@@ -1421,8 +1421,7 @@ void CONTACT::LagrangeStrategyPoro::set_parent_state(const enum Mortar::StateTyp
           // this gets values in local order
           ele->parent_element()->location_vector(dis, lm, lmowner, lmstride);
 
-          std::vector<double> myval;
-          Core::FE::extract_my_values(global, myval, lm);
+          std::vector<double> myval = Core::FE::extract_values(global, lm);
 
           ele->mo_data().parent_disp() = myval;
           ele->mo_data().parent_dof() = lm;
@@ -1443,8 +1442,7 @@ void CONTACT::LagrangeStrategyPoro::set_parent_state(const enum Mortar::StateTyp
           // this gets values in local order
           mele->parent_element()->location_vector(dis, lm, lmowner, lmstride);
 
-          std::vector<double> myval;
-          Core::FE::extract_my_values(global, myval, lm);
+          std::vector<double> myval = Core::FE::extract_values(global, lm);
 
           mele->mo_data().parent_disp() = myval;
           mele->mo_data().parent_dof() = lm;
@@ -1508,12 +1506,12 @@ void CONTACT::LagrangeStrategyPoro::poro_mt_prepare_fluid_coupling()
 void CONTACT::LagrangeStrategyPoro::poro_mt_set_coupling_matrices()
 {
   // some temporary std::shared_ptrs
-  std::shared_ptr<Epetra_Map> tempmap;
+  std::shared_ptr<Core::LinAlg::Map> tempmap;
   std::shared_ptr<Core::LinAlg::SparseMatrix> tempmtx1;
   std::shared_ptr<Core::LinAlg::SparseMatrix> tempmtx2;
   std::shared_ptr<Core::LinAlg::SparseMatrix> tempmtx3;
 
-  std::shared_ptr<Epetra_Map> gidofs;
+  std::shared_ptr<Core::LinAlg::Map> gidofs;
 
   int aset = gactivedofs_->NumGlobalElements();
 
@@ -1532,7 +1530,7 @@ void CONTACT::LagrangeStrategyPoro::poro_mt_set_coupling_matrices()
   //      (*diag)[i] = 1.0;
 
   // scalar inversion of diagonal values
-  err = diag->Reciprocal(*diag);
+  err = diag->reciprocal(*diag);
   if (err > 0) FOUR_C_THROW("ERROR: Reciprocal: Zero diagonal entry!");
 
   // re-insert inverted diagonal into invd

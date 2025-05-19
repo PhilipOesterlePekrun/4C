@@ -10,6 +10,7 @@
 #include "4C_comm_pack_helpers.hpp"
 #include "4C_global_data.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_utils_enum.hpp"
 #include "4C_utils_local_newton.hpp"
 
 FOUR_C_NAMESPACE_OPEN
@@ -125,7 +126,7 @@ void Mat::Damage::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::Damage*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
 
@@ -156,7 +157,7 @@ void Mat::Damage::setup(int numgp, const Core::IO::InputParameterContainer& cont
   // initialise history variables
 
   // set all history variables to zero
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> emptyvect(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> emptyvect(Core::LinAlg::Initialization::zero);
   strainpllast_.resize(numgp);
   strainplcurr_.resize(numgp);
 
@@ -233,10 +234,6 @@ void Mat::Damage::update()
   {
     if (failedcurr_.at(gp))
     {
-#ifdef DEBUGMATERIAL
-      if (!failedlast_.at(gp))
-        std::cout << "Element " << eleGID << ", ip " << gp << " has failed!\n";
-#endif  // #ifdef DEBUGMATERIAL
       failedlast_.at(gp) = true;
     }
   }
@@ -252,7 +249,7 @@ void Mat::Damage::update()
   damagecurr_.resize(histsize);
   failedcurr_.resize(histsize);
 
-  const Core::LinAlg::Matrix<NUM_STRESS_3D, 1> emptyvec(true);
+  const Core::LinAlg::Matrix<NUM_STRESS_3D, 1> emptyvec(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < histsize; i++)
   {
     strainplcurr_.at(i) = emptyvec;
@@ -316,7 +313,7 @@ void Mat::Damage::evaluate_simplified_lemaitre(const Core::LinAlg::Matrix<3, 3>*
   double bulk = young / (3.0 * (1.0 - 2.0 * nu));
 
   // build Cartesian identity 2-tensor I_{AB}
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> id2(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> id2(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; i++) id2(i) = 1.0;
 
   // linstrain (in): independent variable passed from the element
@@ -358,7 +355,7 @@ void Mat::Damage::evaluate_simplified_lemaitre(const Core::LinAlg::Matrix<3, 3>*
 
   // plastic strain vector
   // strain^{p,trial}_{n+1} = strain^p_n
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> strain_p(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> strain_p(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < NUM_STRESS_3D; i++) strain_p(i, 0) = strainpllast_.at(gp)(i, 0);
 
   // get old accumulated/equivalent plastic strain  (scalar-valued)
@@ -378,19 +375,20 @@ void Mat::Damage::evaluate_simplified_lemaitre(const Core::LinAlg::Matrix<3, 3>*
   // ----------------------------------------------- elastic trial strain
   // assume load step is elastic
   // strain^{e,trial}_{n+1} = strain_n+1 - strain^p_n
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> trialstrain_e(false);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> trialstrain_e(Core::LinAlg::Initialization::uninitialized);
   trialstrain_e.update(1.0, strain, 0.0);
   trialstrain_e.update((-1.0), strain_p, 1.0);
   // volumetric strain
   // trace of strain vector
   double tracestrain = trialstrain_e(0) + trialstrain_e(1) + trialstrain_e(2);
   // volstrain = 1/3 . tr( strain ) . Id
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> volumetricstrain(false);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> volumetricstrain(
+      Core::LinAlg::Initialization::uninitialized);
   volumetricstrain.update((tracestrain / 3.0), id2, 0.0);
 
   // deviatoric strain
   // devstrain^e = strain^e - volstrain^e
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstrain(false);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstrain(Core::LinAlg::Initialization::uninitialized);
   devstrain.update(1.0, trialstrain_e, 0.0);
   devstrain.update(-1.0, volumetricstrain, 1.0);
 
@@ -401,7 +399,8 @@ void Mat::Damage::evaluate_simplified_lemaitre(const Core::LinAlg::Matrix<3, 3>*
   double p_tilde = bulk * tracestrain;
 
   // deviatoric stress^{~} = 2 . G . devstrain
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstress_tilde(false);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstress_tilde(
+      Core::LinAlg::Initialization::uninitialized);
   devstress_tilde.update(2.0 * G, devstrain);
   // be careful for shear stresses (sigma_12)
   // in Voigt-notation the shear strains have to be scaled with 1/2
@@ -422,7 +421,7 @@ void Mat::Damage::evaluate_simplified_lemaitre(const Core::LinAlg::Matrix<3, 3>*
   q_tilde = sqrt(3.0 * J2);
 
   // initialise final (damaged) deviatoric stresses
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstress(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstress(Core::LinAlg::Initialization::zero);
 
   //---------------------------------------------------------------------------
   // check plastic admissibility, Phi<=0 is admissble
@@ -478,12 +477,12 @@ void Mat::Damage::evaluate_simplified_lemaitre(const Core::LinAlg::Matrix<3, 3>*
   // unit flow vector Nbar (Prandtl-Reuss)
   // (using s_n+1^trial for undamaged, and s_n+1 for damaged load step)
   // Nbar = ( s^{trial}_{n+1} / || s^{trial}_{n+1} || )
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> Nbar(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> Nbar(Core::LinAlg::Initialization::zero);
 
   // flow vector N (Prandtl-Reuss)
   // (using the updated deviatoric stress s_n+1, no longer s_n+1^trial)
   // N = sqrt{3/2} / (1 - D_{n+1}) . ( s_{n+1} / || s_{n+1} || )
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> N(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> N(Core::LinAlg::Initialization::zero);
 
   //---------------------------------------------------------------------------
   // IF consistency condition is violated, i.e. plastic load step use return-mapping
@@ -515,10 +514,6 @@ void Mat::Damage::evaluate_simplified_lemaitre(const Core::LinAlg::Matrix<3, 3>*
       // check if newest astrain^{p,m}_{n+1} is still smaller than threshold
       if (strainbar_p < strainbar_p_D)
       {
-#ifdef DEBUGMATERIAL
-        if (gp == 0) std::cout << "No damage! Current load step is admissible!" << std::endl;
-#endif  // #ifdef DEBUGMATERIAL
-
         // no damage occurs, i.e. current solution is correct, no return-map
         // considering damage is necessary
         damevolution = false;
@@ -580,22 +575,11 @@ void Mat::Damage::evaluate_simplified_lemaitre(const Core::LinAlg::Matrix<3, 3>*
         // update damage variable damage_{n+1}
         damagecurr_.at(gp) = damage;
 
-#ifdef DEBUGMATERIAL
-        std::cout << "end strain_p\n " << strain_p << std::endl;
-        std::cout << "end strainplcurr_->at(gp)\n " << strainplcurr_->at(gp) << std::endl;
-#endif  // ifdef DEBUGMATERIAL
 
       }  // (strainbar_p < strainbar_p_D)
       // updated strainbar_p not valid, recalculate step considering damage
       else  // (strainbar_p > strainbar_p_D)
       {
-#ifdef DEBUGMATERIAL
-        if (gp == 0)
-          std::cout << "New solution strainbar_p^m exceeds damage threshold!"
-                       "\n Recalculate load step considering damage!"
-                    << std::endl;
-#endif  // #ifdef DEBUGMATERIAL
-
         // damage occurs, i.e. current solution is not correct, recalculate
         // load step considering damage
         damevolution = true;
@@ -614,20 +598,6 @@ void Mat::Damage::evaluate_simplified_lemaitre(const Core::LinAlg::Matrix<3, 3>*
 
     if (damevolution == true)
     {
-#ifdef DEBUGMATERIAL
-      // only first plastic call is output at screen for every processor
-      // visualisation of whole plastic behaviour via PLASTIC_STRAIN in postprocessing
-      if ((plastic_step_ == false) and (gp == 0))
-      {
-        std::cout << "damage starts to evolve in element = " << eleID << std::endl;
-
-        plastic_step_ = true;
-      }
-
-      std::cout << "Damage has to be considered for current load step and ele = " << eleID
-                << ", and gp = " << gp << " ! Threshold exceeded!" << std::endl;
-#endif  // #ifdef DEBUGMATERIAL
-
       // ------------------------------------------------- return-mapping
       // local Newton-Raphson
       // ------------------------------- initial guess for Dgamma (12.49)
@@ -666,10 +636,6 @@ void Mat::Damage::evaluate_simplified_lemaitre(const Core::LinAlg::Matrix<3, 3>*
       // sanity check: omega < 1.0e-20
       if (omega < omegamin)
       {
-#ifdef DEBUGMATERIAL
-        std::cout << "Inadmissible value of integrity: omega = " << omega << " in ele " << eleGID
-                  << "!\n Element has failed.\n";
-#endif  // ifdef DEBUGMATERIAL
         omega = omegamin;
         failed = true;
       }
@@ -741,10 +707,6 @@ void Mat::Damage::evaluate_simplified_lemaitre(const Core::LinAlg::Matrix<3, 3>*
       // update failure flag;
       failedcurr_.at(gp) = failed;
 
-#ifdef DEBUGMATERIAL
-      std::cout << "end strain_p\n " << strain_p << std::endl;
-      std::cout << "end strainplcurr_->at(gp)\n " << strainplcurr_->at(gp) << std::endl;
-#endif  // ifdef DEBUGMATERIAL
 
     }  // damage evolution has to be considered, damage threshold exceeded
 
@@ -800,15 +762,6 @@ void Mat::Damage::evaluate_simplified_lemaitre(const Core::LinAlg::Matrix<3, 3>*
   setup_cmat_elasto_plastic(*cmat, eleGID, Dgamma, G, bulk, p_tilde, q_tilde, energyrelrate, Ytan,
       sigma_y, Hiso, Nbar, gp, damevolution, active_plasticity);
 
-#ifdef DEBUGMATERIAL
-  std::cout << "Nach Setup Cep\n" << std::endl;
-  std::cout << " Dgamma " << Dgamma << std::endl;
-  std::cout << " G " << G << std::endl;
-  std::cout << " q " << q << std::endl;
-  std::cout << " flow vector " << Nbar << std::endl;
-  std::cout << " active_plasticity " << active_plasticity << std::endl;
-  std::cout << "--> cmat " << cmat << std::endl;
-#endif  // #ifdef DEBUGMATERIAL
 
   // ------------------------------- return plastic strains for post-processing
   params.set<Core::LinAlg::Matrix<Mat::NUM_STRESS_3D, 1>>("plglstrain", strainplcurr_.at(gp));
@@ -1010,7 +963,7 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
   double bulk = young / (3.0 * (1.0 - 2.0 * nu));
 
   // build Cartesian identity 2-tensor I_{AB}
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> id2(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> id2(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; i++) id2(i) = 1.0;
 
   // linstrain (in): independent variable passed from the element
@@ -1054,7 +1007,7 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
 
   // plastic strain vector
   // strain^{p,trial}_{n+1} = strain^p_n
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> strain_p(false);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> strain_p(Core::LinAlg::Initialization::uninitialized);
   strain_p.update(strainpllast_.at(gp));
 
   // accumulated or equivalent plastic strain (scalar-valued)
@@ -1066,7 +1019,7 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
   // ------------------------------------------------ old back stress
   // beta^{trial}_{n+1} = beta_n
   // beta is a deviatoric tensor
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> beta(false);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> beta(Core::LinAlg::Initialization::uninitialized);
   beta.update(backstresslast_.at(gp));
 
   // --------------------------------------------------- physical strains
@@ -1080,22 +1033,23 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
   // ----------------------------------------------- elastic trial strain
   // assume load step is elastic
   // strain^{e}_{n+1}
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> strain_e(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> strain_e(Core::LinAlg::Initialization::zero);
 
   // strain^{e,trial}_{n+1} = strain_n+1 - strain^p_n
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> trialstrain_e(false);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> trialstrain_e(Core::LinAlg::Initialization::uninitialized);
   trialstrain_e.update(1.0, strain, (-1.0), strain_p);
 
   // volumetric strain
   // trace of strain vector
   double tracestrain = trialstrain_e(0) + trialstrain_e(1) + trialstrain_e(2);
   // volstrain = 1/3 . tr( strain ) . Id
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> volumetricstrain(false);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> volumetricstrain(
+      Core::LinAlg::Initialization::uninitialized);
   volumetricstrain.update((tracestrain / 3.0), id2, 0.0);
 
   // deviatoric strain
   // devstrain^e = strain^e - volstrain^e
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstrain(false);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstrain(Core::LinAlg::Initialization::uninitialized);
   devstrain.update(1.0, trialstrain_e, (-1.0), volumetricstrain);
 
   // --------------------------------------------- trial undamaged stress
@@ -1105,7 +1059,8 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
   double p_tilde = bulk * tracestrain;
 
   // undamaged deviatoric stress^{~} = 2 . G . devstrain
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstress_tilde(false);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstress_tilde(
+      Core::LinAlg::Initialization::uninitialized);
   devstress_tilde.update((2.0 * G), devstrain);
   // be careful for shear stresses (sigma_12)
   // in Voigt-notation the shear strains have to be scaled with 1/2
@@ -1113,7 +1068,7 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
 
   // -----------------------------------------  relative effective stress
   // eta^{~,trial}_{n+1} = s^{~,trial}_{n+1} - beta^{trial}_{n+1}
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> eta_tilde(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> eta_tilde(Core::LinAlg::Initialization::zero);
   rel_stress(devstress_tilde, beta, eta_tilde);
 
   // --------------- trial (undamaged) elastic von Mises effective stress
@@ -1142,27 +1097,9 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
                  eta_tilde(5) * eta_tilde(5);
   double qbar_tilde = sqrt(3.0 * J2bar);
 
-#ifdef DEBUGMATERIAL
-  if (gp == 0)
-  {
-    std::cout << ": devstress_tilde\n " << devstress_tilde << std::endl;
-    std::cout << ": devstrain\n " << devstrain << std::endl;
-    std::cout << ": beta\n " << beta << std::endl;
-    std::cout << ": eta_tilde\n " << eta_tilde << std::endl;
-    std::cout << "plastic load: strainbarplcurr_.at(gp)\n " << strainbarplcurr_.at(gp) << std::endl;
-    std::cout << "plastic load: strainbarpllast_.at(gp)\n " << strainbarpllast_.at(gp) << std::endl;
-    std::cout << "plastic load: strain_p\n " << strain_p << std::endl;
-    std::cout << "plastic load: strainplcurr_.at(gp)\n " << strainplcurr_.at(gp) << std::endl;
-    std::cout << "plastic load: strainpllast\n " << strainpllast_.at(gp) << std::endl;
-    std::cout << "elastic load: backstresscurr_.at(gp)\n " << backstresscurr_.at(gp) << std::endl;
-    std::cout << "elastic load: backstresslast_.at(gp)\n " << backstresslast_.at(gp) << std::endl;
-    std::cout << ": q_tilde\n " << q_tilde << std::endl;
-    std::cout << ": qbar_tilde\n " << qbar_tilde << std::endl;
-  }
-#endif  // DEBUGMATERIAL
 
   // initialise final (damaged) deviatoric stresses
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstress(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstress(Core::LinAlg::Initialization::zero);
 
   // ----------- initialise variables required due to kinematic hardening
 
@@ -1179,12 +1116,12 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
   // initialise energy-release rate y := (-Y/r)^s
   double y = 0.0;
   // dy/dsigma_tilde
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> dy_dsigma_tilde(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> dy_dsigma_tilde(Core::LinAlg::Initialization::zero);
   // b_NbetaoldN = beta_n - 2/3 . (N_tilde : beta_n) . N_tilde
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> b_NbetaoldN(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> b_NbetaoldN(Core::LinAlg::Initialization::zero);
   // correction for difference (back stress - deviatoric stress)
   // c_s - c_beta (49)
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> c_s_b(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> c_s_b(Core::LinAlg::Initialization::zero);
 
   //---------------------------------------------------------------------------
   // check plastic admissibility, Phi<=0 is admissble
@@ -1213,16 +1150,6 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
   // with trial values: Phi_trial = qbar{~,trial} - sigma_y and Dgamma == 0
   double Phi_trial = qbar_tilde - sigma_y;
 
-#ifdef DEBUGMATERIAL
-  if (gp == 0)
-  {
-    std::cout << ": Phi_trial  " << Phi_trial << std::endl;
-    std::cout << ": qbar_tilde  " << qbar_tilde << std::endl;
-    std::cout << ": sigma_y  " << sigma_y << std::endl;
-    std::cout << ": kappa " << kappa << std::endl;
-    std::cout << ": dkappa_dR " << dkappa_dR << std::endl;
-  }
-#endif  // DEBUGMATERIAL
 
   // --------------------------------------------------------- initialise
 
@@ -1235,11 +1162,11 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
   // unit flow vector Nbar (Prandtl-Reuss)
   // (using s_n+1^trial for undamaged, and s_n+1 for damaged load step)
   // Nbar = ( eta^{~,trial}_{n+1} / || eta^{~,trial}_{n+1} || )
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> Nbar(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> Nbar(Core::LinAlg::Initialization::zero);
 
   // flow vector N_tilde according to Doghri and his explicit updating
   // N_tilde = 3/2 . (s_tilde - beta) / qbar_tilde
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> N_tilde(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> N_tilde(Core::LinAlg::Initialization::zero);
 
   //---------------------------------------------------------------------------
   // IF consistency condition is violated, i.e. plastic load step use return-mapping
@@ -1247,10 +1174,6 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
   //---------------------------------------------------------------------------
   if (Phi_trial > 1.0e-08 and !failed)  // if (Phi_trial > 0.0)
   {
-#ifdef DEBUGMATERIAL
-    std::cout << "Damage has to be considered for current load step and ele = " << eleID
-              << ", and gp = " << gp << " ! Threshold exceeded!" << std::endl;
-#endif  // #ifdef DEBUGMATERIAL
     // deviatoric stress norm || eta^{~}_{n+1} ||
     double eta_tildenorm = 0.0;
     eta_tildenorm = sqrt(eta_tilde(0) * eta_tilde(0) + eta_tilde(1) * eta_tilde(1) +
@@ -1301,13 +1224,13 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
 
     // corrections for effective, undamaged deviatoric stress (58b)
     // s = c_s/Dt: c_s = -2G . N_tilde^{trial} . c_astrain
-    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> c_s(false);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> c_s(Core::LinAlg::Initialization::uninitialized);
     double fac_cs = -2.0 * G * c_strainbar;
     c_s.update(fac_cs, N_tilde);
 
     // corrections for back stress (58c)
     // beta' = c_beta/Dt: c_beta = (Hkin . N_tilde^{trial} - Hkin_rec . beta_n) . c_R
-    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> c_beta(false);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> c_beta(Core::LinAlg::Initialization::uninitialized);
     c_beta.update(Hkin, N_tilde);
     c_beta.update((-Hkin_rec), beta, 1.0);
     c_beta.scale(c_R);
@@ -1325,16 +1248,6 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
     // c_D = (Y^trial_{n+1} / r)^s . c_astrain
     double c_D = y * c_strainbar;
 
-#ifdef DEBUGMATERIAL
-    if (gp == 0)
-    {
-      std::cout << ": Phi_trial  " << Phi_trial << std::endl;
-      std::cout << ": qbar_tilde  " << qbar_tilde << std::endl;
-      std::cout << ": Y  " << Y << std::endl;
-      std::cout << ": y " << y << std::endl;
-      std::cout << ": c_D " << c_D << std::endl;
-    }
-#endif  // DEBUGMATERIAL
 
     // ------------------------------------------------- return-mapping
 
@@ -1353,7 +1266,7 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
       if (itnum > itermax)
       {
         FOUR_C_THROW(
-            "local Newton iteration did not converge after iteration %3d/%3d", itnum, itermax);
+            "local Newton iteration did not converge after iteration {:3d}/{:3d}", itnum, itermax);
       }
       // else: continue loop m <= m_max
 
@@ -1431,7 +1344,8 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
 
       // dy_ds_tilde = s . (-Y / r)^{s-1} . (1 / r) . s_tilde / (2 G)
       //             = s / (2 G . r) . (-Y / r)^{s-1} .s_tilde
-      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> dy_dstilde(false);
+      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> dy_dstilde(
+          Core::LinAlg::Initialization::uninitialized);
       double fac_dy_dstilde = damexp / (damden * 2.0 * G) * std::pow((-Y / damden), (damexp - 1.0));
       dy_dstilde.update(fac_dy_dstilde, devstress_tilde);
 
@@ -1439,7 +1353,8 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
       //   = d{[ q_tilde(s_tilde) ]^2 }/ds_tilde / (6 G) +
       //     + d{ p_tilde^2 / (2 bulk)}/d (tr sigma_tilde)
       //   = s_tilde / (2 G) + p_tilde / bulk . I
-      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> dYneg_dsigma_tilde(false);
+      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> dYneg_dsigma_tilde(
+          Core::LinAlg::Initialization::uninitialized);
       dYneg_dsigma_tilde.update((1.0 / (2.0 * G)), devstress_tilde);
       for (int i = 0; i < 3; ++i) dYneg_dsigma_tilde(i) += bulk * p_tilde;
 
@@ -1452,7 +1367,7 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
 
       // update effective stress
       // eta^{~}_{n+1} = s^{~}_{n+1} - beta_{n+1}
-      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> eta_tilde(true);
+      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> eta_tilde(Core::LinAlg::Initialization::zero);
       rel_stress(devstress_tilde, beta, eta_tilde);
       // update the invariant of the stress deviator
       J2bar = 1.0 / 2.0 *
@@ -1493,7 +1408,7 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
       // k_s_tilde = s^{~}_{n+1} - s^{~,trial} + 2G . N_tilde . Dgamma/omega
       // with s_tilde^{trial} = 2G . devstrain
       // k_s_tilde --> = 0
-      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> k_s_tilde(false);
+      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> k_s_tilde(Core::LinAlg::Initialization::uninitialized);
       k_s_tilde.update((-2.0 * G), devstrain);
       k_s_tilde.update(1.0, devstress_tilde, 1.0);
       double fac_ks_tilde = 0.0;
@@ -1517,7 +1432,7 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
       double fac_k_b2 = 0.0;
       fac_k_b2 = Hkin_rec * Dgamma / (1.0 + Hkin_rec * Dgamma);
 
-      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> k_b(false);
+      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> k_b(Core::LinAlg::Initialization::uninitialized);
       k_b.update((-1.0), backstresslast_.at(gp));
       k_b.update(1.0, beta, 1.0);
       k_b.update(fac_k_b1, N_tilde, 1.0);
@@ -1559,16 +1474,6 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
         }
         break;
       }
-#ifdef DEBUGMATERIAL
-      else if (gp == 0)
-        printf(
-            "Newton method converged after %i iterations; "
-            "norm_k_s = %-14.8E, "
-            "norm_k_Phi = %-14.8E, "
-            "norm_k_b = %-14.8E, "
-            "norm_k_D = %-14.8E \n",
-            itnum, norm_k_s_tilde, norm_Phi, norm_k_beta, norm_k_D);
-#endif  // #ifdef DEBUGMATERIAL
 
       // --------------- else: load step NOT converged, calculate corrections
 
@@ -1588,7 +1493,7 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
       else
         FOUR_C_THROW("do not divide by zero!");
 
-      if (g <= 0.0) FOUR_C_THROW("factor g has to be greater zero! g =  %-14.8E", g);
+      if (g <= 0.0) FOUR_C_THROW("factor g has to be greater zero! g =  {:<14.8E}", g);
 
       // h_alg = 3 G + [ (1 - D_{n+1}) - y . Delta_astrain +
       //         + 2 G . (Delta_astrain)^2 . dy/ds_tilde : N_tilde ]
@@ -1635,7 +1540,7 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
       for (int i = 0; i < NUM_STRESS_3D; ++i) s_k += dy_dstilde(i, 0) * k_s_tilde(i, 0);
 
       // k_NkN = [ k_s - k_b - 2/3 . ( N_tilde : (k_s - k_b) ) . N_tilde ]
-      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> k_NkN(false);
+      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> k_NkN(Core::LinAlg::Initialization::uninitialized);
       k_NkN.update(1.0, k_s_tilde, (-1.0), k_b);
       double fac_k_NkN = 0.0;
       fac_k_NkN = -2.0 / 3.0 * N_ksb;
@@ -1695,7 +1600,7 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
 
       // dN_tilde/ds_tilde : (c_s - c_b) := dNds_csb (50)
 
-      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> bracket(false);
+      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> bracket(Core::LinAlg::Initialization::uninitialized);
       // bracket = [ k_s - k_b - 2/3 . N_tilde : (k_s - k_b) . N_tilde
       //            - Hkin_rec / (1 + Hkin_rec . Dgamma)^2 .
       //              ( beta_n - 2/3 . (N_tilde : beta_n) . N_tilde ) . c_R ]
@@ -1708,7 +1613,7 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
       bracket.update(fac_bracket, N_tilde, 1.0);
 
       // dNds_csb = - 3/2 . 1/qbar_tilde . 1/(1 + 3/2 . g) . bracket (50)
-      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> dNds_csb(false);
+      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> dNds_csb(Core::LinAlg::Initialization::uninitialized);
       double fac_dNds_csb = -3.0 / 2.0 * (1.0 / qbar_tilde) * (1.0 / (1.0 + 3.0 / 2.0 * g));
       dNds_csb.update(fac_dNds_csb, bracket);
 
@@ -1757,7 +1662,8 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
 
       // matrix_c_D = [ - k_s - 2 G . N_tilde . c_strainbar
       //                + 3 G / qbar_tilde . (Dgamma / omega) / (1 + 3/2 . g) . dNds_csb ]
-      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> matrix_c_D(false);
+      Core::LinAlg::Matrix<NUM_STRESS_3D, 1> matrix_c_D(
+          Core::LinAlg::Initialization::uninitialized);
       matrix_c_D.update((-1.0), k_s_tilde, (-2.0 * G * c_strainbar), N_tilde);
       double fac_c_D = 3.0 * G / qbar_tilde * (Dgamma / omega) / (1.0 + 3.0 / 2.0 * g);
       matrix_c_D.update(fac_c_D, dNds_csb, 1.0);
@@ -1769,19 +1675,6 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
       // c_D = - k_D + y . c_strainbar + (Dgamma / omega) dy_ds_matrixcD
       c_D = -k_D + y * c_strainbar + (Dgamma / omega) * dyds_matrixcD;
 
-#ifdef DEBUGMATERIAL
-      if (gp == 0)
-      {
-        std::cout << "End local Newton damage = " << damage << std::endl;
-        std::cout << "End local Newton strainbar_p = " << strainbar_p << std::endl;
-        std::cout << "End local Newton Rplast = " << Rplast << std::endl;
-
-        std::cout << "am 1.GP: local Newton: Res " << Res << std::endl;
-        std::cout << "local Newton: ResTan " << ResTan << std::endl;
-        std::cout << "local Newton: Dgamma " << Dgamma << std::endl;
-        std::cout << "local Newton: sigma_y " << sigma_y << std::endl;
-      }
-#endif  // #ifdef DEBUGMATERIAL
 
     }  // end of local Newton iteration
 
@@ -1848,10 +1741,6 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
 
     // update failed state
     failedcurr_.at(gp) = failed;
-#ifdef DEBUGMATERIAL
-    std::cout << "end strain_p\n " << strain_p << std::endl;
-    std::cout << "end strainplcurr_.at(gp)\n " << strainplcurr_.at(gp) << std::endl;
-#endif  // ifdef DEBUGMATERIAL
 
   }  // plastic corrector
 
@@ -1914,15 +1803,6 @@ void Mat::Damage::evaluate_full_lemaitre(const Core::LinAlg::Matrix<3, 3>* defgr
       g, h_alg, G, Hiso, bulk, Hkin, Hkin_rec, Nbetaold, gp, qbar_tilde, y, dy_dsigma_tilde,
       b_NbetaoldN);
 
-#ifdef DEBUGMATERIAL
-  std::cout << "Nach Setup Cep\n" << std::endl;
-  std::cout << " Dgamma " << Dgamma << std::endl;
-  std::cout << " G " << G << std::endl;
-  std::cout << " q " << q << std::endl;
-  std::cout << " flow vector " << Nbar << std::endl;
-  std::cout << " active_plasticity " << active_plasticity << std::endl;
-  std::cout << "--> cmat " << cmat << std::endl;
-#endif  // #ifdef DEBUGMATERIAL
 
   return;
 
@@ -2058,14 +1938,14 @@ void Mat::Damage::setup_cmat_elasto_plastic(Core::LinAlg::Matrix<NUM_STRESS_3D, 
     //
 
     // build Cartesian identity 2-tensor I_{AB}
-    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> id2(true);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> id2(Core::LinAlg::Initialization::zero);
     for (int i = 0; i < 3; i++) id2(i) = 1.0;
 
     // set Cartesian identity 4-tensor in 6-Voigt matrix notation
     // this is fully 'contra-variant' identity tensor, ie I^{ABCD}
     // REMARK: rows are stress-like 6-Voigt
     //         columns are stress-like 6-Voigt
-    Core::LinAlg::Matrix<NUM_STRESS_3D, NUM_STRESS_3D> id4sharp(true);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, NUM_STRESS_3D> id4sharp(Core::LinAlg::Initialization::zero);
     for (int i = 0; i < 3; i++) id4sharp(i, i) = 1.0;
     for (int i = 3; i < 6; i++) id4sharp(i, i) = 0.5;
 
@@ -2119,31 +1999,12 @@ void Mat::Damage::setup_cmat_elasto_plastic(Core::LinAlg::Matrix<NUM_STRESS_3D, 
 
     // complete material tangent C_ep available
 
-#ifdef DEBUGMATERIAL
-    if (Dgamma != 0)
-    {
-      std::cout << "End SetupCmatElastPlast" << std::endl;
-      std::cout << "Cep\n"
-                << " Dgamma " << Dgamma << std::endl;
-      std::cout << " G " << G << std::endl;
-      std::cout << " q " << q << std::endl;
-      std::cout << " Nbar " << Nbar << std::endl;
-      std::cout << " active_plasticity " << active_plasticity << std::endl;
-      std::cout << " epfac " << epfac << std::endl;
-      std::cout << " epfac1 " << epfac1 << std::endl;
-      std::cout << " cmat " << cmat << std::endl;
-    }
-#endif  // #ifdef DEBUGMATERIAL
   }  // (damevolution == false)
 
   // material tangent differs for case damage or not
   // if no damage: use standard tangent of purely plastic behaviour
   else  // (damevolution == true)
   {
-#ifdef DEBUGMATERIAL
-    if (gp == 0) std::cout << "damage evolution takes place in eleID = " << eleID << endl;
-#endif  // #ifdef DEBUGMATERIAL
-
     // incremental constitutive function for the stress tensor
     // consistent tangent operator
     // C^{ep} := dsigma_n+1 / dstrain_n+1
@@ -2166,14 +2027,14 @@ void Mat::Damage::setup_cmat_elasto_plastic(Core::LinAlg::Matrix<NUM_STRESS_3D, 
     //         [                  |          1/2 ]
 
     // build Cartesian identity 2-tensor I_{AB}
-    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> id2(true);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> id2(Core::LinAlg::Initialization::zero);
     for (int i = 0; i < 3; i++) id2(i) = 1.0;
 
     // set Cartesian identity 4-tensor in 6-Voigt matrix notation
     // this is fully 'contra-variant' identity tensor, i.e. I^{ABCD}
     // REMARK: rows are stress-like 6-Voigt
     //         columns are stress-like 6-Voigt
-    Core::LinAlg::Matrix<NUM_STRESS_3D, NUM_STRESS_3D> id4sharp(true);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, NUM_STRESS_3D> id4sharp(Core::LinAlg::Initialization::zero);
     for (int i = 0; i < 3; i++) id4sharp(i, i) = 1.0;
     for (int i = 3; i < 6; i++) id4sharp(i, i) = 0.5;
 
@@ -2202,7 +2063,7 @@ void Mat::Damage::setup_cmat_elasto_plastic(Core::LinAlg::Matrix<NUM_STRESS_3D, 
 
       // check if omega is admissible
       if (omega < 1.0e-20)
-        FOUR_C_THROW("Omega has to be greater than zero! omega = %-14.8E\n", omega);
+        FOUR_C_THROW("Omega has to be greater than zero! omega = {:<14.8E}\n", omega);
 
       // be aware: in the 1st equilibrium (Newton) iteration (i=0) C^{ep} is
       // indeterminate due to Dgamma == 0.0
@@ -2305,21 +2166,6 @@ void Mat::Damage::setup_cmat_elasto_plastic(Core::LinAlg::Matrix<NUM_STRESS_3D, 
     }
     // complete material tangent C_ep available
 
-#ifdef DEBUGMATERIAL
-    if (Dgamma != 0)
-    {
-      std::cout << "End SetupCmatElastPlast" << std::endl;
-      std::cout << "Cep\n"
-                << " Dgamma " << Dgamma << std::endl;
-      std::cout << " G " << G << std::endl;
-      std::cout << " q_tilde " << q_tilde << std::endl;
-      std::cout << " Nbar " << Nbar << std::endl;
-      std::cout << " active_plasticity " << active_plasticity << std::endl;
-      std::cout << " epfac " << epfac << std::endl;
-      std::cout << " epfac1 " << epfac1 << std::endl;
-      std::cout << " cmat " << cmat << std::endl;
-    }
-#endif  // #ifdef DEBUGMATERIAL
 
   }  // damage evolves: (damevolution == true)
 
@@ -2376,14 +2222,14 @@ void Mat::Damage::setup_cmat_elasto_plastic_full_lemaitre(
   //         [                  |          1/2 ]
 
   // build Cartesian identity 2-tensor I_{AB}
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> id2(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> id2(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; i++) id2(i) = 1.0;
 
   // set Cartesian identity 4-tensor in 6-Voigt matrix notation
   // this is fully 'contra-variant' identity tensor, i.e. I^{ABCD}
   // REMARK: rows are stress-like 6-Voigt
   //         columns are stress-like 6-Voigt
-  Core::LinAlg::Matrix<NUM_STRESS_3D, NUM_STRESS_3D> id4sharp(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, NUM_STRESS_3D> id4sharp(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; i++) id4sharp(i, i) = 1.0;
   for (int i = 3; i < 6; i++) id4sharp(i, i) = 0.5;
 
@@ -2419,7 +2265,8 @@ void Mat::Damage::setup_cmat_elasto_plastic_full_lemaitre(
     //                 } \otimes (n_alg / h_alg)
 
     // stress_tilde = stress / omega = sigma / omega
-    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> stress_tilde(false);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> stress_tilde(
+        Core::LinAlg::Initialization::uninitialized);
     stress_tilde.update((1.0 / omega), stress);
 
     // --------------------------- linearisation of delta_R = delta_gamma
@@ -2437,7 +2284,8 @@ void Mat::Damage::setup_cmat_elasto_plastic_full_lemaitre(
     //           / (1 + 3/2 . g) . dPhi_dsigma_tilde_square ] : dy_dsigma_tilde
 
     // dPhi_dsigma_tilde_square = (3/2 . I_d - N_tilde \otimes N_tilde) / qbar_tilde
-    Core::LinAlg::Matrix<NUM_STRESS_3D, NUM_STRESS_3D> dPhi_dsigma_tilde_square(true);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, NUM_STRESS_3D> dPhi_dsigma_tilde_square(
+        Core::LinAlg::Initialization::zero);
     double fac_dPhidsigma = 0.0;
     if (qbar_tilde != 0)
     {
@@ -2474,13 +2322,14 @@ void Mat::Damage::setup_cmat_elasto_plastic_full_lemaitre(
     //
     // with s_N = = 2 G . (Dgamma / omega)^2 . dy/ds_tilde : N_tilde
     double fac_n_alg_1 = (omega - y * (Dgamma / omega) + s_N) * 2.0 * G;
-    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> n_alg(false);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> n_alg(Core::LinAlg::Initialization::uninitialized);
     n_alg.update(fac_n_alg_1, N_tilde);
 
     // n_alg += - 3 G . (Dgamma / omega)^2 . C^e : dy_dsigma_tilde
     // calculate C^e : dy_dsigma_tilde
     //          (6x6)  (6x1)
-    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> ce_dydsigmatilde(false);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> ce_dydsigmatilde(
+        Core::LinAlg::Initialization::uninitialized);
     ce_dydsigmatilde.multiply(cmat, dy_dsigma_tilde);
     double fac_n_alg_2 = -3.0 * G * (Dgamma / omega) * (Dgamma / omega);
     n_alg.update(fac_n_alg_2, ce_dydsigmatilde, 1.0);
@@ -2488,7 +2337,8 @@ void Mat::Damage::setup_cmat_elasto_plastic_full_lemaitre(
     // n_alg += 3 G . (Dgamma / omega)^3 . (2 G)^2
     //           / (1 + 3/2 . g) . dPhi_dsigma_tilde_square : dy_dsigma_tilde
     // dPhi_dsigma_tilde_square : dy_dsigma_tilde
-    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> dPhidsigma_dydsigma(false);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> dPhidsigma_dydsigma(
+        Core::LinAlg::Initialization::uninitialized);
     dPhidsigma_dydsigma.multiply(dPhi_dsigma_tilde_square, dy_dsigma_tilde);
     double fac_n_alg_3 =
         3.0 * G * std::pow((Dgamma / omega), 3) * std::pow((2 * G), 2) / (1 + 3.0 / 2.0 * g);
@@ -2502,7 +2352,8 @@ void Mat::Damage::setup_cmat_elasto_plastic_full_lemaitre(
     // b_NbetaoldN = beta_n - 2/3 . (N_tilde : beta_n) . N_tilde
 
     // C^{~,ep} = C^e
-    Core::LinAlg::Matrix<NUM_STRESS_3D, NUM_STRESS_3D> Cep_tilde(false);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, NUM_STRESS_3D> Cep_tilde(
+        Core::LinAlg::Initialization::uninitialized);
     Cep_tilde.update(cmat);
 
     // C^{~,ep} += - (2 G)^2 . (Dgamma / omega) / (1 + 3/2 . g) . dPhi_dsigma_tilde_square
@@ -2519,7 +2370,8 @@ void Mat::Damage::setup_cmat_elasto_plastic_full_lemaitre(
     // prematrix_n_alg = 2/3 . dkappa_HHNb . N_tilde
     //                   - 3 G / qbar_tilde . (Dgamma / omega) / (1 + 3/2 . g) .
     //                  . Hkin_rec / (1 + Hkin_rec . Dgamma)^2 . b_NbetaoldN
-    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> prematrix_n_alg(false);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> prematrix_n_alg(
+        Core::LinAlg::Initialization::uninitialized);
 
     // fac_prematrix_n_alg = - 3 G / qbar_tilde . (Dgamma / omega) / (1 + 3/2 . g)
     //                       . Hkin_rec / (1 + Hkin_rec . Dgamma)^2
@@ -2545,7 +2397,8 @@ void Mat::Damage::setup_cmat_elasto_plastic_full_lemaitre(
     cmat.update(omega, Cep_tilde);
 
     // cep_tilde_dydsigma_tilde = (Dgamma / omega) . C^{~,ep} : dy/dsigma_tilde
-    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> cep_tilde_dydsigma_tilde(false);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> cep_tilde_dydsigma_tilde(
+        Core::LinAlg::Initialization::uninitialized);
     cep_tilde_dydsigma_tilde.multiply((Dgamma / omega), Cep_tilde, dy_dsigma_tilde);
     // C^{ep} += - stress_tilde \otimes cep_tilde_dydsigma_tilde
     cmat.multiply_nt((-1.0), stress_tilde, cep_tilde_dydsigma_tilde, 1.0);

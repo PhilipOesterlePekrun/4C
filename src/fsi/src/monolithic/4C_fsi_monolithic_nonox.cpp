@@ -10,20 +10,21 @@
 #include "4C_adapter_ale_xffsi.hpp"
 #include "4C_adapter_fld_fluid_fluid_fsi.hpp"
 #include "4C_adapter_str_fsiwrapper.hpp"
+#include "4C_ale_input.hpp"
 #include "4C_coupling_adapter.hpp"
 #include "4C_fem_discretization.hpp"
 #include "4C_fluid_utils_mapextractor.hpp"
 #include "4C_fsi_debugwriter.hpp"
 #include "4C_fsi_statustest.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_ale.hpp"
-#include "4C_inpar_validparameters.hpp"
 #include "4C_io_control.hpp"
 #include "4C_io_pstream.hpp"
 #include "4C_linalg_utils_sparse_algebra_assemble.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
 #include "4C_linear_solver_method_linalg.hpp"
 #include "4C_structure_aux.hpp"
+
+#include <Teuchos_StandardParameterEntryValidators.hpp>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -114,8 +115,8 @@ void FSI::MonolithicNoNOX::setup_system()
     FOUR_C_THROW("No nodes in matching FSI interface. Empty FSI coupling condition?");
 
   // the fluid-ale coupling always matches
-  const Epetra_Map* fluidnodemap = fluid_field()->discretization()->node_row_map();
-  const Epetra_Map* alenodemap = ale_field()->discretization()->node_row_map();
+  const Core::LinAlg::Map* fluidnodemap = fluid_field()->discretization()->node_row_map();
+  const Core::LinAlg::Map* alenodemap = ale_field()->discretization()->node_row_map();
 
   coupfa.setup_coupling(*fluid_field()->discretization(), *ale_field()->discretization(),
       *fluidnodemap, *alenodemap, ndim);
@@ -145,18 +146,18 @@ void FSI::MonolithicNoNOX::newton()
   iter_ = 1;
 
   x_sum_ = Core::LinAlg::create_vector(*dof_row_map(), true);
-  x_sum_->PutScalar(0.0);
+  x_sum_->put_scalar(0.0);
 
   // incremental solution vector with length of all FSI dofs
   iterinc_ = Core::LinAlg::create_vector(*dof_row_map(), true);
-  iterinc_->PutScalar(0.0);
+  iterinc_->put_scalar(0.0);
 
   zeros_ = Core::LinAlg::create_vector(*dof_row_map(), true);
-  zeros_->PutScalar(0.0);
+  zeros_->put_scalar(0.0);
 
   // residual vector with length of all FSI dofs
   rhs_ = Core::LinAlg::create_vector(*dof_row_map(), true);
-  rhs_->PutScalar(0.0);
+  rhs_->put_scalar(0.0);
 
   firstcall_ = true;
 
@@ -294,7 +295,7 @@ void FSI::MonolithicNoNOX::linear_solve()
   if (firstcall_)
     initial_guess(iterinc_);
   else
-    iterinc_->PutScalar(0.0);
+    iterinc_->put_scalar(0.0);
 
   Core::LinAlg::apply_dirichlet_to_system(*sparse, *iterinc_, *rhs_, *zeros_, *combined_dbc_map());
 
@@ -324,7 +325,8 @@ void FSI::MonolithicNoNOX::evaluate(const Core::LinAlg::Vector<double>& step_inc
 
   // Save the inner fluid map that includes the background fluid DOF in order to
   // determine a change.
-  const Epetra_BlockMap fluidincrementmap = extractor().extract_vector(step_increment, 1)->Map();
+  const Epetra_BlockMap fluidincrementmap =
+      extractor().extract_vector(step_increment, 1)->get_block_map();
 
   if (not firstcall_)
   {
@@ -338,7 +340,7 @@ void FSI::MonolithicNoNOX::evaluate(const Core::LinAlg::Vector<double>& step_inc
     // The update of the latest increment with step increment:
     // x^n+1_i+1 = x^n     + stepinc
 
-    x_sum_->Update(1.0, step_increment, 1.0);
+    x_sum_->update(1.0, step_increment, 1.0);
 
     extract_field_vectors(x_sum_, sx, fx, ax);
 
@@ -377,9 +379,9 @@ void FSI::MonolithicNoNOX::evaluate(const Core::LinAlg::Vector<double>& step_inc
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
 void FSI::MonolithicNoNOX::set_dof_row_maps(
-    const std::vector<std::shared_ptr<const Epetra_Map>>& maps)
+    const std::vector<std::shared_ptr<const Core::LinAlg::Map>>& maps)
 {
-  std::shared_ptr<Epetra_Map> fullmap = Core::LinAlg::MultiMapExtractor::merge_maps(maps);
+  std::shared_ptr<Core::LinAlg::Map> fullmap = Core::LinAlg::MultiMapExtractor::merge_maps(maps);
   blockrowdofmap_.setup(*fullmap, maps);
 }
 

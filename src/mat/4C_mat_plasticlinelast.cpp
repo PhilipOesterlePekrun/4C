@@ -10,7 +10,7 @@
 #include "4C_comm_pack_helpers.hpp"
 #include "4C_global_data.hpp"
 #include "4C_mat_par_bundle.hpp"
-#include "4C_tsi_defines.hpp"
+#include "4C_utils_enum.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -132,7 +132,7 @@ void Mat::PlasticLinElast::unpack(Core::Communication::UnpackBuffer& buffer)
       if (mat->type() == material_type())
         params_ = static_cast<Mat::PAR::PlasticLinElast*>(mat);
       else
-        FOUR_C_THROW("Type of parameter material %d does not fit to calling type %d", mat->type(),
+        FOUR_C_THROW("Type of parameter material {} does not fit to calling type {}", mat->type(),
             material_type());
     }
 
@@ -156,7 +156,7 @@ void Mat::PlasticLinElast::unpack(Core::Communication::UnpackBuffer& buffer)
 
   for (int var = 0; var < histsize; ++var)
   {
-    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> tmp_vect(true);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> tmp_vect(Core::LinAlg::Initialization::zero);
     double tmp_scalar = 0.0;
     // vectors of last converged state are unpacked
     extract_from_pack(buffer, tmp_vect);
@@ -194,7 +194,7 @@ void Mat::PlasticLinElast::setup(int numgp, const Core::IO::InputParameterContai
   strainbarpllast_ = std::make_shared<std::vector<double>>();
   strainbarplcurr_ = std::make_shared<std::vector<double>>();
 
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> emptyvect(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> emptyvect(Core::LinAlg::Initialization::zero);
   strainpllast_->resize(numgp);
   strainplcurr_->resize(numgp);
 
@@ -247,7 +247,7 @@ void Mat::PlasticLinElast::update()
 
   strainbarplcurr_->resize(histsize);
 
-  const Core::LinAlg::Matrix<NUM_STRESS_3D, 1> emptyvec(true);
+  const Core::LinAlg::Matrix<NUM_STRESS_3D, 1> emptyvec(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < histsize; i++)
   {
     strainplcurr_->at(i) = emptyvec;
@@ -268,7 +268,7 @@ void Mat::PlasticLinElast::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
     Core::LinAlg::Matrix<6, 1>* stress, Core::LinAlg::Matrix<6, 6>* cmat, const int gp,
     const int eleGID)
 {
-  Core::LinAlg::Matrix<Mat::NUM_STRESS_3D, 1> plstrain(true);
+  Core::LinAlg::Matrix<Mat::NUM_STRESS_3D, 1> plstrain(Core::LinAlg::Initialization::zero);
 
   // get material parameters
   // Young's modulus
@@ -292,7 +292,7 @@ void Mat::PlasticLinElast::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
   kappa = young / (3.0 * (1.0 - 2.0 * nu));
 
   // build Cartesian identity 2-tensor I_{AB}
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> id2(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> id2(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; i++) id2(i) = 1.0;
 
   // linstrain (in): independent variable passed from the element
@@ -309,7 +309,7 @@ void Mat::PlasticLinElast::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
   // ------------------------------------------------ old plastic strains
   // strain^{p,trial}_{n+1} = strain^p_n
   // accumulated/equivalent plastic strain
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> strain_p(false);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> strain_p(Core::LinAlg::Initialization::uninitialized);
   for (int i = 0; i < 6; i++) strain_p(i, 0) = strainpllast_->at(gp)(i, 0);
 
   // get old equivalent plastic strain only in case of plastic step
@@ -322,7 +322,7 @@ void Mat::PlasticLinElast::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
 
   // ---------------------------------------------------- old back stress
   // beta^{trial}_{n+1} = beta_n
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> beta(false);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> beta(Core::LinAlg::Initialization::uninitialized);
   for (int i = 0; i < 6; i++) beta(i, 0) = backstresslast_->at(gp)(i, 0);
 
   // ----------------------------------------------- physical strains
@@ -336,22 +336,23 @@ void Mat::PlasticLinElast::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
   // ----------------------------------------------- elastic trial strain
   // assume load step is elastic
   // strain^e_{n+1}
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> strain_e(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> strain_e(Core::LinAlg::Initialization::zero);
 
   // strain^{e,trial}_{n+1} = strain_{n+1} - strain^p_n
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> trialstrain_e(false);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> trialstrain_e(Core::LinAlg::Initialization::uninitialized);
   trialstrain_e.update(1.0, strain, (-1.0), strain_p);
 
   // volumetric strain
   // trace of strain vector
   double tracestrain = trialstrain_e(0) + trialstrain_e(1) + trialstrain_e(2);
   // volstrain = 1/3 . tr( strain ) . Id
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> volumetricstrain(false);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> volumetricstrain(
+      Core::LinAlg::Initialization::uninitialized);
   volumetricstrain.update((tracestrain / 3.0), id2);
 
   // deviatoric strain
   // devstrain^e = strain^e - volstrain^e
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstrain(false);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstrain(Core::LinAlg::Initialization::uninitialized);
   devstrain.update(1.0, trialstrain_e, (-1.0), volumetricstrain);
 
   // ------------------------------------------------------- trial stress
@@ -360,7 +361,7 @@ void Mat::PlasticLinElast::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
   double p = kappa * tracestrain;
 
   // deviatoric stress = 2 . G . devstrain
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstress(false);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstress(Core::LinAlg::Initialization::uninitialized);
   devstress.update((2.0 * G), devstrain);
   // be careful for shear stresses (sigma_12)
   // in Voigt-notation the shear strains have to be scaled with 1/2
@@ -368,7 +369,7 @@ void Mat::PlasticLinElast::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
 
   // ------------------------------------------ relative effective stress
   // eta^{trial}_{n+1} = s^{trial}_{n+1} - beta^{trial}_{n+1}
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> eta(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> eta(Core::LinAlg::Initialization::zero);
   rel_stress(devstress, beta, eta);
 
   // J2 = 1/2 ( (eta11^{trial})^2 + (eta22^{trial})^2 + (eta33^{trial})^2
@@ -416,12 +417,12 @@ void Mat::PlasticLinElast::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
   // unit flow vector Nbar (Prandtl-Reuss)
   // (using the updated relative stress eta_{n+1}, no longer eta_{n+1}^trial)
   // Nbar = ( eta^{trial}_{n+1} / || eta^{trial}_{n+1} || )
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> Nbar(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> Nbar(Core::LinAlg::Initialization::zero);
 
   // flow vector N (Prandtl-Reuss)
   // (using the updated deviatoric stress eta_{n+1}, no longer eta^{trial}_{n+1})
   // N = sqrt{3/2} . Nbar = sqrt{3/2} . ( eta_{n+1} / || eta_{n+1} || )
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> N(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> N(Core::LinAlg::Initialization::zero);
 
   //-------------------------------------------------------------------
   // IF consistency condition is violated, i.e. plastic load step
@@ -467,7 +468,8 @@ void Mat::PlasticLinElast::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
       // if not converged and (m > m_max)
       if (itnum > itermax)
       {
-        FOUR_C_THROW("local Newton iteration did not converge after iteration %3d/%3d with Res=%3f",
+        FOUR_C_THROW(
+            "local Newton iteration did not converge after iteration {:3d}/{:3d} with Res={:3f}",
             itnum, itermax, Res);
       }
       // else: continue loop (m <= m_max)
@@ -488,11 +490,6 @@ void Mat::PlasticLinElast::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
       // check: absolute value of Res has to be smaller than given tolerance
       if (norm < (params_->abstol_))
       {
-#ifdef DEBUGMATERIAL
-        if (gp == 0)
-          printf(
-              "Newton method converged after %i iterations; abs(Res)=  %-14.8E\n", itnum, abs(Res));
-#endif
         break;
       }
 
@@ -524,16 +521,6 @@ void Mat::PlasticLinElast::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
       // sigma = sigma_y0 + Hiso . astrain^{p}_{n+1}
       sigma_y = sigma_y0 + Hiso * strainbar_p;
 
-#ifdef DEBUGMATERIAL
-      if (gp == 0)
-      {
-        std::cout << "am 1.GP: local Newton: Res " << Res << std::endl;
-        std::cout << "local Newton: ResTan " << ResTan << std::endl;
-        std::cout << "local Newton: Dgamma " << Dgamma << std::endl;
-        std::cout << "local Newton: betabarold " << betabarold << std::endl;
-        std::cout << "local Newton: betabar " << betabar << "\n" << std::endl;
-      }
-#endif  // #ifdef DEBUGMATERIAL
 
     }  // end of local Newton iteration
 
@@ -600,10 +587,6 @@ void Mat::PlasticLinElast::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
     // back stress
     backstresscurr_->at(gp) = beta;
 
-#ifdef DEBUGMATERIAL
-    std::cout << "end strain_p\n " << strain_p << std::endl;
-    std::cout << "end strainplcurr_->at(gp)\n " << strainplcurr_->at(gp) << std::endl;
-#endif  // ifdef DEBUGMATERIAL
 
   }  // plastic corrector
 
@@ -647,23 +630,6 @@ void Mat::PlasticLinElast::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
     strainbarplcurr_->at(gp) = strainbarpllast_->at(gp);
     backstresscurr_->at(gp) = backstresslast_->at(gp);
 
-#ifdef DEBUGMATERIAL
-    if (gp == 0)
-    {
-      std::cout << "LAST values\nelastic load: strainbarpllast_->at(gp) = "
-                << strainbarpllast_->at(gp) << std::endl;
-      std::cout << "elastic load: strainpllast->at(gp)\n " << strainpllast_->at(gp) << std::endl;
-      std::cout << "elastic load: backstresslast_->at(gp)\n " << backstresslast_->at(gp)
-                << std::endl;
-      std::cout << "CURRENT values\n elastic load: strainbar_p = " << strainbar_p << std::endl;
-      std::cout << "CURRENT values\nelastic load: strainbarplcurr_->at(gp) = "
-                << strainbarplcurr_->at(gp) << std::endl;
-      std::cout << "elastic load: strain_p\n " << strain_p << std::endl;
-      std::cout << "elastic load: strainplcurr_->at(gp)\n " << strainplcurr_->at(gp) << std::endl;
-      std::cout << "elastic load: backstresscurr_->at(gp)\n " << backstresscurr_->at(gp)
-                << std::endl;
-    }
-#endif  // DEBUGMATERIAL
 
   }  // elastic step
 
@@ -683,47 +649,6 @@ void Mat::PlasticLinElast::evaluate(const Core::LinAlg::Matrix<3, 3>* defgrd,
   // using an associative flow rule: C_ep is symmetric
   // ( generally C_ep is nonsymmetric )
   setup_cmat_elasto_plastic(*cmat, Dgamma, G, qbar, Nbar, heaviside, Hiso, Hkin);
-
-#ifdef DEBUGMATERIAL
-  std::cout << "Nach Setup Cep\n" << std::endl;
-  std::cout << " Dgamma " << Dgamma << std::endl;
-  std::cout << " G " << G << std::endl;
-  std::cout << " qbar " << qbar << std::endl;
-  std::cout << " unit flow vector" << Nbar << std::endl;
-  std::cout << " heaviside " << heaviside << std::endl;
-  std::cout << " Kinematic hardening module " << Hkin << std::endl;
-
-  // build the elasto-plastic tangent modulus
-  Core::LinAlg::Matrix<NUM_STRESS_3D, NUM_STRESS_3D> cmatFD(true);
-
-  // build a finite difference check
-  fd_check(*stress,   // updated stress sigma_n+1
-      cmatFD,         // material tangent calculated with FD of stresses
-      beta,           // updated back stresses
-      p,              // volumetric stress
-      trialstrain_e,  // elastic strain vector
-      Dgamma,         // plastic multiplier
-      G,              // shear modulus
-      qbar,           // elastic trial von Mises effective stress
-      kappa,          // bulk modulus
-      Nbar,           //  flow vector
-      heaviside       // Heaviside function
-  );
-
-  std::cout << "cmat " << *cmat << std::endl;
-  std::cout << "cmatFD " << cmatFD << std::endl;
-//  // error: cmat - cmatFD
-//  Core::LinAlg::Matrix<NUM_STRESS_3D,NUM_STRESS_3D> cmatdiff;
-//  cmatdiff.update(1.0, cmat, 0.0);
-//  cmatdiff.update(-1.0, cmatFD, 1.0);
-//  std::cout << "error between two material tangents" << cmatdiff << std::endl;
-//  printf("c_11 %+12.5e   ",cmat(0,0)-cmatFD(0,0));
-//  printf("c_12 %+12.5e   ",cmat(0,1)-cmatFD(0,1));
-//  printf("cmat_11 %12.8f\n   ",cmat(0,0));
-//  printf("cmatFD_11 %12.8f\n   ",cmatFD(0,0));
-//  printf("error c_11 %12.8f\n   ",cmat(0,0)-cmatFD(0,0));
-//  printf("error c_12 %12.5f\n   ",cmat(0,1)-cmatFD(0,1));
-#endif  // #ifdef DEBUGMATERIAL
 
   // ------------------------- return plastic strains for post-processing
   // plastic strain
@@ -854,14 +779,14 @@ void Mat::PlasticLinElast::setup_cmat_elasto_plastic(
   //
 
   // build Cartesian identity 2-tensor I_{AB}
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> id2(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> id2(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; i++) id2(i) = 1.0;
 
   // set Cartesian identity 4-tensor in 6-Voigt matrix notation
   // this is fully 'contra-variant' identity tensor, ie I^{ABCD}
   // REMARK: rows are stress-like 6-Voigt
   //         columns are stress-like 6-Voigt
-  Core::LinAlg::Matrix<NUM_STRESS_3D, NUM_STRESS_3D> id4sharp(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, NUM_STRESS_3D> id4sharp(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; i++) id4sharp(i, i) = 1.0;
   for (int i = 3; i < 6; i++) id4sharp(i, i) = 0.5;
 
@@ -914,21 +839,6 @@ void Mat::PlasticLinElast::setup_cmat_elasto_plastic(
 
   // complete material tangent C_ep available
 
-#ifdef DEBUGMATERIAL
-  if (Dgamma != 0)
-  {
-    std::cout << "End SetupCmatElastPlast" << std::endl;
-    std::cout << "Cep\n"
-              << " Dgamma " << Dgamma << std::endl;
-    std::cout << " G " << G << std::endl;
-    std::cout << " q " << q << std::endl;
-    std::cout << " Nbar " << Nbar << std::endl;
-    std::cout << " heaviside " << heaviside << std::endl;
-    std::cout << " epfac " << epfac << std::endl;
-    std::cout << " epfac1 " << epfac1 << std::endl;
-    std::cout << " cmat " << cmat << std::endl;
-  }
-#endif  // #ifdef DEBUGMATERIAL
 
 }  // setup_cmat_elasto_plastic()
 
@@ -961,15 +871,15 @@ void Mat::PlasticLinElast::fd_check(
 
   // alloc the matrix that will store the perturbed values
   // strain matrices
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> disturbdevstrain(true);
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> disturbstrain(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> disturbdevstrain(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> disturbstrain(Core::LinAlg::Initialization::zero);
   // initialise disturbed deviatoric stresses
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devdisturbstress(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devdisturbstress(Core::LinAlg::Initialization::zero);
   // initialise disturbed total stresses
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> disturbstress(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> disturbstress(Core::LinAlg::Initialization::zero);
 
   // second order identity
-  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> id2(true);
+  Core::LinAlg::Matrix<NUM_STRESS_3D, 1> id2(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; i++) id2(i) = 1.0;
 
   // copy original strain to the storage matrix
@@ -1008,12 +918,12 @@ void Mat::PlasticLinElast::fd_check(
     // trace of strain vector
     double tracestrain = (disturbstrain(0) + disturbstrain(1) + disturbstrain(2));
     // volstrain = 1/3 . tr( strain ) . Id
-    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> volumetricstrain(true);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> volumetricstrain(Core::LinAlg::Initialization::zero);
     volumetricstrain.update((tracestrain / 3.0), id2);
 
     // deviatoric strain
     // dev = strain - volstrain
-    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstrain(false);
+    Core::LinAlg::Matrix<NUM_STRESS_3D, 1> devstrain(Core::LinAlg::Initialization::uninitialized);
     devstrain.update(1.0, disturbstrain, (-1.0), volumetricstrain);
 
     // ----------------------------------------------------------- stress
@@ -1058,21 +968,6 @@ void Mat::PlasticLinElast::fd_check(
     }
   }  // loop stresses
 
-#ifdef DEBUGMATERIAL
-  std::cout << "devdisturbstress\n " << devdisturbstress << std::endl;
-  std::cout << "disturbstress\n " << disturbstress << std::endl;
-  std::cout << "stress\n " << stress << std::endl;
-  std::cout << "  strain\n " << strain << std::endl;
-  std::cout << "  disturbstrain\n " << disturbstrain << std::endl;
-  for (int i = 0; i < NUM_STRESS_3D; ++i)
-  {
-    std::cout << "  Difference between strains at position " << i << " "
-              << strain(i) - disturbstrain(i) << std::endl;
-    std::cout << "  Difference between stresses at position " << i << " "
-              << stress(i) - disturbstress(i) << std::endl;
-  }
-  std::cout << "end of fd_check!!\n\n\n" << std::endl;
-#endif
 
   return;
 

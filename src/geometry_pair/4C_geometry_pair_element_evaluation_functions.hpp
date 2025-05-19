@@ -17,7 +17,7 @@
 
 FOUR_C_NAMESPACE_OPEN
 
-namespace GEOMETRYPAIR
+namespace GeometryPair
 {
   /**
    * \brief Evaluate the field function in the element
@@ -27,7 +27,8 @@ namespace GEOMETRYPAIR
       Core::LinAlg::Matrix<ElementType::spatial_dim_, 1, ScalarType>& r)
   {
     // Matrix for shape function values
-    Core::LinAlg::Matrix<1, ElementType::n_nodes_ * ElementType::n_val_, ScalarType> N(true);
+    Core::LinAlg::Matrix<1, ElementType::n_nodes_ * ElementType::n_val_, ScalarType> N(
+        Core::LinAlg::Initialization::zero);
 
     // Evaluate the shape function values
     EvaluateShapeFunction<ElementType>::evaluate(N, xi, element_data.shape_function_data_);
@@ -54,7 +55,7 @@ namespace GEOMETRYPAIR
     // Matrix for shape function values
     Core::LinAlg::Matrix<ElementType::element_dim_, ElementType::n_nodes_ * ElementType::n_val_,
         ScalarType>
-        dN(true);
+        dN(Core::LinAlg::Initialization::zero);
 
     // Evaluate the shape function values
     EvaluateShapeFunction<ElementType>::evaluate_deriv1(dN, xi, element_data.shape_function_data_);
@@ -87,7 +88,7 @@ namespace GEOMETRYPAIR
     Core::LinAlg::Matrix<3, 2, ScalarTypeResult> dr;
     Core::LinAlg::Matrix<3, 1, ScalarTypeResult> dr_0;
     Core::LinAlg::Matrix<3, 1, ScalarTypeResult> dr_1;
-    GEOMETRYPAIR::evaluate_position_derivative1<Surface>(xi, element_data_surface, dr);
+    GeometryPair::evaluate_position_derivative1<Surface>(xi, element_data_surface, dr);
     for (unsigned int i_dir = 0; i_dir < 3; i_dir++)
     {
       dr_0(i_dir) = dr(i_dir, 0);
@@ -122,7 +123,8 @@ namespace GEOMETRYPAIR
           "one value per node and dimension");
 
       // Calculate the normal as a interpolation of nodal normals
-      Core::LinAlg::Matrix<1, Surface::n_nodes_, typename T::scalar_type> N(true);
+      Core::LinAlg::Matrix<1, Surface::n_nodes_, typename T::scalar_type> N(
+          Core::LinAlg::Initialization::zero);
       EvaluateShapeFunction<Surface>::evaluate(N, xi, element_data_surface.shape_function_data_);
       normal.clear();
       for (unsigned int node = 0; node < Surface::n_nodes_; node++)
@@ -157,7 +159,7 @@ namespace GEOMETRYPAIR
     evaluate_surface_normal<Surface>(xi, element_data_surface, normal);
 
     // Evaluate the position on the surface
-    GEOMETRYPAIR::evaluate_position<Surface>(xi, element_data_surface, r);
+    GeometryPair::evaluate_position<Surface>(xi, element_data_surface, r);
 
     // Add the normal part to the position
     normal.scale(xi(2));
@@ -183,7 +185,7 @@ namespace GEOMETRYPAIR
     if (std::abs(tangent(2)) > Constants::pos_tol)
       FOUR_C_THROW(
           "EvaluateTriadAtPlaneCurve: The tangent vector can not have a component in z direction! "
-          "The component is %f!",
+          "The component is {}!",
           Core::FADUtils::cast_to_double(tangent(2)));
 
     // Create the director vectors in the cross-section
@@ -210,7 +212,7 @@ namespace GEOMETRYPAIR
    */
   template <typename Volume, typename ScalarType>
   void evaluate_jacobian(const Core::LinAlg::Matrix<3, 1, ScalarType>& xi,
-      const GEOMETRYPAIR::ElementData<Volume, double>& X_volume,
+      const GeometryPair::ElementData<Volume, double>& X_volume,
       Core::LinAlg::Matrix<3, 3, ScalarType>& J)
   {
     // Check at compile time if a volume (3D) element is given
@@ -219,7 +221,7 @@ namespace GEOMETRYPAIR
 
     // Get the derivatives of the reference position w.r.t the parameter coordinates. This is the
     // transposed Jacobi matrix.
-    Core::LinAlg::Matrix<3, 3, ScalarType> dXdxi(true);
+    Core::LinAlg::Matrix<3, 3, ScalarType> dXdxi(Core::LinAlg::Initialization::zero);
     evaluate_position_derivative1<Volume>(xi, X_volume, dXdxi);
     J.clear();
     J.update_t(dXdxi);
@@ -231,8 +233,8 @@ namespace GEOMETRYPAIR
   template <typename Volume, typename ScalarTypeXi, typename ScalarTypeDof,
       typename ScalarTypeResult>
   void evaluate_deformation_gradient(const Core::LinAlg::Matrix<3, 1, ScalarTypeXi>& xi,
-      const GEOMETRYPAIR::ElementData<Volume, double>& X_volume,
-      const GEOMETRYPAIR::ElementData<Volume, ScalarTypeDof>& q_volume,
+      const GeometryPair::ElementData<Volume, double>& X_volume,
+      const GeometryPair::ElementData<Volume, ScalarTypeDof>& q_volume,
       Core::LinAlg::Matrix<3, 3, ScalarTypeResult>& F)
   {
     // Check at compile time if a volume (3D) element is given
@@ -240,19 +242,19 @@ namespace GEOMETRYPAIR
         "EvaluateDeformationGradient can only be called for 3D elements!");
 
     // Get the inverse of the Jacobian
-    Core::LinAlg::Matrix<3, 3, ScalarTypeXi> inv_J(true);
+    Core::LinAlg::Matrix<3, 3, ScalarTypeXi> inv_J(Core::LinAlg::Initialization::zero);
     evaluate_jacobian<Volume>(xi, X_volume, inv_J);
     Core::LinAlg::inverse(inv_J);
 
     // Get the derivatives of the shape functions w.r.t to the parameter coordinates
     Core::LinAlg::Matrix<Volume::element_dim_, Volume::n_nodes_ * Volume::n_val_, ScalarTypeXi>
-        dNdxi(true);
-    GEOMETRYPAIR::EvaluateShapeFunction<Volume>::evaluate_deriv1(
+        dNdxi(Core::LinAlg::Initialization::zero);
+    GeometryPair::EvaluateShapeFunction<Volume>::evaluate_deriv1(
         dNdxi, xi, q_volume.shape_function_data_);
 
     // Transform to derivatives w.r.t physical coordinates
     Core::LinAlg::Matrix<Volume::element_dim_, Volume::n_nodes_ * Volume::n_val_, ScalarTypeXi>
-        dNdX(true);
+        dNdX(Core::LinAlg::Initialization::zero);
     for (unsigned int i_row = 0; i_row < 3; i_row++)
       for (unsigned int i_col = 0; i_col < Volume::n_nodes_ * Volume::n_val_; i_col++)
         for (unsigned int i_sum = 0; i_sum < 3; i_sum++)
@@ -356,6 +358,13 @@ namespace GEOMETRYPAIR
           xi(0) + xi(1) + xi(2) < 1.0 + Constants::projection_xi_eta_tol)
         return true;
     }
+    else if (ElementType::geometry_type_ == DiscretizationTypeGeometry::wedge)
+    {
+      if (xi(0) > -Constants::projection_xi_eta_tol && xi(0) < xi_limit &&
+          xi(1) > -Constants::projection_xi_eta_tol && xi(1) < xi_limit - xi(0) &&
+          fabs(xi(2)) < xi_limit)
+        return true;
+    }
     else
     {
       FOUR_C_THROW("Wrong DiscretizationTypeGeometry given!");
@@ -387,7 +396,7 @@ namespace GEOMETRYPAIR
           "since we only want to call the templated versions. You are calling it with the "
           "DiscretizationTypeGeometry ";
       error_string += discretization_type_geometry_to_string(geometry_type);
-      FOUR_C_THROW(error_string.c_str());
+      FOUR_C_THROW("{}", error_string);
     }
   };
 
@@ -444,7 +453,7 @@ namespace GEOMETRYPAIR
     xi.put_scalar(0.0);
   }
 
-}  // namespace GEOMETRYPAIR
+}  // namespace GeometryPair
 
 
 FOUR_C_NAMESPACE_CLOSE

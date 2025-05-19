@@ -8,6 +8,7 @@
 #include "4C_solid_3D_ele_utils.hpp"
 
 #include "4C_fem_general_element.hpp"
+#include "4C_inpar_structure.hpp"
 #include "4C_io_input_parameter_container.hpp"
 #include "4C_linalg_fixedsizematrix_voigt_notation.hpp"
 #include "4C_linalg_utils_densematrix_eigen.hpp"
@@ -57,22 +58,23 @@ Core::LinAlg::Matrix<6, 1> Solid::Utils::green_lagrange_to_log_strain(
   Core::LinAlg::Matrix<3, 3> E_matrix;
   Core::LinAlg::Voigt::Strains::vector_to_matrix(gl, E_matrix);
 
-  Core::LinAlg::Matrix<3, 3> pr_strain(true);  // squared principal strains
-  Core::LinAlg::Matrix<3, 3> pr_dir(true);     // principal directions
+  Core::LinAlg::Matrix<3, 3> pr_strain(
+      Core::LinAlg::Initialization::zero);  // squared principal strains
+  Core::LinAlg::Matrix<3, 3> pr_dir(Core::LinAlg::Initialization::zero);  // principal directions
   Core::LinAlg::syev(E_matrix, pr_strain, pr_dir);
 
   // compute principal logarithmic strains
-  Core::LinAlg::Matrix<3, 3> pr_log_strain(true);
+  Core::LinAlg::Matrix<3, 3> pr_log_strain(Core::LinAlg::Initialization::zero);
   for (int i = 0; i < 3; ++i) pr_log_strain(i, i) = std::log(std::sqrt(2 * pr_strain(i, i) + 1.0));
 
   // create logarithmic strain matrix
-  Core::LinAlg::Matrix<3, 3> log_strain_matrix(true);
-  Core::LinAlg::Matrix<3, 3> VH(false);
+  Core::LinAlg::Matrix<3, 3> log_strain_matrix(Core::LinAlg::Initialization::zero);
+  Core::LinAlg::Matrix<3, 3> VH(Core::LinAlg::Initialization::uninitialized);
   VH.multiply_nn(pr_dir, pr_log_strain);
   log_strain_matrix.multiply_nt(VH, pr_dir);
 
   // convert to strain-like voigt notation
-  Core::LinAlg::Matrix<6, 1> log_strain_voigt(true);
+  Core::LinAlg::Matrix<6, 1> log_strain_voigt(Core::LinAlg::Initialization::zero);
   Core::LinAlg::Voigt::Strains::matrix_to_vector(log_strain_matrix, log_strain_voigt);
   return log_strain_voigt;
 }
@@ -84,75 +86,6 @@ int Solid::Utils::ReadElement::read_element_material(
   return material;
 }
 
-Inpar::Solid::KinemType Solid::Utils::ReadElement::read_element_kinematic_type(
-    const Core::IO::InputParameterContainer& container)
-{
-  auto kinem = container.get<std::string>("KINEM");
-
-  if (kinem == "nonlinear")
-    return Inpar::Solid::KinemType::nonlinearTotLag;
-  else if (kinem == "linear")
-    return Inpar::Solid::KinemType::linear;
-  else
-  {
-    FOUR_C_THROW("unknown kinematic type %s", kinem.c_str());
-    return Inpar::Solid::KinemType::vague;
-  }
-}
-
-Discret::Elements::ElementTechnology Solid::Utils::ReadElement::read_element_technology(
-    const Core::IO::InputParameterContainer& container)
-{
-  auto type = container.get_or<std::string>("TECH", "none");
-
-  if (type == "fbar")
-  {
-    return Discret::Elements::ElementTechnology::fbar;
-  }
-  else if (type == "eas_full")
-  {
-    return Discret::Elements::ElementTechnology::eas_full;
-  }
-  else if (type == "eas_mild")
-  {
-    return Discret::Elements::ElementTechnology::eas_mild;
-  }
-  else if (type == "shell_ans")
-  {
-    return Discret::Elements::ElementTechnology::shell_ans;
-  }
-  else if (type == "shell_eas")
-  {
-    return Discret::Elements::ElementTechnology::shell_eas;
-  }
-  else if (type == "shell_eas_ans")
-  {
-    return Discret::Elements::ElementTechnology::shell_eas_ans;
-  }
-  else if (type == "none")
-  {
-    return Discret::Elements::ElementTechnology::none;
-  }
-  else
-    FOUR_C_THROW("unrecognized element technology type %s", type.c_str());
-}
-
-Discret::Elements::PrestressTechnology Solid::Utils::ReadElement::read_prestress_technology(
-    const Core::IO::InputParameterContainer& container)
-{
-  auto type = container.get_or<std::string>("PRESTRESS_TECH", "none");
-
-  if (type == "none")
-  {
-    return Discret::Elements::PrestressTechnology::none;
-  }
-  else if (type == "mulf")
-  {
-    return Discret::Elements::PrestressTechnology::mulf;
-  }
-
-  FOUR_C_THROW("unrecognized prestress technology type %s", type.c_str());
-}
 
 Discret::Elements::SolidElementProperties Solid::Utils::ReadElement::read_solid_element_properties(
     const Core::IO::InputParameterContainer& container)
@@ -160,15 +93,15 @@ Discret::Elements::SolidElementProperties Solid::Utils::ReadElement::read_solid_
   Discret::Elements::SolidElementProperties solid_properties{};
 
   // element technology
-  solid_properties.element_technology =
-      Solid::Utils::ReadElement::read_element_technology(container);
+  solid_properties.element_technology = container.get_or<Discret::Elements::ElementTechnology>(
+      "TECH", Discret::Elements::ElementTechnology::none);
 
   // prestress technology
-  solid_properties.prestress_technology =
-      Solid::Utils::ReadElement::read_prestress_technology(container);
+  solid_properties.prestress_technology = container.get_or<Discret::Elements::PrestressTechnology>(
+      "PRESTRESS_TECH", Discret::Elements::PrestressTechnology::none);
 
   // kinematic type
-  solid_properties.kintype = Solid::Utils::ReadElement::read_element_kinematic_type(container);
+  solid_properties.kintype = container.get<Inpar::Solid::KinemType>("KINEM");
 
   return solid_properties;
 }

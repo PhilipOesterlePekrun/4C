@@ -50,7 +50,7 @@ namespace Cut
        *
        *  Call this method to get the pointgraph which fits to your problem dimension.
        *
-       *  \author hiermeier \date 11/16 */
+       *  */
       static PointGraph* create(Mesh& mesh, Element* element, Side* side,
           PointGraph::Location location, PointGraph::Strategy strategy);
 
@@ -113,12 +113,12 @@ namespace Cut
 
       /** empty constructor (for derived classes only)
        *
-       *  \author hiermeier \date 11/16 */
+       *  */
       PointGraph(unsigned dim) : graph_(create_graph(dim)) { /* intentionally left blank */ };
 
      public:
-      typedef std::vector<Cycle>::iterator facet_iterator;
-      typedef std::vector<std::vector<Cycle>>::iterator hole_iterator;
+      using facet_iterator = std::vector<Cycle>::iterator;
+      using hole_iterator = std::vector<std::vector<Cycle>>::iterator;
 
       PointGraph(Mesh& mesh, Element* element, Side* side, Location location, Strategy strategy);
 

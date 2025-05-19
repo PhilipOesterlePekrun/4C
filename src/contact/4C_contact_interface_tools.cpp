@@ -7,11 +7,11 @@
 
 #include "4C_contact_defines.hpp"
 #include "4C_contact_friction_node.hpp"
+#include "4C_contact_input.hpp"
 #include "4C_contact_integrator.hpp"
 #include "4C_contact_interface.hpp"
 #include "4C_contact_selfcontact_binarytree.hpp"
 #include "4C_global_data.hpp"
-#include "4C_inpar_contact.hpp"
 #include "4C_io_control.hpp"
 #include "4C_io_gmsh.hpp"
 #include "4C_linalg_utils_densematrix_communication.hpp"
@@ -23,962 +23,6 @@
 
 FOUR_C_NAMESPACE_OPEN
 
-/*----------------------------------------------------------------------*
- |  Visualize contact stuff with gmsh                         popp 08/08|
- *----------------------------------------------------------------------*/
-void CONTACT::Interface::visualize_gmsh(
-    const int step, const int iter, const std::string& file_name_only_prefix) const
-{
-  //**********************************************************************
-  // GMSH output of all interface elements
-  //**********************************************************************
-  // construct unique filename for gmsh output
-  // basic information
-  std::ostringstream filename;
-  filename << "o/gmsh_output/" << file_name_only_prefix << "_co_id";
-  if (id_ < 10)
-    filename << 0;
-  else if (id_ > 99)
-    FOUR_C_THROW("Gmsh output implemented for a maximum of 99 iterations");
-  filename << id_;
-
-  // construct unique filename for gmsh output
-  // first index = time step index
-  filename << "_step";
-  if (step < 10)
-    filename << 0 << 0 << 0 << 0;
-  else if (step < 100)
-    filename << 0 << 0 << 0;
-  else if (step < 1000)
-    filename << 0 << 0;
-  else if (step < 10000)
-    filename << 0;
-  else if (step > 99999)
-    FOUR_C_THROW("Gmsh output implemented for a maximum of 99.999 time steps");
-  filename << step;
-
-  // construct unique filename for gmsh output
-  // second index = Newton iteration index
-  filename << "_iter";
-  if (iter >= 0)
-  {
-    if (iter < 10)
-      filename << 0;
-    else if (iter > 99)
-      FOUR_C_THROW("Gmsh output implemented for a maximum of 99 iterations");
-    filename << iter;
-  }
-  else
-    filename << "XX";
-
-  // create three files (slave, master and whole interface)
-  std::ostringstream filenameslave;
-  std::ostringstream filenamemaster;
-  filenameslave << filename.str();
-  filenamemaster << filename.str();
-  filename << "_if.pos";
-  filenameslave << "_sl.pos";
-  filenamemaster << "_ma.pos";
-
-  // do output to file in c-style
-  FILE* fp = nullptr;
-  FILE* fps = nullptr;
-  FILE* fpm = nullptr;
-
-  //**********************************************************************
-  // Start GMSH output
-  //**********************************************************************
-  for (int proc = 0; proc < Core::Communication::num_mpi_ranks(get_comm()); ++proc)
-  {
-    if (proc == Core::Communication::my_mpi_rank(get_comm()))
-    {
-      // open files (overwrite if proc==0, else append)
-      if (proc == 0)
-      {
-        fp = fopen(filename.str().c_str(), "w");
-        fps = fopen(filenameslave.str().c_str(), "w");
-        fpm = fopen(filenamemaster.str().c_str(), "w");
-      }
-      else
-      {
-        fp = fopen(filename.str().c_str(), "a");
-        fps = fopen(filenameslave.str().c_str(), "a");
-        fpm = fopen(filenamemaster.str().c_str(), "a");
-      }
-
-      // write output to temporary std::ostringstream
-      std::ostringstream gmshfilecontent;
-      std::ostringstream gmshfilecontentslave;
-      std::ostringstream gmshfilecontentmaster;
-      if (proc == 0)
-      {
-        gmshfilecontent << "View \" Co-Id " << id_ << " Step " << step << " Iter " << iter
-                        << " Iface\" {" << std::endl;
-        gmshfilecontentslave << "View \" Co-Id " << id_ << " Step " << step << " Iter " << iter
-                             << " Slave\" {" << std::endl;
-        gmshfilecontentmaster << "View \" Co-Id " << id_ << " Step " << step << " Iter " << iter
-                              << " Master\" {" << std::endl;
-      }
-
-      //******************************************************************
-      // plot elements
-      //******************************************************************
-      for (int i = 0; i < idiscret_->num_my_row_elements(); ++i)
-      {
-        Mortar::Element* element = dynamic_cast<Mortar::Element*>(idiscret_->l_row_element(i));
-        int nnodes = element->num_node();
-        Core::LinAlg::SerialDenseMatrix coord(3, nnodes);
-        element->get_nodal_coords(coord);
-        double color = (double)element->owner();
-
-        // local center
-        double xi[2] = {0.0, 0.0};
-
-        // 2D linear case (2noded line elements)
-        if (element->shape() == Core::FE::CellType::line2)
-        {
-          if (element->is_slave())
-          {
-            gmshfilecontent << "SL(" << std::scientific << coord(0, 0) << "," << coord(1, 0) << ","
-                            << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1) << ","
-                            << coord(2, 1) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "};" << std::endl;
-            gmshfilecontentslave << "SL(" << std::scientific << coord(0, 0) << "," << coord(1, 0)
-                                 << "," << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1)
-                                 << "," << coord(2, 1) << ")";
-            gmshfilecontentslave << "{" << std::scientific << color << "," << color << "};"
-                                 << std::endl;
-          }
-          else
-          {
-            gmshfilecontent << "SL(" << std::scientific << coord(0, 0) << "," << coord(1, 0) << ","
-                            << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1) << ","
-                            << coord(2, 1) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "};" << std::endl;
-            gmshfilecontentmaster << "SL(" << std::scientific << coord(0, 0) << "," << coord(1, 0)
-                                  << "," << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1)
-                                  << "," << coord(2, 1) << ")";
-            gmshfilecontentmaster << "{" << std::scientific << color << "," << color << "};"
-                                  << std::endl;
-          }
-        }
-
-        // 2D quadratic case (3noded line elements)
-        if (element->shape() == Core::FE::CellType::line3)
-        {
-          if (element->is_slave())
-          {
-            gmshfilecontent << "SL2(" << std::scientific << coord(0, 0) << "," << coord(1, 0) << ","
-                            << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1) << ","
-                            << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2) << ","
-                            << coord(2, 2) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "};" << std::endl;
-            gmshfilecontentslave << "SL2(" << std::scientific << coord(0, 0) << "," << coord(1, 0)
-                                 << "," << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1)
-                                 << "," << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2)
-                                 << "," << coord(2, 2) << ")";
-            gmshfilecontentslave << "{" << std::scientific << color << "," << color << "," << color
-                                 << "};" << std::endl;
-          }
-          else
-          {
-            gmshfilecontent << "SL2(" << std::scientific << coord(0, 0) << "," << coord(1, 0) << ","
-                            << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1) << ","
-                            << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2) << ","
-                            << coord(2, 2) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "};" << std::endl;
-            gmshfilecontentmaster << "SL2(" << std::scientific << coord(0, 0) << "," << coord(1, 0)
-                                  << "," << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1)
-                                  << "," << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2)
-                                  << "," << coord(2, 2) << ")";
-            gmshfilecontentmaster << "{" << std::scientific << color << "," << color << "," << color
-                                  << "};" << std::endl;
-          }
-        }
-
-        // 3D linear case (3noded triangular elements)
-        if (element->shape() == Core::FE::CellType::tri3)
-        {
-          if (element->is_slave())
-          {
-            gmshfilecontent << "ST(" << std::scientific << coord(0, 0) << "," << coord(1, 0) << ","
-                            << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1) << ","
-                            << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2) << ","
-                            << coord(2, 2) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "};" << std::endl;
-            gmshfilecontentslave << "ST(" << std::scientific << coord(0, 0) << "," << coord(1, 0)
-                                 << "," << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1)
-                                 << "," << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2)
-                                 << "," << coord(2, 2) << ")";
-            gmshfilecontentslave << "{" << std::scientific << color << "," << color << "," << color
-                                 << "};" << std::endl;
-          }
-          else
-          {
-            gmshfilecontent << "ST(" << std::scientific << coord(0, 0) << "," << coord(1, 0) << ","
-                            << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1) << ","
-                            << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2) << ","
-                            << coord(2, 2) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "};" << std::endl;
-            gmshfilecontentmaster << "ST(" << std::scientific << coord(0, 0) << "," << coord(1, 0)
-                                  << "," << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1)
-                                  << "," << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2)
-                                  << "," << coord(2, 2) << ")";
-            gmshfilecontentmaster << "{" << std::scientific << color << "," << color << "," << color
-                                  << "};" << std::endl;
-          }
-          xi[0] = 1.0 / 3;
-          xi[1] = 1.0 / 3;
-        }
-
-        // 3D bilinear case (4noded quadrilateral elements)
-        if (element->shape() == Core::FE::CellType::quad4)
-        {
-          if (element->is_slave())
-          {
-            gmshfilecontent << "SQ(" << std::scientific << coord(0, 0) << "," << coord(1, 0) << ","
-                            << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1) << ","
-                            << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2) << ","
-                            << coord(2, 2) << "," << coord(0, 3) << "," << coord(1, 3) << ","
-                            << coord(2, 3) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "," << color << "};" << std::endl;
-            gmshfilecontentslave << "SQ(" << std::scientific << coord(0, 0) << "," << coord(1, 0)
-                                 << "," << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1)
-                                 << "," << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2)
-                                 << "," << coord(2, 2) << "," << coord(0, 3) << "," << coord(1, 3)
-                                 << "," << coord(2, 3) << ")";
-            gmshfilecontentslave << "{" << std::scientific << color << "," << color << "," << color
-                                 << "," << color << "};" << std::endl;
-          }
-          else
-          {
-            gmshfilecontent << "SQ(" << std::scientific << coord(0, 0) << "," << coord(1, 0) << ","
-                            << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1) << ","
-                            << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2) << ","
-                            << coord(2, 2) << "," << coord(0, 3) << "," << coord(1, 3) << ","
-                            << coord(2, 3) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "," << color << "};" << std::endl;
-            gmshfilecontentmaster << "SQ(" << std::scientific << coord(0, 0) << "," << coord(1, 0)
-                                  << "," << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1)
-                                  << "," << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2)
-                                  << "," << coord(2, 2) << "," << coord(0, 3) << "," << coord(1, 3)
-                                  << "," << coord(2, 3) << ")";
-            gmshfilecontentmaster << "{" << std::scientific << color << "," << color << "," << color
-                                  << "," << color << "};" << std::endl;
-          }
-        }
-
-        // 3D quadratic case (6noded triangular elements)
-        if (element->shape() == Core::FE::CellType::tri6)
-        {
-          if (element->is_slave())
-          {
-            gmshfilecontent << "ST2(" << std::scientific << coord(0, 0) << "," << coord(1, 0) << ","
-                            << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1) << ","
-                            << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2) << ","
-                            << coord(2, 2) << "," << coord(0, 3) << "," << coord(1, 3) << ","
-                            << coord(2, 3) << "," << coord(0, 4) << "," << coord(1, 4) << ","
-                            << coord(2, 4) << "," << coord(0, 5) << "," << coord(1, 5) << ","
-                            << coord(2, 5) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "," << color << "," << color << "," << color << "};" << std::endl;
-            gmshfilecontentslave << "ST2(" << std::scientific << coord(0, 0) << "," << coord(1, 0)
-                                 << "," << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1)
-                                 << "," << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2)
-                                 << "," << coord(2, 2) << "," << coord(0, 3) << "," << coord(1, 3)
-                                 << "," << coord(2, 3) << "," << coord(0, 4) << "," << coord(1, 4)
-                                 << "," << coord(2, 4) << "," << coord(0, 5) << "," << coord(1, 5)
-                                 << "," << coord(2, 5) << ")";
-            gmshfilecontentslave << "{" << std::scientific << color << "," << color << "," << color
-                                 << "," << color << "," << color << "," << color << "};"
-                                 << std::endl;
-          }
-          else
-          {
-            gmshfilecontent << "ST2(" << std::scientific << coord(0, 0) << "," << coord(1, 0) << ","
-                            << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1) << ","
-                            << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2) << ","
-                            << coord(2, 2) << "," << coord(0, 3) << "," << coord(1, 3) << ","
-                            << coord(2, 3) << "," << coord(0, 4) << "," << coord(1, 4) << ","
-                            << coord(2, 4) << "," << coord(0, 5) << "," << coord(1, 5) << ","
-                            << coord(2, 5) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "," << color << "," << color << "," << color << "};" << std::endl;
-            gmshfilecontentmaster << "ST2(" << std::scientific << coord(0, 0) << "," << coord(1, 0)
-                                  << "," << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1)
-                                  << "," << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2)
-                                  << "," << coord(2, 2) << "," << coord(0, 3) << "," << coord(1, 3)
-                                  << "," << coord(2, 3) << "," << coord(0, 4) << "," << coord(1, 4)
-                                  << "," << coord(2, 4) << "," << coord(0, 5) << "," << coord(1, 5)
-                                  << "," << coord(2, 5) << ")";
-            gmshfilecontentmaster << "{" << std::scientific << color << "," << color << "," << color
-                                  << "," << color << "," << color << "," << color << "};"
-                                  << std::endl;
-          }
-          xi[0] = 1.0 / 3;
-          xi[1] = 1.0 / 3;
-        }
-
-        // 3D serendipity case (8noded quadrilateral elements)
-        if (element->shape() == Core::FE::CellType::quad8)
-        {
-          if (element->is_slave())
-          {
-            gmshfilecontent << "ST(" << std::scientific << coord(0, 0) << "," << coord(1, 0) << ","
-                            << coord(2, 0) << "," << coord(0, 4) << "," << coord(1, 4) << ","
-                            << coord(2, 4) << "," << coord(0, 7) << "," << coord(1, 7) << ","
-                            << coord(2, 7) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "};" << std::endl;
-            gmshfilecontent << "ST(" << std::scientific << coord(0, 1) << "," << coord(1, 1) << ","
-                            << coord(2, 1) << "," << coord(0, 5) << "," << coord(1, 5) << ","
-                            << coord(2, 5) << "," << coord(0, 4) << "," << coord(1, 4) << ","
-                            << coord(2, 4) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "};" << std::endl;
-            gmshfilecontent << "ST(" << std::scientific << coord(0, 2) << "," << coord(1, 2) << ","
-                            << coord(2, 2) << "," << coord(0, 6) << "," << coord(1, 6) << ","
-                            << coord(2, 6) << "," << coord(0, 5) << "," << coord(1, 5) << ","
-                            << coord(2, 5) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "};" << std::endl;
-            gmshfilecontent << "ST(" << std::scientific << coord(0, 3) << "," << coord(1, 3) << ","
-                            << coord(2, 3) << "," << coord(0, 7) << "," << coord(1, 7) << ","
-                            << coord(2, 7) << "," << coord(0, 6) << "," << coord(1, 6) << ","
-                            << coord(2, 6) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "};" << std::endl;
-            gmshfilecontent << "SQ(" << std::scientific << coord(0, 4) << "," << coord(1, 4) << ","
-                            << coord(2, 4) << "," << coord(0, 5) << "," << coord(1, 5) << ","
-                            << coord(2, 5) << "," << coord(0, 6) << "," << coord(1, 6) << ","
-                            << coord(2, 6) << "," << coord(0, 7) << "," << coord(1, 7) << ","
-                            << coord(2, 7) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "," << color << "};" << std::endl;
-            gmshfilecontentslave << "ST(" << std::scientific << coord(0, 0) << "," << coord(1, 0)
-                                 << "," << coord(2, 0) << "," << coord(0, 4) << "," << coord(1, 4)
-                                 << "," << coord(2, 4) << "," << coord(0, 7) << "," << coord(1, 7)
-                                 << "," << coord(2, 7) << ")";
-            gmshfilecontentslave << "{" << std::scientific << color << "," << color << "," << color
-                                 << "};" << std::endl;
-            gmshfilecontentslave << "ST(" << std::scientific << coord(0, 1) << "," << coord(1, 1)
-                                 << "," << coord(2, 1) << "," << coord(0, 5) << "," << coord(1, 5)
-                                 << "," << coord(2, 5) << "," << coord(0, 4) << "," << coord(1, 4)
-                                 << "," << coord(2, 4) << ")";
-            gmshfilecontentslave << "{" << std::scientific << color << "," << color << "," << color
-                                 << "};" << std::endl;
-            gmshfilecontentslave << "ST(" << std::scientific << coord(0, 2) << "," << coord(1, 2)
-                                 << "," << coord(2, 2) << "," << coord(0, 6) << "," << coord(1, 6)
-                                 << "," << coord(2, 6) << "," << coord(0, 5) << "," << coord(1, 5)
-                                 << "," << coord(2, 5) << ")";
-            gmshfilecontentslave << "{" << std::scientific << color << "," << color << "," << color
-                                 << "};" << std::endl;
-            gmshfilecontentslave << "ST(" << std::scientific << coord(0, 3) << "," << coord(1, 3)
-                                 << "," << coord(2, 3) << "," << coord(0, 7) << "," << coord(1, 7)
-                                 << "," << coord(2, 7) << "," << coord(0, 6) << "," << coord(1, 6)
-                                 << "," << coord(2, 6) << ")";
-            gmshfilecontentslave << "{" << std::scientific << color << "," << color << "," << color
-                                 << "};" << std::endl;
-            gmshfilecontentslave << "SQ(" << std::scientific << coord(0, 4) << "," << coord(1, 4)
-                                 << "," << coord(2, 4) << "," << coord(0, 5) << "," << coord(1, 5)
-                                 << "," << coord(2, 5) << "," << coord(0, 6) << "," << coord(1, 6)
-                                 << "," << coord(2, 6) << "," << coord(0, 7) << "," << coord(1, 7)
-                                 << "," << coord(2, 7) << ")";
-            gmshfilecontentslave << "{" << std::scientific << color << "," << color << "," << color
-                                 << "," << color << "};" << std::endl;
-          }
-          else
-          {
-            gmshfilecontent << "ST(" << std::scientific << coord(0, 0) << "," << coord(1, 0) << ","
-                            << coord(2, 0) << "," << coord(0, 4) << "," << coord(1, 4) << ","
-                            << coord(2, 4) << "," << coord(0, 7) << "," << coord(1, 7) << ","
-                            << coord(2, 7) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "};" << std::endl;
-            gmshfilecontent << "ST(" << std::scientific << coord(0, 1) << "," << coord(1, 1) << ","
-                            << coord(2, 1) << "," << coord(0, 5) << "," << coord(1, 5) << ","
-                            << coord(2, 5) << "," << coord(0, 4) << "," << coord(1, 4) << ","
-                            << coord(2, 4) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "};" << std::endl;
-            gmshfilecontent << "ST(" << std::scientific << coord(0, 2) << "," << coord(1, 2) << ","
-                            << coord(2, 2) << "," << coord(0, 6) << "," << coord(1, 6) << ","
-                            << coord(2, 6) << "," << coord(0, 5) << "," << coord(1, 5) << ","
-                            << coord(2, 5) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "};" << std::endl;
-            gmshfilecontent << "ST(" << std::scientific << coord(0, 3) << "," << coord(1, 3) << ","
-                            << coord(2, 3) << "," << coord(0, 7) << "," << coord(1, 7) << ","
-                            << coord(2, 7) << "," << coord(0, 6) << "," << coord(1, 6) << ","
-                            << coord(2, 6) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "};" << std::endl;
-            gmshfilecontent << "SQ(" << std::scientific << coord(0, 4) << "," << coord(1, 4) << ","
-                            << coord(2, 4) << "," << coord(0, 5) << "," << coord(1, 5) << ","
-                            << coord(2, 5) << "," << coord(0, 6) << "," << coord(1, 6) << ","
-                            << coord(2, 6) << "," << coord(0, 7) << "," << coord(1, 7) << ","
-                            << coord(2, 7) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "," << color << "};" << std::endl;
-            gmshfilecontentmaster << "ST(" << std::scientific << coord(0, 0) << "," << coord(1, 0)
-                                  << "," << coord(2, 0) << "," << coord(0, 4) << "," << coord(1, 4)
-                                  << "," << coord(2, 4) << "," << coord(0, 7) << "," << coord(1, 7)
-                                  << "," << coord(2, 7) << ")";
-            gmshfilecontentmaster << "{" << std::scientific << color << "," << color << "," << color
-                                  << "};" << std::endl;
-            gmshfilecontentmaster << "ST(" << std::scientific << coord(0, 1) << "," << coord(1, 1)
-                                  << "," << coord(2, 1) << "," << coord(0, 5) << "," << coord(1, 5)
-                                  << "," << coord(2, 5) << "," << coord(0, 4) << "," << coord(1, 4)
-                                  << "," << coord(2, 4) << ")";
-            gmshfilecontentmaster << "{" << std::scientific << color << "," << color << "," << color
-                                  << "};" << std::endl;
-            gmshfilecontentmaster << "ST(" << std::scientific << coord(0, 2) << "," << coord(1, 2)
-                                  << "," << coord(2, 2) << "," << coord(0, 6) << "," << coord(1, 6)
-                                  << "," << coord(2, 6) << "," << coord(0, 5) << "," << coord(1, 5)
-                                  << "," << coord(2, 5) << ")";
-            gmshfilecontentmaster << "{" << std::scientific << color << "," << color << "," << color
-                                  << "};" << std::endl;
-            gmshfilecontentmaster << "ST(" << std::scientific << coord(0, 3) << "," << coord(1, 3)
-                                  << "," << coord(2, 3) << "," << coord(0, 7) << "," << coord(1, 7)
-                                  << "," << coord(2, 7) << "," << coord(0, 6) << "," << coord(1, 6)
-                                  << "," << coord(2, 6) << ")";
-            gmshfilecontentmaster << "{" << std::scientific << color << "," << color << "," << color
-                                  << "};" << std::endl;
-            gmshfilecontentmaster << "SQ(" << std::scientific << coord(0, 4) << "," << coord(1, 4)
-                                  << "," << coord(2, 4) << "," << coord(0, 5) << "," << coord(1, 5)
-                                  << "," << coord(2, 5) << "," << coord(0, 6) << "," << coord(1, 6)
-                                  << "," << coord(2, 6) << "," << coord(0, 7) << "," << coord(1, 7)
-                                  << "," << coord(2, 7) << ")";
-            gmshfilecontentmaster << "{" << std::scientific << color << "," << color << "," << color
-                                  << "," << color << "};" << std::endl;
-          }
-        }
-
-        // 3D biquadratic case (9noded quadrilateral elements)
-        if (element->shape() == Core::FE::CellType::quad9)
-        {
-          if (element->is_slave())
-          {
-            gmshfilecontent << "SQ2(" << std::scientific << coord(0, 0) << "," << coord(1, 0) << ","
-                            << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1) << ","
-                            << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2) << ","
-                            << coord(2, 2) << "," << coord(0, 3) << "," << coord(1, 3) << ","
-                            << coord(2, 3) << "," << coord(0, 4) << "," << coord(1, 4) << ","
-                            << coord(2, 4) << "," << coord(0, 5) << "," << coord(1, 5) << ","
-                            << coord(2, 5) << "," << coord(0, 6) << "," << coord(1, 6) << ","
-                            << coord(2, 6) << "," << coord(0, 7) << "," << coord(1, 7) << ","
-                            << coord(2, 7) << "," << coord(0, 8) << "," << coord(1, 8) << ","
-                            << coord(2, 8) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "," << color << "," << color << "," << color << "," << color << ","
-                            << color << "," << color << "};" << std::endl;
-            gmshfilecontentslave << "SQ2(" << std::scientific << coord(0, 0) << "," << coord(1, 0)
-                                 << "," << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1)
-                                 << "," << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2)
-                                 << "," << coord(2, 2) << "," << coord(0, 3) << "," << coord(1, 3)
-                                 << "," << coord(2, 3) << "," << coord(0, 4) << "," << coord(1, 4)
-                                 << "," << coord(2, 4) << "," << coord(0, 5) << "," << coord(1, 5)
-                                 << "," << coord(2, 5) << "," << coord(0, 6) << "," << coord(1, 6)
-                                 << "," << coord(2, 6) << "," << coord(0, 7) << "," << coord(1, 7)
-                                 << "," << coord(2, 7) << "," << coord(0, 8) << "," << coord(1, 8)
-                                 << "," << coord(2, 8) << ")";
-            gmshfilecontentslave << "{" << std::scientific << color << "," << color << "," << color
-                                 << "," << color << "," << color << "," << color << "," << color
-                                 << "," << color << "," << color << "};" << std::endl;
-          }
-          else
-          {
-            gmshfilecontent << "SQ2(" << std::scientific << coord(0, 0) << "," << coord(1, 0) << ","
-                            << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1) << ","
-                            << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2) << ","
-                            << coord(2, 2) << "," << coord(0, 3) << "," << coord(1, 3) << ","
-                            << coord(2, 3) << "," << coord(0, 4) << "," << coord(1, 4) << ","
-                            << coord(2, 4) << "," << coord(0, 5) << "," << coord(1, 5) << ","
-                            << coord(2, 5) << "," << coord(0, 6) << "," << coord(1, 6) << ","
-                            << coord(2, 6) << "," << coord(0, 7) << "," << coord(1, 7) << ","
-                            << coord(2, 7) << "," << coord(0, 8) << "," << coord(1, 8) << ","
-                            << coord(2, 8) << ")";
-            gmshfilecontent << "{" << std::scientific << color << "," << color << "," << color
-                            << "," << color << "," << color << "," << color << "," << color << ","
-                            << color << "," << color << "};" << std::endl;
-            gmshfilecontentmaster << "SQ2(" << std::scientific << coord(0, 0) << "," << coord(1, 0)
-                                  << "," << coord(2, 0) << "," << coord(0, 1) << "," << coord(1, 1)
-                                  << "," << coord(2, 1) << "," << coord(0, 2) << "," << coord(1, 2)
-                                  << "," << coord(2, 2) << "," << coord(0, 3) << "," << coord(1, 3)
-                                  << "," << coord(2, 3) << "," << coord(0, 4) << "," << coord(1, 4)
-                                  << "," << coord(2, 4) << "," << coord(0, 5) << "," << coord(1, 5)
-                                  << "," << coord(2, 5) << "," << coord(0, 6) << "," << coord(1, 6)
-                                  << "," << coord(2, 6) << "," << coord(0, 7) << "," << coord(1, 7)
-                                  << "," << coord(2, 7) << "," << coord(0, 8) << "," << coord(1, 8)
-                                  << "," << coord(2, 8) << ")";
-            gmshfilecontentmaster << "{" << std::scientific << color << "," << color << "," << color
-                                  << "," << color << "," << color << "," << color << "," << color
-                                  << "," << color << "," << color << "};" << std::endl;
-          }
-        }
-
-        // plot element number in element center
-        double elec[3];
-        element->local_to_global(xi, elec, 0);
-
-        if (element->is_slave())
-        {
-          gmshfilecontent << "T3(" << std::scientific << elec[0] << "," << elec[1] << "," << elec[2]
-                          << "," << 17 << ")";
-          gmshfilecontent << "{\""
-                          << "S" << element->id() << "\"};" << std::endl;
-          gmshfilecontentslave << "T3(" << std::scientific << elec[0] << "," << elec[1] << ","
-                               << elec[2] << "," << 17 << ")";
-          gmshfilecontentslave << "{\""
-                               << "S" << element->id() << "\"};" << std::endl;
-        }
-        else
-        {
-          gmshfilecontent << "T3(" << std::scientific << elec[0] << "," << elec[1] << "," << elec[2]
-                          << "," << 17 << ")";
-          gmshfilecontent << "{\""
-                          << "M" << element->id() << "\"};" << std::endl;
-          gmshfilecontentmaster << "T3(" << std::scientific << elec[0] << "," << elec[1] << ","
-                                << elec[2] << "," << 17 << ")";
-          gmshfilecontentmaster << "{\""
-                                << "M" << element->id() << "\"};" << std::endl;
-        }
-
-        // plot node numbers at the nodes
-        for (int j = 0; j < nnodes; ++j)
-        {
-          if (element->is_slave())
-          {
-            gmshfilecontent << "T3(" << std::scientific << coord(0, j) << "," << coord(1, j) << ","
-                            << coord(2, j) << "," << 17 << ")";
-            gmshfilecontent << "{\""
-                            << "SN" << element->node_ids()[j] << "\"};" << std::endl;
-            gmshfilecontentslave << "T3(" << std::scientific << coord(0, j) << "," << coord(1, j)
-                                 << "," << coord(2, j) << "," << 17 << ")";
-            gmshfilecontentslave << "{\""
-                                 << "SN" << element->node_ids()[j] << "\"};" << std::endl;
-          }
-          else
-          {
-            gmshfilecontent << "T3(" << std::scientific << coord(0, j) << "," << coord(1, j) << ","
-                            << coord(2, j) << "," << 17 << ")";
-            gmshfilecontent << "{\""
-                            << "MN" << element->node_ids()[j] << "\"};" << std::endl;
-            gmshfilecontentmaster << "T3(" << std::scientific << coord(0, j) << "," << coord(1, j)
-                                  << "," << coord(2, j) << "," << 17 << ")";
-            gmshfilecontentmaster << "{\""
-                                  << "MN" << element->node_ids()[j] << "\"};" << std::endl;
-          }
-        }
-      }
-
-      //******************************************************************
-      // plot normal vector, tangent vectors and contact status
-      //******************************************************************
-      for (int i = 0; i < snoderowmap_->NumMyElements(); ++i)
-      {
-        int gid = snoderowmap_->GID(i);
-        Core::Nodes::Node* node = idiscret_->g_node(gid);
-        if (!node) FOUR_C_THROW("Cannot find node with gid %", gid);
-        Node* cnode = dynamic_cast<Node*>(node);
-        if (!cnode) FOUR_C_THROW("Static Cast to Node* failed");
-
-        double nc[3];
-        double nn[3];
-        double nt1[3];
-        double nt2[3];
-
-        for (int j = 0; j < 3; ++j)
-        {
-          nc[j] = cnode->xspatial()[j];
-          nn[j] = cnode->mo_data().n()[j];
-          nt1[j] = cnode->data().txi()[j];
-          nt2[j] = cnode->data().teta()[j];
-        }
-
-        //******************************************************************
-        // plot normal and tangent vectors
-        //******************************************************************
-        gmshfilecontentslave << "VP(" << std::scientific << nc[0] << "," << nc[1] << "," << nc[2]
-                             << ")";
-        gmshfilecontentslave << "{" << std::scientific << nn[0] << "," << nn[1] << "," << nn[2]
-                             << "};" << std::endl;
-
-        if (friction_)
-        {
-          gmshfilecontentslave << "VP(" << std::scientific << nc[0] << "," << nc[1] << "," << nc[2]
-                               << ")";
-          gmshfilecontentslave << "{" << std::scientific << nt1[0] << "," << nt1[1] << "," << nt1[2]
-                               << "};" << std::endl;
-          gmshfilecontentslave << "VP(" << std::scientific << nc[0] << "," << nc[1] << "," << nc[2]
-                               << ")";
-          gmshfilecontentslave << "{" << std::scientific << nt2[0] << "," << nt2[1] << "," << nt2[2]
-                               << "};" << std::endl;
-        }
-
-        //******************************************************************
-        // plot contact status of slave nodes (inactive, active, stick, slip)
-        //******************************************************************
-        // frictionless contact, active node = {A}
-        if (!friction_ && cnode->active())
-        {
-          gmshfilecontentslave << "T3(" << std::scientific << nc[0] << "," << nc[1] << "," << nc[2]
-                               << "," << 17 << ")";
-          gmshfilecontentslave << "{\""
-                               << "A"
-                               << "\"};" << std::endl;
-        }
-
-        // frictionless contact, inactive node = { }
-        else if (!friction_ && !cnode->active())
-        {
-          // do nothing
-        }
-
-        // frictional contact, slip node = {G}
-        else if (friction_ && cnode->active())
-        {
-          if (dynamic_cast<FriNode*>(cnode)->fri_data().slip())
-          {
-            gmshfilecontentslave << "T3(" << std::scientific << nc[0] << "," << nc[1] << ","
-                                 << nc[2] << "," << 17 << ")";
-            gmshfilecontentslave << "{\""
-                                 << "G"
-                                 << "\"};" << std::endl;
-          }
-          else
-          {
-            gmshfilecontentslave << "T3(" << std::scientific << nc[0] << "," << nc[1] << ","
-                                 << nc[2] << "," << 17 << ")";
-            gmshfilecontentslave << "{\""
-                                 << "H"
-                                 << "\"};" << std::endl;
-          }
-        }
-      }
-
-      // end GMSH output section in all files
-      if (proc == Core::Communication::num_mpi_ranks(get_comm()) - 1)
-      {
-        gmshfilecontent << "};" << std::endl;
-        gmshfilecontentslave << "};" << std::endl;
-        gmshfilecontentmaster << "};" << std::endl;
-      }
-
-      // move everything to gmsh post-processing files and close them
-      fputs(gmshfilecontent.str().c_str(), fp);
-      fputs(gmshfilecontentslave.str().c_str(), fps);
-      fputs(gmshfilecontentmaster.str().c_str(), fpm);
-      fclose(fp);
-      fclose(fps);
-      fclose(fpm);
-    }
-    Core::Communication::barrier(get_comm());
-  }
-
-
-  //**********************************************************************
-  // GMSH output of all treenodes (DOPs) on all layers
-  //**********************************************************************
-#ifdef MORTARGMSHTN
-  // get max. number of layers for every proc.
-  // (master elements are equal on each proc)
-  int lnslayers = binarytree_->Streenodesmap().size();
-  int gnmlayers = binarytree_->Mtreenodesmap().size();
-  int gnslayers = 0;
-  Core::Communication::max_all(&lnslayers, &gnslayers, 1, Comm());
-
-  // create files for visualization of slave dops for every layer
-  std::ostringstream filenametn;
-  filenametn << "o/gmsh_output/" << file_name_only_prefix << "_";
-
-  if (step < 10)
-    filenametn << 0 << 0 << 0 << 0;
-  else if (step < 100)
-    filenametn << 0 << 0 << 0;
-  else if (step < 1000)
-    filenametn << 0 << 0;
-  else if (step < 10000)
-    filenametn << 0;
-  else if (step > 99999)
-    FOUR_C_THROW("Gmsh output implemented for a maximum of 99.999 time steps");
-  filenametn << step;
-
-  // construct unique filename for gmsh output
-  // second index = Newton iteration index
-  if (iter >= 0)
-  {
-    filenametn << "_";
-    if (iter < 10)
-      filenametn << 0;
-    else if (iter > 99)
-      FOUR_C_THROW("Gmsh output implemented for a maximum of 99 iterations");
-    filenametn << iter;
-  }
-
-  if (Core::Communication::my_mpi_rank(Comm()) == 0)
-  {
-    for (int i = 0; i < gnslayers; i++)
-    {
-      std::ostringstream currentfilename;
-      currentfilename << filenametn.str().c_str() << "_s_tnlayer_" << i << ".pos";
-      // std::cout << std::endl << Core::Communication::my_mpi_rank(Comm())<< "filename: " <<
-      // currentfilename.str().c_str();
-      fp = fopen(currentfilename.str().c_str(), "w");
-      std::ostringstream gmshfile;
-      gmshfile << "View \" Step " << step << " Iter " << iter << " stl " << i << " \" {"
-               << std::endl;
-      fprintf(fp, gmshfile.str().c_str());
-      fclose(fp);
-    }
-  }
-
-  Core::Communication::barrier(Comm());
-
-  // for every proc, one after another, put data of slabs into files
-  for (int i = 0; i < Core::Communication::num_mpi_ranks(Comm()); i++)
-  {
-    if ((i == Core::Communication::my_mpi_rank(Comm())) && (binarytree_->Sroot()->Type() != 4))
-    {
-      // print full tree with treenodesmap
-      for (int j = 0; j < (int)binarytree_->Streenodesmap().size(); j++)
-      {
-        for (int k = 0; k < (int)binarytree_->Streenodesmap()[j].size(); k++)
-        {
-          // if proc !=0 and first treenode to plot->create new sheet in gmsh
-          if (i != 0 && k == 0)
-          {
-            // create new sheet "Treenode" in gmsh
-            std::ostringstream currentfilename;
-            currentfilename << filenametn.str().c_str() << "_s_tnlayer_" << j << ".pos";
-            fp = fopen(currentfilename.str().c_str(), "a");
-            std::ostringstream gmshfile;
-            gmshfile << "};" << std::endl << "View \" Treenode \" { " << std::endl;
-            fprintf(fp, gmshfile.str().c_str());
-            fclose(fp);
-          }
-          // std::cout << std::endl << "plot streenode level: " << j << "treenode: " << k;
-          std::ostringstream currentfilename;
-          currentfilename << filenametn.str().c_str() << "_s_tnlayer_" << j << ".pos";
-          binarytree_->Streenodesmap()[j][k]->PrintDopsForGmsh(currentfilename.str().c_str());
-
-          // if there is another treenode to plot
-          if (k < ((int)binarytree_->Streenodesmap()[j].size() - 1))
-          {
-            // create new sheet "Treenode" in gmsh
-            std::ostringstream currentfilename;
-            currentfilename << filenametn.str().c_str() << "_s_tnlayer_" << j << ".pos";
-            fp = fopen(currentfilename.str().c_str(), "a");
-            std::ostringstream gmshfile;
-            gmshfile << "};" << std::endl << "View \" Treenode \" { " << std::endl;
-            fprintf(fp, gmshfile.str().c_str());
-            fclose(fp);
-          }
-        }
-      }
-    }
-
-    Core::Communication::barrier(Comm());
-  }
-
-  Core::Communication::barrier(Comm());
-  // close all slave-gmsh files
-  if (Core::Communication::my_mpi_rank(Comm()) == 0)
-  {
-    for (int i = 0; i < gnslayers; i++)
-    {
-      std::ostringstream currentfilename;
-      currentfilename << filenametn.str().c_str() << "_s_tnlayer_" << i << ".pos";
-      // std::cout << std::endl << Core::Communication::my_mpi_rank(Comm())<< "current filename: "
-      // << currentfilename.str().c_str();
-      fp = fopen(currentfilename.str().c_str(), "a");
-      std::ostringstream gmshfilecontent;
-      gmshfilecontent << "};";
-      fprintf(fp, gmshfilecontent.str().c_str());
-      fclose(fp);
-    }
-  }
-  Core::Communication::barrier(Comm());
-
-  // create master slabs
-  if (Core::Communication::my_mpi_rank(Comm()) == 0)
-  {
-    for (int i = 0; i < gnmlayers; i++)
-    {
-      std::ostringstream currentfilename;
-      currentfilename << filenametn.str().c_str() << "_m_tnlayer_" << i << ".pos";
-      // std::cout << std::endl << Core::Communication::my_mpi_rank(Comm())<< "filename: " <<
-      // currentfilename.str().c_str();
-      fp = fopen(currentfilename.str().c_str(), "w");
-      std::ostringstream gmshfile;
-      gmshfile << "View \" Step " << step << " Iter " << iter << " mtl " << i << " \" {"
-               << std::endl;
-      fprintf(fp, gmshfile.str().c_str());
-      fclose(fp);
-    }
-
-    // print full tree with treenodesmap
-    for (int j = 0; j < (int)binarytree_->Mtreenodesmap().size(); j++)
-    {
-      for (int k = 0; k < (int)binarytree_->Mtreenodesmap()[j].size(); k++)
-      {
-        std::ostringstream currentfilename;
-        currentfilename << filenametn.str().c_str() << "_m_tnlayer_" << j << ".pos";
-        binarytree_->Mtreenodesmap()[j][k]->PrintDopsForGmsh(currentfilename.str().c_str());
-
-        // if there is another treenode to plot
-        if (k < ((int)binarytree_->Mtreenodesmap()[j].size() - 1))
-        {
-          // create new sheet "Treenode" in gmsh
-          std::ostringstream currentfilename;
-          currentfilename << filenametn.str().c_str() << "_m_tnlayer_" << j << ".pos";
-          fp = fopen(currentfilename.str().c_str(), "a");
-          std::ostringstream gmshfile;
-          gmshfile << "};" << std::endl << "View \" Treenode \" { " << std::endl;
-          fprintf(fp, gmshfile.str().c_str());
-          fclose(fp);
-        }
-      }
-    }
-
-    // close all master files
-    for (int i = 0; i < gnmlayers; i++)
-    {
-      std::ostringstream currentfilename;
-      currentfilename << filenametn.str().c_str() << "_m_tnlayer_" << i << ".pos";
-      fp = fopen(currentfilename.str().c_str(), "a");
-      std::ostringstream gmshfilecontent;
-      gmshfilecontent << std::endl << "};";
-      fprintf(fp, gmshfilecontent.str().c_str());
-      fclose(fp);
-    }
-  }
-#endif
-
-
-  //**********************************************************************
-  // GMSH output of all active treenodes (DOPs) on leaf level
-  //**********************************************************************
-#ifdef MORTARGMSHCTN
-  std::ostringstream filenamectn;
-  filenamectn << "o/gmsh_output/" << file_name_only_prefix << "_";
-  if (step < 10)
-    filenamectn << 0 << 0 << 0 << 0;
-  else if (step < 100)
-    filenamectn << 0 << 0 << 0;
-  else if (step < 1000)
-    filenamectn << 0 << 0;
-  else if (step < 10000)
-    filenamectn << 0;
-  else if (step > 99999)
-    FOUR_C_THROW("Gmsh output implemented for a maximum of 99.999 time steps");
-  filenamectn << step;
-
-  // construct unique filename for gmsh output
-  // second index = Newton iteration index
-  if (iter >= 0)
-  {
-    filenamectn << "_";
-    if (iter < 10)
-      filenamectn << 0;
-    else if (iter > 99)
-      FOUR_C_THROW("Gmsh output implemented for a maximum of 99 iterations");
-    filenamectn << iter;
-  }
-
-  int lcontactmapsize = (int)(binarytree_->coupling_map()[0].size());
-  int gcontactmapsize;
-
-  Core::Communication::max_all(&lcontactmapsize, &gcontactmapsize, 1, Comm());
-
-  if (gcontactmapsize > 0)
-  {
-    // open/create new file
-    if (Core::Communication::my_mpi_rank(Comm()) == 0)
-    {
-      std::ostringstream currentfilename;
-      currentfilename << filenamectn.str().c_str() << "_ct.pos";
-      // std::cout << std::endl << Core::Communication::my_mpi_rank(Comm())<< "filename: " <<
-      // currentfilename.str().c_str();
-      fp = fopen(currentfilename.str().c_str(), "w");
-      std::ostringstream gmshfile;
-      gmshfile << "View \" Step " << step << " Iter " << iter << " contacttn  \" {" << std::endl;
-      fprintf(fp, gmshfile.str().c_str());
-      fclose(fp);
-    }
-
-    // every proc should plot its contacting treenodes!
-    for (int i = 0; i < Core::Communication::num_mpi_ranks(Comm()); i++)
-    {
-      if (Core::Communication::my_mpi_rank(Comm()) == i)
-      {
-        if ((int)(binarytree_->coupling_map()[0]).size() !=
-            (int)(binarytree_->coupling_map()[1]).size())
-          FOUR_C_THROW("Binarytree coupling_map does not have right size!");
-
-        for (int j = 0; j < (int)((binarytree_->coupling_map()[0]).size()); j++)
-        {
-          std::ostringstream currentfilename;
-          std::ostringstream gmshfile;
-          std::ostringstream newgmshfile;
-
-          // create new sheet for slave
-          if (Core::Communication::my_mpi_rank(Comm()) == 0 && j == 0)
-          {
-            currentfilename << filenamectn.str().c_str() << "_ct.pos";
-            fp = fopen(currentfilename.str().c_str(), "w");
-            gmshfile << "View \" Step " << step << " Iter " << iter << " CS  \" {" << std::endl;
-            fprintf(fp, gmshfile.str().c_str());
-            fclose(fp);
-            (binarytree_->coupling_map()[0][j])->PrintDopsForGmsh(currentfilename.str().c_str());
-          }
-          else
-          {
-            currentfilename << filenamectn.str().c_str() << "_ct.pos";
-            fp = fopen(currentfilename.str().c_str(), "a");
-            gmshfile << "};" << std::endl
-                     << "View \" Step " << step << " Iter " << iter << " CS  \" {" << std::endl;
-            fprintf(fp, gmshfile.str().c_str());
-            fclose(fp);
-            (binarytree_->coupling_map()[0][j])->PrintDopsForGmsh(currentfilename.str().c_str());
-          }
-
-          // create new sheet for master
-          fp = fopen(currentfilename.str().c_str(), "a");
-          newgmshfile << "};" << std::endl
-                      << "View \" Step " << step << " Iter " << iter << " CM  \" {" << std::endl;
-          fprintf(fp, newgmshfile.str().c_str());
-          fclose(fp);
-          (binarytree_->coupling_map()[1][j])->PrintDopsForGmsh(currentfilename.str().c_str());
-        }
-      }
-      Core::Communication::barrier(Comm());
-    }
-
-    // close file
-    if (Core::Communication::my_mpi_rank(Comm()) == 0)
-    {
-      std::ostringstream currentfilename;
-      currentfilename << filenamectn.str().c_str() << "_ct.pos";
-      // std::cout << std::endl << Core::Communication::my_mpi_rank(Comm())<< "filename: " <<
-      // currentfilename.str().c_str();
-      fp = fopen(currentfilename.str().c_str(), "a");
-      std::ostringstream gmshfile;
-      gmshfile << "};";
-      fprintf(fp, gmshfile.str().c_str());
-      fclose(fp);
-    }
-  }
-#endif  // MORTARGMSHCTN
-
-  return;
-}
 
 /*----------------------------------------------------------------------*
  | Finite difference check for normal/tangent deriv.          popp 05/08|
@@ -986,8 +30,8 @@ void CONTACT::Interface::visualize_gmsh(
 void CONTACT::Interface::fd_check_normal_deriv()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -1252,8 +296,8 @@ void CONTACT::Interface::fd_check_normal_deriv()
 void CONTACT::Interface::fd_check_normal_cpp_deriv()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -1742,8 +786,8 @@ void CONTACT::Interface::fd_check_normal_cpp_deriv()
 void CONTACT::Interface::fd_check_mortar_d_deriv()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -1766,7 +810,7 @@ void CONTACT::Interface::fd_check_mortar_d_deriv()
     if (!node) FOUR_C_THROW("Cannot find node with gid %", gid);
     Node* cnode = dynamic_cast<Node*>(node);
 
-    typedef Core::Gen::Pairedvector<int, double>::const_iterator _CI;
+    using _CI = Core::Gen::Pairedvector<int, double>::const_iterator;
 
     if ((int)(cnode->mo_data().get_d().size()) == 0) continue;
 
@@ -1829,8 +873,8 @@ void CONTACT::Interface::fd_check_mortar_d_deriv()
 
       if ((int)(kcnode->mo_data().get_d().size()) == 0) continue;
 
-      typedef std::map<int, double>::const_iterator CI;
-      typedef Core::Gen::Pairedvector<int, double>::const_iterator _CI;
+      using CI = std::map<int, double>::const_iterator;
+      using _CI = Core::Gen::Pairedvector<int, double>::const_iterator;
 
       for (_CI it = kcnode->mo_data().get_d().begin(); it != kcnode->mo_data().get_d().end(); ++it)
         newD[it->first] = it->second;
@@ -1936,8 +980,8 @@ void CONTACT::Interface::fd_check_mortar_d_deriv()
 
       if ((int)(kcnode->mo_data().get_d().size()) == 0) continue;
 
-      typedef std::map<int, double>::const_iterator CI;
-      typedef Core::Gen::Pairedvector<int, double>::const_iterator _CI;
+      using CI = std::map<int, double>::const_iterator;
+      using _CI = Core::Gen::Pairedvector<int, double>::const_iterator;
 
       for (_CI it = kcnode->mo_data().get_d().begin(); it != kcnode->mo_data().get_d().end(); ++it)
         newD[it->first] = it->second;
@@ -2013,8 +1057,8 @@ void CONTACT::Interface::fd_check_mortar_d_deriv()
 void CONTACT::Interface::fd_check_mortar_m_deriv()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -2036,9 +1080,6 @@ void CONTACT::Interface::fd_check_mortar_m_deriv()
     Core::Nodes::Node* node = idiscret_->g_node(gid);
     if (!node) FOUR_C_THROW("Cannot find node with gid %", gid);
     Node* cnode = dynamic_cast<Node*>(node);
-
-    // typedef std::map<int,std::map<int,double> >::const_iterator CIM;
-    // typedef std::map<int,double>::const_iterator CI;
 
     if ((int)(cnode->mo_data().get_m().size()) == 0) continue;
 
@@ -2099,7 +1140,7 @@ void CONTACT::Interface::fd_check_mortar_m_deriv()
 
       if ((int)(kcnode->mo_data().get_m().size()) == 0) continue;
 
-      typedef std::map<int, double>::const_iterator CI;
+      using CI = std::map<int, double>::const_iterator;
 
       // store M-values into refM
       newM = kcnode->mo_data().get_m();
@@ -2205,7 +1246,7 @@ void CONTACT::Interface::fd_check_mortar_m_deriv()
 
       if ((int)(kcnode->mo_data().get_m().size()) == 0) continue;
 
-      typedef std::map<int, double>::const_iterator CI;
+      using CI = std::map<int, double>::const_iterator;
 
       // store M-values into refM
       newM = kcnode->mo_data().get_m();
@@ -2282,8 +1323,8 @@ void CONTACT::Interface::fd_check_mortar_m_deriv()
 void CONTACT::Interface::fd_check_slip_incr_deriv_txi()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -2516,8 +1557,8 @@ void CONTACT::Interface::fd_check_slip_incr_deriv_txi()
 void CONTACT::Interface::fd_check_slip_incr_deriv_teta()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -2751,8 +1792,8 @@ void CONTACT::Interface::fd_check_slip_incr_deriv_teta()
 void CONTACT::Interface::fd_check_alpha_deriv()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -3125,8 +2166,8 @@ void CONTACT::Interface::fd_check_alpha_deriv()
 void CONTACT::Interface::fd_check_gap_deriv_ltl()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -3508,8 +2549,8 @@ void CONTACT::Interface::fd_check_gap_deriv_ltl()
 void CONTACT::Interface::fd_check_jump_deriv_ltl()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -3890,8 +2931,8 @@ void CONTACT::Interface::fd_check_jump_deriv_ltl()
 void CONTACT::Interface::fd_check_gap_deriv()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -4261,8 +3302,8 @@ void CONTACT::Interface::fd_check_gap_deriv()
 void CONTACT::Interface::fd_check_tang_lm_deriv()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -4350,7 +3391,7 @@ void CONTACT::Interface::fd_check_tang_lm_deriv()
     {
       int gid = slave_col_elements()->GID(i);
       Core::Elements::Element* ele = discret().g_element(gid);
-      if (!ele) FOUR_C_THROW("Cannot find ele with gid %i", gid);
+      if (!ele) FOUR_C_THROW("Cannot find ele with gid {}", gid);
       Mortar::Element* mele = dynamic_cast<Mortar::Element*>(ele);
 
       mele->mo_data().search_elements().resize(0);
@@ -4552,7 +3593,7 @@ void CONTACT::Interface::fd_check_tang_lm_deriv()
     {
       int gid = slave_col_elements()->GID(i);
       Core::Elements::Element* ele = discret().g_element(gid);
-      if (!ele) FOUR_C_THROW("Cannot find ele with gid %i", gid);
+      if (!ele) FOUR_C_THROW("Cannot find ele with gid {}", gid);
       Mortar::Element* mele = dynamic_cast<Mortar::Element*>(ele);
 
       mele->mo_data().search_elements().resize(0);
@@ -4753,7 +3794,7 @@ void CONTACT::Interface::fd_check_tang_lm_deriv()
   {
     int gid = slave_col_elements()->GID(i);
     Core::Elements::Element* ele = discret().g_element(gid);
-    if (!ele) FOUR_C_THROW("Cannot find ele with gid %i", gid);
+    if (!ele) FOUR_C_THROW("Cannot find ele with gid {}", gid);
     Mortar::Element* mele = dynamic_cast<Mortar::Element*>(ele);
 
     mele->mo_data().search_elements().resize(0);
@@ -4832,8 +3873,8 @@ void CONTACT::Interface::fd_check_stick_deriv(
   std::ostringstream oss;
 
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -5364,14 +4405,13 @@ void CONTACT::Interface::fd_check_slip_deriv(
     Core::LinAlg::SparseMatrix& linslipLMglobal, Core::LinAlg::SparseMatrix& linslipDISglobal)
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
   // information from interface contact parameter list
-  auto ftype =
-      Teuchos::getIntegralValue<Inpar::CONTACT::FrictionType>(interface_params(), "FRICTION");
+  auto ftype = Teuchos::getIntegralValue<CONTACT::FrictionType>(interface_params(), "FRICTION");
   double frbound = interface_params().get<double>("FRBOUND");
   double frcoeff = interface_params().get<double>("FRCOEFF");
   double ct = interface_params().get<double>("SEMI_SMOOTH_CT");
@@ -5468,12 +4508,12 @@ void CONTACT::Interface::fd_check_slip_deriv(
     }  // if cnode == Slip
 
     // store C in vector
-    if (ftype == Inpar::CONTACT::friction_tresca)
+    if (ftype == CONTACT::FrictionType::tresca)
     {
       refCtxi[i] = euclidean * ztxi - frbound * (ztxi + ct * jumptxi);
       refCteta[i] = euclidean * zteta - frbound * (zteta + ct * jumpteta);
     }
-    else if (ftype == Inpar::CONTACT::friction_coulomb)
+    else if (ftype == CONTACT::FrictionType::coulomb)
     {
       refCtxi[i] = euclidean * ztxi - (frcoeff * znor) * (ztxi + ct * jumptxi);
       refCteta[i] = euclidean * zteta - (frcoeff * znor) * (zteta + ct * jumpteta);
@@ -5598,12 +4638,12 @@ void CONTACT::Interface::fd_check_slip_deriv(
       }  // if cnode == Slip
 
       // store C in vector
-      if (ftype == Inpar::CONTACT::friction_tresca)
+      if (ftype == CONTACT::FrictionType::tresca)
       {
         newCtxi[k] = euclidean * ztxi - frbound * (ztxi + ct * jumptxi);
         newCteta[k] = euclidean * zteta - frbound * (zteta + ct * jumpteta);
       }
-      else if (ftype == Inpar::CONTACT::friction_coulomb)
+      else if (ftype == CONTACT::FrictionType::coulomb)
       {
         newCtxi[k] = euclidean * ztxi - (frcoeff * znor) * (ztxi + ct * jumptxi);
         newCteta[k] = euclidean * zteta - (frcoeff * znor) * (zteta + ct * jumpteta);
@@ -5835,12 +4875,12 @@ void CONTACT::Interface::fd_check_slip_deriv(
       }  // if cnode == Slip
 
       // store C in vector
-      if (ftype == Inpar::CONTACT::friction_tresca)
+      if (ftype == CONTACT::FrictionType::tresca)
       {
         newCtxi[k] = euclidean * ztxi - frbound * (ztxi + ct * jumptxi);
         newCteta[k] = euclidean * zteta - frbound * (zteta + ct * jumpteta);
       }
-      else if (ftype == Inpar::CONTACT::friction_coulomb)
+      else if (ftype == CONTACT::FrictionType::coulomb)
       {
         newCtxi[k] = euclidean * ztxi - (frcoeff * znor) * (ztxi + ct * jumptxi);
         newCteta[k] = euclidean * zteta - (frcoeff * znor) * (zteta + ct * jumpteta);
@@ -6073,12 +5113,12 @@ void CONTACT::Interface::fd_check_slip_deriv(
       }  // if cnode == Slip
 
       // store C in vector
-      if (ftype == Inpar::CONTACT::friction_tresca)
+      if (ftype == CONTACT::FrictionType::tresca)
       {
         newCtxi[k] = euclidean * ztxi - frbound * (ztxi + ct * jumptxi);
         newCteta[k] = euclidean * zteta - frbound * (zteta + ct * jumpteta);
       }
-      else if (ftype == Inpar::CONTACT::friction_coulomb)
+      else if (ftype == CONTACT::FrictionType::coulomb)
       {
         newCtxi[k] = euclidean * ztxi - (frcoeff * znor) * (ztxi + ct * jumptxi);
         newCteta[k] = euclidean * zteta - (frcoeff * znor) * (zteta + ct * jumpteta);
@@ -6202,8 +5242,8 @@ void CONTACT::Interface::fd_check_slip_deriv(
 void CONTACT::Interface::fd_check_penalty_trac_nor()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -6231,7 +5271,7 @@ void CONTACT::Interface::fd_check_penalty_trac_nor()
 
       if ((int)(cnode->data().get_deriv_z()).size() != 0)
       {
-        typedef std::map<int, double>::const_iterator CI;
+        using CI = std::map<int, double>::const_iterator;
         std::map<int, double>& derivzmap = cnode->data().get_deriv_z()[d];
 
         // print derivz-values to screen and store
@@ -6489,8 +5529,8 @@ void CONTACT::Interface::fd_check_penalty_trac_nor()
 void CONTACT::Interface::fd_check_penalty_trac_fric()
 {
   // FD checks only for serial case
-  std::shared_ptr<Epetra_Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
-  std::shared_ptr<Epetra_Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> snodefullmap = Core::LinAlg::allreduce_e_map(*snoderowmap_);
+  std::shared_ptr<Core::LinAlg::Map> mnodefullmap = Core::LinAlg::allreduce_e_map(*mnoderowmap_);
   if (Core::Communication::num_mpi_ranks(get_comm()) > 1)
     FOUR_C_THROW("FD checks only for serial case");
 
@@ -6578,10 +5618,10 @@ void CONTACT::Interface::fd_check_penalty_trac_fric()
     Core::LinAlg::SerialDenseMatrix lmuzawatan(dim, 1);
     Core::LinAlg::multiply(lmuzawatan, tanplane, lmuzawa);
 
-    if ((Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(
-             interface_params(), "STRATEGY") == Inpar::CONTACT::solution_penalty) ||
-        (Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(
-             interface_params(), "STRATEGY") == Inpar::CONTACT::solution_multiscale))
+    if ((Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(interface_params(), "STRATEGY") ==
+            CONTACT::SolvingStrategy::penalty) ||
+        (Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(interface_params(), "STRATEGY") ==
+            CONTACT::SolvingStrategy::multiscale))
     {
       for (int j = 0; j < dim; j++)
       {
@@ -6735,11 +5775,11 @@ void CONTACT::Interface::fd_check_penalty_trac_fric()
       Core::LinAlg::SerialDenseMatrix lmuzawatan(dim, 1);
       Core::LinAlg::multiply(lmuzawatan, tanplane, lmuzawa);
 
-      const auto contact_strategy = Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(
-          interface_params(), "STRATEGY");
+      const auto contact_strategy =
+          Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(interface_params(), "STRATEGY");
 
-      if ((contact_strategy == Inpar::CONTACT::solution_penalty) ||
-          (contact_strategy == Inpar::CONTACT::solution_multiscale))
+      if ((contact_strategy == CONTACT::SolvingStrategy::penalty) ||
+          (contact_strategy == CONTACT::SolvingStrategy::multiscale))
       {
         for (int j = 0; j < dim; j++)
         {
@@ -6954,10 +5994,10 @@ void CONTACT::Interface::fd_check_penalty_trac_fric()
       Core::LinAlg::SerialDenseMatrix lmuzawatan(dim, 1);
       Core::LinAlg::multiply(lmuzawatan, tanplane, lmuzawa);
 
-      if ((Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(
-               interface_params(), "STRATEGY") == Inpar::CONTACT::solution_penalty) ||
-          (Teuchos::getIntegralValue<Inpar::CONTACT::SolvingStrategy>(
-               interface_params(), "STRATEGY") == Inpar::CONTACT::solution_multiscale))
+      if ((Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(interface_params(), "STRATEGY") ==
+              CONTACT::SolvingStrategy::penalty) ||
+          (Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(interface_params(), "STRATEGY") ==
+              CONTACT::SolvingStrategy::multiscale))
       {
         for (int j = 0; j < dim; j++)
         {
@@ -7071,7 +6111,7 @@ void CONTACT::Interface::fd_check_penalty_trac_fric()
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
 void CONTACT::Interface::write_nodal_coordinates_to_file(
-    const int interfacel_id, const Epetra_Map& nodal_map, const std::string& full_path) const
+    const int interfacel_id, const Core::LinAlg::Map& nodal_map, const std::string& full_path) const
 {
   // only processor zero writes header
   if (Core::Communication::my_mpi_rank(get_comm()) == 0 and interfacel_id == 0)

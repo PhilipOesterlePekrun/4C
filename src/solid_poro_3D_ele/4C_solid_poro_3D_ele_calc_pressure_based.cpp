@@ -20,8 +20,8 @@ FOUR_C_NAMESPACE_OPEN
 
 template <Core::FE::CellType celltype>
 Discret::Elements::SolidPoroPressureBasedEleCalc<celltype>::SolidPoroPressureBasedEleCalc()
-    : gauss_integration_(
-          create_gauss_integration<celltype>(get_gauss_rule_stiffness_matrix_poro<celltype>()))
+    : gauss_integration_(Core::FE::create_gauss_integration<celltype>(
+          get_gauss_rule_stiffness_matrix_poro<celltype>()))
 {
 }
 
@@ -49,10 +49,11 @@ void Discret::Elements::SolidPoroPressureBasedEleCalc<celltype>::evaluate_nonlin
   if (force_vector != nullptr) force.emplace(*force_vector, true);
 
   // get primary variables of multiphase porous medium flow
-  std::vector<double> fluidmultiphase_ephi(la[1].size());
   std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state =
       discretization.get_state(1, "porofluid");
-  Core::FE::extract_my_values(*matrix_state, fluidmultiphase_ephi, la[1].lm_);
+  const std::vector<double> fluidmultiphase_ephi =
+      Core::FE::extract_values(*matrix_state, la[1].lm_);
+
 
   // Initialize variables of multiphase porous medium flow
   const int nummultifluiddofpernode = porofluidmat.num_mat();
@@ -87,8 +88,8 @@ void Discret::Elements::SolidPoroPressureBasedEleCalc<celltype>::evaluate_nonlin
             evaluate_inverse_cauchy_green_linearization(
                 cauchygreen, jacobian_mapping, spatial_material_mapping);
 
-        const double volchange = compute_volume_change<celltype>(spatial_material_mapping,
-            jacobian_mapping, ele, discretization, la[0].lm_, kinematictype);
+        const double volchange = compute_volume_change<celltype>(nodal_coordinates.displacements,
+            spatial_material_mapping, jacobian_mapping, ele, kinematictype);
 
         Core::LinAlg::Matrix<1, num_dof_per_ele_> dDetDefGrad_dDisp =
             compute_linearization_of_detdefgrad_wrt_disp<celltype>(
@@ -105,7 +106,8 @@ void Discret::Elements::SolidPoroPressureBasedEleCalc<celltype>::evaluate_nonlin
         double solidpressure = compute_sol_pressure_at_gp<celltype>(
             numfluidphases, fluidmultiphase_phiAtGP, porofluidmat);
         // derivative of press w.r.t. displacements (only in case of volfracs)
-        Core::LinAlg::Matrix<1, num_dof_per_ele_> dSolidpressure_dDisp(true);
+        Core::LinAlg::Matrix<1, num_dof_per_ele_> dSolidpressure_dDisp(
+            Core::LinAlg::Initialization::zero);
 
         if (hasvolfracs)
         {
@@ -128,12 +130,12 @@ void Discret::Elements::SolidPoroPressureBasedEleCalc<celltype>::evaluate_nonlin
         }
 
         // inverse Right Cauchy-Green tensor as vector in voigt notation
-        Core::LinAlg::Matrix<num_str_, 1> C_inv_vec(false);
+        Core::LinAlg::Matrix<num_str_, 1> C_inv_vec(Core::LinAlg::Initialization::uninitialized);
         Core::LinAlg::Voigt::Stresses::matrix_to_vector(
             cauchygreen.inverse_right_cauchy_green_, C_inv_vec);
 
         // B^T . C^-1
-        Core::LinAlg::Matrix<num_dof_per_ele_, 1> BopCinv(true);
+        Core::LinAlg::Matrix<num_dof_per_ele_, 1> BopCinv(Core::LinAlg::Initialization::zero);
         BopCinv.multiply_tn(Bop, C_inv_vec);
 
         // update internal force vector
@@ -172,10 +174,9 @@ void Discret::Elements::SolidPoroPressureBasedEleCalc<
     Core::LinAlg::SerialDenseMatrix& stiffness_matrix)
 {
   // get primary variables of multiphase porous medium flow
-  std::vector<double> fluidmultiphase_ephi(la[1].size());
   std::shared_ptr<const Core::LinAlg::Vector<double>> matrix_state =
       discretization.get_state(1, "porofluid");
-  Core::FE::extract_my_values(*matrix_state, fluidmultiphase_ephi, la[1].lm_);
+  std::vector<double> fluidmultiphase_ephi = Core::FE::extract_values(*matrix_state, la[1].lm_);
 
   // Initialize variables of multiphase porous medium flow
   const int nummultifluiddofpernode = porofluidmat.num_mat();
@@ -206,8 +207,8 @@ void Discret::Elements::SolidPoroPressureBasedEleCalc<
             evaluate_strain_gradient(jacobian_mapping, spatial_material_mapping);
 
         // volume change (used for porosity law). Same as J in nonlinear theory.
-        const double volchange = compute_volume_change<celltype>(spatial_material_mapping,
-            jacobian_mapping, ele, discretization, la[0].lm_, kinematictype);
+        const double volchange = compute_volume_change<celltype>(nodal_coordinates.displacements,
+            spatial_material_mapping, jacobian_mapping, ele, kinematictype);
 
         std::vector<double> fluidmultiphase_phiAtGP =
             compute_fluid_multiphase_primary_variables_at_gp<celltype>(
@@ -231,12 +232,12 @@ void Discret::Elements::SolidPoroPressureBasedEleCalc<
         const double detJ_w = jacobian_mapping.determinant_ * gauss_integration_.weight(gp);
 
         // inverse Right Cauchy-Green tensor as vector in voigt notation
-        Core::LinAlg::Matrix<num_str_, 1> C_inv_vec(false);
+        Core::LinAlg::Matrix<num_str_, 1> C_inv_vec(Core::LinAlg::Initialization::uninitialized);
         Core::LinAlg::Voigt::Stresses::matrix_to_vector(
             cauchygreen.inverse_right_cauchy_green_, C_inv_vec);
 
         // B^T . C^-1
-        Core::LinAlg::Matrix<num_dof_per_ele_, 1> BopCinv(true);
+        Core::LinAlg::Matrix<num_dof_per_ele_, 1> BopCinv(Core::LinAlg::Initialization::zero);
         BopCinv.multiply_tn(Bop, C_inv_vec);
 
         update_stiffness_matrix_coupling_multiphase_pressurebased<celltype>(detJ_w,
