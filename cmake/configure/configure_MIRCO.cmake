@@ -27,9 +27,10 @@ if(FOUR_C_MIRCO_FIND_INSTALLED)
   endif()
 
 else() # Fetch MIRCO from GIT repository
-  # Turn off googletest and Trilinos in MIRCO so that they don't interfere with 4C
+  # Turn off googletest, kokkos, and kokkos-kernels in MIRCO so that they don't interfere with 4C
   set(GTEST_IN_MIRCO "OFF")
-  set(TRILINOS_IN_MIRCO "OFF")
+  set(KOKKOS_IN_MIRCO "OFF")
+  set(KOKKOS_KERNELS_IN_MIRCO "OFF")
 
   set(MIRCO_GIT_REPO "https://github.com/imcs-compsim/MIRCO.git")
   set(MIRCO_GIT_TAG "100f8ab0e10090f625c283f0a8b7d13fc5fb55eb")
