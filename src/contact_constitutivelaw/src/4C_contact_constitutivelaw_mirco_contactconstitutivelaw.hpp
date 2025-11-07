@@ -16,6 +16,8 @@
 
 #include <Teuchos_Ptr.hpp>
 
+#include "mirco_inputparameters.h"
+
 FOUR_C_NAMESPACE_OPEN
 
 namespace CONTACT
@@ -26,7 +28,7 @@ namespace CONTACT
     /** \brief constitutive law parameters for a mirco contact law to the contact pressure
      *
      */
-    class MircoConstitutiveLawParams : public Parameter
+    struct MircoConstitutiveLawParams : public Parameter, public MIRCO::InputParameters
     {
      public:
       /** \brief standard constructor
@@ -34,47 +36,28 @@ namespace CONTACT
        */
       MircoConstitutiveLawParams(const Core::IO::InputParameterContainer& container);
 
-      /// @name get-functions for the Constitutive Law parameters of a mirco function
-      //@{
-
-      int get_first_mat_id() const { return firstmatid_; };
-      int get_second_mat_id() const { return secondmatid_; };
-      double get_lateral_length() const { return lateral_length_; };
-      bool get_pressure_green_fun_flag() const { return pressure_green_fun_flag_; };
-      double get_tolerance() const { return tolerance_; };
-      double get_max_iteration() const { return max_iteration_; };
-      bool get_warm_starting_flag() const { return warm_starting_flag_; };
-      double get_composite_youngs() const { return composite_youngs_; };
-      double get_grid_size() const { return grid_size_; };
-      double get_compliance_correction() const { return elastic_compliance_correction_; };
-      double get_finite_difference_fraction() const { return finite_difference_fraction_; };
-      double get_active_gap_tolerance() const { return active_gap_tolerance_; };
-      Teuchos::Ptr<std::vector<double>> get_mesh_grid() const { return meshgrid_; };
-
-      void set_parameters();
-
-     private:
       /// @name Constitutive Law parameters of a mirco function
       //@{
 
-      int firstmatid_;
-      int secondmatid_;
-      double lateral_length_;
-      int resolution_;
-      bool pressure_green_fun_flag_;
-      bool random_topology_flag_;
-      bool random_seed_flag_;
-      int random_generator_seed_;
-      double tolerance_;
-      int max_iteration_;
-      bool warm_starting_flag_;
-      double composite_youngs_;
-      double grid_size_;
-      double elastic_compliance_correction_;
-      Teuchos::Ptr<std::vector<double>> meshgrid_;
-      double finite_difference_fraction_;
-      double active_gap_tolerance_;
-      std::string topology_file_path_;
+      int firstmatid;
+      int secondmatid;
+      /*inherited from MIRCO::InputParameters (without `_`)
+      double lateral_length_;//#
+      bool pressure_green_fun_flag_;//#
+      double tolerance_;//#
+      int max_iteration_;//#
+      bool warm_starting_flag_;//#
+      double composite_youngs_;//#
+      double grid_size_;//#
+      double elastic_compliance_correction_;//#
+      */
+      Teuchos::Ptr<std::vector<double>> meshgrid;
+      double finite_difference_fraction;
+      double active_gap_tolerance;
+      // # topology is elsewhere I guess. lets have it in here like inputparams now, though it is
+      // just a handle so not owned by this struct in any case # delta is not present here
+      // originally (in 4C) also damn; maybe it is not fundamental to describe the problem firstly,
+      // or maybe it is functionally the same as some other named variable here in 4C
       //@}
     };  // class
 

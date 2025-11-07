@@ -23,41 +23,100 @@
 
 FOUR_C_NAMESPACE_OPEN
 
+namespace
+{
+
+  MIRCO::InputParameters MircoConstitutiveLawParams_helper(
+      const Core::IO::InputParameterContainer& container)
+  {
+    // retrieve problem instance to read from
+    const int probinst = Global::Problem::instance()->materials()->get_read_from_problem();
+    // for the sake of safety
+    if (Global::Problem::instance(probinst)->materials() == nullptr)
+      FOUR_C_THROW(
+          "An attempt to access the list of materials in the instance of the global problem "
+          "returned "
+          "a null pointer.");
+    // yet another safety check
+    if (Global::Problem::instance(probinst)->materials()->num() == 0)
+      FOUR_C_THROW("List of materials in the global problem instance is empty.");
+
+    // retrieve validated input line of material ID in question
+    const auto& firstmat = Global::Problem::instance(probinst)
+                               ->materials()
+                               ->parameter_by_id(container.get<int>("FirstMatID"))
+                               ->raw_parameters();
+    const auto& secondmat = Global::Problem::instance(probinst)
+                                ->materials()
+                                ->parameter_by_id(container.get<int>("SecondMatID"))
+                                ->raw_parameters();
+
+    const double E1 = firstmat.get<double>("YOUNG");
+    const double E2 = secondmat.get<double>("YOUNG");
+    const double nu1 = firstmat.get<double>("NUE");
+    const double nu2 = secondmat.get<double>("NUE");
+
+
+
+    hurstExponent_ = Global::Problem::instance()
+                         ->function_by_id<Core::Utils::FunctionOfSpaceTime>(hurstexponentfunction_)
+                         .evaluate(this->x(), 1, this->n_dim());
+    initialTopologyStdDeviation_ =
+        Global::Problem::instance()
+            ->function_by_id<Core::Utils::FunctionOfSpaceTime>(initialtopologystddeviationfunction_)
+            .evaluate(this->x(), 1, this->n_dim());
+
+
+
+    if (container.get<bool>("RandomTopologyFlag"))
+    {
+      return InputParameters(E1, E2, nu1, nu2, container.get<double>("Tolerance"),
+          Utils::get_double(geoParams, "Delta"), container.get<double>("LateralLength"),
+          Utils::get_int(geoParams, "Resolution"),
+          Utils::get_double(geoParams, "InitialTopologyStdDeviation"),
+          Utils::get_double(geoParams, "HurstExponent"), Utils::get_bool(root, "RandomSeedFlag"),
+          Utils::get_int(root, "RandomGeneratorSeed"), Utils::get_int(root, "MaxIteration"),
+          Utils::get_bool(root, "WarmStartingFlag"), Utils::get_bool(root, "PressureGreenFunFlag"));
+    }
+    else
+    {
+      std::string topology_file_path = container.get<std::string>("TopologyFilePath");
+      // The following function generates the actual path of the topology file
+      MIRCO::Utils::changeRelativePath(topology_file_path, inputFileName);
+
+      return InputParameters(E1, E2, nu1, nu2, Utils::get_double(geoParams, "Tolerance"),
+          Utils::get_double(geoParams, "Delta"), Utils::get_double(geoParams, "LateralLength"),
+          topology_file_path, Utils::get_int(root, "MaxIteration"),
+          Utils::get_bool(root, "WarmStartingFlag"), Utils::get_bool(root, "PressureGreenFunFlag"));
+    }
+  }
+
+}  // namespace
+
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
 CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams::MircoConstitutiveLawParams(
     const Core::IO::InputParameterContainer& container)
     : CONTACT::CONSTITUTIVELAW::Parameter(container),
-      firstmatid_(container.get<int>("FirstMatID")),
-      secondmatid_(container.get<int>("SecondMatID")),
-      lateral_length_(container.get<double>("LateralLength")),
-      resolution_(container.get<int>("Resolution")),
-      pressure_green_fun_flag_(container.get<bool>("PressureGreenFunFlag")),
-      random_topology_flag_(container.get<bool>("RandomTopologyFlag")),
-      random_seed_flag_(container.get<bool>("RandomSeedFlag")),
-      random_generator_seed_(container.get<int>("RandomGeneratorSeed")),
-      tolerance_(container.get<double>("Tolerance")),
-      max_iteration_(container.get<int>("MaxIteration")),
-      warm_starting_flag_(container.get<bool>("WarmStartingFlag")),
-      finite_difference_fraction_(container.get<double>("FiniteDifferenceFraction")),
-      active_gap_tolerance_(container.get<double>("ActiveGapTolerance")),
-      topology_file_path_((container.get<std::string>("TopologyFilePath")))
-{
-  this->set_parameters();
-}
-
-/*----------------------------------------------------------------------*/
-/*----------------------------------------------------------------------*/
-CONTACT::CONSTITUTIVELAW::MircoConstitutiveLaw::MircoConstitutiveLaw(
-    CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams params)
-    : params_(std::move(params))
-{
-}
-
-void CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams::set_parameters()
+      InputParameters(MircoConstitutiveLawParams_helper(container)),
+      firstmatid(container.get<int>("FirstMatID")),
+      secondmatid(container.get<int>("SecondMatID")),
+      finite_difference_fraction(container.get<double>("FiniteDifferenceFraction")),
+      active_gap_tolerance(container.get<double>("ActiveGapTolerance"))
 {
   // retrieve problem instance to read from
   const int probinst = Global::Problem::instance()->materials()->get_read_from_problem();
+
+  /*
+      lateral_length(container.get<double>("LateralLength")),
+      resolution(container.get<int>("Resolution")),
+      pressure_green_fun_flag(container.get<bool>("PressureGreenFunFlag")),
+      random_seed_flag(container.get<bool>("RandomSeedFlag")),
+      random_generator_seed(container.get<int>("RandomGeneratorSeed")),
+      tolerance(container.get<double>("Tolerance")),
+      max_iteration(container.get<int>("MaxIteration")),
+      warm_starting_flag(container.get<bool>("WarmStartingFlag")),
+      */
 
   // for the sake of safety
   if (Global::Problem::instance(probinst)->materials() == nullptr)
@@ -82,6 +141,32 @@ void CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams::set_parameters()
   const double E2 = secondmat.get<double>("YOUNG");
   const double nu1 = firstmat.get<double>("NUE");
   const double nu2 = secondmat.get<double>("NUE");
+
+
+
+  if (container.get<bool>("RandomTopologyFlag"))
+  {
+    *this = InputParameters(E1, E2, nu1, nu2, Utils::get_double(geoParams, "Tolerance"),
+        Utils::get_double(geoParams, "Delta"), Utils::get_double(geoParams, "LateralLength"),
+        Utils::get_int(geoParams, "Resolution"),
+        Utils::get_double(geoParams, "InitialTopologyStdDeviation"),
+        Utils::get_double(geoParams, "HurstExponent"), Utils::get_bool(root, "RandomSeedFlag"),
+        Utils::get_int(root, "RandomGeneratorSeed"), Utils::get_int(root, "MaxIteration"),
+        Utils::get_bool(root, "WarmStartingFlag"), Utils::get_bool(root, "PressureGreenFunFlag"));
+  }
+  else
+  {
+    std::string topology_file_path = container.get<std::string>("TopologyFilePath");
+    // The following function generates the actual path of the topology file
+    MIRCO::Utils::changeRelativePath(topology_file_path, inputFileName);
+
+    *this = InputParameters(E1, E2, nu1, nu2, Utils::get_double(geoParams, "Tolerance"),
+        Utils::get_double(geoParams, "Delta"), Utils::get_double(geoParams, "LateralLength"),
+        topology_file_path, Utils::get_int(root, "MaxIteration"),
+        Utils::get_bool(root, "WarmStartingFlag"), Utils::get_bool(root, "PressureGreenFunFlag"));
+  }
+
+
 
   // Composite Young's modulus
   composite_youngs_ = pow(((1 - pow(nu1, 2)) / E1 + (1 - pow(nu2, 2)) / E2), -1);
@@ -115,6 +200,14 @@ void CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams::set_parameters()
   const int iter = int(ceil((lateral_length_ - (grid_size_ / 2)) / grid_size_));
   meshgrid_ = Teuchos::Ptr(new std::vector<double>(iter));
   MIRCO::CreateMeshgrid(*meshgrid_, iter, grid_size_);
+}
+
+/*----------------------------------------------------------------------*/
+/*----------------------------------------------------------------------*/
+CONTACT::CONSTITUTIVELAW::MircoConstitutiveLaw::MircoConstitutiveLaw(
+    CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams params)
+    : params_(std::move(params))
+{
 }
 
 /*----------------------------------------------------------------------*
