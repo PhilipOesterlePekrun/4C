@@ -58,7 +58,7 @@ void Core::LinearSolver::IterativeSolver::setup(std::shared_ptr<Core::LinAlg::Sp
   if (create)
   {
     ncall_ = 0;
-    preconditioner_ = create_preconditioner(belist, projector);
+    preconditioner_ = create_preconditioner(belist, projector);  // /#5.2
   }
 
   a_ = A;
@@ -280,7 +280,7 @@ Core::LinearSolver::IterativeSolver::create_preconditioner(Teuchos::ParameterLis
     preconditioner = std::make_shared<Core::LinearSolver::IFPACKPreconditioner>(
         params().sublist("IFPACK Parameters"), solverlist);
   }
-  else if (params().isSublist("MueLu Parameters"))
+  else if (params().isSublist("MueLu Parameters"))  // /#5.1
   {
     preconditioner = std::make_shared<Core::LinearSolver::MueLuPreconditioner>(params());
   }

@@ -192,7 +192,7 @@ void Core::LinAlg::Solver::setup(std::shared_ptr<Core::LinAlg::SparseOperator> m
       FOUR_C_THROW("Unknown type of solver");
   }
 
-  solver_->setup(matrix, x, b, refactor, params.reset, params.projector);
+  solver_->setup(matrix, x, b, refactor, params.reset, params.projector);  // /#5.3
 }
 
 /*----------------------------------------------------------------------*
@@ -219,7 +219,7 @@ int Core::LinAlg::Solver::solve(std::shared_ptr<Core::LinAlg::SparseOperator> ma
     std::shared_ptr<Core::LinAlg::Vector<double>> b, const SolverParams& params)
 {
   setup(matrix, Utils::shared_ptr_from_ref(x->as_multi_vector()),
-      Utils::shared_ptr_from_ref(b->as_multi_vector()), params);
+      Utils::shared_ptr_from_ref(b->as_multi_vector()), params);  // /#5.4 I think
 
   int error_value = 0;
   {

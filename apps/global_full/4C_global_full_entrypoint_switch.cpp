@@ -53,7 +53,7 @@ void entrypoint_switch()
   {
     case Core::ProblemType::structure:
     case Core::ProblemType::polymernetwork:
-      caldyn_drt();
+      caldyn_drt();  // /# 5 IMPORTANT ENTRY POINT
       break;
     case Core::ProblemType::fluid:
     case Core::ProblemType::fluid_redmodels:

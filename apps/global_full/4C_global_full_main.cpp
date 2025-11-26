@@ -428,7 +428,7 @@ void run(CommandlineArguments& arguments)
   /*--------------------------------------------------calculation phase */
   t0 = walltime_in_seconds();
 
-  entrypoint_switch();
+  entrypoint_switch();  // /# 6 MAIN
 
   write_timemonitor(arguments.comms.local_comm());
 

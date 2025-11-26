@@ -3051,7 +3051,7 @@ void Solid::TimIntImpl::cmt_linear_solve()
         mueluParams.set<std::string>("Core::ProblemType", "contact");
       else
         mueluParams.set<std::string>("Core::ProblemType", "meshtying");
-
+      // /# old0
       // construct the mapping of the dual node IDs to primal node IDs
       std::shared_ptr<std::map<int, int>> dual2primal_map = std::make_shared<std::map<int, int>>();
       const std::shared_ptr<const Core::LinAlg::Map> gs_node_row_map =
