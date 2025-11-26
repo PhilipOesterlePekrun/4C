@@ -95,7 +95,7 @@ void Adapter::StructureBaseAlgorithmNew::setup()
     case Inpar::Solid::DynamicType::AdamsBashforth2:
     case Inpar::Solid::DynamicType::AdamsBashforth4:
       setup_tim_int();  // <-- here is the show
-      break;            // #2
+      break;            // /#2
     default:
       FOUR_C_THROW("Unknown time integration scheme");
   }
@@ -237,7 +237,7 @@ void Adapter::StructureBaseAlgorithmNew::setup_tim_int()
   // Setup and create model specific linear solvers
   // ---------------------------------------------------------------------------
   std::shared_ptr<std::map<Inpar::Solid::ModelType, std::shared_ptr<Core::LinAlg::Solver>>>
-      linsolvers = Solid::SOLVER::build_lin_solvers(*modeltypes, *sdyn_, *actdis_);  // #1 = other4
+      linsolvers = Solid::SOLVER::build_lin_solvers(*modeltypes, *sdyn_, *actdis_);  // /#1 = other4
 
   // ---------------------------------------------------------------------------
   // Checks in case of multi-scale simulations

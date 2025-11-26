@@ -651,7 +651,7 @@ void Solid::TimIntImpl::predict_tang_dis_consist_vel_acc()
   // solve for disi_
   // Solve K_Teffdyn . IncD = -R  ===>  IncD_{n+1}
   if (have_contact_meshtying())
-    cmt_linear_solve();  // use contact/meshtying solver //#old1?
+    cmt_linear_solve();  // use contact/meshtying solver // /#old1?
   else
   {
     Core::LinAlg::SolverParams solver_params;
@@ -1381,7 +1381,7 @@ Inpar::Solid::ConvergenceStatus Solid::TimIntImpl::solve()
     switch (itertype_)
     {
       case Inpar::Solid::soltech_newtonfull:
-        nonlin_error = newton_full();  // #old2
+        nonlin_error = newton_full();  // /#old2
         break;
       case Inpar::Solid::soltech_newtonls:
         nonlin_error = newton_ls();
@@ -1393,7 +1393,7 @@ Inpar::Solid::ConvergenceStatus Solid::TimIntImpl::solve()
         nonlin_error = uzawa_linear_newton_full();
         break;
       case Inpar::Solid::soltech_ptc:
-        nonlin_error = ptc();  // #old2 alt
+        nonlin_error = ptc();  // /#old2 alt
         break;
       // catch problems
       default:
@@ -1483,7 +1483,7 @@ int Solid::TimIntImpl::newton_full()
 
     // linear solver call (contact / meshtying case or default)
     if (have_contact_meshtying())
-      cmt_linear_solve();  // #old1 i think definitely
+      cmt_linear_solve();  // /#old1 i think definitely
     else
     {
       solver_params.refactor = true;
@@ -3307,7 +3307,7 @@ int Solid::TimIntImpl::ptc()
     }
     // linear solver call (contact / meshtying case or default)
     if (have_contact_meshtying())
-      cmt_linear_solve();  // #old1 alt
+      cmt_linear_solve();  // /#old1 alt
     else
     {
       solver_params.refactor = true;

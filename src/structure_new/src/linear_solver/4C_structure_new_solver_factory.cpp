@@ -68,7 +68,7 @@ std::shared_ptr<Solid::SOLVER::Factory::LinSolMap> Solid::SOLVER::Factory::build
       case Inpar::Solid::model_contact:
       case Inpar::Solid::model_meshtying:
         (*linsolvers)[*mt_iter] = build_meshtying_contact_lin_solver(actdis);  // # or here
-                                                                               // //#other3
+                                                                               // /#other3
         break;
       case Inpar::Solid::model_lag_pen_constraint:
         (*linsolvers)[*mt_iter] = build_lag_pen_constraint_lin_solver(sdyn, actdis);
@@ -558,7 +558,7 @@ Solid::SOLVER::build_lin_solvers(const std::set<Inpar::Solid::ModelType>& modelt
     const Teuchos::ParameterList& sdyn, Core::FE::Discretization& actdis)
 {
   Factory factory;
-  return factory.build_lin_solvers(modeltypes, sdyn, actdis);  // #other4
+  return factory.build_lin_solvers(modeltypes, sdyn, actdis);  // /#other4
 }
 
 FOUR_C_NAMESPACE_CLOSE

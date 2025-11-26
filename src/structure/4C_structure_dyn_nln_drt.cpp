@@ -47,7 +47,7 @@ void caldyn_drt()
     case Inpar::Solid::DynamicType::CentrDiff:
     case Inpar::Solid::DynamicType::AdamsBashforth2:
     case Inpar::Solid::DynamicType::AdamsBashforth4:
-      dyn_nlnstructural_drt();  // #4?
+      dyn_nlnstructural_drt();  // /#4?
       break;
     default:
       FOUR_C_THROW("unknown time integration scheme '{}'", sdyn.get<std::string>("DYNAMICTYPE"));
@@ -106,7 +106,7 @@ void dyn_nlnstructural_drt()
       std::shared_ptr<Adapter::StructureBaseAlgorithmNew> adapterbase_ptr =
           Adapter::build_structure_algorithm(sdyn);
       adapterbase_ptr->init(sdyn, const_cast<Teuchos::ParameterList&>(sdyn), structdis);
-      adapterbase_ptr->setup();  // #3?
+      adapterbase_ptr->setup();  // /#3?
       structadapter = adapterbase_ptr->structure_field();
       break;
     }
