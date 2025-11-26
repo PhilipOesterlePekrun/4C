@@ -292,7 +292,7 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_meshtying_co
 
   const int lin_solver_id = mcparams.get<int>("LINEAR_SOLVER");
 
-  return build_meshtying_contact_lin_solver(actdis, sol_type, sys_type, lin_solver_id);  // #other2
+  return build_meshtying_contact_lin_solver(actdis, sol_type, sys_type, lin_solver_id);  // /#other2
 }
 
 /*----------------------------------------------------------------------------*
@@ -327,7 +327,7 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_meshtying_co
             " set LINEAR_SOLVER in CONTACT DYNAMIC to a valid number!");
 
       // plausibility check
-      // #other1 = I think here could be the right place?
+      // /#other1 = I think here could be the right place?
       //  solver can be either UMFPACK (direct solver) or an iterative solver
       const auto sol = Teuchos::getIntegralValue<Core::LinearSolver::SolverType>(
           Global::Problem::instance()->solver_params(lin_solver_id), "SOLVER");
