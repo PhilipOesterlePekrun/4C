@@ -67,7 +67,8 @@ std::shared_ptr<Solid::SOLVER::Factory::LinSolMap> Solid::SOLVER::Factory::build
        *      implementation (maps for pre-conditioning, etc.). */
       case Inpar::Solid::model_contact:
       case Inpar::Solid::model_meshtying:
-        (*linsolvers)[*mt_iter] = build_meshtying_contact_lin_solver(actdis);
+        (*linsolvers)[*mt_iter] = build_meshtying_contact_lin_solver(actdis);  // # or here
+                                                                               // //#other3
         break;
       case Inpar::Solid::model_lag_pen_constraint:
         (*linsolvers)[*mt_iter] = build_lag_pen_constraint_lin_solver(sdyn, actdis);
@@ -218,7 +219,7 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_structure_li
     case Core::LinearSolver::PreconditionerType::multigrid_muelu:
     {
       compute_null_space_if_necessary(actdis, linsolver->params());
-      break;
+      break;  // #or here
     }
     case Core::LinearSolver::PreconditionerType::block_teko:
     {
@@ -291,7 +292,7 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_meshtying_co
 
   const int lin_solver_id = mcparams.get<int>("LINEAR_SOLVER");
 
-  return build_meshtying_contact_lin_solver(actdis, sol_type, sys_type, lin_solver_id);
+  return build_meshtying_contact_lin_solver(actdis, sol_type, sys_type, lin_solver_id);  // #other2
 }
 
 /*----------------------------------------------------------------------------*
@@ -326,8 +327,8 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_meshtying_co
             " set LINEAR_SOLVER in CONTACT DYNAMIC to a valid number!");
 
       // plausibility check
-
-      // solver can be either UMFPACK (direct solver) or an iterative solver
+      // #other1 = I think here could be the right place?
+      //  solver can be either UMFPACK (direct solver) or an iterative solver
       const auto sol = Teuchos::getIntegralValue<Core::LinearSolver::SolverType>(
           Global::Problem::instance()->solver_params(lin_solver_id), "SOLVER");
       const auto prec = Teuchos::getIntegralValue<Core::LinearSolver::PreconditionerType>(
@@ -557,7 +558,7 @@ Solid::SOLVER::build_lin_solvers(const std::set<Inpar::Solid::ModelType>& modelt
     const Teuchos::ParameterList& sdyn, Core::FE::Discretization& actdis)
 {
   Factory factory;
-  return factory.build_lin_solvers(modeltypes, sdyn, actdis);
+  return factory.build_lin_solvers(modeltypes, sdyn, actdis);  // #other4
 }
 
 FOUR_C_NAMESPACE_CLOSE
