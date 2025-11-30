@@ -219,7 +219,9 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_structure_li
     case Core::LinearSolver::PreconditionerType::multigrid_muelu:
     {
       compute_null_space_if_necessary(actdis, linsolver->params());
-      break;  // #or here
+
+      // /# HERE FOR SURE
+      break;  // /#or here
     }
     case Core::LinearSolver::PreconditionerType::block_teko:
     {

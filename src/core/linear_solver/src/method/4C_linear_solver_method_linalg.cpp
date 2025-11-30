@@ -370,7 +370,7 @@ Teuchos::ParameterList translate_four_c_to_belos(const Teuchos::ParameterList& i
   // set parameters for multigrid if used
   if (azprectype == Core::LinearSolver::PreconditionerType::multigrid_muelu)
   {
-    Teuchos::ParameterList& muelulist = outparams.sublist("MueLu Parameters");
+    Teuchos::ParameterList& muelulist = outparams.sublist("MueLu Parameters");  // /# HERE maybe 4 ?
     muelulist = translate_four_c_to_muelu(inparams, &beloslist);
   }
   if (azprectype == Core::LinearSolver::PreconditionerType::block_teko)

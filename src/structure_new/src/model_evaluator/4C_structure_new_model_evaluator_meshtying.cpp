@@ -116,7 +116,8 @@ void Solid::ModelEvaluator::Meshtying::setup()
     if (mesh_relocation_parameter == Inpar::Mortar::relocation_initial)
     {
       std::shared_ptr<const Core::LinAlg::Vector<double>> Xslavemod =
-          dynamic_cast<Mortar::StrategyBase&>(*strategy_ptr_).mesh_initialization();
+          dynamic_cast<Mortar::StrategyBase&>(*strategy_ptr_)
+              .mesh_initialization();  // /# HERE maybe
       std::shared_ptr<const Core::LinAlg::Vector<double>> Xslavemod_noredist;
       if (Xslavemod != nullptr)
       {

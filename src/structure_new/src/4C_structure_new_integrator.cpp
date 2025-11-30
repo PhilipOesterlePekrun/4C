@@ -84,7 +84,7 @@ void Solid::Integrator::setup()
   modelevaluator_ptr_ = std::make_shared<Solid::ModelEvaluatorManager>();
   modelevaluator_ptr_->init(eval_data_ptr_, sdyn_ptr_, gstate_ptr_, io_ptr_,
       Core::Utils::shared_ptr_from_ref(*this), timint_ptr_);
-  modelevaluator_ptr_->setup();
+  modelevaluator_ptr_->setup();  // /# HERE maybe 2
 
   // ---------------------------------------------------------------------------
   // build monitor for a tensile test
