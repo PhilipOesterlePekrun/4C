@@ -88,7 +88,7 @@ int Global::Problem::n_dim() const
 const Teuchos::ParameterList& Global::Problem::solver_params(int solverNr) const
 {
   std::stringstream ss;
-  ss << "SOLVER " << solverNr;
+  ss << "SOLVER " << solverNr;  // /# this might be something
   return parameters_->sublist(ss.str());
 }
 

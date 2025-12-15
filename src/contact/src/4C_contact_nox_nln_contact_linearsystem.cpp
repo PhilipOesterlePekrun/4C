@@ -113,7 +113,7 @@ Core::LinAlg::SolverParams NOX::Nln::CONTACT::LinearSystem::set_solver_options(
             "Needs to be extended!");
 
       Teuchos::ParameterList& mueluParams = solverPtr->params().sublist("Belos Parameters");
-
+      // /# HIGHLY RELEVANT; THIS IS WHERE "contact masterDofMap" AND SUCH ARE
       // vector entries:
       // (0) masterDofMap
       // (1) slaveDofMap

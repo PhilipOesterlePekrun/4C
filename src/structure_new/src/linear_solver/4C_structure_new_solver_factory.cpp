@@ -371,7 +371,8 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_meshtying_co
       {
         // provide null space information
         if (prec == Core::LinearSolver::PreconditionerType::multigrid_muelu)
-        { /* do nothing here */
+        {
+          // /#here
         }
         else if (prec == Core::LinearSolver::PreconditionerType::block_teko)
         {

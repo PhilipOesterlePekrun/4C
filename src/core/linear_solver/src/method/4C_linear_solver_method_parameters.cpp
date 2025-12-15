@@ -24,6 +24,7 @@ FOUR_C_NAMESPACE_OPEN
 void Core::LinearSolver::Parameters::compute_solver_parameters(
     const Core::FE::Discretization& dis, Teuchos::ParameterList& solverlist)
 {
+  // /# This function could totally be it. it just is not in the do nothing right now
   if (!dis.filled() or !dis.have_dofs())
   {
     FOUR_C_THROW(
