@@ -318,6 +318,7 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_meshtying_co
   {
     case CONTACT::SystemType::saddlepoint:
     {
+std::cout<<"l321; case CONTACT::SystemType::saddlepoint: //#\n";
       // meshtying/contact for structure
       // check if the meshtying/contact solver has a valid solver number
       if (lin_solver_id == (-1))
@@ -366,14 +367,93 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_meshtying_co
 
       if (sol_type == CONTACT::SolvingStrategy::lagmult)
       {
+        std::cout<<"if(sol_type == CONTACT::SolvingStrategy::lagmult) //#\n";
         // provide null space information
         if (prec == Core::LinearSolver::PreconditionerType::multigrid_muelu)
-        { /* do nothing here */
+        {
+          
+          
+          
+          
+          
+std::cout<<"if(prec == Core::LinearSolver::PreconditionerType::multigrid_muelu) //#\n";
+
+
+Core::LinearSolver::Parameters::compute_solver_parameters(
+              actdis, linsolver->params().sublist("Inverse1").sublist("MueLu Parameters"));
+          Core::LinearSolver::Parameters::compute_solver_parameters(
+              actdis, linsolver->params().sublist("Inverse2").sublist("MueLu Parameters"));
+              
+              
+std::cout<<"NEW MUELU linsolver->params() (parameter list): //#\n";
+linsolver->params().print();
+
+/*
+          // update information about active slave dofs
+  //**********************************************************************
+  // feed solver/preconditioner with additional information about the contact/meshtying problem
+  //**********************************************************************
+  {
+    // TODO: maps for merged meshtying and contact problem !!!
+
+    std::shared_ptr<Core::LinAlg::Map> masterDofMap;
+    std::shared_ptr<Core::LinAlg::Map> slaveDofMap;
+    std::shared_ptr<Core::LinAlg::Map> innerDofMap;
+    std::shared_ptr<Core::LinAlg::Map> activeDofMap;
+    std::shared_ptr<Mortar::StrategyBase> strategy =
+        Core::Utils::shared_ptr_from_ref(cmtbridge_->get_strategy());
+    strategy->collect_maps_for_preconditioner(masterDofMap, slaveDofMap, innerDofMap, activeDofMap);
+
+    // feed Belos based solvers with contact information
+    if (linsolver->params().isSublist("Belos Parameters"))
+    {
+      Teuchos::ParameterList& mueluParams = linsolver->params().sublist("Belos Parameters");
+      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
+          "contact masterDofMap", Teuchos::rcpFromRef(masterDofMap->get_epetra_map()));
+      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
+          "contact slaveDofMap", Teuchos::rcpFromRef(slaveDofMap->get_epetra_map()));
+      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
+          "contact innerDofMap", Teuchos::rcpFromRef(innerDofMap->get_epetra_map()));
+      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
+          "contact activeDofMap", Teuchos::rcpFromRef(activeDofMap->get_epetra_map()));
+      std::shared_ptr<CONTACT::AbstractStrategy> costrat =
+          std::dynamic_pointer_cast<CONTACT::AbstractStrategy>(strategy);
+      if (costrat != nullptr)
+        mueluParams.set<std::string>("Core::ProblemType", "contact");
+      else
+        mueluParams.set<std::string>("Core::ProblemType", "meshtying");
+      // /# old0
+      // construct the mapping of the dual node IDs to primal node IDs
+      std::shared_ptr<std::map<int, int>> dual2primal_map = std::make_shared<std::map<int, int>>();
+      const std::shared_ptr<const Core::LinAlg::Map> gs_node_row_map =
+          strategy->slave_row_nodes_ptr();
+      const Core::LinAlg::Map* solid_node_map = actdis.node_row_map();
+      for (int dual_lid = 0; dual_lid < gs_node_row_map->num_my_elements(); dual_lid++)
+      {
+        int dual_gid = gs_node_row_map->gid(dual_lid);
+        if (actdis.have_global_node(dual_gid))
+          (*dual2primal_map)[dual_lid] = solid_node_map->lid(dual_gid);
+      }
+      mueluParams.set<Teuchos::RCP<std::map<int, int>>>(
+          "Interface DualNodeID to PrimalNodeID", Teuchos::rcp(dual2primal_map));
+
+      mueluParams.set<int>("time step", step_);
+      mueluParams.set<int>("iter", iter_);
+      mueluParams.set<bool>("reuse preconditioner", strategy->active_set_converged());
+    }
+      
+  }  // end: feed solver with contact/meshtying information
+    */
+  
         }
         else if (prec == Core::LinearSolver::PreconditionerType::block_teko)
         {
+          std::cout<<"else if(prec == Core::LinearSolver::PreconditionerType::block_teko)//#\n";
           Core::LinearSolver::Parameters::compute_solver_parameters(
               actdis, linsolver->params().sublist("Inverse1"));
+          
+          std::cout<<"NEW TEKO linsolver->params() (parameter list): //#\n";
+linsolver->params().print();
         }
       }
     }

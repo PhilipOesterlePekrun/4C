@@ -81,6 +81,8 @@ void Adapter::StructureBaseAlgorithmNew::init(const Teuchos::ParameterList& prbd
  *----------------------------------------------------------------------------*/
 void Adapter::StructureBaseAlgorithmNew::setup()
 {
+  std::cout<<"NEW Adapter::StructureBaseAlgorithmNew::setup() //#\n";
+  
   if (not is_init()) FOUR_C_THROW("You have to call init() first!");
 
   // major switch to different time integrators
@@ -124,6 +126,9 @@ void Adapter::StructureBaseAlgorithmNew::register_model_evaluator(
  *----------------------------------------------------------------------------*/
 void Adapter::StructureBaseAlgorithmNew::setup_tim_int()
 {
+  std::cout<<"NEW Adapter::StructureBaseAlgorithmNew::setup_tim_int() //#\n";
+  
+  
   if (not is_init()) FOUR_C_THROW("You have to call init() first!");
 
   // get the problem instance

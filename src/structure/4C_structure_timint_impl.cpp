@@ -132,6 +132,8 @@ void Solid::TimIntImpl::init(const Teuchos::ParameterList& timeparams,
     const Teuchos::ParameterList& sdynparams, const Teuchos::ParameterList& xparams,
     std::shared_ptr<Core::FE::Discretization> actdis, std::shared_ptr<Core::LinAlg::Solver> solver)
 {
+  std::cout<<"OLD Solid::TimIntImpl::init() //#\n";
+  
   // call init() in base class
   Solid::TimInt::init(timeparams, sdynparams, xparams, actdis, solver);
 
@@ -3069,6 +3071,10 @@ void Solid::TimIntImpl::cmt_linear_solve()
       mueluParams.set<int>("time step", step_);
       mueluParams.set<int>("iter", iter_);
       mueluParams.set<bool>("reuse preconditioner", strategy->active_set_converged());
+      
+std::cout<<"OLD contactsolver_->params(): //#\n";
+contactsolver_->params().print();//Teuchos::FancyOStream(Teuchos::rcpFromRef(std::cout)));
+      
     }
   }  // end: feed solver with contact/meshtying information
 

@@ -32,6 +32,8 @@ FOUR_C_NAMESPACE_OPEN
  *----------------------------------------------------------------------------*/
 void Solid::TimeInt::Implicit::setup()
 {
+  std::cout<<"NEW Solid::TimeInt::Implicit::setup() //#\n";
+  
   // safety check
   check_init();
 

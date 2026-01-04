@@ -464,6 +464,8 @@ Adapter::StructureBaseAlgorithm::create_contact_meshtying_solver(
         // provide null space information
         if (prec == Core::LinearSolver::PreconditionerType::multigrid_muelu)
         {
+          std::cout<<"THIS ONLY GETS CALLED WITH OLD STRUCTURE CONFIRMED: adapter_str_structure.cpp: if (prec == Core::LinearSolver::PreconditionerType::multigrid_muelu) //#\n";
+          
           Core::LinearSolver::Parameters::compute_solver_parameters(
               actdis, solver->params().sublist("Inverse1").sublist("MueLu Parameters"));
           Core::LinearSolver::Parameters::compute_solver_parameters(
