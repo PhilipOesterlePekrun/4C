@@ -46,6 +46,11 @@
 #include "4C_utils_parameter_list.hpp"
 #include "4C_w1.hpp"
 
+#include "4C_structure_new_model_evaluator_meshtying.hpp"//#
+#include "4C_mortar_strategy_base.hpp"//#
+#include "4C_linear_solver_method_linalg.hpp"//#
+#include "4C_linear_solver_method.hpp"//#
+
 #include <Teuchos_ParameterList.hpp>
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 #include <Teuchos_TimeMonitor.hpp>
@@ -242,7 +247,21 @@ void Adapter::StructureBaseAlgorithmNew::setup_tim_int()
   // Setup and create model specific linear solvers
   // ---------------------------------------------------------------------------
   std::shared_ptr<std::map<Inpar::Solid::ModelType, std::shared_ptr<Core::LinAlg::Solver>>>
-      linsolvers = Solid::SOLVER::build_lin_solvers(*modeltypes, *sdyn_, *actdis_);
+      linsolvers = Solid::SOLVER::build_lin_solvers(*modeltypes, *sdyn_, *actdis_);//#
+      
+    std::cout<<"NEW Adapter::StructureBaseAlgorithmNew::setup_tim_int() lower down //#\n";
+    /*
+    for (const auto& [model_type, solver_ptr] : *linsolvers) {
+      std::shared_ptr<Core::LinAlg::Map> masterDofMap;
+      std::shared_ptr<Core::LinAlg::Map> slaveDofMap;
+      std::shared_ptr<Core::LinAlg::Map> innerDofMap;
+      std::shared_ptr<Core::LinAlg::Map> activeDofMap;
+      std::shared_ptr<Mortar::StrategyBase> strategy =
+          Core::Utils::shared_ptr_from_ref(cmtbridge_->get_strategy());
+      strategy->collect_maps_for_preconditioner(masterDofMap, slaveDofMap, innerDofMap, activeDofMap);
+        // model_type is Inpar::Solid::ModelType
+        // solver_ptr is std::shared_ptr<Core::LinAlg::Solver>
+    }*/
 
   // ---------------------------------------------------------------------------
   // Checks in case of multi-scale simulations
@@ -323,12 +342,132 @@ void Adapter::StructureBaseAlgorithmNew::setup_tim_int()
   // ---------------------------------------------------------------------------
   std::shared_ptr<Solid::TimeInt::Base> ti_strategy = nullptr;
   set_time_integration_strategy(ti_strategy, dataio, datasdyn, dataglobalstate, restart);
+  
+  
+  
+  
+  
+  
+  
+  //std::vector<const Core::Conditions::Condition*> mtcond;
+  //actdis_->get_condition("Mortar", mtcond);
+  //if (mtcond.size()) modeltypes.insert(Inpar::Solid::model_meshtying);
+  
+  std::vector<std::shared_ptr<Core::LinAlg::Solver>> solvers;
 
+  if (auto it = linsolvers->find(Inpar::Solid::model_meshtying); it != linsolvers->end())
+      solvers.push_back(it->second);
+
+  if (auto it = linsolvers->find(Inpar::Solid::model_contact); it != linsolvers->end())
+      solvers.push_back(it->second);
+  
+  auto it = linsolvers->find(Inpar::Solid::model_meshtying);
+  for(auto& solver : solvers) {
+      ///auto& solver = it->second;
+      
+      
+      
+      
+    const Teuchos::ParameterList& mcparams = Global::Problem::instance()->contact_dynamic_params();
+
+    const auto sol_type = Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(mcparams, "STRATEGY");
+
+    const auto sys_type = Teuchos::getIntegralValue<CONTACT::SystemType>(mcparams, "SYSTEM");
+    
+    switch (sys_type)
+    {
+      case CONTACT::SystemType::saddlepoint:
+      {
+        
+        if (sol_type == CONTACT::SolvingStrategy::lagmult)
+      {
+        // provide null space information
+        const auto prec = Teuchos::getIntegralValue<Core::LinearSolver::PreconditionerType>(
+          Global::Problem::instance()->solver_params(lin_solver_id), "AZPREC");
+        if (prec == Core::LinearSolver::PreconditionerType::multigrid_muelu)
+        {
+      
+      // feed Belos based solvers with contact information
+    if (solver->params().isSublist("Belos Parameters"))
+    {
+      auto& abstractStrat = static_cast<Solid::ModelEvaluator::Meshtying&>(ti_strategy->model_evaluator(Inpar::Solid::model_meshtying)).strategy();
+
+  
+      // we dont actually need to do any strategybase casting i think. just use the actual
+      std::shared_ptr<Core::LinAlg::Map> masterDofMap;
+      std::shared_ptr<Core::LinAlg::Map> slaveDofMap;
+      std::shared_ptr<Core::LinAlg::Map> innerDofMap;
+      std::shared_ptr<Core::LinAlg::Map> activeDofMap;
+      std::shared_ptr<Mortar::StrategyBase> strategy =
+          std::dynamic_pointer_cast<Mortar::StrategyBase>(Core::Utils::shared_ptr_from_ref(abstractStrat));
+      strategy->collect_maps_for_preconditioner(masterDofMap, slaveDofMap, innerDofMap, activeDofMap);
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      Teuchos::ParameterList& mueluParams = solver->params().sublist("Belos Parameters");
+      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
+          "contact masterDofMap", Teuchos::rcpFromRef(masterDofMap->get_epetra_map()));
+      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
+          "contact slaveDofMap", Teuchos::rcpFromRef(slaveDofMap->get_epetra_map()));
+      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
+          "contact innerDofMap", Teuchos::rcpFromRef(innerDofMap->get_epetra_map()));
+      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
+          "contact activeDofMap", Teuchos::rcpFromRef(activeDofMap->get_epetra_map()));
+      
+      // construct the mapping of the dual node IDs to primal node IDs
+      std::shared_ptr<std::map<int, int>> dual2primal_map = std::make_shared<std::map<int, int>>();
+      const std::shared_ptr<const Core::LinAlg::Map> gs_node_row_map =
+          strategy->slave_row_nodes_ptr();
+      const Core::LinAlg::Map* solid_node_map = actdis_->node_row_map();
+      for (int dual_lid = 0; dual_lid < gs_node_row_map->num_my_elements(); dual_lid++)
+      {
+        int dual_gid = gs_node_row_map->gid(dual_lid);
+        if (actdis_->have_global_node(dual_gid))
+          (*dual2primal_map)[dual_lid] = solid_node_map->lid(dual_gid);
+      }
+      mueluParams.set<Teuchos::RCP<std::map<int, int>>>(
+          "Interface DualNodeID to PrimalNodeID", Teuchos::rcp(dual2primal_map.get()));
+
+      mueluParams.set<int>("time step", prbdyn_->get<double>("TIMESTEP"));
+      mueluParams.set<int>("iter", 5);//iter_);//#########
+      mueluParams.set<bool>("reuse preconditioner", strategy->active_set_converged());
+    }
+  }
+}
+  }
+  default:
+  {
+    // do nothing
+  }
+}
+      
+      
+  }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 
   // ---------------------------------------------------------------------------
   // Create wrapper for the time integration strategy
   // ---------------------------------------------------------------------------
   set_structure_wrapper(*ioflags, *sdyn_, *xparams, *time_adaptivity_params, ti_strategy);
+  
+    std::cout<<"NEW Adapter::StructureBaseAlgorithmNew::setup_tim_int() end of function //#\n";
+  
 }
 
 
@@ -794,7 +933,7 @@ void Adapter::StructureBaseAlgorithmNew::set_time_integration_strategy(
   /* In the restart case, we Setup the structural time integration after the
    * discretization has been redistributed. See Solid::TimeInt::Base::read_restart()
    * for more information.                                     hiermeier 05/16*/
-  if (not restart) ti_strategy->setup();
+  if (not restart) ti_strategy->setup();//#
 }
 
 

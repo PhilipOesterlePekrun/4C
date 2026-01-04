@@ -48,8 +48,11 @@ void Solid::ModelEvaluator::Meshtying::init(
     const std::shared_ptr<Solid::Integrator>& int_ptr,
     const std::shared_ptr<const Solid::TimeInt::Base>& timint_ptr, const int& dof_offset)
 {
+  std::cout<<"NEW Solid::ModelEvaluator::Meshtying::init //#\n";
   Solid::ModelEvaluator::Generic::init(
       eval_data_ptr, gstate_ptr, gio_ptr, int_ptr, timint_ptr, dof_offset);
+      
+      //FOUR_C_THROW("INTENTIONAL Solid::ModelEvaluator::Meshtying::init() //#");
 }
 
 /*----------------------------------------------------------------------*
@@ -296,6 +299,7 @@ const std::shared_ptr<CONTACT::MtAbstractStrategy>& Solid::ModelEvaluator::Mesht
  *----------------------------------------------------------------------*/
 CONTACT::MtAbstractStrategy& Solid::ModelEvaluator::Meshtying::strategy()
 {
+  //#
   check_init_setup();
   return *strategy_ptr_;
 }
@@ -314,6 +318,7 @@ const CONTACT::MtAbstractStrategy& Solid::ModelEvaluator::Meshtying::strategy() 
 std::shared_ptr<const Core::LinAlg::Map>
 Solid::ModelEvaluator::Meshtying::get_block_dof_row_map_ptr() const
 {
+  //#?
   check_init_setup();
   if (strategy().lm_dof_row_map_ptr() == nullptr)
     return global_state().dof_row_map();

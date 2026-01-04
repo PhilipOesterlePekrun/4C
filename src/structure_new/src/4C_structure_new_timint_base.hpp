@@ -275,9 +275,12 @@ namespace Solid
         return nullptr;
       }
 
+      //! bridge for meshtying and contact
+      std::shared_ptr<CONTACT::MeshtyingContactBridge> cmtbridge_;
+      
       /// FixMe get contact/meshtying manager
       std::shared_ptr<CONTACT::MeshtyingContactBridge> meshtying_contact_bridge() override
-      {
+      {//#
         FOUR_C_THROW("Not yet implemented!");
         return nullptr;
       }

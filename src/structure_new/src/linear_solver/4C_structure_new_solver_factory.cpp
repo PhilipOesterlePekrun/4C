@@ -384,11 +384,13 @@ Core::LinearSolver::Parameters::compute_solver_parameters(
           Core::LinearSolver::Parameters::compute_solver_parameters(
               actdis, linsolver->params().sublist("Inverse2").sublist("MueLu Parameters"));
               
+              //compute_null_space_if_necessary(actdis, linsolver->params());//#? I dont think so
               
 std::cout<<"NEW MUELU linsolver->params() (parameter list): //#\n";
 linsolver->params().print();
 
-/*
+//FOUR_C_THROW("THROW IN new solver factory");
+
           // update information about active slave dofs
   //**********************************************************************
   // feed solver/preconditioner with additional information about the contact/meshtying problem
@@ -396,54 +398,23 @@ linsolver->params().print();
   {
     // TODO: maps for merged meshtying and contact problem !!!
 
-    std::shared_ptr<Core::LinAlg::Map> masterDofMap;
-    std::shared_ptr<Core::LinAlg::Map> slaveDofMap;
-    std::shared_ptr<Core::LinAlg::Map> innerDofMap;
-    std::shared_ptr<Core::LinAlg::Map> activeDofMap;
-    std::shared_ptr<Mortar::StrategyBase> strategy =
-        Core::Utils::shared_ptr_from_ref(cmtbridge_->get_strategy());
-    strategy->collect_maps_for_preconditioner(masterDofMap, slaveDofMap, innerDofMap, activeDofMap);
 
     // feed Belos based solvers with contact information
     if (linsolver->params().isSublist("Belos Parameters"))
     {
       Teuchos::ParameterList& mueluParams = linsolver->params().sublist("Belos Parameters");
-      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
-          "contact masterDofMap", Teuchos::rcpFromRef(masterDofMap->get_epetra_map()));
-      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
-          "contact slaveDofMap", Teuchos::rcpFromRef(slaveDofMap->get_epetra_map()));
-      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
-          "contact innerDofMap", Teuchos::rcpFromRef(innerDofMap->get_epetra_map()));
-      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
-          "contact activeDofMap", Teuchos::rcpFromRef(activeDofMap->get_epetra_map()));
-      std::shared_ptr<CONTACT::AbstractStrategy> costrat =
-          std::dynamic_pointer_cast<CONTACT::AbstractStrategy>(strategy);
-      if (costrat != nullptr)
+      
+      if (onlycontact or meshtyingandcontact)
         mueluParams.set<std::string>("Core::ProblemType", "contact");
       else
-        mueluParams.set<std::string>("Core::ProblemType", "meshtying");
+        mueluParams.set<std::string>("Core::ProblemType", "meshtying"); //# possibly these belong outside, for any contact meshtying problem?
+      
+        
       // /# old0
-      // construct the mapping of the dual node IDs to primal node IDs
-      std::shared_ptr<std::map<int, int>> dual2primal_map = std::make_shared<std::map<int, int>>();
-      const std::shared_ptr<const Core::LinAlg::Map> gs_node_row_map =
-          strategy->slave_row_nodes_ptr();
-      const Core::LinAlg::Map* solid_node_map = actdis.node_row_map();
-      for (int dual_lid = 0; dual_lid < gs_node_row_map->num_my_elements(); dual_lid++)
-      {
-        int dual_gid = gs_node_row_map->gid(dual_lid);
-        if (actdis.have_global_node(dual_gid))
-          (*dual2primal_map)[dual_lid] = solid_node_map->lid(dual_gid);
-      }
-      mueluParams.set<Teuchos::RCP<std::map<int, int>>>(
-          "Interface DualNodeID to PrimalNodeID", Teuchos::rcp(dual2primal_map));
-
-      mueluParams.set<int>("time step", step_);
-      mueluParams.set<int>("iter", iter_);
-      mueluParams.set<bool>("reuse preconditioner", strategy->active_set_converged());
+      
     }
       
   }  // end: feed solver with contact/meshtying information
-    */
   
         }
         else if (prec == Core::LinearSolver::PreconditionerType::block_teko)
