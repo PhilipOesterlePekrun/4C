@@ -50,6 +50,7 @@
 #include "4C_mortar_strategy_base.hpp"//#
 #include "4C_linear_solver_method_linalg.hpp"//#
 #include "4C_linear_solver_method.hpp"//#
+#include "4C_contact_meshtying_abstract_strategy.hpp"//#
 
 #include <Teuchos_ParameterList.hpp>
 #include <Teuchos_StandardParameterEntryValidators.hpp>
@@ -361,16 +362,16 @@ void Adapter::StructureBaseAlgorithmNew::setup_tim_int()
   if (auto it = linsolvers->find(Inpar::Solid::model_contact); it != linsolvers->end())
       solvers.push_back(it->second);
   
-  auto it = linsolvers->find(Inpar::Solid::model_meshtying);
+  ///auto it = linsolvers->find(Inpar::Solid::model_meshtying);
+  int iiiiiii = 0;
   for(auto& solver : solvers) {
       ///auto& solver = it->second;
-      
-      
+      bool mtElseContact = false;
+      if(iiiiiii==0) mtElseContact = true; //# fix this stupidity
+      ++iiiiiii;
       
       
     const Teuchos::ParameterList& mcparams = Global::Problem::instance()->contact_dynamic_params();
-
-    const auto sol_type = Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(mcparams, "STRATEGY");
 
     const auto sys_type = Teuchos::getIntegralValue<CONTACT::SystemType>(mcparams, "SYSTEM");
     
@@ -378,10 +379,11 @@ void Adapter::StructureBaseAlgorithmNew::setup_tim_int()
     {
       case CONTACT::SystemType::saddlepoint:
       {
-        
+        const auto sol_type = Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(mcparams, "STRATEGY");
         if (sol_type == CONTACT::SolvingStrategy::lagmult)
       {
         // provide null space information
+        const int lin_solver_id = mcparams.get<int>("LINEAR_SOLVER");
         const auto prec = Teuchos::getIntegralValue<Core::LinearSolver::PreconditionerType>(
           Global::Problem::instance()->solver_params(lin_solver_id), "AZPREC");
         if (prec == Core::LinearSolver::PreconditionerType::multigrid_muelu)
@@ -390,6 +392,7 @@ void Adapter::StructureBaseAlgorithmNew::setup_tim_int()
       // feed Belos based solvers with contact information
     if (solver->params().isSublist("Belos Parameters"))
     {
+      //if(mtElseContact);
       auto& abstractStrat = static_cast<Solid::ModelEvaluator::Meshtying&>(ti_strategy->model_evaluator(Inpar::Solid::model_meshtying)).strategy();
 
   
@@ -437,6 +440,9 @@ void Adapter::StructureBaseAlgorithmNew::setup_tim_int()
       mueluParams.set<int>("time step", prbdyn_->get<double>("TIMESTEP"));
       mueluParams.set<int>("iter", 5);//iter_);//#########
       mueluParams.set<bool>("reuse preconditioner", strategy->active_set_converged());
+      
+      std::cout<<"NEW MUELU linsolver->params() (parameter list): //#\n";
+solver->params().print();
     }
   }
 }

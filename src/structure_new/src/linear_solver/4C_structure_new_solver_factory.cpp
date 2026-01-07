@@ -387,7 +387,7 @@ Core::LinearSolver::Parameters::compute_solver_parameters(
               //compute_null_space_if_necessary(actdis, linsolver->params());//#? I dont think so
               
 std::cout<<"NEW MUELU linsolver->params() (parameter list): //#\n";
-linsolver->params().print();
+//linsolver->params().print();
 
 //FOUR_C_THROW("THROW IN new solver factory");
 
