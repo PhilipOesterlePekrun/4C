@@ -19,6 +19,7 @@
 #include "4C_beam3_reissner.hpp"
 #include "4C_binstrategy.hpp"
 #include "4C_contact_input.hpp"
+#include "4C_contact_meshtying_abstract_strategy.hpp"  //#
 #include "4C_fem_condition.hpp"
 #include "4C_fem_condition_point_coupling_redistribution.hpp"
 #include "4C_fem_discretization.hpp"
@@ -29,7 +30,10 @@
 #include "4C_inpar_fsi.hpp"
 #include "4C_io.hpp"
 #include "4C_io_pstream.hpp"
+#include "4C_linear_solver_method.hpp"         //#
+#include "4C_linear_solver_method_linalg.hpp"  //#
 #include "4C_mat_par_bundle.hpp"
+#include "4C_mortar_strategy_base.hpp"  //#
 #include "4C_poroelast_input.hpp"
 #include "4C_rebalance_binning_based.hpp"
 #include "4C_rigidsphere.hpp"
@@ -37,6 +41,7 @@
 #include "4C_solid_3D_ele.hpp"
 #include "4C_solver_nonlin_nox_group.hpp"
 #include "4C_solver_nonlin_nox_group_prepostoperator.hpp"
+#include "4C_structure_new_model_evaluator_meshtying.hpp"  //#
 #include "4C_structure_new_solver_factory.hpp"
 #include "4C_structure_new_timint_base.hpp"
 #include "4C_structure_new_timint_factory.hpp"
@@ -45,6 +50,7 @@
 #include "4C_w1.hpp"
 
 #include <Teuchos_ParameterList.hpp>
+#include <Teuchos_RCPStdSharedPtrConversions.hpp>  //#
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 #include <Teuchos_TimeMonitor.hpp>
 
@@ -316,6 +322,112 @@ void Adapter::StructureBaseAlgorithmNew::setup_tim_int()
   // ---------------------------------------------------------------------------
   std::shared_ptr<Solid::TimeInt::Base> ti_strategy = nullptr;
   set_time_integration_strategy(ti_strategy, dataio, datasdyn, dataglobalstate, restart);
+
+
+
+  // ---------------------------------------------------------------------------
+  // Set contact/meshtying parameters
+  // ---------------------------------------------------------------------------
+  std::vector<std::shared_ptr<Core::LinAlg::Solver>> solvers;
+
+  if (auto it = linsolvers->find(Inpar::Solid::model_meshtying); it != linsolvers->end())
+    solvers.push_back(it->second);
+
+  if (auto it = linsolvers->find(Inpar::Solid::model_contact); it != linsolvers->end())
+    solvers.push_back(it->second);
+
+  /// auto it = linsolvers->find(Inpar::Solid::model_meshtying);
+  int iiiiiii = 0;
+  for (auto& solver : solvers)
+  {
+    /// auto& solver = it->second;
+    bool mtElseContact = false;
+    if (iiiiiii == 0) mtElseContact = true;  // # fix this stupidity
+    ++iiiiiii;
+
+
+    const Teuchos::ParameterList& mcparams = Global::Problem::instance()->contact_dynamic_params();
+
+    const auto sys_type = Teuchos::getIntegralValue<CONTACT::SystemType>(mcparams, "SYSTEM");
+
+    switch (sys_type)
+    {
+      case CONTACT::SystemType::saddlepoint:
+      {
+        const auto sol_type =
+            Teuchos::getIntegralValue<CONTACT::SolvingStrategy>(mcparams, "STRATEGY");
+        if (sol_type == CONTACT::SolvingStrategy::lagmult)
+        {
+          // provide null space information
+          const int lin_solver_id = mcparams.get<int>("LINEAR_SOLVER");
+          const auto prec = Teuchos::getIntegralValue<Core::LinearSolver::PreconditionerType>(
+              Global::Problem::instance()->solver_params(lin_solver_id), "AZPREC");
+          if (prec == Core::LinearSolver::PreconditionerType::multigrid_muelu)
+          {
+            // feed Belos based solvers with contact information
+            if (solver->params().isSublist("Belos Parameters"))
+            {
+              // if(mtElseContact);
+              auto& abstractStrat = static_cast<Solid::ModelEvaluator::Meshtying&>(
+                  ti_strategy->model_evaluator(Inpar::Solid::model_meshtying))
+                                        .strategy();
+
+
+              // we dont actually need to do any strategybase casting i think. just use the actual
+              std::shared_ptr<Core::LinAlg::Map> masterDofMap;
+              std::shared_ptr<Core::LinAlg::Map> slaveDofMap;
+              std::shared_ptr<Core::LinAlg::Map> innerDofMap;
+              std::shared_ptr<Core::LinAlg::Map> activeDofMap;
+              std::shared_ptr<Mortar::StrategyBase> strategy =
+                  std::dynamic_pointer_cast<Mortar::StrategyBase>(
+                      Core::Utils::shared_ptr_from_ref(abstractStrat));
+              strategy->collect_maps_for_preconditioner(
+                  masterDofMap, slaveDofMap, innerDofMap, activeDofMap);
+
+
+
+              Teuchos::ParameterList& mueluParams = solver->params().sublist("Belos Parameters");
+              mueluParams.set<Teuchos::RCP<Epetra_Map>>(
+                  "contact masterDofMap", Teuchos::rcpFromRef(masterDofMap->get_epetra_map()));
+              mueluParams.set<Teuchos::RCP<Epetra_Map>>(
+                  "contact slaveDofMap", Teuchos::rcpFromRef(slaveDofMap->get_epetra_map()));
+              mueluParams.set<Teuchos::RCP<Epetra_Map>>(
+                  "contact innerDofMap", Teuchos::rcpFromRef(innerDofMap->get_epetra_map()));
+              mueluParams.set<Teuchos::RCP<Epetra_Map>>(
+                  "contact activeDofMap", Teuchos::rcpFromRef(activeDofMap->get_epetra_map()));
+
+              // construct the mapping of the dual node IDs to primal node IDs
+              std::shared_ptr<std::map<int, int>> dual2primal_map =
+                  std::make_shared<std::map<int, int>>();
+              const std::shared_ptr<const Core::LinAlg::Map> gs_node_row_map =
+                  strategy->slave_row_nodes_ptr();
+              const Core::LinAlg::Map* solid_node_map = actdis_->node_row_map();
+              for (int dual_lid = 0; dual_lid < gs_node_row_map->num_my_elements(); dual_lid++)
+              {
+                int dual_gid = gs_node_row_map->gid(dual_lid);
+                if (actdis_->have_global_node(dual_gid))
+                  (*dual2primal_map)[dual_lid] = solid_node_map->lid(dual_gid);
+              }
+              mueluParams.set<Teuchos::RCP<std::map<int, int>>>(
+                  "Interface DualNodeID to PrimalNodeID", Teuchos::rcp(dual2primal_map));
+
+              mueluParams.set<int>("time step", prbdyn_->get<double>("TIMESTEP"));
+              mueluParams.set<int>("iter", 5);  // iter_);//#########
+              mueluParams.set<bool>("reuse preconditioner", strategy->active_set_converged());
+
+              std::cout << "NEW MUELU linsolver->params() (parameter list): //#\n";
+              solver->params().print();
+            }
+          }
+        }
+      }
+      default:
+      {
+        // do nothing
+      }
+    }
+  }
+
 
 
   // ---------------------------------------------------------------------------

@@ -178,6 +178,36 @@ void Core::LinearSolver::MueLuPreconditioner::setup(
     H_ = mueLuFactory.CreateHierarchy();
     H_->GetLevel(0)->Set("A", Teuchos::rcp_dynamic_cast<Xpetra::Matrix<SC, LO, GO, NO>>(bOp));
 
+    // compute the nullspace vectors for the Lagrange multiplier field for MueLu
+    if (muelulist_.isSublist("Belos Parameters") and muelulist_.isSublist("MueLu Parameters"))
+    {
+      std::cout << "preconditioner muelu setup(); added if loop to set the thing //#\n";
+      int dim_nullspace = 3;  // discretization()->n_dim();
+
+      // get the degree of freedom map from the block matrix
+      auto block_mat_blocked_operator =
+          std::dynamic_pointer_cast<Core::LinAlg::BlockSparseMatrixBase>(
+              Core::Utils::shared_ptr_from_ref(matrix));  //*blockMat.get()));
+
+      if (!block_mat_blocked_operator)
+        FOUR_C_THROW("Failed to cast blockMat to BlockSparseMatrixBase");
+
+      auto mat11 = block_mat_blocked_operator->matrix(1, 1);
+      const Core::LinAlg::Map& dofmap = mat11.domain_map();
+
+      // set the nullspace
+      std::shared_ptr<Core::LinAlg::MultiVector<double>> nullspace =
+          std::make_shared<Core::LinAlg::MultiVector<double>>(dofmap, dim_nullspace, true);
+
+      for (int ldof = 0; ldof < dofmap.num_my_elements(); ++ldof)
+      {
+        nullspace->replace_local_value(ldof, ldof % dim_nullspace, 1.0);
+      }
+
+      // add the nullspace to the parameter list
+      muelulist_.sublist("Inverse2").sublist("MueLu Parameters").set("nullspace", nullspace);
+    }
+
     for (int block = 0; block < A->rows(); block++)
     {
       const std::string inverse = "Inverse" + std::to_string(block + 1);
