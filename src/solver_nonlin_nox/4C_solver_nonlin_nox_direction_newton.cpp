@@ -29,6 +29,7 @@ NOX::Nln::Direction::Newton::Newton(
 bool NOX::Nln::Direction::Newton::compute(::NOX::Abstract::Vector& dir,
     ::NOX::Abstract::Group& group, const ::NOX::Solver::Generic& solver)
 {
+  //#/#
   ::NOX::Abstract::Group::ReturnType status;
 
   // dynamic cast of the nox_abstract_group

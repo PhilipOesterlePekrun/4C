@@ -20,7 +20,7 @@
 FOUR_C_NAMESPACE_OPEN
 
 namespace Core::FE
-{
+{//#//#
 
   void compute_null_space_if_necessary(
       const Discretization& discretization, Teuchos::ParameterList& solveparams, bool recompute)
@@ -57,7 +57,7 @@ namespace Core::FE
 
   std::shared_ptr<Core::LinAlg::MultiVector<double>> compute_null_space(
       const Core::FE::Discretization& dis, const int dimns, const Core::LinAlg::Map& dofmap)
-  {
+  {//#//#
     std::shared_ptr<Core::LinAlg::MultiVector<double>> nullspace =
         std::make_shared<Core::LinAlg::MultiVector<double>>(dofmap, dimns, true);
 

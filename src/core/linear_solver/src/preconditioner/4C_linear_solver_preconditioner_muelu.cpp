@@ -200,7 +200,7 @@ void Core::LinearSolver::MueLuPreconditioner::setup(Core::LinAlg::SparseOperator
         muelulist_
             .sublist("Inverse2")
             .sublist("MueLu Parameters")
-            .set("nullspace", nullspace);
+            .set("nullspace", nullspace);//#//#
       }
     
     

@@ -156,7 +156,7 @@ namespace Mortar
   subclass defining the concrete algorithmic steps.
 
   */
-  class StrategyBase : public NOX::Nln::CONSTRAINT::Interface::Preconditioner
+  class StrategyBase : public NOX::Nln::CONSTRAINT::Interface::Preconditioner //#/# Feb 2026
   {
    public:
     //! @name Enums and Friends

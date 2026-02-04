@@ -47,9 +47,11 @@
 #include "4C_w1.hpp"
 
 #include "4C_structure_new_model_evaluator_meshtying.hpp"//#
+#include "4C_structure_new_model_evaluator_contact.hpp"//#
 #include "4C_mortar_strategy_base.hpp"//#
 #include "4C_linear_solver_method_linalg.hpp"//#
 #include "4C_linear_solver_method.hpp"//#
+#include "4C_contact_abstract_strategy.hpp"//#
 #include "4C_contact_meshtying_abstract_strategy.hpp"//#
 
 #include <Teuchos_ParameterList.hpp>
@@ -250,6 +252,8 @@ void Adapter::StructureBaseAlgorithmNew::setup_tim_int()
   std::shared_ptr<std::map<Inpar::Solid::ModelType, std::shared_ptr<Core::LinAlg::Solver>>>
       linsolvers = Solid::SOLVER::build_lin_solvers(*modeltypes, *sdyn_, *actdis_);//#
       
+      //FOUR_C_THROW("NEW INTENTIONAL THROW Adapter::StructureBaseAlgorithmNew::setup_tim_int() lower down //#");
+      
     std::cout<<"NEW Adapter::StructureBaseAlgorithmNew::setup_tim_int() lower down //#\n";
     /*
     for (const auto& [model_type, solver_ptr] : *linsolvers) {
@@ -355,21 +359,22 @@ void Adapter::StructureBaseAlgorithmNew::setup_tim_int()
   //if (mtcond.size()) modeltypes.insert(Inpar::Solid::model_meshtying);
   
   std::vector<std::shared_ptr<Core::LinAlg::Solver>> solvers;
+  std::vector<char> modelTypes;
 
-  if (auto it = linsolvers->find(Inpar::Solid::model_meshtying); it != linsolvers->end())
+  if (auto it = linsolvers->find(Inpar::Solid::model_meshtying); it != linsolvers->end()) {
       solvers.push_back(it->second);
+      modelTypes.push_back('m');
+  }
 
-  if (auto it = linsolvers->find(Inpar::Solid::model_contact); it != linsolvers->end())
+  if (auto it = linsolvers->find(Inpar::Solid::model_contact); it != linsolvers->end()) {
       solvers.push_back(it->second);
+      modelTypes.push_back('c');
+  }
   
   ///auto it = linsolvers->find(Inpar::Solid::model_meshtying);
-  int iiiiiii = 0;
-  for(auto& solver : solvers) {
+  for(size_t i=0; i<solvers.size(); ++i) {
       ///auto& solver = it->second;
-      bool mtElseContact = false;
-      if(iiiiiii==0) mtElseContact = true; //# fix this stupidity
-      ++iiiiiii;
-      
+      auto& solver = solvers[i];
       
     const Teuchos::ParameterList& mcparams = Global::Problem::instance()->contact_dynamic_params();
 
@@ -392,8 +397,7 @@ void Adapter::StructureBaseAlgorithmNew::setup_tim_int()
       // feed Belos based solvers with contact information
     if (solver->params().isSublist("Belos Parameters"))
     {
-      //if(mtElseContact);
-      auto& abstractStrat = static_cast<Solid::ModelEvaluator::Meshtying&>(ti_strategy->model_evaluator(Inpar::Solid::model_meshtying)).strategy();
+      
 
   
       // we dont actually need to do any strategybase casting i think. just use the actual
@@ -401,14 +405,29 @@ void Adapter::StructureBaseAlgorithmNew::setup_tim_int()
       std::shared_ptr<Core::LinAlg::Map> slaveDofMap;
       std::shared_ptr<Core::LinAlg::Map> innerDofMap;
       std::shared_ptr<Core::LinAlg::Map> activeDofMap;
-      std::shared_ptr<Mortar::StrategyBase> strategy =
-          std::dynamic_pointer_cast<Mortar::StrategyBase>(Core::Utils::shared_ptr_from_ref(abstractStrat));
+      
+      std::shared_ptr<Mortar::StrategyBase> strategy = nullptr;
+      if(modelTypes[i]=='m') {
+        auto& mtAbstractStrat = static_cast<Solid::ModelEvaluator::Meshtying&>(ti_strategy->model_evaluator(Inpar::Solid::model_meshtying)).strategy();
+        
+        strategy =
+            std::dynamic_pointer_cast<Mortar::StrategyBase>(Core::Utils::shared_ptr_from_ref(mtAbstractStrat));
+      }
+      else if(modelTypes[i]=='c') {
+        auto& cAbstractStrat = static_cast<Solid::ModelEvaluator::Contact&>(ti_strategy->model_evaluator(Inpar::Solid::model_contact)).strategy();
+        
+        strategy =
+            std::dynamic_pointer_cast<Mortar::StrategyBase>(Core::Utils::shared_ptr_from_ref(cAbstractStrat));
+      }
+      else FOUR_C_THROW("NOT m OR c");
+      
       strategy->collect_maps_for_preconditioner(masterDofMap, slaveDofMap, innerDofMap, activeDofMap);
       
       
       
       
       
+//std::cout<<"NEW how often does Adapter setup_tim_int() get called? //#\n"; //#//# ANSWER: only once (but this gets printed once per processor)
       
       
       
@@ -441,7 +460,7 @@ void Adapter::StructureBaseAlgorithmNew::setup_tim_int()
       mueluParams.set<int>("iter", 5);//iter_);//#########
       mueluParams.set<bool>("reuse preconditioner", strategy->active_set_converged());
       
-      std::cout<<"NEW MUELU linsolver->params() (parameter list): //#\n";
+      std::cout<<"NEW ADAPTER MUELU linsolver->params() (parameter list): //#\n";
 solver->params().print();
     }
   }

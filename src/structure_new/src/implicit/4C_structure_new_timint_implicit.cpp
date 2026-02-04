@@ -32,7 +32,7 @@ FOUR_C_NAMESPACE_OPEN
  *----------------------------------------------------------------------------*/
 void Solid::TimeInt::Implicit::setup()
 {
-  std::cout<<"NEW Solid::TimeInt::Implicit::setup() //#\n";
+  std::cout<<"NEW Solid::TimeInt::Implicit::setup() //#\n"; //#//# how many times does it get called? ANSWER: once overall
   
   // safety check
   check_init();
@@ -76,6 +76,7 @@ void Solid::TimeInt::Implicit::setup()
 
   // set setup flag
   issetup_ = true;
+  std::cout<<"NEW Solid::TimeInt::Implicit::setup() END //#\n";
 }
 
 /*----------------------------------------------------------------------------*
@@ -117,6 +118,7 @@ void Solid::TimeInt::Implicit::prepare_time_step()
  *----------------------------------------------------------------------------*/
 int Solid::TimeInt::Implicit::integrate()
 {
+  std::cout<<"NEW Solid::TimeInt::Implicit::integrate() //#\n";
   check_init_setup();
   FOUR_C_THROW(
       "The function is unused since the Adapter::StructureTimeLoop "
@@ -139,6 +141,7 @@ int Solid::TimeInt::Implicit::integrate_step()
  *----------------------------------------------------------------------------*/
 Inpar::Solid::ConvergenceStatus Solid::TimeInt::Implicit::solve()
 {
+  std::cout<<"NEW Solid::TimeInt::Implicit::solve() //#\n";
   check_init_setup();
   throw_if_state_not_in_sync_with_nox_group();
   // reset the non-linear solver
@@ -189,6 +192,7 @@ void Solid::TimeInt::Implicit::determine_stress_strain() { impl_int().determine_
 void Solid::TimeInt::Implicit::evaluate(
     std::shared_ptr<const Core::LinAlg::Vector<double>> disiterinc)
 {
+  std::cout<<"NEW Solid::TimeInt::Implicit::evaluate(params) //#\n";
   update_state_incrementally(disiterinc);
 
   evaluate();
@@ -198,6 +202,7 @@ void Solid::TimeInt::Implicit::evaluate(
  *----------------------------------------------------------------------------*/
 void Solid::TimeInt::Implicit::evaluate()
 {
+  std::cout<<"NEW Solid::TimeInt::Implicit::evaluate() //#\n";
   check_init_setup();
   throw_if_state_not_in_sync_with_nox_group();
   ::NOX::Abstract::Group& grp = nln_solver().get_solution_group();
@@ -219,6 +224,7 @@ void Solid::TimeInt::Implicit::evaluate()
  *----------------------------------------------------------------------------*/
 const ::NOX::Abstract::Group& Solid::TimeInt::Implicit::get_solution_group() const
 {
+  std::cout<<"NEW Solid::TimeInt::Implicit::get_solution_group() //#\n";
   check_init_setup();
   return nln_solver().get_solution_group();
 }
@@ -228,6 +234,7 @@ const ::NOX::Abstract::Group& Solid::TimeInt::Implicit::get_solution_group() con
 Inpar::Solid::ConvergenceStatus Solid::TimeInt::Implicit::perform_error_action(
     Inpar::Solid::ConvergenceStatus nonlinsoldiv)
 {
+  std::cout<<"NEW Solid::TimeInt::Implicit::perform_error_action() //#\n";
   check_init_setup();
 
   if (nonlinsoldiv == Inpar::Solid::conv_success)

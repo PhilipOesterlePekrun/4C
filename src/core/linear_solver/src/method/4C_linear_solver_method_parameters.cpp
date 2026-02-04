@@ -21,6 +21,7 @@ FOUR_C_NAMESPACE_OPEN
 
 //----------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------
+//#//#RELEVANT
 void Core::LinearSolver::Parameters::compute_solver_parameters(
     const Core::FE::Discretization& dis, Teuchos::ParameterList& solverlist)
 {
@@ -35,6 +36,7 @@ void Core::LinearSolver::Parameters::compute_solver_parameters(
       solverlist.get<std::shared_ptr<Core::LinAlg::Map>>("null space: node map", nullptr);
   auto nullspace_dof_map =
       solverlist.get<std::shared_ptr<Core::LinAlg::Map>>("null space: dof map", nullptr);
+      //#//#By basically not doing .get() (ie replace above with `std::shared_ptr<Core::LinAlg::Map> nullspace_dof_map = nullptr;`), the "null space: dof map" parameter does not get created in the paramlist
 
   int dimns = -1;
 
@@ -100,6 +102,11 @@ void Core::LinearSolver::Parameters::compute_solver_parameters(
       // if no map is given, we calculate the nullspace on the map describing the
       // whole discretization
       nullspace_dof_map = std::make_shared<Core::LinAlg::Map>(*dis.dof_row_map());
+      
+      solverlist.set<std::shared_ptr<Core::LinAlg::Map>>("null space: dof map", nullspace_dof_map);
+      
+      //std::cout<<"nullspace_dof_map->print(std::cout); //#\n";
+      //nullspace_dof_map->print(std::cout);
     }
 
     const auto nullspace = Core::FE::compute_null_space(dis, dimns, *nullspace_dof_map);

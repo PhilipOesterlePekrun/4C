@@ -132,7 +132,7 @@ void Solid::TimIntImpl::init(const Teuchos::ParameterList& timeparams,
     const Teuchos::ParameterList& sdynparams, const Teuchos::ParameterList& xparams,
     std::shared_ptr<Core::FE::Discretization> actdis, std::shared_ptr<Core::LinAlg::Solver> solver)
 {
-  std::cout<<"OLD Solid::TimIntImpl::init() //#\n";
+  std::cout<<"OLD Solid::TimIntImpl::init() //#\n"; //#//# how often does this get called? ANSWER: ONLY GETS CALLED ONCE OVERALL
   
   // call init() in base class
   Solid::TimInt::init(timeparams, sdynparams, xparams, actdis, solver);
@@ -1351,6 +1351,8 @@ bool Solid::TimIntImpl::converged()
 /* solve equilibrium */
 Inpar::Solid::ConvergenceStatus Solid::TimIntImpl::solve()
 {
+  std::cout<<"OLD Solid::TimIntImpl::solve() //#\n";
+  
   // safety check
   check_is_init();
   check_is_setup();
@@ -1425,6 +1427,8 @@ Inpar::Solid::ConvergenceStatus Solid::TimIntImpl::solve()
 /* solution with full Newton-Raphson iteration */
 int Solid::TimIntImpl::newton_full()
 {
+  std::cout<<"OLD Solid::TimIntImpl::newton_full() //#\n";
+  
   // we do a Newton-Raphson iteration here.
   // the specific time integration has set the following
   // --> On #fres_ is the positive force residuum
@@ -3072,7 +3076,7 @@ void Solid::TimIntImpl::cmt_linear_solve()
       mueluParams.set<int>("iter", iter_);
       mueluParams.set<bool>("reuse preconditioner", strategy->active_set_converged());
       
-std::cout<<"OLD contactsolver_->params(): //#\n";
+std::cout<<"OLD contactsolver_->params(): //#\n"; //#//# how often does this get called? ANSWER: GETS CALLED AS MANY TIMES AS THERE ARE NONLIN ITERATIONS
 contactsolver_->params().print();//Teuchos::FancyOStream(Teuchos::rcpFromRef(std::cout)));
       
     }

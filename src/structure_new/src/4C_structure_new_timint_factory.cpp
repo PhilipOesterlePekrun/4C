@@ -61,6 +61,7 @@ std::shared_ptr<Solid::TimeInt::Base> Solid::TimeInt::Factory::build_strategy(
 std::shared_ptr<Solid::TimeInt::Base> Solid::TimeInt::Factory::build_implicit_strategy(
     const Teuchos::ParameterList& sdyn) const
 {
+  std::cout<<"NEW Solid::TimeInt::Factory::build_implicit_strategy() //#\n";
   std::shared_ptr<Solid::TimeInt::Base> ti_strategy = nullptr;
 
   // get the dynamic type

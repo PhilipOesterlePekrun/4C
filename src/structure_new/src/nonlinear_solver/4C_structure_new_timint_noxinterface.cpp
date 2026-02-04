@@ -132,7 +132,9 @@ bool Solid::TimeInt::NoxInterface::compute_f_and_jacobian(
 
   /* Apply the DBC on the right hand side, since we need the Dirichlet free
    * right hand side inside NOX for the convergence check, etc.               */
-  dbc_ptr_->apply_dirichlet_to_rhs(rhs_view);
+  dbc_ptr_->apply_dirichlet_to_rhs(rhs_view);//#/#
+  
+std::cout<<"Solid::TimeInt::NoxInterface::compute_f_and_jacobian() //#\n";
 
   /* We do not consider the jacobian DBC at this point. The Dirichlet conditions
    * are applied inside the NOX::Nln::LinearSystem::apply_jacobian_inverse()

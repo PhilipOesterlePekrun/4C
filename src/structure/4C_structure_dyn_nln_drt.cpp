@@ -87,6 +87,7 @@ void dyn_nlnstructural_drt()
       Teuchos::getIntegralValue<Inpar::Solid::IntegrationStrategy>(sdyn, "INT_STRATEGY");
   switch (intstrat)
   {
+    //#/#
     // -------------------------------------------------------------------
     // old implementation
     // -------------------------------------------------------------------
@@ -106,7 +107,7 @@ void dyn_nlnstructural_drt()
       std::shared_ptr<Adapter::StructureBaseAlgorithmNew> adapterbase_ptr =
           Adapter::build_structure_algorithm(sdyn);
       adapterbase_ptr->init(sdyn, const_cast<Teuchos::ParameterList&>(sdyn), structdis);
-      adapterbase_ptr->setup();
+      adapterbase_ptr->setup();//#/#
       structadapter = adapterbase_ptr->structure_field();
       break;
     }
@@ -136,9 +137,10 @@ void dyn_nlnstructural_drt()
       structadapter->post_output();
     }
   }
-
+std::cout<<"DYNNLN before structadapter->integrate() //#\n";
   // run time integration
-  structadapter->integrate();
+  structadapter->integrate();//#/#
+std::cout<<"DYNNLN after structadapter->integrate() //#\n";
 
   if (write_final_state)
   {

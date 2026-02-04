@@ -209,6 +209,10 @@ bool Solid::ModelEvaluator::Meshtying::assemble_force(
 bool Solid::ModelEvaluator::Meshtying::assemble_jacobian(
     Core::LinAlg::SparseOperator& jac, const double& timefac_np) const
 {
+  std::cout<<"NEW Solid::ModelEvaluator::Meshtying::assemble_jacobian() //#\n";
+  
+  //FOUR_C_THROW("NEW INTENTIONAL THROW Solid::ModelEvaluator::Meshtying::assemble_jacobian() //#\n");
+  
   std::shared_ptr<Core::LinAlg::SparseMatrix> block_ptr = nullptr;
   int err = 0;
   // ---------------------------------------------------------------------
@@ -243,7 +247,7 @@ bool Solid::ModelEvaluator::Meshtying::assemble_jacobian(
   // saddle-point system of equations or no contact contributions
   // ---------------------------------------------------------------------
   else if (strategy().system_type() == CONTACT::SystemType::saddlepoint)
-  {
+  {//#//# I THINK WE PUT ALMOST EVERYTHING IN HERE, JUST NEED TO FIND HOW TO DO MUELU AND ALSO HOW WE CAN ACCESS SOLVER PARAM LIST IF POSSIBLE
     // --- Kdd - block ---------------------------------------------------
     block_ptr = strategy().get_matrix_block_ptr(CONTACT::MatBlockType::displ_displ);
     if (block_ptr)
@@ -299,6 +303,8 @@ const std::shared_ptr<CONTACT::MtAbstractStrategy>& Solid::ModelEvaluator::Mesht
  *----------------------------------------------------------------------*/
 CONTACT::MtAbstractStrategy& Solid::ModelEvaluator::Meshtying::strategy()
 {
+  std::cout<<"NEW Solid::ModelEvaluator::Meshtying::strategy() //#\n";
+  
   //#
   check_init_setup();
   return *strategy_ptr_;
@@ -318,6 +324,8 @@ const CONTACT::MtAbstractStrategy& Solid::ModelEvaluator::Meshtying::strategy() 
 std::shared_ptr<const Core::LinAlg::Map>
 Solid::ModelEvaluator::Meshtying::get_block_dof_row_map_ptr() const
 {
+  std::cout<<"NEW Solid::ModelEvaluator::Meshtying::get_block_dof_row_map_ptr() //#\n";
+  
   //#?
   check_init_setup();
   if (strategy().lm_dof_row_map_ptr() == nullptr)
@@ -355,9 +363,18 @@ void Solid::ModelEvaluator::Meshtying::run_pre_apply_jacobian_inverse(
     const Core::LinAlg::Vector<double>& rhs, Core::LinAlg::Vector<double>& result,
     const Core::LinAlg::Vector<double>& xold, const NOX::Nln::Group& grp)
 {
+  std::cout<<"Solid::ModelEvaluator::Meshtying::run_pre_apply_jacobian_inverse() //#\n";
   std::shared_ptr<Core::LinAlg::SparseMatrix> jac_dd = global_state().jacobian_displ_block();
+  
+  
+  
   const_cast<CONTACT::MtAbstractStrategy&>(strategy())
       .run_pre_apply_jacobian_inverse(jac_dd, const_cast<Core::LinAlg::Vector<double>&>(rhs));
+      
+      //#/# Here make the maps and stuff to give to the general nox linear solver so it can put it in the linsolver param list
+      
+  
+    
 }
 
 /*----------------------------------------------------------------------------*
@@ -395,6 +412,8 @@ bool Solid::ModelEvaluator::Meshtying::evaluate_force_stiff()
  *----------------------------------------------------------------------------*/
 bool Solid::ModelEvaluator::Meshtying::evaluate_stiff()
 {
+  std::cout<<"NEW Solid::ModelEvaluator::Meshtying::evaluate_stiff() //#\n";
+  
   return strategy().evaluate_stiff(global_state().get_dis_np());
 }
 

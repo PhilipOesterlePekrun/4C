@@ -62,6 +62,7 @@ std::shared_ptr<Solid::SOLVER::Factory::LinSolMap> Solid::SOLVER::Factory::build
           (*linsolvers)[Inpar::Solid::model_structure] = build_structure_lin_solver(sdyn, actdis);
         break;
       }
+      //#//#This comment is relevant
       /* ToDo Check if this makes sense for simulations where both, meshtying and
        *      contact, are present. If we need two linsolvers, please adjust the
        *      implementation (maps for pre-conditioning, etc.). */
@@ -353,7 +354,7 @@ std::cout<<"l321; case CONTACT::SystemType::saddlepoint: //#\n";
           Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
               Global::Problem::instance()->io_params(), "VERBOSITY"));
 
-      compute_null_space_if_necessary(actdis, linsolver->params());
+      //compute_null_space_if_necessary(actdis, linsolver->params()); //#//# BUT this falsely puts nullspace stuff into the top level MueLu Parameters (where it is not needed, I am pretty sure)
 
       // feed the solver object with additional information
       if (onlycontact or meshtyingandcontact)
@@ -386,8 +387,8 @@ Core::LinearSolver::Parameters::compute_solver_parameters(
               
               //compute_null_space_if_necessary(actdis, linsolver->params());//#? I dont think so
               
-std::cout<<"NEW MUELU linsolver->params() (parameter list): //#\n";
-//linsolver->params().print();
+std::cout<<"NEW SOLVER FACTORY MUELU linsolver->params() (parameter list): //#\n";
+linsolver->params().print();
 
 //FOUR_C_THROW("THROW IN new solver factory");
 
@@ -402,15 +403,40 @@ std::cout<<"NEW MUELU linsolver->params() (parameter list): //#\n";
     // feed Belos based solvers with contact information
     if (linsolver->params().isSublist("Belos Parameters"))
     {
-      Teuchos::ParameterList& mueluParams = linsolver->params().sublist("Belos Parameters");
+      std::cout<<"NEW how often does FACTORY build_meshtying_contact_lin_solver() get called? //#\n"; //#//# ANSWER: ONLY ONCE OVERALL (but this gets printed once per processor)
+      
+      Teuchos::ParameterList& mueluParams = linsolver->params();
+      Teuchos::ParameterList& belosParams = mueluParams.sublist("Belos Parameters");
       
       if (onlycontact or meshtyingandcontact)
-        mueluParams.set<std::string>("Core::ProblemType", "contact");
+        belosParams.set<std::string>("Core::ProblemType", "contact");
       else
-        mueluParams.set<std::string>("Core::ProblemType", "meshtying"); //# possibly these belong outside, for any contact meshtying problem?
+        belosParams.set<std::string>("Core::ProblemType", "meshtying"); //# possibly these belong outside, for any contact meshtying problem?
       
-        
-      // /# old0
+        /////////#//#
+            auto dofmap =
+      mueluParams.sublist("Inverse2")
+            .sublist("MueLu Parameters").get<std::shared_ptr<Core::LinAlg::Map>>("null space: dof map");
+      
+//std::cout<<"NEW dofmap->print(std::cout); //#\n";
+//dofmap->print(std::cout);
+
+        // set the nullspace
+        std::shared_ptr<Core::LinAlg::MultiVector<double>> nullspace =
+            std::make_shared<Core::LinAlg::MultiVector<double>>(*dofmap, 3/*dim_nullspace*/, true);
+            
+
+            
+        for (int ldof = 0; ldof < dofmap->num_my_elements(); ++ldof)
+        {
+          nullspace->replace_local_value(ldof, ldof % 3/*dim_nullspace*/, 1.0);
+        }
+
+        // add the nullspace to the parameter list
+        mueluParams
+            .sublist("Inverse2")
+            .sublist("MueLu Parameters")
+            .set("nullspace", nullspace);
       
     }
       
@@ -448,6 +474,8 @@ linsolver->params().print();
     }
     break;
   }
+  
+  std::cout<<"NEW solver FACTORY build_meshtying_contact_lin_solver() END //#\n";
 
   return linsolver;
 }

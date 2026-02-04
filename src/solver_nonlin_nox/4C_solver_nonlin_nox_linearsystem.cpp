@@ -235,14 +235,23 @@ void NOX::Nln::LinearSystem::complete_solution_after_solve(
 bool NOX::Nln::LinearSystem::apply_jacobian_inverse(Teuchos::ParameterList& linearSolverParams,
     const NOX::Nln::Vector& input, NOX::Nln::Vector& result)
 {
+  //FOUR_C_THROW("INTENTIONAL THROW NOX::Nln::LinearSystem::apply_jacobian_inverse line238 //#");
+  
+  //linearSolverParams = the nox linsolver parameter list
+  //currsolver.params = our parameter list
+  //#/# Meeting
+  
   /* Need non-const version of the input vector
    * NOX::Nln::LinearProblem requires non-const versions so we can perform
    * scaling of the linear problem.
    * Same is valid for the prePostOperator. We want to have the
    * possibility to change the linear system. */
   NOX::Nln::Vector& nonConstInput = const_cast<NOX::Nln::Vector&>(input);
+std::cout<<"NOX::Nln::LinearSystem::apply_jacobian_inverse line248 //#\n";
+  prePostOperatorPtr_->run_pre_apply_jacobian_inverse(nonConstInput, jacobian(), *this); //#/# MEETING prepost operator
+std::cout<<"NOX::Nln::LinearSystem::apply_jacobian_inverse line250 //#\n";
 
-  prePostOperatorPtr_->run_pre_apply_jacobian_inverse(nonConstInput, jacobian(), *this);
+//#/# Feb 2026; Somewhere here, we must get the discretization from modelEvaluator->discret() (is public)
 
   double startTime = timer_.wallTime();
 
@@ -274,9 +283,11 @@ bool NOX::Nln::LinearSystem::apply_jacobian_inverse(Teuchos::ParameterList& line
     Teuchos::RCP<Core::LinAlg::Solver> currSolver;
     NOX::Nln::SolutionType solType = get_active_lin_solver(solvers_, currSolver);
 
+std::cout<<"NOX::Nln::LinearSystem::apply_jacobian_inverse line282 //#\n";
     // set solver options if necessary
     auto solver_params = set_solver_options(linearSolverParams, currSolver, solType);
-
+std::cout<<"NOX::Nln::LinearSystem::apply_jacobian_inverse line285 //#\n";
+    
     // solve
     int iter = linearSolverParams.get<int>("Number of Nonlinear Iterations", -10);
     if (iter == -10)
@@ -288,6 +299,7 @@ bool NOX::Nln::LinearSystem::apply_jacobian_inverse(Teuchos::ParameterList& line
     if (currSolver->params().isSublist("Belos Parameters") and
         linearSolverParams.isParameter("Tolerance"))
     {
+      //#/#
       const double tolerance = linearSolverParams.get<double>("Tolerance");
       solver_params.tolerance = tolerance;
     }
@@ -303,8 +315,11 @@ bool NOX::Nln::LinearSystem::apply_jacobian_inverse(Teuchos::ParameterList& line
       solver_params.projector = projector;
     }
 
+std::cout<<"NOX::Nln::LinearSystem::apply_jacobian_inverse line314 //#\n";
     linsol_status =
-        currSolver->solve(linProblem.jac, linProblem.lhs, linProblem.rhs, solver_params);
+        currSolver->solve(linProblem.jac, linProblem.lhs, linProblem.rhs, solver_params);//#/#
+std::cout<<"NOX::Nln::LinearSystem::apply_jacobian_inverse line317 //#\n";
+        
 
     if (linsol_status)
     {
@@ -346,6 +361,7 @@ bool NOX::Nln::LinearSystem::compute_jacobian(const NOX::Nln::Vector& x)
 bool NOX::Nln::LinearSystem::compute_f_and_jacobian(
     const NOX::Nln::Vector& x, NOX::Nln::Vector& rhs)
 {
+  //#/# gets called from from compute_f_and_jacobian() innonlin_nox_group.cpp
   prePostOperatorPtr_->run_pre_compute_f_and_jacobian(
       rhs.get_linalg_vector(), jacobian(), x.get_linalg_vector(), *this);
 

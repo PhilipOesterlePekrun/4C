@@ -39,6 +39,8 @@ NOX::Nln::CONTACT::LinearSystem::LinearSystem(Teuchos::ParameterList& printParam
       p_lin_prob_(*this)
 {
   // empty
+  std::cout<<"NOX::Nln::CONTACT::LinearSystem::LinearSystem() line42 //#\n";
+  
 }
 
 /*----------------------------------------------------------------------*
@@ -58,6 +60,9 @@ NOX::Nln::CONTACT::LinearSystem::LinearSystem(Teuchos::ParameterList& printParam
       p_lin_prob_(*this)
 {
   // empty
+  std::cout<<"NOX::Nln::CONTACT::LinearSystem::LinearSystem() line61 //#\n";
+  
+  //#/# 4. Feb
 }
 
 /*----------------------------------------------------------------------*
