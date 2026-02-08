@@ -9,14 +9,20 @@
 
 #include "4C_contact_abstract_strategy.hpp"
 #include "4C_contact_input.hpp"
+#include "4C_contact_meshtying_abstract_strategy.hpp"
+#include "4C_fem_discretization.hpp"
+#include "4C_global_data.hpp"
 #include "4C_linalg_blocksparsematrix.hpp"
 #include "4C_linalg_utils_sparse_algebra_math.hpp"
+#include "4C_linear_solver_method.hpp"
 #include "4C_linear_solver_method_linalg.hpp"
 #include "4C_mortar_strategy_base.hpp"
 #include "4C_solver_nonlin_nox_aux.hpp"
 #include "4C_solver_nonlin_nox_interface_jacobian.hpp"
 #include "4C_solver_nonlin_nox_interface_required.hpp"
 #include "4C_solver_nonlin_nox_vector.hpp"
+
+#include <Teuchos_RCP.hpp>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -119,7 +125,7 @@ Core::LinAlg::SolverParams NOX::Nln::MeshTying::LinearSystem::set_solver_options
       std::vector<Teuchos::RCP<Core::LinAlg::Map>> prec_maps(4, Teuchos::null);
       i_constr_prec_.begin()->second->fill_maps_for_preconditioner(prec_maps);
       mueluParams.set<Teuchos::RCP<Epetra_Map>>(
-          "contact masterDofMap", Teuchos::rcpFromRef((prec_maps[0]->get_epetra_map())));
+          "contact masterDofMap", Teuchos::rcpFromRef(prec_maps[0]->get_epetra_map()));
       mueluParams.set<Teuchos::RCP<Epetra_Map>>(
           "contact slaveDofMap", Teuchos::rcpFromRef(prec_maps[1]->get_epetra_map()));
       mueluParams.set<Teuchos::RCP<Epetra_Map>>(
@@ -135,11 +141,14 @@ Core::LinAlg::SolverParams NOX::Nln::MeshTying::LinearSystem::set_solver_options
       else
         FOUR_C_THROW("Currently we support only a pure meshtying OR a pure contact problem!");
 
+
+
       mueluParams.set<int>("time step", step);
       // increase counter by one (historical reasons)
       mueluParams.set<int>("iter", nlnIter + 1);
     }
-  }  // end: feed solver with contact/meshtying information
+  }
+  //////// base it off contact linsystem, just copy here//#/#
 
   return solver_params;
 }
