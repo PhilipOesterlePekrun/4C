@@ -219,7 +219,7 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_structure_li
     case Core::LinearSolver::PreconditionerType::multigrid_muelu:
     {
       compute_null_space_if_necessary(actdis, linsolver->params());
-      break;
+      break;//#/# FEB 2026
     }
     case Core::LinearSolver::PreconditionerType::block_teko:
     {
@@ -267,7 +267,7 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_structure_li
           .sublist("Inverse1")
           .set<std::shared_ptr<Core::LinAlg::Map>>("null space: dof map", dof_row_map_solid);
       Core::LinearSolver::Parameters::compute_solver_parameters(
-          actdis, linsolver->params().sublist("Inverse1"));
+          actdis, linsolver->params().sublist("Inverse1"));//#/# FEB 2026
 
       break;
     }

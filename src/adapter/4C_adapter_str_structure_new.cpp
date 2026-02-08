@@ -455,10 +455,10 @@ void Adapter::StructureBaseAlgorithmNew::setup_tim_int()
       }
       mueluParams.set<Teuchos::RCP<std::map<int, int>>>(
           "Interface DualNodeID to PrimalNodeID", Teuchos::rcp(dual2primal_map.get()));
-
+/*
       mueluParams.set<int>("time step", prbdyn_->get<double>("TIMESTEP"));
       mueluParams.set<int>("iter", 5);//iter_);//#########
-      mueluParams.set<bool>("reuse preconditioner", strategy->active_set_converged());
+      mueluParams.set<bool>("reuse preconditioner", strategy->active_set_converged());*/
       
       std::cout<<"NEW ADAPTER MUELU linsolver->params() (parameter list): //#\n";
 solver->params().print();

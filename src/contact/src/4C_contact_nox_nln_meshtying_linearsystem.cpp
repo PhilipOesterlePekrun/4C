@@ -23,6 +23,8 @@
 #include "4C_global_data.hpp"
 #include "4C_contact_meshtying_abstract_strategy.hpp" //# or higher
 #include "4C_fem_discretization.hpp"
+#include "Teuchos_RCPStdSharedPtrConversions.hpp"
+#include "Teuchos_RCP.hpp"
 //#/#
 
 FOUR_C_NAMESPACE_OPEN
@@ -159,16 +161,25 @@ std::cout<<"NOX::Nln::MeshTying::LinearSystem::set_solver_options() line96 //#\n
       std::shared_ptr<Core::FE::Discretization> discret =
       Global::Problem::instance()->get_dis("structure"); //#
       
-      std::shared_ptr<std::map<int, int>> dual2primal_map = std::make_shared<std::map<int, int>>();
+      auto dual2primal_map = Teuchos::rcp(new std::map<int, int>());
       const std::shared_ptr<const Core::LinAlg::Map> gs_node_row_map =
           strategy->slave_row_nodes_ptr();
       const Core::LinAlg::Map* solid_node_map = discret->node_row_map();
+std::cout<<"NOX::Nln::MeshTying::LinearSystem::set_solver_options() line226 //#\n";
+std::cout<<"gs_node_row_map->num_my_elements()="<<gs_node_row_map->num_my_elements()<<"\n";
       for (int dual_lid = 0; dual_lid < gs_node_row_map->num_my_elements(); dual_lid++)
       {
         int dual_gid = gs_node_row_map->gid(dual_lid);
         if (discret->have_global_node(dual_gid))
           (*dual2primal_map)[dual_lid] = solid_node_map->lid(dual_gid);
       }
+      
+      /*std::cout << "dual2primal_map size = " << dual2primal_map->size() << '\n';
+for (const auto& [k, v] : *dual2primal_map) {
+  std::cout << k << " -> " << v << '\n';
+}
+FOUR_C_THROW("INTENTIONAL");*/
+      
       mueluParams.set<Teuchos::RCP<std::map<int, int>>>(
           "Interface DualNodeID to PrimalNodeID", dual2primal_map);
 
@@ -209,8 +220,8 @@ std::cout<<"NOX::Nln::MeshTying::LinearSystem::set_solver_options() line96 //#\n
 
                   // get the degree of freedom map from the block matrix
                   auto block_mat_blocked_operator =
-            std::dynamic_pointer_cast<Core::LinAlg::BlockSparseMatrixBase>(
-                Core::Utils::shared_ptr_from_ref(jacobian_ptr())); //# or slightly different?
+            std::dynamic_pointer_cast<const Core::LinAlg::BlockSparseMatrixBase>(
+                Core::Utils::shared_ptr_from_ref(*jacobian_ptr())); //# or slightly different?
 
                   if (!block_mat_blocked_operator)
                     FOUR_C_THROW("Failed to cast blockMat to BlockSparseMatrixBase");
@@ -221,6 +232,9 @@ std::cout<<"NOX::Nln::MeshTying::LinearSystem::set_solver_options() line96 //#\n
                   // set the nullspace
                   std::shared_ptr<Core::LinAlg::MultiVector<double>> nullspace =
                       std::make_shared<Core::LinAlg::MultiVector<double>>(dofmap, dim_nullspace, true);
+std::cout<<"NOX::Nln::MeshTying::LinearSystem::set_solver_options() line226 //#\n";
+std::cout<<"dofmap.num_my_elements="<<dofmap.num_my_elements()<<"\n";
+
                   for (int ldof = 0; ldof < dofmap.num_my_elements(); ++ldof)
                   {
                     nullspace->replace_local_value(ldof, ldof % dim_nullspace, 1.0);

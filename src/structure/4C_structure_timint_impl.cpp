@@ -3063,12 +3063,20 @@ void Solid::TimIntImpl::cmt_linear_solve()
       const std::shared_ptr<const Core::LinAlg::Map> gs_node_row_map =
           strategy->slave_row_nodes_ptr();
       const Core::LinAlg::Map* solid_node_map = discretization()->node_row_map();
+std::cout<<"OLD gs_node_row_map->num_my_elements()="<<gs_node_row_map->num_my_elements()<<" //#\n";
       for (int dual_lid = 0; dual_lid < gs_node_row_map->num_my_elements(); dual_lid++)
       {
         int dual_gid = gs_node_row_map->gid(dual_lid);
         if (discretization()->have_global_node(dual_gid))
           (*dual2primal_map)[dual_lid] = solid_node_map->lid(dual_gid);
       }
+      
+      /*std::cout << "dual2primal_map size = " << dual2primal_map->size() << '\n';
+for (const auto& [k, v] : *dual2primal_map) {
+  std::cout << k << " -> " << v << '\n';
+}
+FOUR_C_THROW("INTENTIONAL");*/
+
       mueluParams.set<Teuchos::RCP<std::map<int, int>>>(
           "Interface DualNodeID to PrimalNodeID", Teuchos::rcp(dual2primal_map));
 
@@ -3140,6 +3148,8 @@ contactsolver_->params().print();//Teuchos::FancyOStream(Teuchos::rcpFromRef(std
         // set the nullspace
         std::shared_ptr<Core::LinAlg::MultiVector<double>> nullspace =
             std::make_shared<Core::LinAlg::MultiVector<double>>(dofmap, dim_nullspace, true);
+std::cout<<"OLD NS dofmap.num_my_elements();="<<dofmap.num_my_elements()<<" //#\n";
+
         for (int ldof = 0; ldof < dofmap.num_my_elements(); ++ldof)
         {
           nullspace->replace_local_value(ldof, ldof % dim_nullspace, 1.0);
