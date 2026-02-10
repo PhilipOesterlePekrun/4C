@@ -126,14 +126,10 @@ Core::LinAlg::SolverParams NOX::Nln::CONTACT::LinearSystem::set_solver_options(
       // (3) activeDofMap
       std::vector<Teuchos::RCP<Core::LinAlg::Map>> prec_maps(4, Teuchos::null);
       i_constr_prec_.begin()->second->fill_maps_for_preconditioner(prec_maps);
-      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
-          "contact masterDofMap", Teuchos::rcpFromRef((prec_maps[0]->get_epetra_map())));
-      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
-          "contact slaveDofMap", Teuchos::rcpFromRef(prec_maps[1]->get_epetra_map()));
-      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
-          "contact innerDofMap", Teuchos::rcpFromRef(prec_maps[2]->get_epetra_map()));
-      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
-          "contact activeDofMap", Teuchos::rcpFromRef(prec_maps[3]->get_epetra_map()));
+      mueluParams.set<Teuchos::RCP<Core::LinAlg::Map>>("contact masterDofMap", prec_maps[0]);
+      mueluParams.set<Teuchos::RCP<Core::LinAlg::Map>>("contact slaveDofMap", prec_maps[1]);
+      mueluParams.set<Teuchos::RCP<Core::LinAlg::Map>>("contact innerDofMap", prec_maps[2]);
+      mueluParams.set<Teuchos::RCP<Core::LinAlg::Map>>("contact activeDofMap", prec_maps[3]);
       // contact or contact/meshtying
       if (i_constr_prec_.begin()->first == NOX::Nln::sol_contact)
         mueluParams.set<std::string>("Core::ProblemType", "contact");
@@ -144,113 +140,63 @@ Core::LinAlg::SolverParams NOX::Nln::CONTACT::LinearSystem::set_solver_options(
         FOUR_C_THROW("Currently we support only a pure meshtying OR a pure contact problem!");
 
       // construct the mapping of the dual node IDs to primal node IDs
-
-      // auto dual2primal_map = Teuchos::rcp(new std::map<int, int>());
       std::shared_ptr<std::map<int, int>> dual2primal_map = std::make_shared<std::map<int, int>>();
 
-      std::shared_ptr<Mortar::StrategyBase> strategy =
-          std::dynamic_pointer_cast<Mortar::StrategyBase>(
+      const std::shared_ptr<const Mortar::StrategyBase>& strategy =
+          std::dynamic_pointer_cast<const Mortar::StrategyBase>(
               Core::Utils::shared_ptr_from_ref(*i_constr_prec_.begin()->second));
-      const std::shared_ptr<const Core::LinAlg::Map> gs_node_row_map =
-          strategy->slave_row_nodes_ptr();
+      const auto& gs_node_row_map = strategy->slave_row_nodes_ptr();
 
-      auto discret = Global::Problem::instance()->get_dis("structure");
-      const Core::LinAlg::Map* solid_node_map = discret->node_row_map();
+      const auto& discret = Global::Problem::instance()->get_dis("structure");
+      const auto* solid_node_map = discret->node_row_map();
 
       for (int dual_lid = 0; dual_lid < gs_node_row_map->num_my_elements(); dual_lid++)
       {
-        int dual_gid = gs_node_row_map->gid(dual_lid);
+        const int dual_gid = gs_node_row_map->gid(dual_lid);
         if (discret->have_global_node(dual_gid))
           (*dual2primal_map)[dual_lid] = solid_node_map->lid(dual_gid);
       }
-
-      int rank;
-      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-      if (true)  // rank == 1)
-      {
-        std::cout << "RANK " << rank << ": //# dual2primal_map size = " << dual2primal_map->size()
-                  << "; dual2primal_map:" << '\n';
-        /*for (const auto& [k, v] : *dual2primal_map)
-        {
-          std::cout << k << " -> " << v << '\n';
-        }*/
-      }
-      /*
-      std::ofstream f("dual2primal_map.rank" + std::to_string(rank) + ".txt", std::ios::app);
-      f << "//# dual2primal_map size = " << dual2primal_map->size() << "; dual2primal_map:\n";
-      for (const auto& [k, v] : *dual2primal_map) f << k << " -> " << v << '\n';*/
-
 
       mueluParams.set<Teuchos::RCP<std::map<int, int>>>(
           "Interface DualNodeID to PrimalNodeID", Teuchos::rcp(dual2primal_map));
 
       if (i_constr_prec_.begin()->second->is_saddle_point_system())
       {
-        const Teuchos::ParameterList& mcparams =
-            Global::Problem::instance()->contact_dynamic_params();
-        const auto sol_type =
-            Teuchos::getIntegralValue<FourC::CONTACT::SolvingStrategy>(mcparams, "STRATEGY");
-        if (sol_type == FourC::CONTACT::SolvingStrategy::lagmult)
+        const auto& sol_type = Teuchos::getIntegralValue<FourC::CONTACT::SolvingStrategy>(
+            strategy->params(), "STRATEGY");
+        const auto& systype =
+            Teuchos::getIntegralValue<FourC::CONTACT::SystemType>(strategy->params(), "SYSTEM");
+        if (sol_type == FourC::CONTACT::SolvingStrategy::lagmult &&
+            (systype != FourC::CONTACT::SystemType::condensed &&
+                systype != FourC::CONTACT::SystemType::condensed_lagmult))
         {
-          const int lin_solver_id = mcparams.get<int>("LINEAR_SOLVER");
-          const auto prec = Teuchos::getIntegralValue<Core::LinearSolver::PreconditionerType>(
-              Global::Problem::instance()->solver_params(lin_solver_id), "AZPREC");
-          if (prec == Core::LinearSolver::PreconditionerType::multigrid_muelu)
+          // compute the nullspace vectors for the Lagrange multiplier field for MueLu
+          if (solverPtr->params().isSublist("MueLu Parameters"))
           {
-            // compute the nullspace vectors for the Lagrange multiplier field for MueLu
-            if (solverPtr->params().isSublist("MueLu Parameters"))
+            const int dim_nullspace = discret->n_dim();
+
+            // get the degree of freedom map from the block matrix
+            auto block_mat_blocked_operator =
+                std::dynamic_pointer_cast<const Core::LinAlg::BlockSparseMatrixBase>(
+                    Core::Utils::shared_ptr_from_ref(*p_lin_prob_.p_jac_));
+            if (!block_mat_blocked_operator)
+              FOUR_C_THROW("Failed to cast blockMat to BlockSparseMatrixBase");
+            const auto& mat11 = block_mat_blocked_operator->matrix(1, 1);
+            const auto& dofmap = mat11.domain_map();
+
+            // set the nullspace
+            std::shared_ptr<Core::LinAlg::MultiVector<double>> nullspace =
+                std::make_shared<Core::LinAlg::MultiVector<double>>(dofmap, dim_nullspace, true);
+            for (int ldof = 0; ldof < dofmap.num_my_elements(); ++ldof)
             {
-              auto nsPrint =
-                  solverPtr->params()
-                      .sublist("Inverse2")
-                      .sublist("MueLu Parameters")
-                      .get<std::shared_ptr<Core::LinAlg::MultiVector<double>>>("nullspace");  // #/#
-              if (rank == 1)
-              {
-                std::cout << "//# nsPrint->num_vectors()=" << nsPrint->num_vectors()
-                          << "; nsPrint.local_length()=" << nsPrint->local_length();
-              }
-              // nsPrint->print(std::cout);
-
-              std::cout << "NEW set_solver_options() //#\n";
-
-              int dim_nullspace = discret->n_dim();
-              std::cout << "dim_nullspace=" << dim_nullspace << "\n";
-
-              // get the degree of freedom map from the block matrix
-
-              auto block_mat_blocked_operator =
-                  std::dynamic_pointer_cast<const Core::LinAlg::BlockSparseMatrixBase>(
-                      Core::Utils::shared_ptr_from_ref(*p_lin_prob_.p_jac_));
-              /*auto block_mat_blocked_operator =
-                  std::dynamic_pointer_cast<const Core::LinAlg::BlockSparseMatrixBase>(
-                      Core::Utils::shared_ptr_from_ref(*jacobian_ptr()));*/
-              if (!block_mat_blocked_operator)
-                FOUR_C_THROW("Failed to cast blockMat to BlockSparseMatrixBase");
-              const auto& mat11 = block_mat_blocked_operator->matrix(1, 1);
-              const auto& dofmap = mat11.domain_map();
-
-              // set the nullspace
-              std::shared_ptr<Core::LinAlg::MultiVector<double>> nullspace =
-                  std::make_shared<Core::LinAlg::MultiVector<double>>(dofmap, dim_nullspace, true);
-              for (int ldof = 0; ldof < dofmap.num_my_elements(); ++ldof)
-              {
-                nullspace->replace_local_value(ldof, ldof % dim_nullspace, 1.0);
-              }
-
-
-              std::cout << "RANK: " << rank
-                        << " //# dofmap.num_my_elements()=" << dofmap.num_my_elements()
-                        << "; nullspace->num_vectors()=" << nullspace->num_vectors()
-                        << "; nullspace.local_length()=" << nullspace->local_length();
-              // nullspace->print(std::cout);
-
-              // add the nullspace to the parameter list
-              solverPtr->params()
-                  .sublist("Inverse2")
-                  .sublist("MueLu Parameters")
-                  .set<std::shared_ptr<Core::LinAlg::MultiVector<double>>>("nullspace", nullspace);
+              nullspace->replace_local_value(ldof, ldof % dim_nullspace, 1.0);
             }
+
+            // add the nullspace to the parameter list
+            solverPtr->params()
+                .sublist("Inverse2")
+                .sublist("MueLu Parameters")
+                .set<std::shared_ptr<Core::LinAlg::MultiVector<double>>>("nullspace", nullspace);
           }
         }
       }

@@ -353,7 +353,7 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_meshtying_co
               Global::Problem::instance()->io_params(), "VERBOSITY"));
 
       compute_null_space_if_necessary(actdis, linsolver->params());
-      std::cout << "build_meshtying_contact_lin_solver() called //#\n";
+
       // feed the solver object with additional information
       if (onlycontact or meshtyingandcontact)
         linsolver->params().set<bool>("CONTACT", true);
@@ -368,11 +368,7 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_meshtying_co
       {
         // provide null space information
         if (prec == Core::LinearSolver::PreconditionerType::multigrid_muelu)
-        {
-          Core::LinearSolver::Parameters::compute_solver_parameters(
-              actdis, linsolver->params().sublist("Inverse1").sublist("MueLu Parameters"));
-          Core::LinearSolver::Parameters::compute_solver_parameters(
-              actdis, linsolver->params().sublist("Inverse2").sublist("MueLu Parameters"));
+        { /* do nothing here */
         }
         else if (prec == Core::LinearSolver::PreconditionerType::block_teko)
         {

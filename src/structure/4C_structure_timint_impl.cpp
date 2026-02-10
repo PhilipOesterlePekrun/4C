@@ -2627,8 +2627,6 @@ int Solid::TimIntImpl::cmt_nonlinear_solve()
 /* linear solver call for contact / meshtying */
 void Solid::TimIntImpl::cmt_linear_solve()
 {
-  int rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   // adapt tolerance for contact solver
   // note: tolerance for fallback solver already adapted in NewtonFull
   Core::LinAlg::SolverParams solver_params;
@@ -2663,14 +2661,14 @@ void Solid::TimIntImpl::cmt_linear_solve()
     if (contactsolver_->params().isSublist("Belos Parameters"))
     {
       Teuchos::ParameterList& mueluParams = contactsolver_->params().sublist("Belos Parameters");
-      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
-          "contact masterDofMap", Teuchos::rcpFromRef(masterDofMap->get_epetra_map()));
-      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
-          "contact slaveDofMap", Teuchos::rcpFromRef(slaveDofMap->get_epetra_map()));
-      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
-          "contact innerDofMap", Teuchos::rcpFromRef(innerDofMap->get_epetra_map()));
-      mueluParams.set<Teuchos::RCP<Epetra_Map>>(
-          "contact activeDofMap", Teuchos::rcpFromRef(activeDofMap->get_epetra_map()));
+      mueluParams.set<Teuchos::RCP<Core::LinAlg::Map>>(
+          "contact masterDofMap", Teuchos::rcp(masterDofMap));
+      mueluParams.set<Teuchos::RCP<Core::LinAlg::Map>>(
+          "contact slaveDofMap", Teuchos::rcp(slaveDofMap));
+      mueluParams.set<Teuchos::RCP<Core::LinAlg::Map>>(
+          "contact innerDofMap", Teuchos::rcp(innerDofMap));
+      mueluParams.set<Teuchos::RCP<Core::LinAlg::Map>>(
+          "contact activeDofMap", Teuchos::rcp(activeDofMap));
       std::shared_ptr<CONTACT::AbstractStrategy> costrat =
           std::dynamic_pointer_cast<CONTACT::AbstractStrategy>(strategy);
       if (costrat != nullptr)
@@ -2689,19 +2687,6 @@ void Solid::TimIntImpl::cmt_linear_solve()
         if (discretization()->have_global_node(dual_gid))
           (*dual2primal_map)[dual_lid] = solid_node_map->lid(dual_gid);
       }
-      /*std::cout << "//# dual2primal_map size = " << dual2primal_map->size()
-                << "; dual2primal_map:" << '\n';
-      for (const auto& [k, v] : *dual2primal_map)
-      {
-        std::cout << k << " -> " << v << '\n';
-      }*/
-      std::cout << "RANK " << rank << ": //# dual2primal_map size = " << dual2primal_map->size()
-                << "; dual2primal_map:" << '\n';
-      /*for (const auto& [k, v] : *dual2primal_map)
-      {
-        std::cout << k << " -> " << v << '\n';
-      }
-        */
       mueluParams.set<Teuchos::RCP<std::map<int, int>>>(
           "Interface DualNodeID to PrimalNodeID", Teuchos::rcp(dual2primal_map));
 
@@ -2773,10 +2758,6 @@ void Solid::TimIntImpl::cmt_linear_solve()
         {
           nullspace->replace_local_value(ldof, ldof % dim_nullspace, 1.0);
         }
-        std::cout << "RANK: " << rank
-                  << " //# dofmap.num_my_elements()=" << dofmap.num_my_elements()
-                  << "; nullspace->num_vectors()=" << nullspace->num_vectors()
-                  << "; nullspace.local_length()=" << nullspace->local_length();
 
         // add the nullspace to the parameter list
         contactsolver_->params()
