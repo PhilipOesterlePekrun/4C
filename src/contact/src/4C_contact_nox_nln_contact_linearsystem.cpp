@@ -146,8 +146,7 @@ Core::LinAlg::SolverParams NOX::Nln::CONTACT::LinearSystem::set_solver_options(
       // construct the mapping of the dual node IDs to primal node IDs
 
       // auto dual2primal_map = Teuchos::rcp(new std::map<int, int>());
-      /*std::shared_ptr<*/ std::map<int, int>
-          dual2primal_map;  // = std::make_shared<std::map<int, int>>();
+      std::shared_ptr<std::map<int, int>> dual2primal_map = std::make_shared<std::map<int, int>>();
 
       std::shared_ptr<Mortar::StrategyBase> strategy =
           std::dynamic_pointer_cast<Mortar::StrategyBase>(
@@ -162,16 +161,16 @@ Core::LinAlg::SolverParams NOX::Nln::CONTACT::LinearSystem::set_solver_options(
       {
         int dual_gid = gs_node_row_map->gid(dual_lid);
         if (discret->have_global_node(dual_gid))
-          (dual2primal_map)[dual_lid] = solid_node_map->lid(dual_gid);
+          (*dual2primal_map)[dual_lid] = solid_node_map->lid(dual_gid);
       }
 
       int rank;
       MPI_Comm_rank(MPI_COMM_WORLD, &rank);
       if (false)  // rank == 1)
       {
-        std::cout << "//# dual2primal_map size = " << dual2primal_map.size()
+        std::cout << "//# dual2primal_map size = " << dual2primal_map->size()
                   << "; dual2primal_map:" << '\n';
-        for (const auto& [k, v] : dual2primal_map)
+        for (const auto& [k, v] : *dual2primal_map)
         {
           std::cout << k << " -> " << v << '\n';
         }
@@ -183,7 +182,7 @@ Core::LinAlg::SolverParams NOX::Nln::CONTACT::LinearSystem::set_solver_options(
 
 
       mueluParams.set<Teuchos::RCP<std::map<int, int>>>(
-          "Interface DualNodeID to PrimalNodeID", Teuchos::rcp(&dual2primal_map));
+          "Interface DualNodeID to PrimalNodeID", Teuchos::rcp(dual2primal_map));
 
       if (i_constr_prec_.begin()->second->is_saddle_point_system())
       {
@@ -223,8 +222,8 @@ Core::LinAlg::SolverParams NOX::Nln::CONTACT::LinearSystem::set_solver_options(
                       Core::Utils::shared_ptr_from_ref(*jacobian_ptr()));
               if (!block_mat_blocked_operator)
                 FOUR_C_THROW("Failed to cast blockMat to BlockSparseMatrixBase");
-              auto mat11 = block_mat_blocked_operator->matrix(1, 1);
-              const Core::LinAlg::Map& dofmap = mat11.domain_map();
+              const auto& mat11 = block_mat_blocked_operator->matrix(1, 1);
+              const auto& dofmap = mat11.domain_map();
 
               // set the nullspace
               std::shared_ptr<Core::LinAlg::MultiVector<double>> nullspace =

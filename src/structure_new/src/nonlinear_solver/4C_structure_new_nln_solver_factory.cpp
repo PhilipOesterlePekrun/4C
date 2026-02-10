@@ -57,6 +57,7 @@ std::shared_ptr<Solid::Nln::SOLVER::Generic> Solid::Nln::SOLVER::build_nln_solve
                                      ->params()
                                      .sublist("Belos Parameters")
                                      .get<double>("Convergence Tolerance");
+        std::cout << "Convergence Tolerance = " << tolerance << " //#\n";
         pnewton.sublist("Linear Solver").set("Tolerance", tolerance);
       }
 
