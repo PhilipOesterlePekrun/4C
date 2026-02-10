@@ -166,14 +166,14 @@ Core::LinAlg::SolverParams NOX::Nln::CONTACT::LinearSystem::set_solver_options(
 
       int rank;
       MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-      if (false)  // rank == 1)
+      if (true)  // rank == 1)
       {
-        std::cout << "//# dual2primal_map size = " << dual2primal_map->size()
+        std::cout << "RANK " << rank << ": //# dual2primal_map size = " << dual2primal_map->size()
                   << "; dual2primal_map:" << '\n';
-        for (const auto& [k, v] : *dual2primal_map)
+        /*for (const auto& [k, v] : *dual2primal_map)
         {
           std::cout << k << " -> " << v << '\n';
-        }
+        }*/
       }
       /*
       std::ofstream f("dual2primal_map.rank" + std::to_string(rank) + ".txt", std::ios::app);
@@ -208,18 +208,23 @@ Core::LinAlg::SolverParams NOX::Nln::CONTACT::LinearSystem::set_solver_options(
               if (rank == 1)
               {
                 std::cout << "//# nsPrint->num_vectors()=" << nsPrint->num_vectors()
-                          << "; nsPrint.local_length()=" << nsPrint->local_length()
-                          << "; FULL nullspace:\n";
+                          << "; nsPrint.local_length()=" << nsPrint->local_length();
               }
               // nsPrint->print(std::cout);
+
+              std::cout << "NEW set_solver_options() //#\n";
 
               int dim_nullspace = discret->n_dim();
               std::cout << "dim_nullspace=" << dim_nullspace << "\n";
 
               // get the degree of freedom map from the block matrix
+
               auto block_mat_blocked_operator =
                   std::dynamic_pointer_cast<const Core::LinAlg::BlockSparseMatrixBase>(
-                      Core::Utils::shared_ptr_from_ref(*jacobian_ptr()));
+                      Core::Utils::shared_ptr_from_ref(*p_lin_prob_.p_jac_));
+              /*auto block_mat_blocked_operator =
+                  std::dynamic_pointer_cast<const Core::LinAlg::BlockSparseMatrixBase>(
+                      Core::Utils::shared_ptr_from_ref(*jacobian_ptr()));*/
               if (!block_mat_blocked_operator)
                 FOUR_C_THROW("Failed to cast blockMat to BlockSparseMatrixBase");
               const auto& mat11 = block_mat_blocked_operator->matrix(1, 1);
@@ -234,13 +239,10 @@ Core::LinAlg::SolverParams NOX::Nln::CONTACT::LinearSystem::set_solver_options(
               }
 
 
-              if (rank == 1)
-              {
-                std::cout << "//# dofmap.num_my_elements()=" << dofmap.num_my_elements()
-                          << "; nsPrint->num_vectors()=" << nsPrint->num_vectors()
-                          << "; nsPrint.local_length()=" << nsPrint->local_length()
-                          << "; FULL nullspace:\n";
-              }
+              std::cout << "RANK: " << rank
+                        << " //# dofmap.num_my_elements()=" << dofmap.num_my_elements()
+                        << "; nullspace->num_vectors()=" << nullspace->num_vectors()
+                        << "; nullspace.local_length()=" << nullspace->local_length();
               // nullspace->print(std::cout);
 
               // add the nullspace to the parameter list

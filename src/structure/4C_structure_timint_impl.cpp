@@ -2627,6 +2627,8 @@ int Solid::TimIntImpl::cmt_nonlinear_solve()
 /* linear solver call for contact / meshtying */
 void Solid::TimIntImpl::cmt_linear_solve()
 {
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   // adapt tolerance for contact solver
   // note: tolerance for fallback solver already adapted in NewtonFull
   Core::LinAlg::SolverParams solver_params;
@@ -2687,12 +2689,19 @@ void Solid::TimIntImpl::cmt_linear_solve()
         if (discretization()->have_global_node(dual_gid))
           (*dual2primal_map)[dual_lid] = solid_node_map->lid(dual_gid);
       }
-      std::cout << "//# dual2primal_map size = " << dual2primal_map->size()
+      /*std::cout << "//# dual2primal_map size = " << dual2primal_map->size()
                 << "; dual2primal_map:" << '\n';
       for (const auto& [k, v] : *dual2primal_map)
       {
         std::cout << k << " -> " << v << '\n';
+      }*/
+      std::cout << "RANK " << rank << ": //# dual2primal_map size = " << dual2primal_map->size()
+                << "; dual2primal_map:" << '\n';
+      /*for (const auto& [k, v] : *dual2primal_map)
+      {
+        std::cout << k << " -> " << v << '\n';
       }
+        */
       mueluParams.set<Teuchos::RCP<std::map<int, int>>>(
           "Interface DualNodeID to PrimalNodeID", Teuchos::rcp(dual2primal_map));
 
@@ -2764,9 +2773,10 @@ void Solid::TimIntImpl::cmt_linear_solve()
         {
           nullspace->replace_local_value(ldof, ldof % dim_nullspace, 1.0);
         }
-        std::cout << "//# dofmap.num_my_elements()=" << dofmap.num_my_elements()
-                  << "; nullspace:\n";
-        nullspace->print(std::cout);
+        std::cout << "RANK: " << rank
+                  << " //# dofmap.num_my_elements()=" << dofmap.num_my_elements()
+                  << "; nullspace->num_vectors()=" << nullspace->num_vectors()
+                  << "; nullspace.local_length()=" << nullspace->local_length();
 
         // add the nullspace to the parameter list
         contactsolver_->params()
