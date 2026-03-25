@@ -29,37 +29,18 @@ FOUR_C_NAMESPACE_OPEN
 CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams::MircoConstitutiveLawParams(
     const Core::IO::InputParameterContainer& container)
     : CONTACT::CONSTITUTIVELAW::Parameter(container),
-      firstmatid_(container.get<int>("FirstMatID")),
-      secondmatid_(container.get<int>("SecondMatID")),
-      lateral_length_(container.get<double>("LateralLength")),
-      resolution_(container.get<int>("Resolution")),
-      pressure_green_fun_flag_(container.get<bool>("PressureGreenFunFlag")),
-      random_topology_flag_(container.get<bool>("RandomTopologyFlag")),
-      random_seed_flag_(container.get<bool>("RandomSeedFlag")),
-      random_generator_seed_(container.get<int>("RandomGeneratorSeed")),
-      tolerance_(container.get<double>("Tolerance")),
-      max_iteration_(container.get<int>("MaxIteration")),
-      warm_starting_flag_(container.get<bool>("WarmStartingFlag")),
       finite_difference_fraction_(container.get<double>("FiniteDifferenceFraction")),
-      active_gap_tolerance_(container.get<double>("ActiveGapTolerance")),
-      topology_file_path_((container.get<std::string>("TopologyFilePath")))
+      active_gap_tolerance_(container.get<double>("ActiveGapTolerance"))
 {
-  this->set_parameters();
-}
+  const auto& parameters = container.group("parameters");
+  const auto& geometricalParameters = parameters.group("geometrical_parameters");
+  const auto& materialParameters = parameters.group("material_parameters");
 
-/*----------------------------------------------------------------------*/
-/*----------------------------------------------------------------------*/
-CONTACT::CONSTITUTIVELAW::MircoConstitutiveLaw::MircoConstitutiveLaw(
-    CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams params)
-    : params_(std::move(params))
-{
-}
+  first_mat_id = geometricalParameters.get<int>("FirstMatID");
+  second_mat_id = materialParameters.get<int>("SecondMatID");
 
-void CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams::set_parameters()
-{
-  // retrieve problem instance to read from
+  // retrieve material parameters
   const int probinst = Global::Problem::instance()->materials()->get_read_from_problem();
-
   // for the sake of safety
   if (Global::Problem::instance(probinst)->materials() == nullptr)
     FOUR_C_THROW(
@@ -68,53 +49,61 @@ void CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams::set_parameters()
   // yet another safety check
   if (Global::Problem::instance(probinst)->materials()->num() == 0)
     FOUR_C_THROW("List of materials in the global problem instance is empty.");
-
   // retrieve validated input line of material ID in question
   const auto& firstmat = Global::Problem::instance(probinst)
                              ->materials()
-                             ->parameter_by_id(get_first_mat_id())
+                             ->parameter_by_id(first_mat_id)
                              ->raw_parameters();
   const auto& secondmat = Global::Problem::instance(probinst)
                               ->materials()
-                              ->parameter_by_id(get_second_mat_id())
+                              ->parameter_by_id(second_mat_id)
                               ->raw_parameters();
 
-  const double E1 = firstmat.get<double>("YOUNG");
-  const double E2 = secondmat.get<double>("YOUNG");
-  const double nu1 = firstmat.get<double>("NUE");
-  const double nu2 = secondmat.get<double>("NUE");
+  auto exportVisualization = container.get_or<bool>("ExportVisualization", std::nullopt)
+                                 std::optional<std::string>
+                                     exportVisualizationPath;
+  if (exportVisualization && exportVisualization.value())
+    exportVisualizationPath = container.get<std::string>(root, "ExportVisualizationPath");
+  else
+    exportVisualizationPath = std::nullopt;
 
-  // Composite Young's modulus
-  composite_youngs_ = pow(((1 - pow(nu1, 2)) / E1 + (1 - pow(nu2, 2)) / E2), -1);
+  if (rget<bool>(root, "RandomTopologyFlag"))
+  {
+    *this = InputParameters(firstmat.get<double>("YOUNG"), secondmat.get<double>("YOUNG"),
+        firstmat.get<double>("NUE"), secondmat.get<double>("NUE"),
+        geometricalParameters.get<double>("Tolerance"), geometricalParameters.get<double>("Delta"),
+        geometricalParameters.get<double>("LateralLength"),
+        rget<int>(geometricalParameters, "Resolution"),
+        geometricalParameters.get<double>("InitialTopologyStdDeviation"),
+        geometricalParameters.get<double>("HurstExponent"), container.get<int>("MaxIteration"),
+        container.get<bool>("WarmStartingFlag"), container.get<bool>("PressureGreenFunFlag"),
+        container.get<bool>("RandomSeedFlag"),
+        container.get_or<int>("RandomGeneratorSeed", std::nullopt), exportVisualizationPath);
+  }
+  else
+  {
+    std::string topology_file_path = rget<std::string>(root, "TopologyFilePath");
+    // If the path is relative, it is relative to the input (.yaml) file
+    std::filesystem::path new_path = topology_file_path;
+    if (new_path.is_relative())
+      new_path = std::filesystem::path(inputFileName).parent_path() / new_path;
+    topology_file_path = new_path.string();
 
-  double ngrid = (pow(2, resolution_) + 1);
-  grid_size_ = lateral_length_ / ngrid;
+    *this = InputParameters(rget<double>(firstmat.get<double>("YOUNG"), secondmat.get<double>("YOUNG"),
+        firstmat.get<double>("NUE"), secondmat.get<double>("NUE"),
+        geometricalParameters.get<double>("Tolerance"), geometricalParameters.get<double>("Delta"),
+        geometricalParameters.get<double>("LateralLength"), topology_file_path,
+        container.get<int>("MaxIteration"), container.get<bool>("WarmStartingFlag"),
+        container.get_or<int>("RandomGeneratorSeed", std::nullopt), exportVisualizationPath);
+  }
+}
 
-  // Shape factors (See section 3.3 of https://doi.org/10.1007/s00466-019-01791-3)
-  // These are the shape factors to calculate the elastic compliance correction of the micro-scale
-  // contact constitutive law for various resolutions.
-  // NOTE: Currently MIRCO works for resouluion of 1 to 8. The following map store the shape
-  // factors for resolution of 1 to 8.
-
-  // The following pressure based constants are calculated by solving a flat indentor problem in
-  // MIRCO using the pressure based Green function described in Pohrt and Li (2014).
-  // http://dx.doi.org/10.1134/s1029959914040109
-  const std::map<int, double> shape_factors_pressure{{1, 0.961389237917602}, {2, 0.924715342432435},
-      {3, 0.899837531880697}, {4, 0.884976751041942}, {5, 0.876753783192863},
-      {6, 0.872397956576882}, {7, 0.8701463093314326}, {8, 0.8689982669426167}};
-
-  // The following force based constants are taken from Table 1 of Bonari et al. (2020).
-  // https://doi.org/10.1007/s00466-019-01791-3
-  const std::map<int, double> shape_factors_force{{1, 0.778958541513360}, {2, 0.805513388666376},
-      {3, 0.826126871395416}, {4, 0.841369158110513}, {5, 0.851733020725652},
-      {6, 0.858342234203154}, {7, 0.862368243479785}, {8, 0.864741597831785}};
-
-  const double ShapeFactor = pressure_green_fun_flag_ ? shape_factors_pressure.at(resolution_)
-                                                      : shape_factors_force.at(resolution_);
-
-  elastic_compliance_correction_ = lateral_length_ * composite_youngs_ / ShapeFactor;
-
-  meshgrid_ = MIRCO::CreateMeshgrid(ngrid, grid_size_);
+/*----------------------------------------------------------------------*/
+/*----------------------------------------------------------------------*/
+CONTACT::CONSTITUTIVELAW::MircoConstitutiveLaw::MircoConstitutiveLaw(
+    CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams params)
+    : params_(std::move(params))
+{
 }
 
 /*----------------------------------------------------------------------*
@@ -138,13 +127,18 @@ double CONTACT::CONSTITUTIVELAW::MircoConstitutiveLaw::evaluate(
   const RoughNode* roughNode = dynamic_cast<const RoughNode*>(cnode);
   auto topology = *roughNode->get_topology();
 
+  ViewVector_d meshgrid = CreateMeshgrid(inputParams.N, inputParams.grid_size);
+  const double topologyMax = GetMax(inputParams.topology);
+
   double pressure = 0.0;
   double contact_area_fraction = 0.0;
   MIRCO::Evaluate(pressure, contact_area_fraction, -(gap + params_.get_offset()),
-      params_.get_lateral_length(), params_.get_grid_size(), params_.get_tolerance(),
-      params_.get_max_iteration(), params_.get_composite_youngs(), params_.get_warm_starting_flag(),
-      params_.get_compliance_correction(), topology, roughNode->get_max_topology_height(),
+      params_.lateral_length, params_.grid_size, params_.tolerance, params_.max_iteration,
+      params_.get_composite_youngs(), params_.get_warm_starting_flag(),
+      params_.elastic_compliance_correction, topology, roughNode->get_max_topology_height(),
       *params_.get_mesh_grid(), params_.get_pressure_green_fun_flag());
+  double meanPressure, effectiveContactAreaFraction;
+  Evaluate(meanPressure, effectiveContactAreaFraction, inputParams, topologyMax, meshgrid);
 
   return (-1 * pressure);
 }
@@ -175,15 +169,15 @@ double CONTACT::CONSTITUTIVELAW::MircoConstitutiveLaw::evaluate_derivative(
   double contact_area_fraction = 0.0;
   // using backward difference approach
   MIRCO::Evaluate(pressure1, contact_area_fraction, -1.0 * (gap + params_.get_offset()),
-      params_.get_lateral_length(), params_.get_grid_size(), params_.get_tolerance(),
-      params_.get_max_iteration(), params_.get_composite_youngs(), params_.get_warm_starting_flag(),
-      params_.get_compliance_correction(), topology, roughNode->get_max_topology_height(),
+      params_.lateral_length, params_.grid_size, params_.tolerance, params_.max_iteration,
+      params_.get_composite_youngs(), params_.get_warm_starting_flag(),
+      params_.elastic_compliance_correction, topology, roughNode->get_max_topology_height(),
       *params_.get_mesh_grid(), params_.get_pressure_green_fun_flag());
   MIRCO::Evaluate(pressure2, contact_area_fraction,
       -(1 - params_.get_finite_difference_fraction()) * (gap + params_.get_offset()),
-      params_.get_lateral_length(), params_.get_grid_size(), params_.get_tolerance(),
-      params_.get_max_iteration(), params_.get_composite_youngs(), params_.get_warm_starting_flag(),
-      params_.get_compliance_correction(), topology, roughNode->get_max_topology_height(),
+      params_.lateral_length, params_.grid_size, params_.tolerance, params_.max_iteration,
+      params_.get_composite_youngs(), params_.get_warm_starting_flag(),
+      params_.elastic_compliance_correction, topology, roughNode->get_max_topology_height(),
       *params_.get_mesh_grid(), params_.get_pressure_green_fun_flag());
   return ((pressure1 - pressure2) /
           (-(params_.get_finite_difference_fraction()) * (gap + params_.get_offset())));
