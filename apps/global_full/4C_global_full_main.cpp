@@ -59,6 +59,10 @@ int main(int argc, char* argv[])
   // Kokkos should be initialized right after MPI.
   Kokkos::ScopeGuard kokkos_guard{};
 
+  // # TEST KOKKOS STUFF HERE:{
+
+  // #}
+
   auto arguments = parse_command_line(argc, argv);
   Core::Communication::CommConfig config{
       .group_layout = arguments.group_layout,

@@ -15,7 +15,7 @@
 #include "4C_linalg_serialdensematrix.hpp"
 
 #ifdef FOUR_C_WITH_MIRCO
-#include <mirco_kokkostypes.h>
+#include <mirco_inputparameters.h>
 #endif
 
 FOUR_C_NAMESPACE_OPEN
@@ -28,7 +28,7 @@ namespace CONTACT
     /** \brief constitutive law parameters for a mirco contact law to the contact pressure
      *
      */
-    class MircoConstitutiveLawParams : public Parameter
+    struct MircoConstitutiveLawParams : public Parameter, public MIRCO::InputParameters
     {
      public:
       /** \brief standard constructor
@@ -36,52 +36,12 @@ namespace CONTACT
        */
       MircoConstitutiveLawParams(const Core::IO::InputParameterContainer& container);
 
-      /// @name get-functions for the Constitutive Law parameters of a mirco function
-      //@{
+      int first_mat_id;
+      int second_mat_id;
+      double finite_difference_fraction;
+      double active_gap_tolerance;
 
-      int get_first_mat_id() const { return firstmatid_; };
-      int get_second_mat_id() const { return secondmatid_; };
-      double get_lateral_length() const { return lateral_length_; };
-      bool get_pressure_green_fun_flag() const { return pressure_green_fun_flag_; };
-      double get_tolerance() const { return tolerance_; };
-      double get_max_iteration() const { return max_iteration_; };
-      bool get_warm_starting_flag() const { return warm_starting_flag_; };
-      double get_composite_youngs() const { return composite_youngs_; };
-      double get_grid_size() const { return grid_size_; };
-      double get_compliance_correction() const { return elastic_compliance_correction_; };
-      double get_finite_difference_fraction() const { return finite_difference_fraction_; };
-      double get_active_gap_tolerance() const { return active_gap_tolerance_; };
-#ifdef FOUR_C_WITH_MIRCO
-      const MIRCO::ViewVector_d* get_mesh_grid() const { return &meshgrid_; }
-#endif
-
-      void set_parameters();
-
-     private:
-      /// @name Constitutive Law parameters of a mirco function
-      //@{
-
-      int firstmatid_;
-      int secondmatid_;
-      double lateral_length_;
-      int resolution_;
-      bool pressure_green_fun_flag_;
-      bool random_topology_flag_;
-      bool random_seed_flag_;
-      int random_generator_seed_;
-      double tolerance_;
-      int max_iteration_;
-      bool warm_starting_flag_;
-      double composite_youngs_;
-      double grid_size_;
-      double elastic_compliance_correction_;
-#ifdef FOUR_C_WITH_MIRCO
-      MIRCO::ViewVector_d meshgrid_;
-#endif
-      double finite_difference_fraction_;
-      double active_gap_tolerance_;
-      std::string topology_file_path_;
-      //@}
+      // private: using MIRCO::InputParameters:://#/# anything?
     };  // class
 
     /*----------------------------------------------------------------------*/
