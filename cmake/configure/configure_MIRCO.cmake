@@ -27,7 +27,7 @@ if(FOUR_C_MIRCO_FIND_INSTALLED)
   endif()
 
 else() # Fetch MIRCO from GIT repository
-  # Turn off googletest in MIRCO so that it doesn't interfere with 4C; also, force MIRCO to use 4C's RYML
+  # Turn off googletest and RYML in MIRCO so they do not interfere with 4C
   set(GTEST_IN_MIRCO "OFF")
   set(RYML_IN_MIRCO "OFF")
 

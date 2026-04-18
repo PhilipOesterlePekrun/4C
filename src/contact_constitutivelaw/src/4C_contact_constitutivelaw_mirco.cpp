@@ -119,7 +119,7 @@ double CONTACT::CONSTITUTIVELAW::MircoConstitutiveLaw::evaluate(
         gap, params_.get_offset());
   }
 
-  if (-(gap + params_.get_offset()) < params_.get_active_gap_tolerance())
+  if (-(gap + params_.get_offset()) < params_.active_gap_tolerance)
   {
     return 0.0;
   }
@@ -127,18 +127,12 @@ double CONTACT::CONSTITUTIVELAW::MircoConstitutiveLaw::evaluate(
   const RoughNode* roughNode = dynamic_cast<const RoughNode*>(cnode);
   auto topology = *roughNode->get_topology();
 
-  ViewVector_d meshgrid = CreateMeshgrid(inputParams.N, inputParams.grid_size);
-  const double topologyMax = GetMax(inputParams.topology);
+  MIRCO::ViewVector_d meshgrid = MIRCO::CreateMeshgrid(params_.N, params_.grid_size);
+  const double topologyMax = MIRCO::GetMax(params_.topology);
 
-  double pressure = 0.0;
-  double contact_area_fraction = 0.0;
+  double pressure, contact_area_fraction;
   MIRCO::Evaluate(pressure, contact_area_fraction, -(gap + params_.get_offset()),
-      params_.lateral_length, params_.grid_size, params_.tolerance, params_.max_iteration,
-      params_.get_composite_youngs(), params_.get_warm_starting_flag(),
-      params_.elastic_compliance_correction, topology, roughNode->get_max_topology_height(),
-      *params_.get_mesh_grid(), params_.get_pressure_green_fun_flag());
-  double meanPressure, effectiveContactAreaFraction;
-  Evaluate(meanPressure, effectiveContactAreaFraction, inputParams, topologyMax, meshgrid);
+      params_);  //, topologyMax, meshgrid);
 
   return (-1 * pressure);
 }
@@ -156,7 +150,7 @@ double CONTACT::CONSTITUTIVELAW::MircoConstitutiveLaw::evaluate_derivative(
         gap, params_.get_offset());
   }
 
-  if (-(gap + params_.get_offset()) < params_.get_active_gap_tolerance())
+  if (-(gap + params_.get_offset()) < params_.active_gap_tolerance)
   {
     return 0.0;
   }
@@ -170,11 +164,11 @@ double CONTACT::CONSTITUTIVELAW::MircoConstitutiveLaw::evaluate_derivative(
   // using backward difference approach
   MIRCO::Evaluate(pressure1, contact_area_fraction, -1.0 * (gap + params_.get_offset()),
       params_.lateral_length, params_.grid_size, params_.tolerance, params_.max_iteration,
-      params_.get_composite_youngs(), params_.get_warm_starting_flag(),
-      params_.elastic_compliance_correction, topology, roughNode->get_max_topology_height(),
-      *params_.get_mesh_grid(), params_.get_pressure_green_fun_flag());
+      params_.composite_youngs, params_.warm_starting_flag, params_.elastic_compliance_correction,
+      topology, roughNode->get_max_topology_height(), *params_.mesh_grid,
+      params_.pressure_green_fun_flag);
   MIRCO::Evaluate(pressure2, contact_area_fraction,
-      -(1 - params_.get_finite_difference_fraction()) * (gap + params_.get_offset()),
+      -(1 - params_.finite_difference_fraction) * (gap + params_.get_offset()),
       params_.lateral_length, params_.grid_size, params_.tolerance, params_.max_iteration,
       params_.get_composite_youngs(), params_.get_warm_starting_flag(),
       params_.elastic_compliance_correction, topology, roughNode->get_max_topology_height(),
