@@ -13,7 +13,7 @@ four_c_process_global_option(
   OFF
   )
 if(FOUR_C_MIRCO_FIND_INSTALLED)
-
+  # Note that MIRCO and 4C must point to the same Kokkos and Kokkos-Kernels installation. Otherwise, there will be errors.
   message(STATUS "FOUR_C_MIRCO_FIND_INSTALLED is enabled")
 
   # MIRCO provides a package configuration file if installed.
@@ -27,12 +27,12 @@ if(FOUR_C_MIRCO_FIND_INSTALLED)
   endif()
 
 else() # Fetch MIRCO from GIT repository
-  # Turn off googletest and Trilinos in MIRCO so that they don't interfere with 4C
+  # Turn off googletest and RYML in MIRCO so they do not interfere with 4C
   set(GTEST_IN_MIRCO "OFF")
-  set(TRILINOS_IN_MIRCO "OFF")
+  set(RYML_IN_MIRCO "OFF")
 
   set(MIRCO_GIT_REPO "https://github.com/imcs-compsim/MIRCO.git")
-  set(MIRCO_GIT_TAG "b9d0c4ba27ff8463a3d2b17163fead8800b2650c") # latest hash 03.04.2026
+  set(MIRCO_GIT_TAG "84d9fa94b3cd2d358f9c498e716d50181ba626f2")
 
   fetchcontent_declare(
     mirco
@@ -42,8 +42,7 @@ else() # Fetch MIRCO from GIT repository
   fetchcontent_makeavailable(mirco)
   # MIRCO requires a specific path, possibly due to inconsistent naming "mirco" vs "mirco_lib".
   set(FOUR_C_MIRCO_ROOT "${CMAKE_INSTALL_PREFIX}/lib/cmake/mirco")
-
-  four_c_add_external_dependency(four_c_all_enabled_external_dependencies mirco::mirco_lib)
 endif()
 
+four_c_add_external_dependency(four_c_all_enabled_external_dependencies mirco::mirco_lib)
 four_c_remember_variable_for_install(FOUR_C_MIRCO_ROOT)

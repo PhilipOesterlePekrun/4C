@@ -71,6 +71,26 @@ find_package(Trilinos REQUIRED)
 message(STATUS "Trilinos version: ${Trilinos_VERSION}")
 message(STATUS "Trilinos packages: ${Trilinos_PACKAGE_LIST}")
 
+
+set(CMAKE_CXX_COMPILER_LAUNCHER "" CACHE STRING "" FORCE)
+set(CMAKE_C_COMPILER_LAUNCHER "" CACHE STRING "" FORCE)
+set(CMAKE_CUDA_COMPILER_LAUNCHER "" CACHE STRING "" FORCE)
+
+set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "")
+set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK "")
+
+set_property(DIRECTORY PROPERTY RULE_LAUNCH_COMPILE "")
+set_property(DIRECTORY PROPERTY RULE_LAUNCH_LINK "")
+
+get_property(_global_rule GLOBAL PROPERTY RULE_LAUNCH_COMPILE)
+get_property(_dir_rule DIRECTORY PROPERTY RULE_LAUNCH_COMPILE)
+
+message(STATUS "GLOBAL RULE_LAUNCH_COMPILE = '${_global_rule}'")
+message(STATUS "DIR RULE_LAUNCH_COMPILE    = '${_dir_rule}'")
+message(STATUS "CMAKE_CXX_COMPILER         = ${CMAKE_CXX_COMPILER}")
+message(STATUS "CMAKE_CXX_COMPILER_ID      = ${CMAKE_CXX_COMPILER_ID}")
+
+
 # Figure out the version.
 if(EXISTS "${Trilinos_DIR}/../../../TrilinosRepoVersion.txt")
   file(STRINGS "${Trilinos_DIR}/../../../TrilinosRepoVersion.txt" TrilinosRepoVersionFile)

@@ -1,3 +1,20 @@
+function(four_c_disable_kokkos_launcher target_name)
+  if(TARGET ${target_name})
+    set_target_properties(${target_name} PROPERTIES
+      CXX_COMPILER_LAUNCHER ""
+      C_COMPILER_LAUNCHER ""
+      CUDA_COMPILER_LAUNCHER ""
+      RULE_LAUNCH_COMPILE ""
+      RULE_LAUNCH_LINK ""
+    )
+
+    get_target_property(_cxx_launcher ${target_name} CXX_COMPILER_LAUNCHER)
+    message(VERBOSE "${target_name}: CXX_COMPILER_LAUNCHER='${_cxx_launcher}'")
+  endif()
+endfunction()
+
+
+
 # This file is part of 4C multiphysics licensed under the
 # GNU Lesser General Public License v3.0 or later.
 #
@@ -13,10 +30,21 @@ set(OBJS_FOUR_C_MAIN
     )
 
 add_executable(${FOUR_C_EXECUTABLE_NAME} ${OBJS_FOUR_C_MAIN})
+
+four_c_disable_kokkos_launcher(${FOUR_C_EXECUTABLE_NAME})
+target_compile_definitions(${FOUR_C_EXECUTABLE_NAME} PRIVATE
+  FOUR_C_CLANGCUDA_HOST_ONLY
+)
+
 set_target_properties(
   ${FOUR_C_EXECUTABLE_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}
   )
 four_c_set_up_executable(${FOUR_C_EXECUTABLE_NAME})
+
+four_c_disable_kokkos_launcher(${FOUR_C_EXECUTABLE_NAME})
+target_compile_definitions(${FOUR_C_EXECUTABLE_NAME} PRIVATE
+  FOUR_C_CLANGCUDA_HOST_ONLY
+)
 
 if(FOUR_C_ENABLE_METADATA_GENERATION)
   if(FOUR_C_WITH_PYTHON)

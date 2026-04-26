@@ -1,3 +1,91 @@
+function(four_c_disable_kokkos_launcher target_name)
+  if(TARGET ${target_name})
+    set_target_properties(${target_name} PROPERTIES
+      CXX_COMPILER_LAUNCHER ""
+      C_COMPILER_LAUNCHER ""
+      CUDA_COMPILER_LAUNCHER ""
+      RULE_LAUNCH_COMPILE ""
+      RULE_LAUNCH_LINK ""
+    )
+
+    get_target_property(_cxx_launcher ${target_name} CXX_COMPILER_LAUNCHER)
+    message(VERBOSE "${target_name}: CXX_COMPILER_LAUNCHER='${_cxx_launcher}'")
+  endif()
+endfunction()
+
+
+
+set(FOUR_C_CLANGCUDA_DEVICE_MODULES
+  contact
+  contact_constitutivelaw
+)
+
+set(FOUR_C_CLANGCUDA_PLAIN_HOST_MODULES
+  #cut
+  # add modules here if CUDA host-only causes Boost/macro errors
+)
+
+set(FOUR_C_CLANGCUDA_HOST_ONLY_MODULES
+  ale
+  art_net
+  beam3
+  beaminteraction
+  cardiovascular0d
+  constraint_framework
+  bele
+  constraint
+  adapter
+  browniandyn
+  solver_nonlin_nox
+)
+
+function(_OLD_four_c_apply_clangcuda_settings target_name module_name)
+  if(NOT TARGET "${target_name}")
+    return()
+  endif()
+
+  # Always disable Kokkos' nvcc_wrapper launcher.
+  four_c_disable_kokkos_launcher("${target_name}")
+
+  if("${module_name}" IN_LIST FOUR_C_CLANGCUDA_DEVICE_MODULES)
+    message(STATUS "-=- ${target_name}: Clang CUDA device compile")
+    target_compile_definitions("${target_name}" PRIVATE
+      FOUR_C_CLANGCUDA_DEVICE_COMPILE
+    )
+  elseif("${module_name}" IN_LIST FOUR_C_CLANGCUDA_HOST_ONLY_MODULES)
+    message(STATUS "-=- ${target_name}: Clang CUDA host-only compile")
+    target_compile_definitions("${target_name}" PRIVATE
+      FOUR_C_CLANGCUDA_HOST_ONLY
+    )
+  else()
+    message(VERBOSE "-=- ${target_name}: plain Clang host compile")
+  endif()
+endfunction()
+
+function(four_c_apply_clangcuda_settings target_name module_name)
+  if(NOT TARGET "${target_name}")
+    return()
+  endif()
+
+  four_c_disable_kokkos_launcher("${target_name}")
+
+  if("${module_name}" IN_LIST FOUR_C_CLANGCUDA_DEVICE_MODULES)
+    message(STATUS "-=- ${target_name}: Clang CUDA device compile")
+    target_compile_definitions("${target_name}" PRIVATE
+      FOUR_C_CLANGCUDA_DEVICE_COMPILE
+    )
+  elseif("${module_name}" IN_LIST FOUR_C_CLANGCUDA_PLAIN_HOST_MODULES)
+    message(STATUS "-=- ${target_name}: plain Clang host compile")
+  else()
+    message(STATUS "-=- ${target_name}: Clang CUDA host-only compile")
+    target_compile_definitions("${target_name}" PRIVATE
+      FOUR_C_CLANGCUDA_HOST_ONLY
+    )
+  endif()
+endfunction()
+
+
+
 # This file is part of 4C multiphysics licensed under the
 # GNU Lesser General Public License v3.0 or later.
 #
@@ -33,10 +121,15 @@ function(four_c_auto_define_module)
     # Define an object library containing the actual sources.
     # We need to add a dummy file to have at least one file in case a module does not have any compiled sources.
     add_library(${_target}_objs OBJECT ${PROJECT_SOURCE_DIR}/cmake/dummy.cpp)
+    
+    four_c_apply_clangcuda_settings(${_target}_objs "${_target}")
+
     target_link_libraries(${_target}_objs PUBLIC ${_target}_deps)
     # Add all global compile settings as PRIVATE. We only want to use them to compile our own files and not force
     # them on other users of the library.
     target_link_libraries(${_target}_objs PRIVATE four_c_private_compile_interface)
+    
+    four_c_apply_clangcuda_settings(${_target}_objs "${_target}")
 
     if(FOUR_C_ENABLE_IWYU)
       set_target_properties(
