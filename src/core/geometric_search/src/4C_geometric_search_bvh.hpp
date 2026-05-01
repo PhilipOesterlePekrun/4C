@@ -58,7 +58,7 @@ namespace Core::GeometricSearch
           "To use it, enable ArborX during the configure process.");
     }
 
-    using MemorySpace = typename Kokkos::DefaultExecutionSpace::memory_space;
+    using MemorySpace = typename Kokkos::DefaultHostExecutionSpace::memory_space;
     template <class Predicates>
     std::tuple<Kokkos::View<int*, MemorySpace>, Kokkos::View<int*, MemorySpace>> query(
         Predicates const& predicates) const
@@ -69,7 +69,7 @@ namespace Core::GeometricSearch
     }
 #else
 
-    using ExecutionSpace = Kokkos::DefaultExecutionSpace;
+    using ExecutionSpace = Kokkos::DefaultHostExecutionSpace;
     using ArborXBoundingVolumeHierarchy =
         ArborX::BoundingVolumeHierarchy<typename ExecutionSpace::memory_space,
             ArborX::Details::AccessValues<Primitives>::value_type>;

@@ -38,7 +38,7 @@ namespace Core::GeometricSearch
     int myrank = Core::Communication::my_mpi_rank(comm);
 
     using memory_space = Kokkos::HostSpace;
-    Kokkos::DefaultExecutionSpace execution_space{};
+    Kokkos::DefaultHostExecutionSpace execution_space{};
 
     // Build tree structure containing all primitives.
     ArborX::DistributedTree distributed_tree{
@@ -57,7 +57,7 @@ namespace Core::GeometricSearch
     };
 
     // Perform the collision check.
-    distributed_tree.query(Kokkos::DefaultExecutionSpace{},
+    distributed_tree.query(Kokkos::DefaultHostExecutionSpace{},
         BoundingVolumeVectorPlaceholder<PredicatesTag>{predicates}, get_indices_callback,
         indices_ranks_full, offset_full);
 
