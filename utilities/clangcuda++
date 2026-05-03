@@ -83,7 +83,7 @@ if [[ "$cuda_host_only" == "1" && "$cuda_device" == "1" ]]; then
   done
 
   if [[ "$has_explicit_device" == "1" ]]; then
-    echo "clangcuda wrapper error: both FOUR_C_CLANGCUDA_HOST_ONLY and FOUR_C_CLANGCUDA_DEVICE_COMPILE were set" >&2
+    echo "clangcuda++ wrapper error: both FOUR_C_CLANGCUDA_HOST_ONLY and FOUR_C_CLANGCUDA_DEVICE_COMPILE were set" >&2
     exit 1
   fi
 fi

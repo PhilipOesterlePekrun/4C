@@ -13,6 +13,8 @@
 #include "4C_fem_discretization.hpp"
 #include "4C_utils_exceptions.hpp"
 
+#include <mirco_kokkostypes.h>
+
 FOUR_C_NAMESPACE_OPEN
 
 /*----------------------------------------------------------------------*
@@ -32,6 +34,22 @@ CONTACT::ConstitutivelawInterface::ConstitutivelawInterface(
 void CONTACT::ConstitutivelawInterface::assemble_reg_normal_forces(
     bool& localisincontact, bool& localactivesetchange)
 {
+  
+  
+std::cout<<"//## line37\n";
+
+MIRCO::ViewVector_d x("x", 10);
+
+Kokkos::parallel_for(
+        10, KOKKOS_LAMBDA(const int i) {
+          x(i)=i*i;
+        });
+
+Kokkos::fence();
+
+auto x_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), x);
+std::cout << x_h(5) << '\n';
+
   // loop over all slave row nodes on the current interface
   for (int i = 0; i < source_row_nodes()->num_my_elements(); ++i)
   {

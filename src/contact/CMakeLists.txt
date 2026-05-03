@@ -5,13 +5,7 @@
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
-if(FOUR_C_CLANGCUDA)
-  four_c_auto_define_module(CLANGCUDA_MODE CUDA_DEVICE)
-  message(STATUS "//###### four_c_auto_define_module(CLANGCUDA_MODE CUDA_DEVICE) contact")
-else()
-  four_c_auto_define_module()
-endif()
-
+four_c_auto_define_module()
 
 set(_dependencies
     # cmake-format: sortable
