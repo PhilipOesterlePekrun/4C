@@ -234,6 +234,14 @@ four_c_process_global_option(
   DEFAULT
   OFF
   )
+  
+four_c_process_global_option(
+  FOUR_C_CLANGCUDA
+  DESCRIPTION
+  "Enable the relevant CMake compile definitions needed to use utilities/ClangCuda++ as the compiler. This is currently necessary to use the CUDA backend of Kokkos, e.g. along with MIRCO."
+  DEFAULT
+  OFF
+  )
 
 ##
 # Optimization flags

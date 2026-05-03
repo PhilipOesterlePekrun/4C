@@ -13,7 +13,7 @@
 #include "4C_cut_side.hpp"
 
 #ifdef FOUR_C_CLANGCUDA_HOST_ONLY
-  #undef __noinline__
+#undef __noinline__
 #endif
 #include <boost/graph/graphviz.hpp>
 
