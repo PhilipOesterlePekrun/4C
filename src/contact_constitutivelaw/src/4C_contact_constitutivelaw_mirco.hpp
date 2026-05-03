@@ -36,8 +36,6 @@ namespace CONTACT
        */
       MircoConstitutiveLawParams(const Core::IO::InputParameterContainer& container);
 
-      ViewVector_d mesh_grid;  // This class uses only one mesh grid
-
       int first_mat_id;
       int second_mat_id;
       double finite_difference_fraction;

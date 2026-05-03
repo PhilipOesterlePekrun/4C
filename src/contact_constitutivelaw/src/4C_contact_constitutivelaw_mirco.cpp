@@ -127,9 +127,6 @@ double CONTACT::CONSTITUTIVELAW::MircoConstitutiveLaw::evaluate(
   const RoughNode* roughNode = dynamic_cast<const RoughNode*>(cnode);
   auto topology = *roughNode->get_topology();
 
-  MIRCO::ViewVector_d meshgrid = MIRCO::CreateMeshgrid(params_.N, params_.grid_size);
-  const double topologyMax = MIRCO::GetMax(params_.topology);
-
   double pressure, contact_area_fraction;
   MIRCO::Evaluate(pressure, contact_area_fraction, -(gap + params_.get_offset()),
       params_);  //, topologyMax, meshgrid);
