@@ -11,7 +11,7 @@
 # in the variable AUTO_DEFINED_MODULE_NAME which is set at the call site.
 function(four_c_auto_define_module)
   set(options NO_CYCLES)
-  set(oneValueArgs "")
+  set(oneValueArgs CLANGCUDA_MODE)
   set(multiValueArgs "")
   cmake_parse_arguments(
     _parsed
@@ -37,6 +37,43 @@ function(four_c_auto_define_module)
     # Add all global compile settings as PRIVATE. We only want to use them to compile our own files and not force
     # them on other users of the library.
     target_link_libraries(${_target}_objs PRIVATE four_c_private_compile_interface)
+    
+    if(FOUR_C_CLANGCUDA)
+    message(STATUS "Second IF //####")
+    
+      set_target_properties(${_target}_objs PROPERTIES
+        CXX_COMPILER_LAUNCHER ""
+        C_COMPILER_LAUNCHER ""
+        CUDA_COMPILER_LAUNCHER ""
+        RULE_LAUNCH_COMPILE ""
+        RULE_LAUNCH_LINK ""
+      )
+    
+      if(False)#DEFINED _parsed_CLANGCUDA_MODE)
+        if("${_parsed_CLANGCUDA_MODE}" STREQUAL "CUDA_DEVICE")
+          message(STATUS "CUDA_DEVICE //####")
+          target_compile_definitions(${_target}_objs PRIVATE
+            FOUR_C_CLANGCUDA_DEVICE_COMPILE
+          )
+        elseif("${_parsed_CLANGCUDA_MODE}" STREQUAL "HOST_CUDA")
+          message(STATUS "HOST_CUDA //####")
+          target_compile_definitions(${_target}_objs PRIVATE
+            FOUR_C_CLANGCUDA_HOST_ONLY
+          )
+        endif()
+      else()
+          message(STATUS "FOUR_C_CLANGCUDA_HOST_ONLY //####")
+      
+        target_compile_definitions(${_target}_objs PRIVATE
+          FOUR_C_CLANGCUDA_HOST_ONLY
+        )
+      endif()
+      
+      # Also make the definition available as a macro
+      target_compile_definitions(${_target}_objs PRIVATE
+        FOUR_C_CLANGCUDA=$<BOOL:${FOUR_C_CLANGCUDA}>
+      )
+    endif()
 
     if(FOUR_C_ENABLE_IWYU)
       set_target_properties(
