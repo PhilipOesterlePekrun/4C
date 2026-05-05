@@ -96,6 +96,15 @@ CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams::MircoConstitutiveLawParams
         container.get<int>("MaxIteration"), container.get<bool>("WarmStartingFlag"),
         container.get_or<int>("RandomGeneratorSeed", std::nullopt), exportVisualizationPath);
   }
+
+  Kokkos::View<int*> x("x", 1);
+
+  Kokkos::parallel_for("test", 1, KOKKOS_LAMBDA(const int i) { x(i) = 42; });
+
+  Kokkos::fence();
+
+  auto x_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), x);
+  std::cout << x_h(0) << '\n';
 }
 
 /*----------------------------------------------------------------------*/
