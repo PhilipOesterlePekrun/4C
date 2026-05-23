@@ -9,6 +9,8 @@
 
 #include "4C_reduced_lung_airways_wall_mechanics.hpp"
 
+#include <Kokkos_Core.hpp>
+
 #include <cmath>
 #include <numbers>
 #include <type_traits>
@@ -24,11 +26,59 @@ namespace ReducedLung::Airways::FlowResistance
     {
       std::vector<double> operator()(const AirwayData& data, const std::vector<double>& area) const
       {
-        std::vector<double> poiseuille(data.number_of_elements());
-        for (size_t i = 0; i < data.number_of_elements(); ++i)
+        // std::vector<double> poiseuille(data.number_of_elements());
+        /*for (size_t i = 0; i < data.number_of_elements(); ++i)
         {
           poiseuille[i] = 8 * std::numbers::pi * data.air_properties.dynamic_viscosity *
                           data.ref_length[i] / (area[i] * area[i]);
+        }*/
+        std::cout << "//# 4C_reduced_lung_airways_flow_resistance.cpp line34\n";
+
+
+
+        using execution_space = Kokkos::DefaultExecutionSpace;
+        using memory_space = typename execution_space::memory_space;
+
+
+        std::cout << "-- Kokkos information --\n";
+        std::cout << "Threads in use: " << execution_space().concurrency() << "\n";
+        std::cout << "Default execution space: " << typeid(execution_space).name() << "\n";
+        std::cout << "Default host execution space: " << typeid(execution_space).name() << "\n";
+        std::cout << "Default memory space: " << typeid(memory_space).name() << "\n";
+
+        const std::size_t n = data.number_of_elements();
+
+        Kokkos::View<double*, memory_space> ref_length_d("ref_length", n);
+        Kokkos::View<double*, memory_space> area_d("area", n);
+        Kokkos::View<double*, memory_space> poiseuille_d("poiseuille", n);
+
+        auto ref_length_h = Kokkos::create_mirror_view(ref_length_d);
+        auto area_h = Kokkos::create_mirror_view(area_d);
+
+        for (std::size_t i = 0; i < n; ++i)
+        {
+          ref_length_h(i) = data.ref_length[i];
+          area_h(i) = area[i];
+        }
+
+        Kokkos::deep_copy(ref_length_d, ref_length_h);
+        Kokkos::deep_copy(area_d, area_h);
+
+        const double factor = 8.0 * std::numbers::pi * data.air_properties.dynamic_viscosity;
+
+        Kokkos::parallel_for(
+            "ReducedLung::PoiseuilleResistance",
+            Kokkos::RangePolicy<execution_space>(0, static_cast<int>(n)),
+            KOKKOS_LAMBDA(const int i) {
+              poiseuille_d(i) = factor * ref_length_d(i) / (area_d(i) * area_d(i));
+            });
+
+        auto poiseuille_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, poiseuille_d);
+
+        std::vector<double> poiseuille(n);
+        for (std::size_t i = 0; i < n; ++i)
+        {
+          poiseuille[i] = poiseuille_h(i);
         }
         return poiseuille;
       }

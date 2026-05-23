@@ -15,8 +15,8 @@ reduced_dimensional_lung:
     time_increment: 1
   lung_tree:
     topology:
-      num_nodes: 4
-      num_elements: 3
+      num_nodes: 9
+      num_elements: 8
       node_coordinates:
         from_file: "reduced_lung_serial_airways_fields.json"
       element_nodes:

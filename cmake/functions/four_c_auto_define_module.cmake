@@ -47,7 +47,12 @@ function(four_c_auto_define_module)
                    RULE_LAUNCH_COMPILE ""
                    RULE_LAUNCH_LINK ""
         )
-      target_compile_definitions(${_target}_objs PRIVATE CLANGCUDA_MODE_HOST)
+      if(${_target} STREQUAL reduced_lung)
+        message(STATUS "reduced_lung HAS CLANGCUDA_MODE_DEVICE //##")
+        target_compile_definitions(${_target}_objs PRIVATE CLANGCUDA_MODE_DEVICE)
+      else()
+        target_compile_definitions(${_target}_objs PRIVATE CLANGCUDA_MODE_HOST)
+      endif()
     endif()
 
     if(FOUR_C_ENABLE_IWYU)
