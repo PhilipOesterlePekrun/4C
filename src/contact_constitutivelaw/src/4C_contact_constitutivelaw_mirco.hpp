@@ -51,6 +51,7 @@ namespace CONTACT
       double get_compliance_correction() const { return elastic_compliance_correction_; };
       double get_finite_difference_fraction() const { return finite_difference_fraction_; };
       double get_active_gap_tolerance() const { return active_gap_tolerance_; };
+      double get_SafeOverSubscription() const { return SafeOverSubscription_; };
 #ifdef FOUR_C_WITH_MIRCO
       const MIRCO::ViewVector_d* get_mesh_grid() const { return &meshgrid_; }
 #endif
@@ -80,6 +81,7 @@ namespace CONTACT
 #endif
       double finite_difference_fraction_;
       double active_gap_tolerance_;
+      bool SafeOverSubscription_;
       std::string topology_file_path_;
       //@}
     };  // class

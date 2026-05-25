@@ -37,6 +37,7 @@ else() # Fetch MIRCO from GIT repository
   set(MIRCO_GIT_REPO "https://github.com/imcs-compsim/MIRCO.git")
   set(MIRCO_GIT_TAG "de05a25cf595510b8e315d91aa56b6f7a69ad727") # latest hash 03.05.2026
 
+  set(FETCHCONTENT_TRY_FIND_PACKAGE_MODE NEVER)
   fetchcontent_declare(
     mirco
     GIT_REPOSITORY ${MIRCO_GIT_REPO}

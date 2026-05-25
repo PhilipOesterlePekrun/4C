@@ -141,6 +141,8 @@ Core::IO::InputSpec CONTACT::CONSTITUTIVELAW::valid_contact_constitutive_laws()
                     .default_value = 0.001}),
             parameter<double>("ActiveGapTolerance",
                 {.description = "Minimum gap to consider a node as active", .default_value = 1e-6}),
+            parameter<bool>(
+                "SafeOverSubscription", {.description = "//#WIP", .default_value = true}),
             parameter<std::string>("TopologyFilePath",
                 {.description = "Path to file with micro-topology data", .default_value = ""}),
         },
