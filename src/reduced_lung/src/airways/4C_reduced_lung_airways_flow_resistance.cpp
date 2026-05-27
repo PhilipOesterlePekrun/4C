@@ -16,6 +16,9 @@
 #include <type_traits>
 #include <vector>
 
+#include <Teuchos_TimeMonitor.hpp>
+
+
 FOUR_C_NAMESPACE_OPEN
 
 namespace ReducedLung::Airways::FlowResistance
@@ -26,18 +29,27 @@ namespace ReducedLung::Airways::FlowResistance
     {
       std::vector<double> operator()(const AirwayData& data, const std::vector<double>& area) const
       {
+        TEUCHOS_FUNC_TIME_MONITOR("ComputePoiseuilleResistance operator() //#");
         // std::vector<double> poiseuille(data.number_of_elements());
         /*for (size_t i = 0; i < data.number_of_elements(); ++i)
         {
           poiseuille[i] = 8 * std::numbers::pi * data.air_properties.dynamic_viscosity *
                           data.ref_length[i] / (area[i] * area[i]);
         }*/
+        
+        
+        int world_rank, world_size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+        
+  using execution_space = Kokkos::DefaultExecutionSpace;
+        using memory_space = typename execution_space::memory_space;
+  if(!world_rank) {
         std::cout << "//# 4C_reduced_lung_airways_flow_resistance.cpp line34\n";
 
 
 
-        using execution_space = Kokkos::DefaultExecutionSpace;
-        using memory_space = typename execution_space::memory_space;
+        
 
 
         std::cout << "-- Kokkos information --\n";
@@ -45,7 +57,11 @@ namespace ReducedLung::Airways::FlowResistance
         std::cout << "Default execution space: " << typeid(execution_space).name() << "\n";
         std::cout << "Default host execution space: " << typeid(execution_space).name() << "\n";
         std::cout << "Default memory space: " << typeid(memory_space).name() << "\n";
+  }
 
+  
+      
+    
         const std::size_t n = data.number_of_elements();
 
         Kokkos::View<double*, memory_space> ref_length_d("ref_length", n);
@@ -65,13 +81,26 @@ namespace ReducedLung::Airways::FlowResistance
         Kokkos::deep_copy(area_d, area_h);
 
         const double factor = 8.0 * std::numbers::pi * data.air_properties.dynamic_viscosity;
-
+        
+        
+        
+        
+for (int owner = 0; owner < world_size; ++owner)
+{
+if (world_rank == owner) {
         Kokkos::parallel_for(
             "ReducedLung::PoiseuilleResistance",
             Kokkos::RangePolicy<execution_space>(0, static_cast<int>(n)),
             KOKKOS_LAMBDA(const int i) {
               poiseuille_d(i) = factor * ref_length_d(i) / (area_d(i) * area_d(i));
             });
+}
+MPI_Barrier(MPI_COMM_WORLD);
+}
+
+
+
+
 
         auto poiseuille_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, poiseuille_d);
 

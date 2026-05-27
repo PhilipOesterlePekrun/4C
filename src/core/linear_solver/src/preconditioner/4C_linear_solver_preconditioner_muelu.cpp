@@ -64,6 +64,13 @@ void Core::LinearSolver::MueLuPreconditioner::setup(
 
   Teuchos::RCP<Core::LinAlg::BlockSparseMatrixBase> A =
       Teuchos::rcp_dynamic_cast<Core::LinAlg::BlockSparseMatrixBase>(Teuchos::rcpFromRef(matrix));
+      
+  using execution_space = typename NO::execution_space;
+using memory_space = typename NO::memory_space;
+
+std::cout << "NO = " << Teuchos::TypeNameTraits<NO>::name() << '\n';
+std::cout << "execution space = " << execution_space().name() << '\n';
+std::cout << "memory space    = " << memory_space::name() << '\n';
 
   if (A.is_null())
   {

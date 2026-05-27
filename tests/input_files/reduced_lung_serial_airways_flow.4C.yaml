@@ -15,19 +15,19 @@ reduced_dimensional_lung:
     time_increment: 1
   lung_tree:
     topology:
-      num_nodes: 9
-      num_elements: 8
+      num_nodes: 8
+      num_elements: 7
       node_coordinates:
-        from_file: "reduced_lung_serial_airways_fields.json"
+        from_file: "/home/oesterle/rd/4C_Base/4C/tests/input_files/reduced_lung_serial_airways_fields.json"
       element_nodes:
-        from_file: "reduced_lung_serial_airways_fields.json"
+        from_file: "/home/oesterle/rd/4C_Base/4C/tests/input_files/reduced_lung_serial_airways_fields.json"
     element_type:
       constant: Airway
     generation:
-      from_file: "reduced_lung_serial_airways_fields.json"
+      from_file: "/home/oesterle/rd/4C_Base/4C/tests/input_files/reduced_lung_serial_airways_fields.json"
     airways:
       radius:
-        from_file: "reduced_lung_serial_airways_fields.json"
+        from_file: "/home/oesterle/rd/4C_Base/4C/tests/input_files/reduced_lung_serial_airways_fields.json"
       flow_model:
         resistance_type:
           constant: Linear
@@ -53,10 +53,10 @@ reduced_dimensional_lung:
     bc_type:
       constant: Pressure
     bc_node_id:
-      from_file: "reduced_lung_serial_airways_fields.json"
+      from_file: "/home/oesterle/rd/4C_Base/4C/tests/input_files/reduced_lung_serial_airways_fields.json"
     boundary_value:
       bc_function_id:
-        from_file: "reduced_lung_serial_airways_fields.json"
+        from_file: "/home/oesterle/rd/4C_Base/4C/tests/input_files/reduced_lung_serial_airways_fields.json"
 SOLVER 1:
   SOLVER: "UMFPACK"
   NAME: "Reduced_lung_solver"
