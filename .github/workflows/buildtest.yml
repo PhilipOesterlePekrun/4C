@@ -328,6 +328,25 @@ jobs:
           junit-report-base-name: gcc13_no_optional_dependencies_test_report
           retention-days: 1
 
+  clangcuda_kokkoscuda_build:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/4c-multiphysics/4c-dependencies-ubuntu24.04-kokkos-cuda:<hash>
+      options: --user root --env OMPI_ALLOW_RUN_AS_ROOT=1 --env OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check docker hash
+        uses: ./.github/actions/compute-and-check-dependencies-hash
+      - uses: ./.github/actions/build_4C
+        with:
+          cmake-preset: docker_kokkos_cuda
+          build-targets: full
+          build-directory: ${{ github.workspace }}/build
+          use-ccache: "true"
+
   ensure_all_tests_pass:
     needs:
       - gcc13_assertions_test

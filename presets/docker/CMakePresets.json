@@ -152,6 +152,18 @@
         "FOUR_C_WITH_QHULL": "OFF",
         "FOUR_C_ENABLE_PYTHON_BINDINGS": "OFF"
       }
+    },
+    {
+      "name": "docker_clangcuda",
+      "displayName": "Release build using clangcuda++ compiler wrapper for CUDA-enabled Kokkos",
+      "description": "Release build with LLVM Clang",
+      "inherits": [
+        ".docker_base"
+      ],
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_C_COMPILER": "clang"
+      }
     }
   ]
 }
