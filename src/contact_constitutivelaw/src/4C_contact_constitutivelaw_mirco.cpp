@@ -42,6 +42,7 @@ CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams::MircoConstitutiveLawParams
       warm_starting_flag_(container.get<bool>("WarmStartingFlag")),
       finite_difference_fraction_(container.get<double>("FiniteDifferenceFraction")),
       active_gap_tolerance_(container.get<double>("ActiveGapTolerance")),
+      SafeOverSubscription_(container.get<bool>("SafeOverSubscription")),
       topology_file_path_((container.get<std::string>("TopologyFilePath")))
 {
   this->set_parameters();
