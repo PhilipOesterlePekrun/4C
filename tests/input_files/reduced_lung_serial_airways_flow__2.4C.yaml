@@ -9,14 +9,14 @@ reduced_dimensional_lung:
     dynamic_viscosity: 1.79105e-05
   dynamics:
     linear_solver: 1
-    number_of_steps: 1
-    restart_every: 1
-    results_every: 1
+    number_of_steps: 20
+    restart_every: 1000000000
+    results_every: 1000000000
     time_increment: 1
   lung_tree:
     topology:
-      num_nodes: 8
-      num_elements: 7
+      num_nodes: 400000
+      num_elements: 200000
       node_coordinates:
         from_file: "/home/oesterle/rd/4C_Base/aux/MIRCO_paper_interface/genlungairways/reduced_lung_many_airways_fields.json"
       element_nodes:
@@ -49,7 +49,7 @@ reduced_dimensional_lung:
           elasticity_e:
             constant: 1.0
   boundary_conditions:
-    num_conditions: 2
+    num_conditions: 400000
     bc_type:
       constant: Pressure
     bc_node_id:

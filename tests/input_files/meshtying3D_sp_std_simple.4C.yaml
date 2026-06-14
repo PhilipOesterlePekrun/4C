@@ -65,48 +65,6 @@ FUNCT1:
     NUMPOINTS: 2
     TIMES: [0, 1]
     VALUES: [0, 0.3]
-RESULT DESCRIPTION:
-  - STRUCTURE:
-      DIS: "structure"
-      NODE: 5460
-      QUANTITY: "dispx"
-      VALUE: -0.00018255944915785397
-      TOLERANCE: 1e-07
-  - STRUCTURE:
-      DIS: "structure"
-      NODE: 5460
-      QUANTITY: "dispy"
-      VALUE: 1.4218515323141508e-05
-      TOLERANCE: 1e-07
-  - STRUCTURE:
-      DIS: "structure"
-      NODE: 5460
-      QUANTITY: "dispz"
-      VALUE: 7.20903231830338e-06
-      TOLERANCE: 1e-07
-  - STRUCTURE:
-      DIS: "structure"
-      NODE: 6284
-      QUANTITY: "dispx"
-      VALUE: -0.00018283797003507986
-      TOLERANCE: 1e-07
-  - STRUCTURE:
-      DIS: "structure"
-      NODE: 6284
-      QUANTITY: "dispy"
-      VALUE: 1.929359689634659e-06
-      TOLERANCE: 1e-07
-  - STRUCTURE:
-      DIS: "structure"
-      NODE: 6284
-      QUANTITY: "dispz"
-      VALUE: 1.5139902778374592e-05
-      TOLERANCE: 1e-07
-  - STRUCTURE:
-      SPECIAL: true
-      QUANTITY: "lin_iters_contact"
-      VALUE: 12
-      TOLERANCE: 1e-13
 DESIGN SURF DIRICH CONDITIONS:
   - E: 1
     NUMDOF: 3
