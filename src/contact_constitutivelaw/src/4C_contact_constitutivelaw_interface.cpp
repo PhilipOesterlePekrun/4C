@@ -1,3 +1,4 @@
+
 // This file is part of 4C multiphysics licensed under the
 // GNU Lesser General Public License v3.0 or later.
 //
@@ -16,6 +17,263 @@
 
 #include <mirco_kokkostypes.h>
 #include <Teuchos_TimeMonitor.hpp>
+#include <Tpetra_Map.hpp>
+#include <Tpetra_Vector.hpp>
+extern "C" {
+  char* openblas_get_config();
+  int openblas_get_num_threads();
+  void openblas_set_num_threads(int);
+}
+
+
+
+/*
+#include <thread>
+void sleepy_barrier(MPI_Comm comm)
+{
+  MPI_Request request;
+  MPI_Ibarrier(comm, &request);
+
+  int done = 0;
+  while (!done) {
+    MPI_Test(&request, &done, MPI_STATUS_IGNORE);
+
+    if (!done) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  }
+}*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include <dirent.h>
+#include <sched.h>
+#include <unistd.h>
+
+#include <cerrno>
+#include <chrono>
+#include <cstring>
+#include <iostream>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
+
+namespace
+{
+void sleepy_barrier(MPI_Comm comm)
+{
+  MPI_Request request;
+  MPI_Ibarrier(comm, &request);
+
+  int done = 0;
+  while (!done) {
+    MPI_Test(&request, &done, MPI_STATUS_IGNORE);
+
+    if (!done) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  }
+}
+
+cpu_set_t get_current_affinity()
+{
+  cpu_set_t mask;
+  CPU_ZERO(&mask);
+
+  if (sched_getaffinity(0, sizeof(cpu_set_t), &mask) != 0) {
+    std::cerr << "sched_getaffinity failed: " << std::strerror(errno) << '\n';
+  }
+
+  return mask;
+}
+
+cpu_set_t make_node_union_cpu_set(MPI_Comm comm_node)
+{
+  constexpr int max_cpus = CPU_SETSIZE;
+
+  const cpu_set_t local_mask = get_current_affinity();
+
+  std::vector<int> local(max_cpus, 0);
+  std::vector<int> global(max_cpus, 0);
+
+  for (int cpu = 0; cpu < max_cpus; ++cpu) {
+    local[cpu] = CPU_ISSET(cpu, &local_mask) ? 1 : 0;
+  }
+
+  MPI_Allreduce(
+      local.data(),
+      global.data(),
+      max_cpus,
+      MPI_INT,
+      MPI_MAX,
+      comm_node);
+
+  cpu_set_t node_mask;
+  CPU_ZERO(&node_mask);
+
+  for (int cpu = 0; cpu < max_cpus; ++cpu) {
+    if (global[cpu]) {
+      CPU_SET(cpu, &node_mask);
+    }
+  }
+
+  return node_mask;
+}
+
+std::vector<pid_t> get_process_thread_ids()
+{
+  std::vector<pid_t> tids;
+
+  DIR* dir = opendir("/proc/self/task");
+  if (dir == nullptr) {
+    return tids;
+  }
+
+  while (dirent* entry = readdir(dir)) {
+    if (entry->d_name[0] == '.') {
+      continue;
+    }
+
+    tids.push_back(static_cast<pid_t>(std::stoi(entry->d_name)));
+  }
+
+  closedir(dir);
+  return tids;
+}
+
+class ScopedAllThreadAffinity
+{
+ public:
+  explicit ScopedAllThreadAffinity(const cpu_set_t& new_mask)
+  {
+    const auto tids = get_process_thread_ids();
+
+    for (const pid_t tid : tids) {
+      cpu_set_t old_mask;
+      CPU_ZERO(&old_mask);
+
+      if (sched_getaffinity(tid, sizeof(cpu_set_t), &old_mask) == 0) {
+        old_masks_.push_back({tid, old_mask});
+      }
+
+      if (sched_setaffinity(tid, sizeof(cpu_set_t), &new_mask) != 0) {
+        std::cerr << "sched_setaffinity failed for tid " << tid
+                  << ": " << std::strerror(errno) << '\n';
+      }
+    }
+  }
+
+  ~ScopedAllThreadAffinity()
+  {
+    for (const auto& [tid, old_mask] : old_masks_) {
+      sched_setaffinity(tid, sizeof(cpu_set_t), &old_mask);
+    }
+  }
+
+ private:
+  std::vector<std::pair<pid_t, cpu_set_t>> old_masks_;
+};
+
+class ScopedOpenBlasThreads
+{
+ public:
+  explicit ScopedOpenBlasThreads(const int num_threads)
+    : old_num_threads_(openblas_get_num_threads())
+  {
+    openblas_set_num_threads(num_threads);
+  }
+
+  ~ScopedOpenBlasThreads()
+  {
+    openblas_set_num_threads(old_num_threads_);
+  }
+
+ private:
+  int old_num_threads_;
+};
+
+void print_affinity_info(
+    const std::string& label,
+    const int world_rank,
+    const int node_rank)
+{
+  cpu_set_t mask;
+  CPU_ZERO(&mask);
+  sched_getaffinity(0, sizeof(cpu_set_t), &mask);
+
+  int count = 0;
+  std::string cpus;
+
+  for (int cpu = 0; cpu < CPU_SETSIZE; ++cpu) {
+    if (CPU_ISSET(cpu, &mask)) {
+      ++count;
+      if (!cpus.empty()) {
+        cpus += ",";
+      }
+      cpus += std::to_string(cpu);
+    }
+  }
+
+  std::cout << "-- " << label << " --\n"
+            << "world_rank=" << world_rank
+            << " node_rank=" << node_rank
+            << " allowed_cpu_count=" << count
+            << " allowed_cpus=" << cpus << '\n'
+            << "Kokkos concurrency=" << Kokkos::DefaultExecutionSpace().concurrency() << '\n'
+            << "omp_get_max_threads()=" << omp_get_max_threads() << '\n'
+            << "openblas_get_num_threads()=" << openblas_get_num_threads() << "\n\n";
+}
+}  // namespace
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -33,16 +291,52 @@ CONTACT::ConstitutivelawInterface::ConstitutivelawInterface(
 }
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
+
 void CONTACT::ConstitutivelawInterface::assemble_reg_normal_forces(
     bool& localisincontact, bool& localactivesetchange)
 {
+  {
+    using LO = int;
+    using GO = int;
+    using map_type = Tpetra::Map<LO, GO>;
+    using vec_type = Tpetra::Vector<double, LO, GO>;
+      
+      
+          
+    using node_type = typename vec_type::node_type;
+    using device_type = typename vec_type::device_type;
+    using execution_space = typename vec_type::execution_space;
+    using memory_space = typename device_type::memory_space;
+
+    if (true) {
+      std::cout << "//##################-- Tpetra type information --\n";
+      std::cout << "vec_type::node_type        = " << typeid(node_type).name() << '\n';
+      std::cout << "vec_type::device_type      = " << typeid(device_type).name() << '\n';
+      std::cout << "vec_type::execution_space  = " << typeid(execution_space).name() << '\n';
+      std::cout << "vec_type::memory_space     = " << typeid(memory_space).name() << '\n';
+      std::cout << '\n';
+    }
+  }
+  
+  
+  
   TEUCHOS_FUNC_TIME_MONITOR("CONTACT::ConstitutivelawInterface::assemble_reg_normal_forces");
 
+  std::cout<<"\nBEFORE SET: (omp_get_max_threads() = "<<omp_get_max_threads()<<"; openblas_get_num_threads() = "<<openblas_get_num_threads()<<")\n";
+  
+  openblas_set_num_threads(omp_get_max_threads()); // <-- THIS IS NECESSARY //###### THE THREAD AFFINITY STUFF ON THE OTHER HAND DOES NOT SEEM TO BE NECESSARY
+          
+          //omp_set_num_threads(1); // doesnt affect anything
+          
+          std::cout<<"\nAFTER SET: (omp_get_max_threads() = "<<omp_get_max_threads()<<"; openblas_get_num_threads() = "<<openblas_get_num_threads()<<")\n";
+  
 
   const auto* mircoParams =
       dynamic_cast<const CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams*>(
           coconstlaw_->parameter());
   bool SafeOverSubscription = mircoParams->get_SafeOverSubscription();
+  
+  
 
 
 
@@ -84,10 +378,25 @@ void CONTACT::ConstitutivelawInterface::assemble_reg_normal_forces(
               << "\n";
   }
 
+  
+  
+  
+const cpu_set_t node_mask = make_node_union_cpu_set(comm_node);
   // serialize only within each compute node
   for (int owner = 0; owner < node_size; ++owner)
   {
-    if (node_rank == owner)
+    if (node_rank == owner) {
+    
+//print_affinity_info("before MIRCO affinity widening", world_rank, node_rank);
+
+ScopedAllThreadAffinity full_node_affinity(node_mask);
+ScopedOpenBlasThreads blas_threads(omp_get_max_threads());
+
+//print_affinity_info("after MIRCO affinity widening", world_rank, node_rank);
+
+Kokkos::fence();
+    
+    
       // loop over all source row nodes on the current interface
       for (int i = 0; i < source_row_nodes()->num_my_elements(); ++i)
       {
@@ -189,14 +498,20 @@ void CONTACT::ConstitutivelawInterface::assemble_reg_normal_forces(
 
         }  // Macauley-Bracket
       }  // loop over slave nodes
-    if (SafeOverSubscription) MPI_Barrier(comm_node);
+      
+Kokkos::fence();
+    }
+      
+    if (SafeOverSubscription) sleepy_barrier(comm_node);
   }
   // MPI_Comm_free(&comm_node);
+  
 
   if (node_rank == node_size - 1)
   {
     std::cout << "\n----------\nnode=" << proc_name << " FINISHED\n";
   }
+  openblas_set_num_threads(1);
 }
 
 /*----------------------------------------------------------------------*
