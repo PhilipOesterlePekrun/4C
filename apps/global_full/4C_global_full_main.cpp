@@ -19,13 +19,15 @@
 #include "4C_utils_exceptions.hpp"
 #include "4C_utils_singleton_owner.hpp"
 
+#include <dirent.h>
 #include <Kokkos_Core.hpp>
+#include <sched.h>
 #include <unistd.h>
 
+#include <cstdlib>
 #include <filesystem>
 #include <format>
 #include <iostream>
-
 #ifdef FOUR_C_ENABLE_FE_TRAPPING
 #include <cfenv>
 #endif
@@ -111,6 +113,30 @@ int main(int argc, char* argv[])
   }
 
   Core::Communication::barrier(communicators.global_comm());
+
+
+
+  MPI_Comm comm_node = MPI_COMM_NULL;
+  MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &comm_node);
+
+  int node_rank = 0;
+  MPI_Comm_rank(comm_node, &node_rank);
+
+  cpu_set_t rank_mask;
+  CPU_ZERO(&rank_mask);
+  CPU_SET(node_rank, &rank_mask);
+
+  DIR* dir = opendir("/proc/self/task");
+  while (dirent* entry = readdir(dir))
+  {
+    if (entry->d_name[0] == '.') continue;
+    sched_setaffinity(std::atoi(entry->d_name), sizeof(cpu_set_t), &rank_mask);
+  }
+  closedir(dir);
+
+  MPI_Comm_free(&comm_node);
+
+
 
   if (arguments.parameters)
   {
