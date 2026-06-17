@@ -20,6 +20,13 @@
 //
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
+// This file is part of 4C multiphysics licensed under the
+// GNU Lesser General Public License v3.0 or later.
+//
+// See the LICENSE.md file in the top-level for license information.
+//
+// SPDX-License-Identifier: LGPL-3.0-or-later
+
 #include "4C_contact_constitutivelaw_interface.hpp"
 
 #include "4C_contact_constitutivelaw_contactconstitutivelaw.hpp"
@@ -214,6 +221,61 @@ void CONTACT::ConstitutivelawInterface::assemble_reg_normal_forces(
   int proc_name_len = 0;
   MPI_Get_processor_name(proc_name, &proc_name_len);
 
+
+  {
+    using LO = int;
+    using GO = int;
+    using map_type = Tpetra::Map<LO, GO>;
+    using vec_type = Tpetra::Vector<double, LO, GO>;
+
+
+
+    using node_type = typename vec_type::node_type;
+    using device_type = typename vec_type::device_type;
+    using execution_space = typename vec_type::execution_space;
+    using memory_space = typename device_type::memory_space;
+
+    if (world_rank == world_size - 1)
+    {
+      std::cout << "//##################-- Tpetra type information --\n";
+      std::cout << "vec_type::node_type        = " << typeid(node_type).name() << '\n';
+      std::cout << "vec_type::device_type      = " << typeid(device_type).name() << '\n';
+      std::cout << "vec_type::execution_space  = " << typeid(execution_space).name() << '\n';
+      std::cout << "vec_type::memory_space     = " << typeid(memory_space).name() << '\n';
+      std::cout << '\n';
+    }
+  }
+
+  if (node_rank == node_size - 1)
+  {
+    std::cout << "-----------\nSTART assemble_reg_normal_forces()\n";
+    std::cout << "\tSafeOverSubscription=" << SafeOverSubscription << "\n";
+    std::cout << "-- Kokkos information --\n";
+    std::cout << "Threads in use: " << Kokkos::DefaultExecutionSpace().concurrency() << "\n";
+    std::cout << "Default execution space: " << typeid(Kokkos::DefaultExecutionSpace).name()
+              << "\n";
+    std::cout << "Default host execution space: "
+              << typeid(Kokkos::DefaultHostExecutionSpace).name() << "\n";
+    std::cout << "Default memory space: "
+              << typeid(Kokkos::DefaultExecutionSpace::memory_space).name() << "\n";
+    std::cout << "Default host memory space: " << typeid(Kokkos::HostSpace).name() << "\n";
+    std::cout << "Kokkos num devices = " << Kokkos::num_devices() << "\n";
+
+    std::cout << "world_size=" << world_size << "; world_rank=" << world_rank << "\n";
+    std::cout << "node_size=" << node_size << "; node_rank=" << node_rank << "\n";
+
+    std::cout << "node=" << proc_name << " has " << node_size
+              << " MPI ranks; representative world_rank=" << world_rank << "\n"
+              << "\n";
+  }
+
+
+
+  double active_time = 0.0;
+  double wait_time = 0.0;
+
+
+
   // openblas_set_num_threads(omp_get_max_threads());
 
 #ifdef KOKKOS_ENABLE_OPENMP
@@ -295,8 +357,8 @@ void CONTACT::ConstitutivelawInterface::assemble_reg_normal_forces(
           {
             // Kokkos::fence();
 
-            // const cpu_set_t full_node_mask = make_full_node_cpu_set();
-            // ScopedAllThreadAffinity full_node_affinity(full_node_mask);
+            const cpu_set_t full_node_mask = make_full_node_cpu_set();
+            ScopedAllThreadAffinity full_node_affinity(full_node_mask);
             //  Evaluate pressure
             /*const double */ pressure = coconstlaw_->evaluate(kappa * gap, cnode);
             // Evaluate pressure derivative
@@ -367,12 +429,20 @@ void CONTACT::ConstitutivelawInterface::assemble_reg_normal_forces(
 
 #ifdef KOKKOS_ENABLE_OPENMP
     if constexpr (std::is_same_v<Kokkos::DefaultExecutionSpace, Kokkos::OpenMP>)
-      if (node_size > 1 && SafeOverSubscription) sleepy_barrier(comm_node);
+      if (node_size > 1 && SafeOverSubscription)
+      {
+        const auto barrier_start = std::chrono::steady_clock::now();
+        sleepy_barrier(comm_node);
+        const auto barrier_end = std::chrono::steady_clock::now();
+
+        wait_time += std::chrono::duration<double>(barrier_end - barrier_start).count();
+      }
 #endif
   }
   MPI_Comm_free(&comm_node);
 
   MPI_Barrier(MPI_COMM_WORLD);
+  std::cout << "wait_time=" << wait_time << "\n";
 }
 
 /*----------------------------------------------------------------------*

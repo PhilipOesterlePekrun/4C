@@ -115,27 +115,27 @@ int main(int argc, char* argv[])
   Core::Communication::barrier(communicators.global_comm());
 
 
+  /*
+    MPI_Comm comm_node = MPI_COMM_NULL;
+    MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &comm_node);
 
-  MPI_Comm comm_node = MPI_COMM_NULL;
-  MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &comm_node);
+    int node_rank = 0;
+    MPI_Comm_rank(comm_node, &node_rank);
 
-  int node_rank = 0;
-  MPI_Comm_rank(comm_node, &node_rank);
+    cpu_set_t rank_mask;
+    CPU_ZERO(&rank_mask);
+    CPU_SET(node_rank, &rank_mask);
 
-  cpu_set_t rank_mask;
-  CPU_ZERO(&rank_mask);
-  CPU_SET(node_rank, &rank_mask);
+    DIR* dir = opendir("/proc/self/task");
+    while (dirent* entry = readdir(dir))
+    {
+      if (entry->d_name[0] == '.') continue;
+      sched_setaffinity(std::atoi(entry->d_name), sizeof(cpu_set_t), &rank_mask);
+    }
+    closedir(dir);
 
-  DIR* dir = opendir("/proc/self/task");
-  while (dirent* entry = readdir(dir))
-  {
-    if (entry->d_name[0] == '.') continue;
-    sched_setaffinity(std::atoi(entry->d_name), sizeof(cpu_set_t), &rank_mask);
-  }
-  closedir(dir);
-
-  MPI_Comm_free(&comm_node);
-
+    MPI_Comm_free(&comm_node);
+  */
 
 
   if (arguments.parameters)
