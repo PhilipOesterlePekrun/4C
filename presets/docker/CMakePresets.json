@@ -165,7 +165,12 @@
         "FOUR_C_TRILINOS_ROOT": "/opt/4C-dependencies/tk_cuda",
         "FOUR_C_WITH_ARBORX": "OFF",
         "FOUR_C_WITH_DEAL_II": "OFF",
-        "FOUR_C_ENABLE_METADATA_GENERATION": "OFF"
+        "FOUR_C_ENABLE_METADATA_GENERATION": "OFF",
+        "FOUR_C_WITH_VTK": "OFF",
+        "FOUR_C_WITH_GOOGLE_BENCHMARK": "OFF",
+        "FOUR_C_WITH_PYBIND11": "OFF",
+        "FOUR_C_ENABLE_PYTHON_BINDINGS": "OFF",
+        "FOUR_C_CXX_FLAGS": "-Wno-unknown-pragmas"
       }
     },
     {

@@ -11,7 +11,7 @@
 # in the variable AUTO_DEFINED_MODULE_NAME which is set at the call site.
 function(four_c_auto_define_module)
   set(options NO_CYCLES)
-  set(oneValueArgs "")
+  set(oneValueArgs CLANGCUDA_MODE)
   set(multiValueArgs "")
   cmake_parse_arguments(
     _parsed
@@ -22,6 +22,21 @@ function(four_c_auto_define_module)
     )
   if(DEFINED _parsed_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "There are unparsed arguments: ${_parsed_UNPARSED_ARGUMENTS}")
+  endif()
+
+  set(_clangcuda_mode HOST)
+
+  if(DEFINED _parsed_CLANGCUDA_MODE)
+    string(TOUPPER "${_parsed_CLANGCUDA_MODE}" _clangcuda_mode)
+  endif()
+
+  set(_allowed_clangcuda_modes HOST DEVICE NONE)
+
+  if(NOT _clangcuda_mode IN_LIST _allowed_clangcuda_modes)
+    message(
+      FATAL_ERROR "Invalid CLANGCUDA_MODE '${_parsed_CLANGCUDA_MODE}'. "
+                  "Allowed values are: HOST, DEVICE, NONE."
+      )
   endif()
 
   if("${FOUR_C_CURRENTLY_DEFINED_PARENT_MODULE}" STREQUAL "")
@@ -47,7 +62,10 @@ function(four_c_auto_define_module)
                    RULE_LAUNCH_COMPILE ""
                    RULE_LAUNCH_LINK ""
         )
-      target_compile_definitions(${_target}_objs PRIVATE CLANGCUDA_MODE_HOST)
+      #target_compile_definitions(${_target}_objs PRIVATE CLANGCUDA_MODE_HOST)
+      if(NOT "${_clangcuda_mode}" STREQUAL "NONE")
+        target_compile_definitions(${_target}_objs PRIVATE CLANGCUDA_MODE_${_clangcuda_mode})
+      endif()
     endif()
 
     if(FOUR_C_ENABLE_IWYU)
