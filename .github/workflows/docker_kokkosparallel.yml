@@ -14,8 +14,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  PROJECT_NAMESPACE: 4c-multiphysics
-  IMAGE_SUFFIX: dependencies-trilinos
+  PROJECT_NAMESPACE: philipoesterlepekrun #4c-multiphysics
+  IMAGE_SUFFIX: kokkosparallel #dependencies-trilinos
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -67,7 +67,7 @@ jobs:
 
   tag-images-as-kokkosparallel:
     runs-on: ubuntu-latest
-    if: ${{ github.ref == 'refs/heads/main' && github.repository == '4C-multiphysics/4C' }}
+    if: ${{ github.event_name == 'workflow_dispatch' }} #${{ github.ref == 'refs/heads/main' && github.repository == '4C-multiphysics/4C' }}
     permissions:
       contents: read
       packages: write
