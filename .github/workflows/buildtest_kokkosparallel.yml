@@ -16,8 +16,7 @@ jobs:
   kokkosopenmp_build:
     runs-on: ubuntu-latest
     container:
-      # image: ghcr.io/4c-multiphysics/4c-dependencies-trilinos:kokkosparallel
-      image: ghcr.io/philipoesterlepekrun/4c-kokkosparallel:kokkosparallel
+      image: ghcr.io/4c-multiphysics/4c-dependencies-trilinos:kokkosparallel
       options: --user root --env OMPI_ALLOW_RUN_AS_ROOT=1 --env OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
     defaults:
       run:
@@ -55,8 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref != 'refs/heads/main'
     container:
-      # image: ghcr.io/4c-multiphysics/4c-dependencies-trilinos:kokkosparallel
-      image: ghcr.io/philipoesterlepekrun/4c-kokkosparallel:kokkosparallel
+      image: ghcr.io/4c-multiphysics/4c-dependencies-trilinos:kokkosparallel
       options: --user root --env OMPI_ALLOW_RUN_AS_ROOT=1 --env OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
     strategy:
       fail-fast: false
@@ -110,8 +108,7 @@ jobs:
   kokkoscuda_build:
     runs-on: ubuntu-latest
     container:
-      # image: ghcr.io/4c-multiphysics/4c-dependencies-trilinos:kokkosparallel
-      image: ghcr.io/philipoesterlepekrun/4c-kokkosparallel:kokkosparallel
+      image: ghcr.io/4c-multiphysics/4c-dependencies-trilinos:kokkosparallel
       options: --user root --env OMPI_ALLOW_RUN_AS_ROOT=1 --env OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
     defaults:
       run:

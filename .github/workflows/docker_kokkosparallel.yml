@@ -14,8 +14,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  PROJECT_NAMESPACE: philipoesterlepekrun #4c-multiphysics
-  IMAGE_SUFFIX: kokkosparallel #dependencies-trilinos
+  PROJECT_NAMESPACE: 4c-multiphysics
+  IMAGE_SUFFIX: dependencies-trilinos
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
