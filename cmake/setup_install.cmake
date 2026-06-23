@@ -62,6 +62,7 @@ foreach(_var_setter IN LISTS _var_setters)
 endforeach()
 
 # add the dependency info to settings
+_add_dependency_to_config(libquo)
 _add_dependency_to_config(HDF5)
 _add_dependency_to_config(MPI)
 _add_dependency_to_config(Qhull)

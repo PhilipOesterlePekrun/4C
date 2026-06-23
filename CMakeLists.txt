@@ -135,6 +135,7 @@ include(cmake/setup_global_options.cmake)
 add_library(four_c_all_enabled_external_dependencies INTERFACE)
 
 # Required dependencies
+four_c_configure_dependency(libquo REQUIRED)
 four_c_configure_dependency(HDF5 REQUIRED)
 four_c_configure_dependency(MPI REQUIRED)
 four_c_configure_dependency(Trilinos REQUIRED)
