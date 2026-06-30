@@ -67,7 +67,7 @@ jobs:
 
   tag-images-as-latest:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' }} #${{ github.ref == 'refs/heads/main' && github.repository == '4C-multiphysics/4C' }}
+    if: ${{ github.ref == 'refs/heads/main' && github.repository == '4C-multiphysics/4C' }}
     permissions:
       contents: read
       packages: write
