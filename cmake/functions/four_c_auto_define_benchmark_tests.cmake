@@ -31,7 +31,7 @@ function(_set_up_benchmark_test_target _module_under_test _target)
   target_link_libraries(${_target} PRIVATE unittests_common)
 
   if(FOUR_C_CLANGCUDA)
-    set_clangcuda_mode(${_target} CLANGCUDA_MODE_DEVICE)
+    set_clangcuda_mode(${_target} CLANGCUDA_MODE_HOST)
   endif()
 
   # configure the respective input test with the respective mesh
