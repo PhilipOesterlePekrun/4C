@@ -9,4 +9,4 @@
 # Exit the script at the first failure
 set -e
 
-find dependencies/current dependencies/testing dependencies/kokkosparallel docker/kokkosparallel -type f -exec sha1sum {} \; | sort | sha1sum | cut -c -8
+find dependencies/current/{backtrace,cmake,dealii,gmsh,superlu_dist} dependencies/testing dependencies/kokkosparallel docker/kokkosparallel -type f -exec sha1sum {} \; | sort | sha1sum | cut -c -8
