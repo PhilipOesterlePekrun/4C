@@ -6,9 +6,9 @@
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
-# Install trilinos with the CUDA backend enabled
+# Install trilinos with the OpenMP backend enabled
 # Call with
-# ./install_cuda.sh /path/to/install/dir
+# ./install_with_openmp.sh /path/to/install/dir
 
 # Exit the script at the first failure
 set -e
@@ -68,7 +68,6 @@ $CMAKE_COMMAND \
   -D Trilinos_ENABLE_NOX:BOOL=ON \
     -D NOX_ENABLE_ABSTRACT_IMPLEMENTATION_EPETRA:BOOL=OFF \
     -D NOX_ENABLE_STRATIMIKOS_EPETRA_STACK:BOOL=OFF \
-    -D NOX_ENABLE_LOCA:BOOL=OFF \
   -D Trilinos_ENABLE_Sacado:BOOL=ON \
   -D Trilinos_ENABLE_SEACASExodus:BOOL=ON \
   -D Trilinos_ENABLE_SEACASNemesis:BOOL=OFF \
@@ -112,13 +111,8 @@ $CMAKE_COMMAND \
   -D Kokkos_ENABLE_SERIAL:BOOL=ON \
   -D Tpetra_INST_SERIAL:BOOL=ON \
   \
-  -D Trilinos_ENABLE_CUDA:BOOL=ON \
-  -D TPL_ENABLE_CUDA:BOOL=ON \
-  -D Kokkos_ENABLE_CUDA:BOOL=ON \
-  -D Kokkos_ARCH_HOPPER90:BOOL=ON \
-  -D Kokkos_ENABLE_CUDA_CONSTEXPR:BOOL=ON \
-  -D Tpetra_INST_CUDA:BOOL=OFF \
-  -D KokkosKernels_ENABLE_TPL_CUSOLVER:BOOL=ON \
+  -D Trilinos_ENABLE_OpenMP:BOOL=ON \
+  -D Kokkos_ENABLE_OPENMP:BOOL=ON \
   \
   ../Trilinos
 

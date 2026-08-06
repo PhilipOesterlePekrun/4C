@@ -7,7 +7,11 @@ on:
       - main
     paths:
       - '.github/workflows/docker_kokkosparallel.yml'
-      - 'dependencies/current/**'
+      - 'dependencies/current/backtrace'
+      - 'dependencies/current/cmake'
+      - 'dependencies/current/dealii'
+      - 'dependencies/current/gmsh'
+      - 'dependencies/current/superlu_dist'
       - 'dependencies/testing/**'
       - 'dependencies/kokkosparallel/**'
       - 'docker/kokkosparallel/**'
@@ -65,7 +69,7 @@ jobs:
             }}
           base-image: "nvidia/cuda:12.8.1-devel-ubuntu24.04"
 
-  tag-images-as-latest:
+  tag-images-as-main:
     runs-on: ubuntu-latest
     if: ${{ github.ref == 'refs/heads/main' && github.repository == '4C-multiphysics/4C' }}
     permissions:
@@ -79,14 +83,14 @@ jobs:
           skip-check: 'true'
           compute-dependencies-hash-script: ./docker/kokkosparallel/compute_dependencies_hash.sh
       - name: Log in to the Container registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull current Kokkos parallel dependencies image and tag it with latest
+      - name: Pull current Kokkos parallel dependencies image and tag it with main
         run: |
           IMAGE_NAME="${{ env.REGISTRY }}/${{ env.PROJECT_NAMESPACE }}/4c-${{ env.IMAGE_SUFFIX }}"
           docker pull $IMAGE_NAME:${{ steps.compute-dependencies-hash.outputs.computed_dependencies_hash }}
-          docker image tag $IMAGE_NAME:${{ steps.compute-dependencies-hash.outputs.computed_dependencies_hash }} $IMAGE_NAME:latest
-          docker push $IMAGE_NAME:latest
+          docker image tag $IMAGE_NAME:${{ steps.compute-dependencies-hash.outputs.computed_dependencies_hash }} $IMAGE_NAME:main
+          docker push $IMAGE_NAME:main
