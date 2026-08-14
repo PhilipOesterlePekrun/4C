@@ -15,6 +15,7 @@
 # - CLANGCUDA_CLANG_PATH: path to clang++
 # - CLANGCUDA_CUDA_PATH: path to the CUDA toolkit
 # - CLANGCUDA_ARCH: GPU architecture (detected from Kokkos by default) (e.g. sm_90)
+# - CLANGCUDA_COMPILER_LAUNCHER: optional compiler launcher (e.g. ccache)
 # - CLANGCUDA_LOG: optional path to a log file for recording final commands
 
 clang_path="${CLANGCUDA_CLANG_PATH:-/bin/clang++}"
@@ -128,9 +129,14 @@ else
   )
 fi
 
+command=("${final[@]}")
+if [[ "$compile" == "1" && -n "$CLANGCUDA_COMPILER_LAUNCHER" ]]; then
+  command=("$CLANGCUDA_COMPILER_LAUNCHER" "${final[@]}")
+fi
+
 if [[ -n "$CLANGCUDA_LOG" ]]; then
-  printf '%q ' "${final[@]}" >> "$CLANGCUDA_LOG"
+  printf '%q ' "${command[@]}" >> "$CLANGCUDA_LOG"
   printf '\n' >> "$CLANGCUDA_LOG"
 fi
 
-exec "${final[@]}"
+exec "${command[@]}"

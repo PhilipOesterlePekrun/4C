@@ -87,6 +87,7 @@ jobs:
       CLANGCUDA_CLANG_PATH: /usr/bin/clang++
       CLANGCUDA_CUDA_PATH: /usr/local/cuda
       CLANGCUDA_ARCH: sm_90
+      CLANGCUDA_COMPILER_LAUNCHER: ccache
     steps:
       - uses: actions/checkout@v7
       - name: Check docker hash
@@ -115,6 +116,7 @@ jobs:
           use-ccache: "true"
           cache-key: kokkoscuda-clangcuda-ccache-4.13.6
           ccache-max-size: 2G
+          additional-cmake-flags: -DCMAKE_CXX_COMPILER_LAUNCHER=
 
   ensure_all_tests_pass:
     needs:
