@@ -23,6 +23,10 @@ inputs:
     description: Key to restore the cache for ccache (default <job-name>-<preset-name>)
     required: false
     default: ""
+  ccache-max-size:
+    description: Maximum size of the ccache directory
+    required: false
+    default: 500M
   additional-cmake-flags:
     description: Additional flags to pass to CMake
     required: false
@@ -52,6 +56,7 @@ runs:
       uses: hendrikmuhs/ccache-action@v1.2
       with:
         key: ${{ steps.prepare-cache-key.outputs.cache_key }}
+        max-size: ${{ inputs.ccache-max-size }}
         verbose: 2
     - uses: ./.github/actions/configure_4C
       with:

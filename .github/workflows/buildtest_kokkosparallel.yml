@@ -93,12 +93,28 @@ jobs:
         uses: ./.github/actions/compute-and-check-dependencies-hash
         with:
           compute-dependencies-hash-script: ./docker/kokkosparallel/compute_dependencies_hash.sh
+      - name: Install ccache with Clang-CUDA support
+        env:
+          CCACHE_VERSION: 4.13.6
+          CCACHE_ARCHIVE_SHA256: 508b2a1217dc6e04a23e967c7b95a0fb45d8a7e16fde9e180919698f2e2be060
+        run: |
+          ccache_tmp_dir=$(mktemp -d)
+          trap 'rm -rf "$ccache_tmp_dir"' EXIT
+          ccache_archive="ccache-${CCACHE_VERSION}-linux-x86_64-glibc.tar.xz"
+          ccache_archive_path="${ccache_tmp_dir}/${ccache_archive}"
+          wget --quiet "https://github.com/ccache/ccache/releases/download/v${CCACHE_VERSION}/${ccache_archive}" -O "$ccache_archive_path"
+          echo "${CCACHE_ARCHIVE_SHA256}  ${ccache_archive_path}" | sha256sum --check --strict
+          tar --extract --xz --file "$ccache_archive_path" --directory "$ccache_tmp_dir"
+          install -m 0755 "${ccache_tmp_dir}/${ccache_archive%.tar.xz}/ccache" /usr/local/bin/ccache
+          ccache --version
       - uses: ./.github/actions/build_4C
         with:
           cmake-preset: docker_kokkoscuda_clangcuda
           build-targets: 4C
           build-directory: ${{ github.workspace }}/build
           use-ccache: "true"
+          cache-key: kokkoscuda-clangcuda-ccache-4.13.6
+          ccache-max-size: 2G
 
   ensure_all_tests_pass:
     needs:
