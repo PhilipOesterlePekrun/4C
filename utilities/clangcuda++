@@ -15,7 +15,6 @@
 # - CLANGCUDA_CLANG_PATH: path to clang++
 # - CLANGCUDA_CUDA_PATH: path to the CUDA toolkit
 # - CLANGCUDA_ARCH: GPU architecture (detected from Kokkos by default) (e.g. sm_90)
-# - CLANGCUDA_COMPILER_LAUNCHER: optional compiler launcher (e.g. ccache)
 # - CLANGCUDA_LOG: optional path to a log file for recording final commands
 
 clang_path="${CLANGCUDA_CLANG_PATH:-/bin/clang++}"
@@ -129,9 +128,29 @@ else
   )
 fi
 
+compiler_launcher=()
+if [[ -n "${CLANGCUDA_COMPILER_LAUNCHER_ARG_COUNT:-}" ]]; then
+  if [[ ! "$CLANGCUDA_COMPILER_LAUNCHER_ARG_COUNT" =~ ^[0-9]+$ ]]; then
+    echo "clangcuda++ wrapper error: invalid compiler launcher argument count" >&2
+    exit 1
+  fi
+
+  for ((i = 0; i < CLANGCUDA_COMPILER_LAUNCHER_ARG_COUNT; ++i)); do
+    compiler_launcher_arg_variable="CLANGCUDA_COMPILER_LAUNCHER_ARG_${i}"
+    if ! declare -p "$compiler_launcher_arg_variable" &>/dev/null; then
+      echo "clangcuda++ wrapper error: missing compiler launcher argument ${i}" >&2
+      exit 1
+    fi
+    compiler_launcher+=("${!compiler_launcher_arg_variable}")
+  done
+elif [[ -n "${CLANGCUDA_COMPILER_LAUNCHER:-}" ]]; then
+  # Retain compatibility with direct uses of the wrapper outside the 4C CMake configuration.
+  compiler_launcher+=("$CLANGCUDA_COMPILER_LAUNCHER")
+fi
+
 command=("${final[@]}")
-if [[ "$compile" == "1" && -n "$CLANGCUDA_COMPILER_LAUNCHER" ]]; then
-  command=("$CLANGCUDA_COMPILER_LAUNCHER" "${final[@]}")
+if [[ "$compile" == "1" && "${#compiler_launcher[@]}" -gt 0 ]]; then
+  command=("${compiler_launcher[@]}" "${final[@]}")
 fi
 
 if [[ -n "$CLANGCUDA_LOG" ]]; then

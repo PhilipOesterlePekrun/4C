@@ -50,7 +50,45 @@ else() # Fetch MIRCO from GIT repository
     GIT_REPOSITORY ${MIRCO_GIT_REPO}
     GIT_TAG ${MIRCO_GIT_TAG}
     )
+
+  # MIRCO's Clang-CUDA configuration clears compiler and rule launchers in its parent scope.
+  # Preserve 4C's launcher configuration while MIRCO configures its own targets.
+  if(FOUR_C_CLANGCUDA)
+    set(_four_c_cxx_compiler_launcher "${CMAKE_CXX_COMPILER_LAUNCHER}")
+    get_property(
+      _four_c_rule_launch_compile_is_set GLOBAL
+      PROPERTY RULE_LAUNCH_COMPILE
+      SET
+      )
+    get_property(_four_c_rule_launch_compile GLOBAL PROPERTY RULE_LAUNCH_COMPILE)
+    get_property(
+      _four_c_rule_launch_link_is_set GLOBAL
+      PROPERTY RULE_LAUNCH_LINK
+      SET
+      )
+    get_property(_four_c_rule_launch_link GLOBAL PROPERTY RULE_LAUNCH_LINK)
+  endif()
+
   fetchcontent_makeavailable(mirco)
+
+  if(FOUR_C_CLANGCUDA)
+    set(CMAKE_CXX_COMPILER_LAUNCHER
+        "${_four_c_cxx_compiler_launcher}"
+        CACHE STRING "C++ compiler launcher" FORCE
+        )
+
+    if(_four_c_rule_launch_compile_is_set)
+      set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${_four_c_rule_launch_compile}")
+    else()
+      set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE)
+    endif()
+    if(_four_c_rule_launch_link_is_set)
+      set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK "${_four_c_rule_launch_link}")
+    else()
+      set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK)
+    endif()
+  endif()
+
   # MIRCO requires a specific path, possibly due to inconsistent naming "mirco" vs "mirco_lib".
   set(FOUR_C_MIRCO_ROOT "${CMAKE_INSTALL_PREFIX}/lib/cmake/mirco")
 endif()

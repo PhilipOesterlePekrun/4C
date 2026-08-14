@@ -5,12 +5,33 @@
 #
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
-# Kokkos uses the RULE_LAUNCH properties to redirect compilation through kokkos_launch_compiler.
-# Clear only those properties. Generic CMake compiler launchers are user-controlled and remain
-# enabled; integrations that must launch the final Clang command can instead use the dedicated
-# CLANGCUDA_COMPILER_LAUNCHER environment variable.
+# Move the target's C++ compiler launcher through compiler wrappers such as mpic++ so clangcuda++
+# can apply it to the final Clang compile command.
 # clangcuda_mode can be either CLANGCUDA_MODE_HOST or CLANGCUDA_MODE_DEVICE
 function(set_clangcuda_mode target clangcuda_mode)
-  set_target_properties(${target} PROPERTIES RULE_LAUNCH_COMPILE "" RULE_LAUNCH_LINK "")
+  get_target_property(_compiler_launcher ${target} CXX_COMPILER_LAUNCHER)
+  if(NOT _compiler_launcher MATCHES "-NOTFOUND$" AND NOT _compiler_launcher STREQUAL "")
+    list(LENGTH _compiler_launcher _compiler_launcher_arg_count)
+
+    set(_clangcuda_compiler_launcher
+        "${CMAKE_COMMAND}"
+        -E
+        env
+        "CLANGCUDA_COMPILER_LAUNCHER_ARG_COUNT=${_compiler_launcher_arg_count}"
+        )
+
+    set(_compiler_launcher_arg_index 0)
+    foreach(_compiler_launcher_arg IN LISTS _compiler_launcher)
+      list(
+        APPEND
+        _clangcuda_compiler_launcher
+        "CLANGCUDA_COMPILER_LAUNCHER_ARG_${_compiler_launcher_arg_index}=${_compiler_launcher_arg}"
+        )
+      math(EXPR _compiler_launcher_arg_index "${_compiler_launcher_arg_index} + 1")
+    endforeach()
+
+    set_property(TARGET ${target} PROPERTY CXX_COMPILER_LAUNCHER "${_clangcuda_compiler_launcher}")
+  endif()
+
   target_compile_definitions(${target} PRIVATE ${clangcuda_mode})
 endfunction()
