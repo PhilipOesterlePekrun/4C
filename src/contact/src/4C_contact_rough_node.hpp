@@ -13,6 +13,8 @@
 #include "4C_contact_node.hpp"
 #include "4C_linalg_serialdensematrix.hpp"
 
+#include <string>
+
 #ifdef FOUR_C_WITH_MIRCO
 #include <mirco_kokkostypes.h>
 #endif
@@ -64,13 +66,15 @@ namespace CONTACT
      \param randomtopologyflag (in): Use random midpoint generator if true
      \param randomseedflag (in): Use random seed for the random midpoint generator
      \param randomgeneratorseed (in): Seed for the random midpoint generator
+     \param topologyfilepath (in): Optional path to a MIRCO .dat topology. Takes precedence over
+                                  the surface generation parameters.
      \\ add remaining params here
 
      */
     RoughNode(int id, std::span<const double> coords, const int owner, const std::vector<int>& dofs,
         const bool issource, const bool initactive, const int hurstexponentfunction,
         int initialtopologystddeviationfunction, int resolution, bool randomtopologyflag,
-        bool randomseedflag, int randomgeneratorseed);
+        bool randomseedflag, int randomgeneratorseed, const std::string& topologyfilepath = "");
 
     /*!
      \brief Return unique ParObject id
@@ -121,7 +125,7 @@ namespace CONTACT
     MIRCO::ViewMatrix_d topology_;
 #endif
 
-    double maxTopologyHeight_;
+    double maxTopologyHeight_ = 0.0;
   };
 }  // namespace CONTACT
 

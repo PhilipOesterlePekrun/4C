@@ -15,13 +15,42 @@
 
 #ifdef FOUR_C_WITH_MIRCO
 
+#include "4C_io_control.hpp"
+
 #include <mirco_kokkostypes.h>
 #include <mirco_topology.h>
 #include <mirco_topologyutilities.h>
 
+#include <filesystem>
+
 #endif
 
 FOUR_C_NAMESPACE_OPEN
+
+#ifdef FOUR_C_WITH_MIRCO
+namespace
+{
+  std::string resolve_mirco_topology_file_path(const std::string& topology_file_path)
+  {
+    if (topology_file_path.empty()) return {};
+
+    std::filesystem::path path(topology_file_path);
+    if (path.is_relative())
+    {
+      const auto output_control = Global::Problem::instance()->output_control_file();
+      if (output_control == nullptr)
+        FOUR_C_THROW(
+            "Cannot resolve relative MIRCO topology file path '{}' because no input file is "
+            "registered in the output control.",
+            topology_file_path);
+
+      path = std::filesystem::path(output_control->input_file_name()).parent_path() / path;
+    }
+
+    return path.lexically_normal().string();
+  }
+}  // namespace
+#endif
 
 CONTACT::RoughNodeType CONTACT::RoughNodeType::instance_;
 
@@ -42,7 +71,8 @@ Core::Communication::ParObject* CONTACT::RoughNodeType::create(
 CONTACT::RoughNode::RoughNode(int id, std::span<const double> coords, const int owner,
     const std::vector<int>& dofs, const bool issource, const bool initactive,
     const int hurstexponentfunction, int initialtopologystddeviationfunction, int resolution,
-    bool randomtopologyflag, bool randomseedflag, int randomgeneratorseed)
+    bool randomtopologyflag, bool randomseedflag, int randomgeneratorseed,
+    const std::string& topologyfilepath)
     : CONTACT::Node(id, coords, owner, dofs, issource, initactive),
       hurstexponentfunction_(hurstexponentfunction),
       initialtopologystddeviationfunction_(initialtopologystddeviationfunction),
@@ -54,16 +84,39 @@ CONTACT::RoughNode::RoughNode(int id, std::span<const double> coords, const int 
 #ifdef FOUR_C_WITH_MIRCO
   if (issource)
   {
-    hurstExponent_ = Global::Problem::instance()
-                         ->function_by_id<Core::Utils::FunctionOfSpaceTime>(hurstexponentfunction_)
-                         .evaluate(this->x(), 1, this->n_dim());
-    initialTopologyStdDeviation_ =
-        Global::Problem::instance()
-            ->function_by_id<Core::Utils::FunctionOfSpaceTime>(initialtopologystddeviationfunction_)
-            .evaluate(this->x(), 1, this->n_dim());
+    const std::string resolved_topology_file_path =
+        resolve_mirco_topology_file_path(topologyfilepath);
+    MIRCO::ViewMatrix_h topology_h;
+    if (!resolved_topology_file_path.empty())
+    {
+      if (!std::filesystem::is_regular_file(resolved_topology_file_path))
+        FOUR_C_THROW("MIRCO topology file '{}' does not exist or is not a regular file.",
+            resolved_topology_file_path);
 
-    auto topology_h = MIRCO::CreateRmgSurface(resolution_, initialTopologyStdDeviation_,
-        hurstExponent_, randomseedflag_, randomgeneratorseed_);
+      topology_h = MIRCO::CreateSurfaceFromFile(resolved_topology_file_path);
+    }
+    else
+    {
+      if (resolution_ < 1 || resolution_ > 8)
+        FOUR_C_THROW("MIRCO Resolution must be between 1 and 8 when no TopologyFilePath is given.");
+
+      hurstExponent_ =
+          Global::Problem::instance()
+              ->function_by_id<Core::Utils::FunctionOfSpaceTime>(hurstexponentfunction_)
+              .evaluate(this->x(), 1, this->n_dim());
+      initialTopologyStdDeviation_ = Global::Problem::instance()
+                                         ->function_by_id<Core::Utils::FunctionOfSpaceTime>(
+                                             initialtopologystddeviationfunction_)
+                                         .evaluate(this->x(), 1, this->n_dim());
+
+      topology_h = MIRCO::CreateRmgSurface(resolution_, initialTopologyStdDeviation_,
+          hurstExponent_, randomseedflag_, randomgeneratorseed_);
+    }
+
+    if (topology_h.extent(0) == 0 || topology_h.extent(0) != topology_h.extent(1))
+      FOUR_C_THROW("MIRCO topology must be a non-empty square matrix, but '{}' produced {} x {}.",
+          resolved_topology_file_path, topology_h.extent(0), topology_h.extent(1));
+
     topology_ = Kokkos::create_mirror_view_and_copy(MIRCO::ExecSpace_Default_t(), topology_h);
 
     maxTopologyHeight_ = MIRCO::GetMax(topology_);

@@ -111,7 +111,10 @@ Core::IO::InputSpec CONTACT::CONSTITUTIVELAW::valid_contact_constitutive_laws()
             parameter<int>("SecondMatID", {.description = "Second material ID"}),
             parameter<double>(
                 "LateralLength", {.description = "length of lateral side of the BEM patch"}),
-            parameter<int>("Resolution", {.description = "resolution of the surface"}),
+            parameter<int>(
+                "Resolution", {.description = "resolution of the generated surface; ignored when "
+                                              "TopologyFilePath is given",
+                                  .default_value = -1}),
             parameter<bool>("PressureGreenFunFlag",
                 {.description = "Use pressure-based Green function instead of a point-force-based",
                     .default_value = true}),
@@ -142,7 +145,10 @@ Core::IO::InputSpec CONTACT::CONSTITUTIVELAW::valid_contact_constitutive_laws()
             parameter<double>("ActiveGapTolerance",
                 {.description = "Minimum gap to consider a node as active", .default_value = 1e-6}),
             parameter<std::string>("TopologyFilePath",
-                {.description = "Path to file with micro-topology data", .default_value = ""}),
+                {.description = "Path to a MIRCO .dat micro-topology file. This takes precedence "
+                                "over all surface generation parameters. Relative paths are "
+                                "resolved against the main input file.",
+                    .default_value = ""}),
         },
         {
             .description = "Mirco function",

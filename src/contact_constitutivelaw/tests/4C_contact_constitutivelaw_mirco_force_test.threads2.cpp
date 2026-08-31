@@ -74,7 +74,7 @@ namespace
       container.add("Offset", 2.0);
       container.add("FiniteDifferenceFraction", 0.001);
       container.add("ActiveGapTolerance", 1e-6);
-      container.add("TopologyFilePath", std::string("sup6.dat"));
+      container.add("TopologyFilePath", std::string(""));
 
       CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams mircococonstlaw(container);
       coconstlaw_ =

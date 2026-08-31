@@ -9,6 +9,7 @@
 
 #include "4C_contact_rough_node.hpp"
 #include "4C_global_data.hpp"
+#include "4C_io_control.hpp"
 #include "4C_linalg_serialdensematrix.hpp"
 #include "4C_linalg_serialdensevector.hpp"
 #include "4C_mat_par_bundle.hpp"
@@ -17,12 +18,37 @@
 
 #include <mirco_evaluate.h>
 #include <mirco_kokkostypes.h>
+#include <mirco_shapefactors.h>
 #include <mirco_topology.h>
 #include <mirco_topologyutilities.h>
 
+#include <filesystem>
 #include <vector>
 
 FOUR_C_NAMESPACE_OPEN
+
+namespace
+{
+  std::string resolve_mirco_topology_file_path(const std::string& topology_file_path)
+  {
+    if (topology_file_path.empty()) return {};
+
+    std::filesystem::path path(topology_file_path);
+    if (path.is_relative())
+    {
+      const auto output_control = Global::Problem::instance()->output_control_file();
+      if (output_control == nullptr)
+        FOUR_C_THROW(
+            "Cannot resolve relative MIRCO topology file path '{}' because no input file is "
+            "registered in the output control.",
+            topology_file_path);
+
+      path = std::filesystem::path(output_control->input_file_name()).parent_path() / path;
+    }
+
+    return path.lexically_normal().string();
+  }
+}  // namespace
 
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
@@ -42,7 +68,8 @@ CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams::MircoConstitutiveLawParams
       warm_starting_flag_(container.get<bool>("WarmStartingFlag")),
       finite_difference_fraction_(container.get<double>("FiniteDifferenceFraction")),
       active_gap_tolerance_(container.get<double>("ActiveGapTolerance")),
-      topology_file_path_((container.get<std::string>("TopologyFilePath")))
+      topology_file_path_(
+          resolve_mirco_topology_file_path(container.get<std::string>("TopologyFilePath")))
 {
   this->set_parameters();
 }
@@ -87,30 +114,29 @@ void CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams::set_parameters()
   // Composite Young's modulus
   composite_youngs_ = pow(((1 - pow(nu1, 2)) / E1 + (1 - pow(nu2, 2)) / E2), -1);
 
-  double ngrid = (pow(2, resolution_) + 1);
+  int ngrid = 0;
+  if (!topology_file_path_.empty())
+  {
+    if (!std::filesystem::is_regular_file(topology_file_path_))
+      FOUR_C_THROW(
+          "MIRCO topology file '{}' does not exist or is not a regular file.", topology_file_path_);
+
+    const auto topology = MIRCO::CreateSurfaceFromFile(topology_file_path_);
+    if (topology.extent(0) == 0 || topology.extent(0) != topology.extent(1))
+      FOUR_C_THROW("MIRCO topology must be a non-empty square matrix, but '{}' produced {} x {}.",
+          topology_file_path_, topology.extent(0), topology.extent(1));
+    ngrid = static_cast<int>(topology.extent(0));
+  }
+  else
+  {
+    if (resolution_ < 1 || resolution_ > 8)
+      FOUR_C_THROW("MIRCO Resolution must be between 1 and 8 when no TopologyFilePath is given.");
+    ngrid = (1 << resolution_) + 1;
+  }
+
   grid_size_ = lateral_length_ / ngrid;
 
-  // Shape factors (See section 3.3 of https://doi.org/10.1007/s00466-019-01791-3)
-  // These are the shape factors to calculate the elastic compliance correction of the micro-scale
-  // contact constitutive law for various resolutions.
-  // NOTE: Currently MIRCO works for resouluion of 1 to 8. The following map store the shape
-  // factors for resolution of 1 to 8.
-
-  // The following pressure based constants are calculated by solving a flat indentor problem in
-  // MIRCO using the pressure based Green function described in Pohrt and Li (2014).
-  // http://dx.doi.org/10.1134/s1029959914040109
-  const std::map<int, double> shape_factors_pressure{{1, 0.961389237917602}, {2, 0.924715342432435},
-      {3, 0.899837531880697}, {4, 0.884976751041942}, {5, 0.876753783192863},
-      {6, 0.872397956576882}, {7, 0.8701463093314326}, {8, 0.8689982669426167}};
-
-  // The following force based constants are taken from Table 1 of Bonari et al. (2020).
-  // https://doi.org/10.1007/s00466-019-01791-3
-  const std::map<int, double> shape_factors_force{{1, 0.778958541513360}, {2, 0.805513388666376},
-      {3, 0.826126871395416}, {4, 0.841369158110513}, {5, 0.851733020725652},
-      {6, 0.858342234203154}, {7, 0.862368243479785}, {8, 0.864741597831785}};
-
-  const double ShapeFactor = pressure_green_fun_flag_ ? shape_factors_pressure.at(resolution_)
-                                                      : shape_factors_force.at(resolution_);
+  const double ShapeFactor = MIRCO::getShapeFactor(ngrid, pressure_green_fun_flag_);
 
   elastic_compliance_correction_ = lateral_length_ * composite_youngs_ / ShapeFactor;
 

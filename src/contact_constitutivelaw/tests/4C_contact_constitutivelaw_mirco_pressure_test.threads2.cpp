@@ -12,6 +12,7 @@
 #include "4C_global_data.hpp"
 #include "4C_mat_material_factory.hpp"
 #include "4C_mat_par_bundle.hpp"
+#include "4C_unittest_utils_support_files_test.hpp"
 #include "4C_utils_function.hpp"
 #include "4C_utils_singleton_owner.hpp"
 
@@ -73,7 +74,7 @@ namespace
       container.add("Offset", 2.0);
       container.add("FiniteDifferenceFraction", 0.001);
       container.add("ActiveGapTolerance", 1e-6);
-      container.add("TopologyFilePath", std::string("sup6.dat"));
+      container.add("TopologyFilePath", std::string(""));
 
       CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams mircococonstlaw(container);
       coconstlaw_ =
@@ -116,6 +117,47 @@ namespace
   {
     EXPECT_NEAR(coconstlaw_->evaluate_derivative(-12.0, cnode.get()), 1.17161352338802e-04, 1.e-10);
     EXPECT_ANY_THROW(coconstlaw_->evaluate_derivative(-0.25, cnode.get()));
+  }
+
+  TEST_F(MircoConstitutiveLawPressureTest, TopologyFileOverridesGenerationParameters)
+  {
+    const std::string topology_file =
+        TESTING::get_support_file_path("test_files/mirco_topology_n5.dat");
+
+    Core::IO::InputParameterContainer container;
+    container.add("FirstMatID", 1);
+    container.add("SecondMatID", 1);
+    container.add("LateralLength", 1000.0);
+    container.add("Resolution", -1);
+    container.add("PressureGreenFunFlag", true);
+    container.add("InitialTopologyStdDeviationFunct", 999);
+    container.add("HurstExponentFunct", 999);
+    container.add("RandomTopologyFlag", true);
+    container.add("RandomSeedFlag", false);
+    container.add("RandomGeneratorSeed", 95);
+    container.add("Tolerance", 0.01);
+    container.add("MaxIteration", 100);
+    container.add("WarmStartingFlag", true);
+    container.add("Offset", 2.0);
+    container.add("FiniteDifferenceFraction", 0.001);
+    container.add("ActiveGapTolerance", 1e-6);
+    container.add("TopologyFilePath", topology_file);
+
+    CONTACT::CONSTITUTIVELAW::MircoConstitutiveLawParams params(container);
+    EXPECT_DOUBLE_EQ(params.get_grid_size(), 200.0);
+
+    std::vector<double> x(3, 0.0);
+    std::vector<int> dofs(3);
+    CONTACT::RoughNode node(
+        1, x, 1, dofs, true, true, 999, 999, -1, true, false, 95, topology_file);
+    const auto topology_h =
+        Kokkos::create_mirror_view_and_copy(MIRCO::MemorySpace_Host_t(), *node.get_topology());
+
+    ASSERT_EQ(topology_h.extent(0), 5);
+    ASSERT_EQ(topology_h.extent(1), 5);
+    EXPECT_DOUBLE_EQ(topology_h(0, 0), 57.299175);
+    EXPECT_DOUBLE_EQ(topology_h(3, 1), 0.0);
+    EXPECT_DOUBLE_EQ(topology_h(4, 3), 98.2431);
   }
 }  // namespace
 

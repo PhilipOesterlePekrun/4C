@@ -722,6 +722,7 @@ void CONTACT::STRATEGY::Factory::build_interfaces(const Teuchos::ParameterList& 
     int randomgeneratorseed = 0;
     int hurstexponentfunction = 0;
     int initialtopologystddeviationfunction = 0;
+    std::string topologyfilepath;
 
     if (contactconstitutivelaw_id.has_value() && contactconstitutivelaw_id.value() > 0)
     {
@@ -742,6 +743,7 @@ void CONTACT::STRATEGY::Factory::build_interfaces(const Teuchos::ParameterList& 
         hurstexponentfunction = mirco_data.get<int>("HurstExponentFunct");
         initialtopologystddeviationfunction =
             mirco_data.get<int>("InitialTopologyStdDeviationFunct");
+        topologyfilepath = mirco_data.get<std::string>("TopologyFilePath");
       }
     }
 
@@ -987,7 +989,7 @@ void CONTACT::STRATEGY::Factory::build_interfaces(const Teuchos::ParameterList& 
             cnode = std::make_shared<CONTACT::RoughNode>(node->id(), node->x(), node->owner(),
                 discret().dof(0, node), issource[j], isactive[j] + foundinitialactive,
                 hurstexponentfunction, initialtopologystddeviationfunction, resolution,
-                randomtopologyflag, randomseedflag, randomgeneratorseed);
+                randomtopologyflag, randomseedflag, randomgeneratorseed, topologyfilepath);
           }
           else
           {
