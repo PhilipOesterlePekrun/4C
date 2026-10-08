@@ -9,6 +9,7 @@
 #include "4C_config_revision.hpp"
 
 #include "4C_comm_utils.hpp"
+#include "4C_contact_constitutivelaw_mirco_hybrid.hpp"
 #include "4C_global_data.hpp"
 #include "4C_global_full_io.hpp"
 #include "4C_global_legacy_module.hpp"
@@ -22,6 +23,7 @@
 #include <Kokkos_Core.hpp>
 #include <unistd.h>
 
+#include <cstdlib>
 #include <filesystem>
 #include <format>
 #include <iostream>
@@ -52,7 +54,16 @@ int main(int argc, char* argv[])
 {
   // Initialize MPI and use RAII to create a guard object that will finalize MPI when it goes out of
   // scope.
-  MPI_Init(&argc, &argv);
+  // Kokkos/OpenMP may create workers; only this main thread calls MPI.
+  int provided_thread_support = MPI_THREAD_SINGLE;
+  if (MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided_thread_support) != MPI_SUCCESS)
+    return EXIT_FAILURE;
+  if (provided_thread_support < MPI_THREAD_FUNNELED)
+  {
+    std::cerr << "4C requires MPI_THREAD_FUNNELED for Kokkos/OpenMP execution.\n";
+    MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+    return EXIT_FAILURE;
+  }
   struct CleanUpMPI
   {
     ~CleanUpMPI() { MPI_Finalize(); }
@@ -60,6 +71,14 @@ int main(int argc, char* argv[])
 
   // Kokkos should be initialized right after MPI.
   Kokkos::ScopeGuard kokkos_guard{};
+
+  // Opt-in single-node MPI/OpenMP sharing for MIRCO. Kokkos keeps its full pool;
+  // ordinary OpenMP/BLAS calls use one thread outside a rank's MIRCO turn.
+  CONTACT::MircoHybridExecution::initialize_process(MPI_COMM_WORLD);
+  struct FinalizeMircoHybrid
+  {
+    ~FinalizeMircoHybrid() { CONTACT::MircoHybridExecution::finalize_process(); }
+  } finalize_mirco_hybrid;
 
   auto arguments = parse_command_line(argc, argv);
   Core::Communication::CommConfig config{

@@ -16,6 +16,8 @@ FOUR_C_NAMESPACE_OPEN
 
 namespace CONTACT
 {
+  class MircoHybridExecution;
+
   namespace CONSTITUTIVELAW
   {
     class ConstitutiveLaw;
@@ -41,6 +43,8 @@ namespace CONTACT
     ConstitutivelawInterface(const std::shared_ptr<Mortar::InterfaceDataContainer>& interfaceData,
         const int id, MPI_Comm comm, const int dim, const Teuchos::ParameterList& icontact,
         bool selfcontact, const int contactconstitutivelawid);
+
+    ~ConstitutivelawInterface() override;
 
     /**
      * \brief Evaluate regularized normal forces at source nodes
@@ -83,6 +87,9 @@ namespace CONTACT
      i.e. on the micro roughness
      */
     std::shared_ptr<CONTACT::CONSTITUTIVELAW::ConstitutiveLaw> coconstlaw_;
+
+    /// Optional, single-node sleeping ownership gate for rank-local MIRCO solves.
+    std::unique_ptr<MircoHybridExecution> mirco_hybrid_;
   };  // class Interface
 }  // namespace CONTACT
 
