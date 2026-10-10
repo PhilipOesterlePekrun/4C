@@ -21,12 +21,24 @@
 #include "4C_utils_singleton_owner.hpp"
 
 #include <Kokkos_Core.hpp>
+#include <Tpetra_Map_decl.hpp>
+#include <Tpetra_MultiVector_decl.hpp>
 #include <unistd.h>
 
 #include <cstdlib>
 #include <filesystem>
 #include <format>
 #include <iostream>
+#include <string_view>
+
+#ifdef __linux__
+#include <dlfcn.h>
+#include <sched.h>
+#endif
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 #ifdef FOUR_C_ENABLE_FE_TRAPPING
 #include <cfenv>
@@ -39,6 +51,7 @@ void entrypoint_switch();
 void run(CommandlineArguments& cli_args, Core::Communication::Communicators& communicators);
 CommandlineArguments parse_command_line(int argc, char** argv);
 void get_memory_high_water_mark(MPI_Comm comm);
+void print_parallel_configuration(MPI_Comm comm);
 
 /**
  * @brief The main function of the central 4C executable.
@@ -218,9 +231,125 @@ int main(int argc, char* argv[])
     /*----------------------------------------------------------------------*/
 
     get_memory_high_water_mark(communicators.global_comm());
+    // Report after all calculation timers, before the MPI/Kokkos guards finalize.
+    print_parallel_configuration(communicators.global_comm());
   }
 
   return (0);
+}
+
+
+void print_parallel_configuration(MPI_Comm comm)
+{
+  if (Core::Communication::my_mpi_rank(comm) != 0) return;
+
+  using DefaultExec = Kokkos::DefaultExecutionSpace;
+  using HostExec = Kokkos::DefaultHostExecutionSpace;
+  using DefaultMemory = DefaultExec::memory_space;
+  using HostMemory = HostExec::memory_space;
+  using TpetraExec = Tpetra::Map<>::execution_space;
+  using TpetraMemory = Tpetra::Map<>::memory_space;
+  // Tpetra has a default Node, not a separate global "default host" setting.
+  // Report its actual MultiVector host mirror, which can use a different backend.
+  using TpetraHostView = Tpetra::MultiVector<>::host_view_type;
+  using TpetraHostExec = TpetraHostView::execution_space;
+  using TpetraHostMemory = TpetraHostView::memory_space;
+
+  int mpi_thread_support = MPI_THREAD_SINGLE;
+  MPI_Query_thread(&mpi_thread_support);
+  const char* mpi_thread_name = "unknown";
+  switch (mpi_thread_support)
+  {
+    case MPI_THREAD_SINGLE:
+      mpi_thread_name = "SINGLE";
+      break;
+    case MPI_THREAD_FUNNELED:
+      mpi_thread_name = "FUNNELED";
+      break;
+    case MPI_THREAD_SERIALIZED:
+      mpi_thread_name = "SERIALIZED";
+      break;
+    case MPI_THREAD_MULTIPLE:
+      mpi_thread_name = "MULTIPLE";
+      break;
+  }
+
+  std::cout << "\n========== Parallel configuration (end of run, rank 0) ==========\n"
+            << "MPI ranks: " << Core::Communication::num_mpi_ranks(comm) << '\n'
+            << "MPI thread support: " << mpi_thread_name << '\n'
+            << "MIRCO hybrid enabled: " << (CONTACT::MircoHybridExecution::enabled() ? "yes" : "no")
+            << '\n';
+
+  const auto print_space = [](std::string_view label, const auto& space, const char* memory_name)
+  {
+    std::cout << label << ": execution=" << space.name() << ", memory=" << memory_name
+              << ", concurrency=" << space.concurrency() << '\n';
+  };
+  print_space("Kokkos default", DefaultExec{}, DefaultMemory::name());
+  print_space("Kokkos default host", HostExec{}, HostMemory::name());
+  print_space("Tpetra default node", TpetraExec{}, TpetraMemory::name());
+  print_space("Tpetra MultiVector host mirror", TpetraHostExec{}, TpetraHostMemory::name());
+  std::cout << "Kokkos host thread count: " << Kokkos::num_threads() << '\n';
+
+  const int device_count = Kokkos::num_devices();
+  if (device_count >= 0)
+    std::cout << "Kokkos visible device count: " << device_count
+              << "; selected device ID: " << Kokkos::device_id() << '\n';
+  else
+    std::cout << "Kokkos device count/ID: not applicable (no device backend reported)\n";
+
+#ifdef HAVE_TPETRA_INST_SERIAL
+  std::cout << "Trilinos Tpetra Serial explicit instantiation: enabled\n";
+#else
+  std::cout << "Trilinos Tpetra Serial explicit instantiation: disabled\n";
+#endif
+#ifdef HAVE_TPETRA_INST_OPENMP
+  std::cout << "Trilinos Tpetra OpenMP explicit instantiation: enabled\n";
+#else
+  std::cout << "Trilinos Tpetra OpenMP explicit instantiation: disabled\n";
+#endif
+
+#ifdef _OPENMP
+  std::cout << "OpenMP current default max threads: " << omp_get_max_threads() << '\n'
+            << "OpenMP thread limit: " << omp_get_thread_limit() << '\n'
+            << "OpenMP dynamic teams: " << (omp_get_dynamic() ? "enabled" : "disabled") << '\n';
+#else
+  std::cout << "OpenMP compilation: disabled for this translation unit\n";
+#endif
+
+#ifdef __linux__
+  cpu_set_t cpus;
+  CPU_ZERO(&cpus);
+  if (sched_getaffinity(0, sizeof(cpus), &cpus) == 0)
+  {
+    std::cout << "Rank 0 calling-thread CPU affinity:";
+    for (int cpu = 0; cpu < CPU_SETSIZE; ++cpu)
+      if (CPU_ISSET(cpu, &cpus)) std::cout << ' ' << cpu;
+    std::cout << '\n';
+  }
+
+  // Query the library already loaded by this process; do not load or reconfigure a backend.
+  if (void* symbol = dlsym(RTLD_DEFAULT, "openblas_get_config"))
+  {
+    const auto blas_config = reinterpret_cast<char* (*)()>(symbol);
+    std::cout << "OpenBLAS configuration: " << blas_config() << '\n';
+    Dl_info library{};
+    if (dladdr(symbol, &library) != 0 && library.dli_fname != nullptr)
+      std::cout << "OpenBLAS loaded library: " << library.dli_fname << '\n';
+    if (void* query = dlsym(RTLD_DEFAULT, "openblas_get_num_threads"))
+      std::cout << "OpenBLAS current thread count: " << reinterpret_cast<int (*)()>(query)()
+                << '\n';
+    if (void* query = dlsym(RTLD_DEFAULT, "openblas_get_parallel"))
+      std::cout << "OpenBLAS threading mode (0=serial, 1=pthreads, 2=OpenMP): "
+                << reinterpret_cast<int (*)()>(query)() << '\n';
+  }
+#endif
+
+  std::cout << "Concurrency is a configured capacity, not a count of currently busy workers.\n"
+            << "Current OpenMP/BLAS settings are sampled outside MIRCO; hybrid mode restores "
+               "them to one while retaining the Kokkos team.\n"
+            << "===============================================================\n"
+            << std::flush;
 }
 
 void run(CommandlineArguments& cli_args, Core::Communication::Communicators& communicators)
